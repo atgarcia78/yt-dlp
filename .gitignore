@@ -8,6 +8,7 @@ dist/
 zip/
 tmp/
 venv/
+completions/
 
 # Misc
 *~
@@ -24,7 +25,9 @@ updates_key.pem
 *.class
 
 # Generated
+AUTHORS
 README.txt
+.mailmap
 *.1
 *.bash-completion
 *.fish
@@ -34,9 +37,10 @@ README.txt
 *.spec
 
 # Binary
-youtube-dl
-youtube-dlc
-youtube-dlc.zip
+/youtube-dl
+/youtube-dlc
+/yt-dlp
+yt-dlp.zip
 *.exe
 
 # Downloaded
@@ -50,12 +54,15 @@ youtube-dlc.zip
 *.m4v
 *.mp3
 *.3gp
+*.webm
 *.wav
 *.ape
 *.mkv
 *.swf
 *.part
+*.part-*
 *.ytdl
+*.dump
 *.frag
 *.frag.urls
 *.aria2
@@ -82,9 +89,7 @@ cookies.txt
 .idea
 *.iml
 .vscode
-*.sublime-workspace
-*.sublime-project
-!yt-dlp.sublime-project
+*.sublime-*
 
 # Lazy extractors
 */extractor/lazy_extractors.py

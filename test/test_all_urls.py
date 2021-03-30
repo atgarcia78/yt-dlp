@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from test.helper import gettestcases
 
-from youtube_dlc.extractor import (
+from yt_dlp.extractor import (
     FacebookIE,
     gen_extractors,
     YoutubeIE,
@@ -37,7 +37,6 @@ class TestAllURLsMatching(unittest.TestCase):
         assertPlaylist('PL63F0C78739B09958')
         assertTab('https://www.youtube.com/AsapSCIENCE')
         assertTab('https://www.youtube.com/embedded')
-        assertTab('https://www.youtube.com/feed')  # Own channel's home page
         assertTab('https://www.youtube.com/playlist?list=UUBABnxM4Ar9ten8Mdjj1j0Q')
         assertTab('https://www.youtube.com/course?list=ECUl4u3cNGP61MdtwGTqZA0MreSaDybji8')
         assertTab('https://www.youtube.com/playlist?list=PLwP_SiAcdui0KVebT0mU9Apz359a4ubsC')
