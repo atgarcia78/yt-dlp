@@ -10,7 +10,7 @@ import json
 
 from .common import AudioConversionError, PostProcessor
 
-from ..compat import compat_str
+from ..compat import compat_str, compat_numeric_types
 from ..utils import (
     encodeArgument,
     encodeFilename,
@@ -530,6 +530,8 @@ class FFmpegMetadataPP(FFmpegPostProcessor):
         metadata = {}
 
         def add(meta_list, info_list=None):
+            if not meta_list:
+                return
             if not info_list:
                 info_list = meta_list
             if not isinstance(meta_list, (list, tuple)):
@@ -537,7 +539,7 @@ class FFmpegMetadataPP(FFmpegPostProcessor):
             if not isinstance(info_list, (list, tuple)):
                 info_list = (info_list,)
             for info_f in info_list:
-                if info.get(info_f) is not None:
+                if isinstance(info.get(info_f), (compat_str, compat_numeric_types)):
                     for meta_f in meta_list:
                         metadata[meta_f] = info[info_f]
                     break
@@ -563,6 +565,10 @@ class FFmpegMetadataPP(FFmpegPostProcessor):
         add('episode_id', ('episode', 'episode_id'))
         add('episode_sort', 'episode_number')
 
+        prefix = 'meta_'
+        for key in filter(lambda k: k.startswith(prefix), info.keys()):
+            add(key[len(prefix):], key)
+
         if not metadata:
             self.to_screen('There isn\'t any metadata to add')
             return [], info
@@ -577,7 +583,7 @@ class FFmpegMetadataPP(FFmpegPostProcessor):
         else:
             options.extend(['-c', 'copy'])
 
-        for (name, value) in metadata.items():
+        for name, value in metadata.items():
             options.extend(['-metadata', '%s=%s' % (name, value)])
 
         chapters = info.get('chapters', [])
@@ -810,3 +816,73 @@ class FFmpegSplitChaptersPP(FFmpegPostProcessor):
             destination, opts = self._ffmpeg_args_for_chapter(idx + 1, chapter, info)
             self.real_run_ffmpeg([(info['filepath'], opts)], [(destination, ['-c', 'copy'])])
         return [], info
+
+
+class FFmpegThumbnailsConvertorPP(FFmpegPostProcessor):
+    def __init__(self, downloader=None, format=None):
+        super(FFmpegThumbnailsConvertorPP, self).__init__(downloader)
+        self.format = format
+
+    @staticmethod
+    def is_webp(path):
+        with open(encodeFilename(path), 'rb') as f:
+            b = f.read(12)
+        return b[0:4] == b'RIFF' and b[8:] == b'WEBP'
+
+    def fixup_webp(self, info, idx=-1):
+        thumbnail_filename = info['thumbnails'][idx]['filepath']
+        _, thumbnail_ext = os.path.splitext(thumbnail_filename)
+        if thumbnail_ext:
+            thumbnail_ext = thumbnail_ext[1:].lower()
+            if thumbnail_ext != 'webp' and self.is_webp(thumbnail_filename):
+                self.to_screen('Correcting thumbnail "%s" extension to webp' % thumbnail_filename)
+                webp_filename = replace_extension(thumbnail_filename, 'webp')
+                if os.path.exists(webp_filename):
+                    os.remove(webp_filename)
+                os.rename(encodeFilename(thumbnail_filename), encodeFilename(webp_filename))
+                info['thumbnails'][idx]['filepath'] = webp_filename
+                info['__files_to_move'][webp_filename] = replace_extension(
+                    info['__files_to_move'].pop(thumbnail_filename), 'webp')
+
+    def convert_thumbnail(self, thumbnail_filename, ext):
+        if ext != 'jpg':
+            raise FFmpegPostProcessorError('Only conversion to jpg is currently supported')
+        # NB: % is supposed to be escaped with %% but this does not work
+        # for input files so working around with standard substitution
+        escaped_thumbnail_filename = thumbnail_filename.replace('%', '#')
+        os.rename(encodeFilename(thumbnail_filename), encodeFilename(escaped_thumbnail_filename))
+        escaped_thumbnail_jpg_filename = replace_extension(escaped_thumbnail_filename, 'jpg')
+        self.to_screen('Converting thumbnail "%s" to JPEG' % escaped_thumbnail_filename)
+        self.run_ffmpeg(escaped_thumbnail_filename, escaped_thumbnail_jpg_filename, ['-bsf:v', 'mjpeg2jpeg'])
+        thumbnail_jpg_filename = replace_extension(thumbnail_filename, 'jpg')
+        # Rename back to unescaped
+        os.rename(encodeFilename(escaped_thumbnail_filename), encodeFilename(thumbnail_filename))
+        os.rename(encodeFilename(escaped_thumbnail_jpg_filename), encodeFilename(thumbnail_jpg_filename))
+        return thumbnail_jpg_filename
+
+    def run(self, info):
+        if self.format != 'jpg':
+            raise FFmpegPostProcessorError('Only conversion to jpg is currently supported')
+        files_to_delete = []
+        has_thumbnail = False
+
+        for idx, thumbnail_dict in enumerate(info['thumbnails']):
+            if 'filepath' not in thumbnail_dict:
+                continue
+            has_thumbnail = True
+            self.fixup_webp(info, idx)
+            original_thumbnail = thumbnail_dict['filepath']
+            _, thumbnail_ext = os.path.splitext(original_thumbnail)
+            if thumbnail_ext:
+                thumbnail_ext = thumbnail_ext[1:].lower()
+            if thumbnail_ext == self.format:
+                self.to_screen('Thumbnail "%s" is already in the requested format' % original_thumbnail)
+                continue
+            thumbnail_dict['filepath'] = self.convert_thumbnail(original_thumbnail, self.format)
+            files_to_delete.append(original_thumbnail)
+            info['__files_to_move'][thumbnail_dict['filepath']] = replace_extension(
+                info['__files_to_move'][original_thumbnail], self.format)
+
+        if not has_thumbnail:
+            self.to_screen('There aren\'t any thumbnails to convert')
+        return files_to_delete, info

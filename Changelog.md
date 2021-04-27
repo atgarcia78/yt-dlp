@@ -6,8 +6,10 @@
 * Run `make doc`
 * Update Changelog.md and CONTRIBUTORS
 * Change "Merged with ytdl" version in Readme.md if needed
+* Add new/fixed extractors in "new features" section of Readme.md
 * Commit to master as `Release <version>`
-* Push to origin/release - build task will now run
+* Push to origin/release using `git push origin master:release`
+    build task will now run
 * Update version.py using devscripts\update-version.py
 * Run `make issuetemplates`
 * Commit to master as `[version] update :ci skip all`
@@ -17,9 +19,88 @@
 -->
 
 
+### 2021.04.22
+* **Improve output template:**
+    * Objects can be traversed like `%(field.key1.key2)s`
+    * An offset can be added to numeric fields as `%(field+N)s`
+    * Deprecates `--autonumber-start`
+* **Improve `--sub-langs`:**
+    * Treat `--sub-langs` entries as regex
+    * `all` can be used to refer to all the subtitles
+    * language codes can be prefixed with `-` to exclude it
+    * Deprecates `--all-subs`
+* Add option `--ignore-no-formats-error` to ignore the "no video format" and similar errors
+* Add option `--skip-playlist-after-errors` to skip the rest of a playlist after a given number of errors are encountered
+* Merge youtube-dl: Upto [commit/7e8b3f9](https://github.com/ytdl-org/youtube-dl/commit/7e8b3f9439ebefb3a3a4e5da9c0bd2b595976438)
+* [downloader] Fix bug in downloader selection
+* [BilibiliChannel] Fix pagination by [nao20010128nao](https://github.com/nao20010128nao) and[pukkandan](https://github.com/pukkandan)
+* [rai] Add support for http formats by [nixxo](https://github.com/nixxo)
+* [TubiTv] Add TubiTvShowIE by [Ashish0804](https://github.com/Ashish0804)
+* [twitcasting] Fix extractor
+* [viu:ott] Fix extractor and support series by [lkho](https://github.com/lkho) and[pukkandan](https://github.com/pukkandan)
+* [youtube:tab] Show unavailable videos in playlists by [colethedj](https://github.com/colethedj)
+* [youtube:tab] Reload with unavailable videos for all playlists
+* [youtube] Ignore invalid stretch ratio
+* [youtube] Improve channel syncid extraction to support ytcfg by [colethedj](https://github.com/colethedj)
+* [youtube] Standardize API calls for tabs, mixes and search by [colethedj](https://github.com/colethedj)
+* [youtube] Bugfix in `_extract_ytcfg`
+* [mildom:user:vod] Download only necessary amount of pages
+* [mildom] Remove proxy completely by [fstirlitz](https://github.com/fstirlitz)
+* [go] Fix `_VALID_URL`
+* [MetadataFromField] Improve regex and add tests
+* [Exec] Ensure backward compatibility when the command contains `%`
+* [extractor] Fix inconsistent use of `report_warning`
+* Ensure `mergeall` selects best format when multistreams are disabled
+* Improve the yt-dlp.sh script by [fstirlitz](https://github.com/fstirlitz)
+* [lazy_extractor] Do not load plugins
+* [ci] Disable fail-fast
+* [documentation] Clarify which deprecated options still work
+* [documentation] Fix typos
+
+
+### 2021.04.11
+* Add option `--convert-thumbnails` (only jpg currently supported)
+* Format selector `mergeall` to download and merge all formats
+* Pass any field to `--exec` using similar syntax to output template
+* Choose downloader for each protocol using `--downloader PROTO:NAME`
+    * Alias `--downloader` for `--external-downloader`
+    * Added `native` as an option for the downloader
+* Merge youtube-dl: Upto [commit/4fb25ff](https://github.com/ytdl-org/youtube-dl/commit/4fb25ff5a3be5206bb72e5c4046715b1529fb2c7) (except vimeo)
+* [DiscoveryPlusIndia] Add DiscoveryPlusIndiaShowIE by [Ashish0804](https://github.com/Ashish0804)
+* [NFHSNetwork] Add extractor by [llacb47](https://github.com/llacb47)
+* [nebula] Add extractor (watchnebula.com) by [hheimbuerger](https://github.com/hheimbuerger)
+* [nitter] Fix extraction of reply tweets and update instance list by [B0pol](https://github.com/B0pol)
+* [nitter] Fix thumbnails by [B0pol](https://github.com/B0pol)
+* [youtube] Fix thumbnail URL
+* [youtube] Parse API parameters from initial webpage by [colethedj](https://github.com/colethedj)
+* [youtube] Extract comments' approximate timestamp by [colethedj](https://github.com/colethedj)
+* [youtube] Fix alert extraction
+* [bilibili] Fix uploader
+* [utils] Add `datetime_from_str` and `datetime_add_months` by [colethedj](https://github.com/colethedj)
+* Run some `postprocessors` before actual download
+* Improve argument parsing for `-P`, `-o`, `-S`
+* Fix some `m3u8` not obeying `--allow-unplayable-formats`
+* Fix default of `dynamic_mpd`
+* Deprecate `--all-formats`, `--include-ads`, `--hls-prefer-native`, `--hls-prefer-ffmpeg`
+* [documentation] Improvements
+
+### 2021.04.03
+* Merge youtube-dl: Upto [commit/654b4f4](https://github.com/ytdl-org/youtube-dl/commit/654b4f4ff2718f38b3182c1188c5d569c14cc70a)
+* Ability to set a specific field in the file's metadata using `--parse-metadata`
+* Ability to select n'th best format like `-f bv*.2`
+* [DiscoveryPlus] Add discoveryplus.in
+* [la7] Add podcasts and podcast playlists by [nixxo](https://github.com/nixxo)
+* [mildom] Update extractor with current proxy by [nao20010128nao](https://github.com/nao20010128nao)
+* [ard:mediathek] Fix video id extraction
+* [generic] Detect Invidious' link element
+* [youtube] Show premium state in `availability` by [colethedj](https://github.com/colethedj)
+* [viewsource] Add extractor to handle `view-source:`
+* [sponskrub] Run before embedding thumbnail
+* [documentation] Improve `--parse-metadata` documentation
+
+
 ### 2021.03.24.1
 * Revert [commit/8562218](https://github.com/ytdl-org/youtube-dl/commit/8562218350a79d4709da8593bb0c538aa0824acf)
-
 
 ### 2021.03.24
 * Merge youtube-dl: Upto 2021.03.25 ([commit/8562218](https://github.com/ytdl-org/youtube-dl/commit/8562218350a79d4709da8593bb0c538aa0824acf))
@@ -27,7 +108,7 @@
 * Ability to load playlist infojson using `--load-info-json`
 * Write current epoch to infojson when using `--no-clean-infojson`
 * [youtube_live_chat] fix bug when trying to set cookies
-* [niconico] Fix for when logged in by: [CXwudi](https://github.com/CXwudi) and [xtkoba](https://github.com/xtkoba)
+* [niconico] Fix for when logged in by [CXwudi](https://github.com/CXwudi) and [xtkoba](https://github.com/xtkoba)
 * [linuxacadamy] Fix login
 
 
@@ -101,7 +182,6 @@
 
 ### 2021.03.03.2
 * [build] Fix bug
-
 
 ### 2021.03.03
 * [youtube] Use new browse API for continuation page extraction by [colethedj](https://github.com/colethedj) and [pukkandan](https://github.com/pukkandan)
@@ -357,7 +437,7 @@
 
 ### 2021.01.08
 * Merge youtube-dl: Upto [2021.01.08](https://github.com/ytdl-org/youtube-dl/releases/tag/2021.01.08) except stitcher ([1](https://github.com/ytdl-org/youtube-dl/commit/bb38a1215718cdf36d73ff0a7830a64cd9fa37cc), [2](https://github.com/ytdl-org/youtube-dl/commit/a563c97c5cddf55f8989ed7ea8314ef78e30107f))
-* Moved changelog to seperate file
+* Moved changelog to separate file
 
 
 ### 2021.01.07-1

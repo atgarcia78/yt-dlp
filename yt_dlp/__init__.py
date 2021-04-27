@@ -228,8 +228,11 @@ def _real_main(argv=None):
         if not re.match(remux_regex, opts.remuxvideo):
             parser.error('invalid video remux format specified')
     if opts.convertsubtitles is not None:
-        if opts.convertsubtitles not in ['srt', 'vtt', 'ass', 'lrc']:
+        if opts.convertsubtitles not in ('srt', 'vtt', 'ass', 'lrc'):
             parser.error('invalid subtitle format specified')
+    if opts.convertthumbnails is not None:
+        if opts.convertthumbnails not in ('jpg', ):
+            parser.error('invalid thumbnail format specified')
 
     if opts.date is not None:
         date = DateRange.day(opts.date)
@@ -322,7 +325,22 @@ def _real_main(argv=None):
         postprocessors.append({
             'key': 'MetadataFromField',
             'formats': opts.metafromfield,
-            'when': 'beforedl'
+            # Run this immediately after extraction is complete
+            'when': 'pre_process'
+        })
+    if opts.convertsubtitles:
+        postprocessors.append({
+            'key': 'FFmpegSubtitlesConvertor',
+            'format': opts.convertsubtitles,
+            # Run this before the actual video download
+            'when': 'before_dl'
+        })
+    if opts.convertthumbnails:
+        postprocessors.append({
+            'key': 'FFmpegThumbnailsConvertor',
+            'format': opts.convertthumbnails,
+            # Run this before the actual video download
+            'when': 'before_dl'
         })
     if opts.extractaudio:
         postprocessors.append({
@@ -351,15 +369,11 @@ def _real_main(argv=None):
     # so metadata can be added here.
     if opts.addmetadata:
         postprocessors.append({'key': 'FFmpegMetadata'})
-    if opts.convertsubtitles:
-        postprocessors.append({
-            'key': 'FFmpegSubtitlesConvertor',
-            'format': opts.convertsubtitles,
-        })
     if opts.embedsubtitles:
         already_have_subtitle = opts.writesubtitles
         postprocessors.append({
             'key': 'FFmpegEmbedSubtitle',
+            # already_have_subtitle = True prevents the file from being deleted after embedding
             'already_have_subtitle': already_have_subtitle
         })
         if not already_have_subtitle:
@@ -368,15 +382,9 @@ def _real_main(argv=None):
     # this was the old behaviour if only --all-sub was given.
     if opts.allsubtitles and not opts.writeautomaticsub:
         opts.writesubtitles = True
-    if opts.embedthumbnail:
-        already_have_thumbnail = opts.writethumbnail or opts.write_all_thumbnails
-        postprocessors.append({
-            'key': 'EmbedThumbnail',
-            'already_have_thumbnail': already_have_thumbnail
-        })
-        if not already_have_thumbnail:
-            opts.writethumbnail = True
-    # This should be below most ffmpeg PP because it may cut parts out from the video
+    # This should be above EmbedThumbnail since sponskrub removes the thumbnail attachment
+    # but must be below EmbedSubtitle and FFmpegMetadata
+    # See https://github.com/yt-dlp/yt-dlp/issues/204 , https://github.com/faissaloo/SponSkrub/issues/29
     # If opts.sponskrub is None, sponskrub is used, but it silently fails if the executable can't be found
     if opts.sponskrub is not False:
         postprocessors.append({
@@ -387,6 +395,15 @@ def _real_main(argv=None):
             'force': opts.sponskrub_force,
             'ignoreerror': opts.sponskrub is None,
         })
+    if opts.embedthumbnail:
+        already_have_thumbnail = opts.writethumbnail or opts.write_all_thumbnails
+        postprocessors.append({
+            'key': 'EmbedThumbnail',
+            # already_have_thumbnail = True prevents the file from being deleted after embedding
+            'already_have_thumbnail': already_have_thumbnail
+        })
+        if not already_have_thumbnail:
+            opts.writethumbnail = True
     if opts.split_chapters:
         postprocessors.append({'key': 'FFmpegSplitChapters'})
     # XAttrMetadataPP should be run after post-processors that may change file contents
@@ -397,7 +414,8 @@ def _real_main(argv=None):
         postprocessors.append({
             'key': 'ExecAfterDownload',
             'exec_cmd': opts.exec_cmd,
-            'when': 'aftermove'
+            # Run this only after the files have been moved to their final locations
+            'when': 'after_move'
         })
 
     def report_args_compat(arg, name):
@@ -423,7 +441,6 @@ def _real_main(argv=None):
         else match_filter_func(opts.match_filter))
 
     ydl_opts = {
-        'convertsubtitles': opts.convertsubtitles,
         'usenetrc': opts.usenetrc,
         'username': opts.username,
         'password': opts.password,
@@ -449,6 +466,7 @@ def _real_main(argv=None):
         'skip_download': opts.skip_download,
         'format': opts.format,
         'allow_unplayable_formats': opts.allow_unplayable_formats,
+        'ignore_no_formats_error': opts.ignore_no_formats_error,
         'format_sort': opts.format_sort,
         'format_sort_force': opts.format_sort_force,
         'allow_multiple_video_streams': opts.allow_multiple_video_streams,
@@ -526,6 +544,7 @@ def _real_main(argv=None):
         'download_archive': download_archive_fn,
         'break_on_existing': opts.break_on_existing,
         'break_on_reject': opts.break_on_reject,
+        'skip_playlist_after_errors': opts.skip_playlist_after_errors,
         'cookiefile': opts.cookiefile,
         'nocheckcertificate': opts.no_check_certificate,
         'prefer_insecure': opts.prefer_insecure,

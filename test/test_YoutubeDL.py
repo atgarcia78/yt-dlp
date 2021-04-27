@@ -311,8 +311,8 @@ class TestFormatSelection(unittest.TestCase):
         self.assertRaises(ExtractorError, ydl.process_ie_result, info_dict.copy())
 
     def test_youtube_format_selection(self):
+        # FIXME: Rewrite in accordance with the new format sorting options
         return
-        # disabled for now - this needs some changes
 
         order = [
             '38', '37', '46', '22', '45', '35', '44', '18', '34', '43', '6', '5', '17', '36', '13',
@@ -601,6 +601,26 @@ class TestYoutubeDL(unittest.TestCase):
         self.assertTrue(subs)
         self.assertEqual(set(subs.keys()), set(['es', 'fr']))
 
+        result = get_info({'writesubtitles': True, 'subtitleslangs': ['all', '-en']})
+        subs = result['requested_subtitles']
+        self.assertTrue(subs)
+        self.assertEqual(set(subs.keys()), set(['es', 'fr']))
+
+        result = get_info({'writesubtitles': True, 'subtitleslangs': ['en', 'fr', '-en']})
+        subs = result['requested_subtitles']
+        self.assertTrue(subs)
+        self.assertEqual(set(subs.keys()), set(['fr']))
+
+        result = get_info({'writesubtitles': True, 'subtitleslangs': ['-en', 'en']})
+        subs = result['requested_subtitles']
+        self.assertTrue(subs)
+        self.assertEqual(set(subs.keys()), set(['en']))
+
+        result = get_info({'writesubtitles': True, 'subtitleslangs': ['e.+']})
+        subs = result['requested_subtitles']
+        self.assertTrue(subs)
+        self.assertEqual(set(subs.keys()), set(['es', 'en']))
+
         result = get_info({'writesubtitles': True, 'writeautomaticsub': True, 'subtitleslangs': ['es', 'pt']})
         subs = result['requested_subtitles']
         self.assertTrue(subs)
@@ -635,6 +655,8 @@ class TestYoutubeDL(unittest.TestCase):
             'height': 1080,
             'title1': '$PATH',
             'title2': '%PATH%',
+            'timestamp': 1618488000,
+            'formats': [{'id': 'id1'}, {'id': 'id2'}]
         }
 
         def fname(templ, na_placeholder='NA'):
@@ -651,6 +673,7 @@ class TestYoutubeDL(unittest.TestCase):
         # Or by provided placeholder
         self.assertEqual(fname(NA_TEST_OUTTMPL, na_placeholder='none'), 'none-none-1234.mp4')
         self.assertEqual(fname(NA_TEST_OUTTMPL, na_placeholder=''), '--1234.mp4')
+        self.assertEqual(fname('%(height)s.%(ext)s'), '1080.mp4')
         self.assertEqual(fname('%(height)d.%(ext)s'), '1080.mp4')
         self.assertEqual(fname('%(height)6d.%(ext)s'), '  1080.mp4')
         self.assertEqual(fname('%(height)-6d.%(ext)s'), '1080  .mp4')
@@ -668,6 +691,12 @@ class TestYoutubeDL(unittest.TestCase):
         self.assertEqual(fname('%%(width)06d.%(ext)s'), '%(width)06d.mp4')
         self.assertEqual(fname('Hello %(title1)s'), 'Hello $PATH')
         self.assertEqual(fname('Hello %(title2)s'), 'Hello %PATH%')
+        self.assertEqual(fname('%(timestamp+-1000>%H-%M-%S)s'), '11-43-20')
+        self.assertEqual(fname('%(id+1)05d'), '01235')
+        self.assertEqual(fname('%(width+100)05d'), 'NA')
+        self.assertEqual(fname('%(formats.0)s').replace("u", ""), "{'id' - 'id1'}")
+        self.assertEqual(fname('%(formats.-1.id)s'), 'id2')
+        self.assertEqual(fname('%(formats.2)s'), 'NA')
 
     def test_format_note(self):
         ydl = YoutubeDL()

@@ -312,7 +312,7 @@ class SoundcloudIE(InfoExtractor):
                     self._update_client_id()
                     continue
                 elif non_fatal:
-                    self._downloader.report_warning(error_to_compat_str(e))
+                    self.report_warning(error_to_compat_str(e))
                     return False
                 raise
 
@@ -498,7 +498,7 @@ class SoundcloudIE(InfoExtractor):
             f['vcodec'] = 'none'
 
         if not formats and info.get('policy') == 'BLOCK':
-            self.raise_geo_restricted()
+            self.raise_geo_restricted(metadata_available=True)
         self._sort_formats(formats)
 
         user = info.get('user') or {}

@@ -36,12 +36,12 @@ class ARDMediathekBaseIE(InfoExtractor):
 
         if not formats:
             if fsk:
-                raise ExtractorError(
+                self.raise_no_formats(
                     'This video is only available after 20:00', expected=True)
             elif media_info.get('_geoblocked'):
                 self.raise_geo_restricted(
                     'This video is not available due to geoblocking',
-                    countries=self._GEO_COUNTRIES)
+                    countries=self._GEO_COUNTRIES, metadata_available=True)
 
         self._sort_formats(formats)
 
@@ -272,7 +272,8 @@ class ARDMediathekIE(ARDMediathekBaseIE):
         else:  # request JSON file
             if not document_id:
                 video_id = self._search_regex(
-                    r'/play/(?:config|media)/(\d+)', webpage, 'media id')
+                    (r'/play/(?:config|media|sola)/(\d+)', r'contentId["\']\s*:\s*(\d+)'),
+                    webpage, 'media id', default=None)
             info = self._extract_media_info(
                 'http://www.ardmediathek.de/play/media/%s' % video_id,
                 webpage, video_id)

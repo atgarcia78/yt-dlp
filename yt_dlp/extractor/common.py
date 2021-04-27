@@ -17,7 +17,7 @@ import math
 
 from ..compat import (
     compat_cookiejar_Cookie,
-    compat_cookies,
+    compat_cookies_SimpleCookie,
     compat_etree_Element,
     compat_etree_fromstring,
     compat_getpass,
@@ -683,7 +683,7 @@ class InfoExtractor(object):
             if fatal:
                 raise ExtractorError(errmsg, sys.exc_info()[2], cause=err)
             else:
-                self._downloader.report_warning(errmsg)
+                self.report_warning(errmsg)
                 return False
 
     def _download_webpage_handle(self, url_or_request, video_id, note=None, errnote=None, fatal=True, encoding=None, data=None, headers={}, query={}, expected_status=None):
@@ -968,15 +968,27 @@ class InfoExtractor(object):
         """Report attempt to log in."""
         self.to_screen('Logging in')
 
-    @staticmethod
-    def raise_login_required(msg='This video is only available for registered users'):
+    def raise_login_required(
+            self, msg='This video is only available for registered users', metadata_available=False):
+        if metadata_available and self._downloader.params.get('ignore_no_formats_error'):
+            self.report_warning(msg)
         raise ExtractorError(
-            '%s. Use --username and --password or --netrc to provide account credentials.' % msg,
+            '%s. Use --cookies, --username and --password or --netrc to provide account credentials' % msg,
             expected=True)
 
-    @staticmethod
-    def raise_geo_restricted(msg='This video is not available from your location due to geo restriction', countries=None):
-        raise GeoRestrictedError(msg, countries=countries)
+    def raise_geo_restricted(
+            self, msg='This video is not available from your location due to geo restriction',
+            countries=None, metadata_available=False):
+        if metadata_available and self._downloader.params.get('ignore_no_formats_error'):
+            self.report_warning(msg)
+        else:
+            raise GeoRestrictedError(msg, countries=countries)
+
+    def raise_no_formats(self, msg, expected=False, video_id=None):
+        if expected and self._downloader.params.get('ignore_no_formats_error'):
+            self.report_warning(msg, video_id)
+        else:
+            raise ExtractorError(msg, expected=expected, video_id=video_id)
 
     # Methods for following #608
     @staticmethod
@@ -1044,7 +1056,7 @@ class InfoExtractor(object):
         elif fatal:
             raise RegexNotFoundError('Unable to extract %s' % _name)
         else:
-            self._downloader.report_warning('unable to extract %s' % _name + bug_reports_message())
+            self.report_warning('unable to extract %s' % _name + bug_reports_message())
             return None
 
     def _html_search_regex(self, pattern, string, name, default=NO_DEFAULT, fatal=True, flags=0, group=None):
@@ -1072,7 +1084,7 @@ class InfoExtractor(object):
                     raise netrc.NetrcParseError(
                         'No authenticators for %s' % netrc_machine)
             except (IOError, netrc.NetrcParseError) as err:
-                self._downloader.report_warning(
+                self.report_warning(
                     'parsing .netrc: %s' % error_to_compat_str(err))
 
         return username, password
@@ -1247,7 +1259,7 @@ class InfoExtractor(object):
         elif fatal:
             raise RegexNotFoundError('Unable to extract JSON-LD')
         else:
-            self._downloader.report_warning('unable to extract JSON-LD %s' % bug_reports_message())
+            self.report_warning('unable to extract JSON-LD %s' % bug_reports_message())
             return {}
 
     def _json_ld(self, json_ld, video_id, fatal=True, expected_type=None):
@@ -1308,6 +1320,7 @@ class InfoExtractor(object):
 
         def extract_video_object(e):
             assert e['@type'] == 'VideoObject'
+            author = e.get('author')
             info.update({
                 'url': url_or_none(e.get('contentUrl')),
                 'title': unescapeHTML(e.get('name')),
@@ -1315,7 +1328,11 @@ class InfoExtractor(object):
                 'thumbnail': url_or_none(e.get('thumbnailUrl') or e.get('thumbnailURL')),
                 'duration': parse_duration(e.get('duration')),
                 'timestamp': unified_timestamp(e.get('uploadDate')),
-                'uploader': str_or_none(e.get('author')),
+                # author can be an instance of 'Organization' or 'Person' types.
+                # both types can have 'name' property(inherited from 'Thing' type). [1]
+                # however some websites are using 'Text' type instead.
+                # 1. https://schema.org/VideoObject
+                'uploader': author.get('name') if isinstance(author, dict) else author if isinstance(author, compat_str) else None,
                 'filesize': float_or_none(e.get('contentSize')),
                 'tbr': int_or_none(e.get('bitrate')),
                 'width': int_or_none(e.get('width')),
@@ -1398,7 +1415,7 @@ class InfoExtractor(object):
         return self._hidden_inputs(form)
 
     class FormatSort:
-        regex = r' *((?P<reverse>\+)?(?P<field>[a-zA-Z0-9_]+)((?P<seperator>[~:])(?P<limit>.*?))?)? *$'
+        regex = r' *((?P<reverse>\+)?(?P<field>[a-zA-Z0-9_]+)((?P<separator>[~:])(?P<limit>.*?))?)? *$'
 
         default = ('hidden', 'hasvid', 'ie_pref', 'lang', 'quality',
                    'res', 'fps', 'codec:vp9.2', 'size', 'br', 'asr',
@@ -1422,7 +1439,7 @@ class InfoExtractor(object):
             'hasvid': {'priority': True, 'field': 'vcodec', 'type': 'boolean', 'not_in_list': ('none',)},
             'hasaud': {'field': 'acodec', 'type': 'boolean', 'not_in_list': ('none',)},
             'lang': {'priority': True, 'convert': 'ignore', 'field': 'language_preference'},
-            'quality': {'convert': 'float_none'},
+            'quality': {'convert': 'float_none', 'default': -1},
             'filesize': {'convert': 'bytes'},
             'fs_approx': {'convert': 'bytes', 'field': 'filesize_approx'},
             'id': {'convert': 'string', 'field': 'format_id'},
@@ -1558,7 +1575,7 @@ class InfoExtractor(object):
                 if self._get_field_setting(field, 'type') == 'alias':
                     field = self._get_field_setting(field, 'field')
                 reverse = match.group('reverse') is not None
-                closest = match.group('seperator') == '~'
+                closest = match.group('separator') == '~'
                 limit_text = match.group('limit')
 
                 has_limit = limit_text is not None
@@ -1575,7 +1592,8 @@ class InfoExtractor(object):
                              else None)
 
         def print_verbose_info(self, to_screen):
-            to_screen('[debug] Sort order given by user: %s' % ','.join(self._sort_user))
+            if self._sort_user:
+                to_screen('[debug] Sort order given by user: %s' % ','.join(self._sort_user))
             if self._sort_extractor:
                 to_screen('[debug] Sort order given by extractor: %s' % ', '.join(self._sort_extractor))
             to_screen('[debug] Formats sorted by: %s' % ', '.join(['%s%s%s' % (
@@ -1603,7 +1621,7 @@ class InfoExtractor(object):
                 value = self._resolve_field_value(field, value, True)
 
             # try to convert to number
-            val_num = float_or_none(value)
+            val_num = float_or_none(value, default=self._get_field_setting(field, 'default'))
             is_num = self._get_field_setting(field, 'convert') != 'string' and val_num is not None
             if is_num:
                 value = val_num
@@ -1664,6 +1682,8 @@ class InfoExtractor(object):
 
     def _sort_formats(self, formats, field_preference=[]):
         if not formats:
+            if self._downloader.params.get('ignore_no_formats_error'):
+                return
             raise ExtractorError('No video formats found')
         format_sort = self.FormatSort()  # params and to_screen are taken from the downloader
         format_sort.evaluate_params(self._downloader.params, field_preference)
@@ -1889,7 +1909,8 @@ class InfoExtractor(object):
         if '#EXT-X-FAXS-CM:' in m3u8_doc:  # Adobe Flash Access
             return []
 
-        if re.search(r'#EXT-X-SESSION-KEY:.*?URI="skd://', m3u8_doc):  # Apple FairPlay
+        if (not self._downloader.params.get('allow_unplayable_formats')
+                and re.search(r'#EXT-X-SESSION-KEY:.*?URI="skd://', m3u8_doc)):  # Apple FairPlay
             return []
 
         formats = []
@@ -2406,7 +2427,7 @@ class InfoExtractor(object):
             http://standards.iso.org/ittf/PubliclyAvailableStandards/c065274_ISO_IEC_23009-1_2014.zip
          2. https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP
         """
-        if not self._downloader.params.get('dynamic_mpd'):
+        if not self._downloader.params.get('dynamic_mpd', True):
             if mpd_doc.get('type') == 'dynamic':
                 return []
 
@@ -3196,7 +3217,7 @@ class InfoExtractor(object):
             if fatal:
                 raise ExtractorError(msg)
             else:
-                self._downloader.report_warning(msg)
+                self.report_warning(msg)
         return res
 
     def _float(self, v, name, fatal=False, **kwargs):
@@ -3206,7 +3227,7 @@ class InfoExtractor(object):
             if fatal:
                 raise ExtractorError(msg)
             else:
-                self._downloader.report_warning(msg)
+                self.report_warning(msg)
         return res
 
     def _set_cookie(self, domain, name, value, expire_time=None, port=None,
@@ -3218,10 +3239,10 @@ class InfoExtractor(object):
         self._downloader.cookiejar.set_cookie(cookie)
 
     def _get_cookies(self, url):
-        """ Return a compat_cookies.SimpleCookie with the cookies for the url """
+        """ Return a compat_cookies_SimpleCookie with the cookies for the url """
         req = sanitized_Request(url)
         self._downloader.cookiejar.add_cookie_header(req)
-        return compat_cookies.SimpleCookie(req.get_header('Cookie'))
+        return compat_cookies_SimpleCookie(req.get_header('Cookie'))
 
     def _apply_first_set_cookie_header(self, url_handle, cookie):
         """
@@ -3382,7 +3403,7 @@ class SearchInfoExtractor(InfoExtractor):
             if n <= 0:
                 raise ExtractorError('invalid download number %s for query "%s"' % (n, query))
             elif n > self._MAX_RESULTS:
-                self._downloader.report_warning('%s returns max %i results (you requested %i)' % (self._SEARCH_KEY, self._MAX_RESULTS, n))
+                self.report_warning('%s returns max %i results (you requested %i)' % (self._SEARCH_KEY, self._MAX_RESULTS, n))
                 n = self._MAX_RESULTS
             return self._get_n_results(query, n)
 

@@ -7,7 +7,7 @@ from ..compat import compat_str
 
 
 class MetadataFromFieldPP(PostProcessor):
-    regex = r'(?P<in>.+):(?P<out>.+)$'
+    regex = r'(?P<in>.*?)(?<!\\):(?P<out>.+)$'
 
     def __init__(self, downloader, formats):
         PostProcessor.__init__(self, downloader)
@@ -17,10 +17,11 @@ class MetadataFromFieldPP(PostProcessor):
             assert isinstance(f, compat_str)
             match = re.match(self.regex, f)
             assert match is not None
+            inp = match.group('in').replace('\\:', ':')
             self._data.append({
-                'in': match.group('in'),
+                'in': inp,
                 'out': match.group('out'),
-                'tmpl': self.field_to_template(match.group('in')),
+                'tmpl': self.field_to_template(inp),
                 'regex': self.format_to_regex(match.group('out')),
             })
 
@@ -45,7 +46,7 @@ class MetadataFromFieldPP(PostProcessor):
         # replace %(..)s with regex group and escape other string parts
         for match in re.finditer(r'%\((\w+)\)s', fmt):
             regex += re.escape(fmt[lastpos:match.start()])
-            regex += r'(?P<%s>[^\r\n]+)' % match.group(1)
+            regex += r'(?P<%s>.+)' % match.group(1)
             lastpos = match.end()
         if lastpos < len(fmt):
             regex += re.escape(fmt[lastpos:])
@@ -68,6 +69,6 @@ class MetadataFromFieldPP(PostProcessor):
 
 class MetadataFromTitlePP(MetadataFromFieldPP):  # for backward compatibility
     def __init__(self, downloader, titleformat):
-        super(MetadataFromTitlePP, self).__init__(downloader, ['title:%s' % titleformat])
+        super(MetadataFromTitlePP, self).__init__(downloader, ['%%(title)s:%s' % titleformat])
         self._titleformat = titleformat
         self._titleregex = self._data[0]['regex']

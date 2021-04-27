@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 
 import hashlib
+import itertools
 import json
 import re
 
@@ -120,6 +121,7 @@ class BiliBiliIE(InfoExtractor):
         'url': 'https://www.bilibili.com/video/BV1bK411W797',
         'info_dict': {
             'id': 'BV1bK411W797',
+            'title': '物语中的人物是如何吐槽自己的OP的'
         },
         'playlist_count': 17,
     }]
@@ -156,7 +158,8 @@ class BiliBiliIE(InfoExtractor):
                 if r is not None:
                     self.to_screen('Downloading anthology %s - add --no-playlist to just download video' % video_id)
                     return r
-            self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
+            else:
+                self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
 
         if 'anime/' not in url:
             cid = self._search_regex(
@@ -274,7 +277,7 @@ class BiliBiliIE(InfoExtractor):
         }
 
         uploader_mobj = re.search(
-            r'<a[^>]+href="(?:https?:)?//space\.bilibili\.com/(?P<id>\d+)"[^>]*>(?P<name>[^<]+)',
+            r'<a[^>]+href="(?:https?:)?//space\.bilibili\.com/(?P<id>\d+)"[^>]*>\s*(?P<name>[^<]+?)\s*<',
             webpage)
         if uploader_mobj:
             info.update({
@@ -496,28 +499,40 @@ class BiliBiliBangumiIE(InfoExtractor):
 
 class BilibiliChannelIE(InfoExtractor):
     _VALID_URL = r'https?://space.bilibili\.com/(?P<id>\d+)'
-    # May need to add support for pagination? Need to find a user with many video uploads to test
-    _API_URL = "https://api.bilibili.com/x/space/arc/search?mid=%s&pn=1&ps=25&jsonp=jsonp"
-    _TEST = {}  # TODO: Add tests
+    _API_URL = "https://api.bilibili.com/x/space/arc/search?mid=%s&pn=%d&jsonp=jsonp"
+    _TESTS = [{
+        'url': 'https://space.bilibili.com/3985676/video',
+        'info_dict': {},
+        'playlist_mincount': 112,
+    }]
+
+    def _entries(self, list_id):
+        count, max_count = 0, None
+
+        for page_num in itertools.count(1):
+            data = self._parse_json(
+                self._download_webpage(
+                    self._API_URL % (list_id, page_num), list_id,
+                    note='Downloading page %d' % page_num),
+                list_id)['data']
+
+            max_count = max_count or try_get(data, lambda x: x['page']['count'])
+
+            entries = try_get(data, lambda x: x['list']['vlist'])
+            if not entries:
+                return
+            for entry in entries:
+                yield self.url_result(
+                    'https://www.bilibili.com/video/%s' % entry['bvid'],
+                    BiliBiliIE.ie_key(), entry['bvid'])
+
+            count += len(entries)
+            if max_count and count >= max_count:
+                return
 
     def _real_extract(self, url):
         list_id = self._match_id(url)
-        json_str = self._download_webpage(self._API_URL % list_id, "None")
-
-        json_parsed = json.loads(json_str)
-        entries = [{
-            '_type': 'url',
-            'ie_key': BiliBiliIE.ie_key(),
-            'url': ('https://www.bilibili.com/video/%s' %
-                    entry['bvid']),
-            'id': entry['bvid'],
-        } for entry in json_parsed['data']['list']['vlist']]
-
-        return {
-            '_type': 'playlist',
-            'id': list_id,
-            'entries': entries
-        }
+        return self.playlist_result(self._entries(list_id), list_id)
 
 
 class BiliBiliSearchIE(SearchInfoExtractor):

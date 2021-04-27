@@ -10,10 +10,11 @@ from .ffmpeg import (
     FFmpegFixupM4aPP,
     FFmpegMergerPP,
     FFmpegMetadataPP,
+    FFmpegSubtitlesConvertorPP,
+    FFmpegThumbnailsConvertorPP,
+    FFmpegSplitChaptersPP,
     FFmpegVideoConvertorPP,
     FFmpegVideoRemuxerPP,
-    FFmpegSubtitlesConvertorPP,
-    FFmpegSplitChaptersPP,
 )
 from .xattrpp import XAttrMetadataPP
 from .execafterdownload import ExecAfterDownloadPP
@@ -28,6 +29,7 @@ def get_postprocessor(key):
 
 
 __all__ = [
+    'FFmpegPostProcessor',
     'EmbedThumbnailPP',
     'ExecAfterDownloadPP',
     'FFmpegEmbedSubtitlePP',
@@ -38,8 +40,8 @@ __all__ = [
     'FFmpegFixupStretchedPP',
     'FFmpegMergerPP',
     'FFmpegMetadataPP',
-    'FFmpegPostProcessor',
     'FFmpegSubtitlesConvertorPP',
+    'FFmpegThumbnailsConvertorPP',
     'FFmpegVideoConvertorPP',
     'FFmpegVideoRemuxerPP',
     'MetadataFromFieldPP',

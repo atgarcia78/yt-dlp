@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import errno
 try:
     import concurrent.futures
     can_threaded_download = True
@@ -20,7 +21,7 @@ from ..utils import (
 class DashSegmentsFD(FragmentFD):
     """
     Download segments in a DASH manifest. External downloaders can take over
-    the fragment downloads by supporting the 'frag_urls' protocol
+    the fragment downloads by supporting the 'dash_frag_urls' protocol
     """
 
     FD_NAME = 'dashsegments'
@@ -30,7 +31,7 @@ class DashSegmentsFD(FragmentFD):
         fragments = info_dict['fragments'][:1] if self.params.get(
             'test', False) else info_dict['fragments']
 
-        real_downloader = _get_real_downloader(info_dict, 'frag_urls', self.params, None)
+        real_downloader = _get_real_downloader(info_dict, 'dash_frag_urls', self.params, None)
 
         ctx = {
             'filename': filename,
@@ -126,7 +127,10 @@ class DashSegmentsFD(FragmentFD):
                         file.close()
                         self._append_fragment(ctx, frag_content)
                         return True
-                    except FileNotFoundError:
+                    except EnvironmentError as ose:
+                        if ose.errno != errno.ENOENT:
+                            raise
+                        # FileNotFoundError
                         if skip_unavailable_fragments:
                             self.report_skip_fragment(frag_index)
                             return True
