@@ -147,10 +147,10 @@ class FileDownloader(object):
         return int(round(number * multiplier))
 
     def to_screen(self, *args, **kargs):
-        self.ydl.to_screen(*args, **kargs)
+        self.ydl.to_stdout(*args, quiet=self.params.get('quiet'), **kargs)
 
     def to_stderr(self, message):
-        self.ydl.to_screen(message)
+        self.ydl.to_stderr(message)
 
     def to_console_title(self, message):
         self.ydl.to_console_title(message)
@@ -163,6 +163,9 @@ class FileDownloader(object):
 
     def report_error(self, *args, **kargs):
         self.ydl.report_error(*args, **kargs)
+
+    def write_debug(self, *args, **kargs):
+        self.ydl.write_debug(*args, **kargs)
 
     def slow_down(self, start_time, now, byte_counter):
         """Sleep if the download speed is over the rate limit."""
@@ -402,5 +405,4 @@ class FileDownloader(object):
         if exe is None:
             exe = os.path.basename(str_args[0])
 
-        self.to_screen('[debug] %s command line: %s' % (
-            exe, shell_quote(str_args)))
+        self.write_debug('%s command line: %s' % (exe, shell_quote(str_args)))

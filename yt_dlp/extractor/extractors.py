@@ -151,7 +151,6 @@ from .bleacherreport import (
     BleacherReportIE,
     BleacherReportCMSIE,
 )
-from .blinkx import BlinkxIE
 from .bloomberg import BloombergIE
 from .bokecc import BokeCCIE
 from .bongacams import BongaCamsIE
@@ -288,7 +287,8 @@ from .ctvnews import CTVNewsIE
 from .cultureunplugged import CultureUnpluggedIE
 from .curiositystream import (
     CuriosityStreamIE,
-    CuriosityStreamCollectionIE,
+    CuriosityStreamCollectionsIE,
+    CuriosityStreamSeriesIE,
 )
 from .cwtv import CWTVIE
 from .dailymail import DailyMailIE
@@ -1441,6 +1441,7 @@ from .ufctv import (
     UFCTVIE,
     UFCArabiaIE,
 )
+from .ukcolumn import UkColumnIE
 from .uktvplay import UKTVPlayIE
 from .digiteka import DigitekaIE
 from .dlive import (
@@ -1600,6 +1601,7 @@ from .weibo import (
 )
 from .weiqitv import WeiqiTVIE
 from .wimtv import WimTVIE
+from .whowatch import WhoWatchIE
 from .wistia import (
     WistiaIE,
     WistiaPlaylistIE,

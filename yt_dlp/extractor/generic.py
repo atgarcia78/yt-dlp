@@ -2370,7 +2370,7 @@ class GenericIE(InfoExtractor):
 
         parsed_url = compat_urlparse.urlparse(url)
         if not parsed_url.scheme:
-            default_search = self._downloader.params.get('default_search')
+            default_search = self.get_param('default_search')
             if default_search is None:
                 default_search = 'fixup_error'
 
@@ -2444,8 +2444,9 @@ class GenericIE(InfoExtractor):
         m = re.match(r'^(?P<type>audio|video|application(?=/(?:ogg$|(?:vnd\.apple\.|x-)?mpegurl)))/(?P<format_id>[^;\s]+)', content_type)
         if m:
             format_id = compat_str(m.group('format_id'))
+            subtitles = {}
             if format_id.endswith('mpegurl'):
-                formats = self._extract_m3u8_formats(url, video_id, 'mp4')
+                formats, subtitles = self._extract_m3u8_formats_and_subtitles(url, video_id, 'mp4')
             elif format_id == 'f4m':
                 formats = self._extract_f4m_formats(url, video_id)
             else:
@@ -2457,10 +2458,11 @@ class GenericIE(InfoExtractor):
                 info_dict['direct'] = True
             self._sort_formats(formats)
             info_dict['formats'] = formats
+            info_dict['subtitles'] = subtitles
             return info_dict
 
-        if not self._downloader.params.get('test', False) and not is_intentional:
-            force = self._downloader.params.get('force_generic_extractor', False)
+        if not self.get_param('test', False) and not is_intentional:
+            force = self.get_param('force_generic_extractor', False)
             self.report_warning(
                 '%s on generic information extractor.' % ('Forcing' if force else 'Falling back'))
 
@@ -2506,11 +2508,14 @@ class GenericIE(InfoExtractor):
 
         # Is it an RSS feed, a SMIL file, an XSPF playlist or a MPD manifest?
         try:
-            doc = compat_etree_fromstring(webpage.encode('utf-8'))
+            try:
+                doc = compat_etree_fromstring(webpage)
+            except compat_xml_parse_error:
+                doc = compat_etree_fromstring(webpage.encode('utf-8'))
             if doc.tag == 'rss':
                 return self._extract_rss(url, video_id, doc)
             elif doc.tag == 'SmoothStreamingMedia':
-                info_dict['formats'] = self._parse_ism_formats(doc, url)
+                info_dict['formats'], info_dict['subtitles'] = self._parse_ism_formats_and_subtitles(doc, url)
                 self._sort_formats(info_dict['formats'])
                 return info_dict
             elif re.match(r'^(?:{[^}]+})?smil$', doc.tag):
@@ -2524,7 +2529,7 @@ class GenericIE(InfoExtractor):
                         xspf_base_url=full_response.geturl()),
                     video_id)
             elif re.match(r'(?i)^(?:{[^}]+})?MPD$', doc.tag):
-                info_dict['formats'] = self._parse_mpd_formats(
+                info_dict['formats'], info_dict['subtitles'] = self._parse_mpd_formats_and_subtitles(
                     doc,
                     mpd_base_url=full_response.geturl().rpartition('/')[0],
                     mpd_url=url)

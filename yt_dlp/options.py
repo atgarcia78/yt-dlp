@@ -107,13 +107,15 @@ def parseOpts(overrideArguments=None):
 
         return ''.join(opts)
 
-    def _comma_separated_values_options_callback(option, opt_str, value, parser, prepend=True):
+    def _list_from_options_callback(option, opt_str, value, parser, append=True, delim=','):
+        # append can be True, False or -1 (prepend)
+        current = getattr(parser.values, option.dest) if append else []
+        value = [value] if delim is None else value.split(delim)
         setattr(
             parser.values, option.dest,
-            value.split(',') if not prepend
-            else value.split(',') + getattr(parser.values, option.dest))
+            current + value if append is True else value + current)
 
-    def _dict_from_multiple_values_options_callback(
+    def _dict_from_options_callback(
             option, opt_str, value, parser,
             allowed_keys=r'[\w-]+', delimiter=':', default_key=None, process=None, multiple_keys=True):
 
@@ -165,7 +167,7 @@ def parseOpts(overrideArguments=None):
         help='Update this program to latest version. Make sure that you have sufficient permissions (run with sudo if needed)')
     general.add_option(
         '-i', '--ignore-errors', '--no-abort-on-error',
-        action='store_true', dest='ignoreerrors', default=True,
+        action='store_true', dest='ignoreerrors', default=None,
         help='Continue on download errors, for example to skip unavailable videos in a playlist (default) (Alias: --no-abort-on-error)')
     general.add_option(
         '--abort-on-error', '--no-ignore-errors',
@@ -229,6 +231,14 @@ def parseOpts(overrideArguments=None):
         '--no-colors',
         action='store_true', dest='no_color', default=False,
         help='Do not emit color codes in output')
+    general.add_option(
+        '--compat-options',
+        metavar='OPTS', dest='compat_opts', default=[],
+        action='callback', callback=_list_from_options_callback, type='str',
+        help=(
+            'Options that can help keep compatibility with youtube-dl and youtube-dlc '
+            'configurations by reverting some of the changes made in yt-dlp. '
+            'See "Differences in default behavior" for details'))
 
     network = optparse.OptionGroup(parser, 'Network Options')
     network.add_option(
@@ -457,8 +467,8 @@ def parseOpts(overrideArguments=None):
         help='Video format code, see "FORMAT SELECTION" for more details')
     video_format.add_option(
         '-S', '--format-sort', metavar='SORTORDER',
-        dest='format_sort', default=[],
-        action='callback', callback=_comma_separated_values_options_callback, type='str',
+        dest='format_sort', default=[], type='str', action='callback',
+        callback=_list_from_options_callback, callback_kwargs={'append': -1},
         help='Sort the formats by the fields given, see "Sorting Formats" for more details')
     video_format.add_option(
         '--format-sort-force', '--S-force',
@@ -474,7 +484,7 @@ def parseOpts(overrideArguments=None):
             'see "Sorting Formats" for more details'))
     video_format.add_option(
         '--video-multistreams',
-        action='store_true', dest='allow_multiple_video_streams', default=False,
+        action='store_true', dest='allow_multiple_video_streams', default=None,
         help='Allow multiple video streams to be merged into a single file')
     video_format.add_option(
         '--no-video-multistreams',
@@ -482,7 +492,7 @@ def parseOpts(overrideArguments=None):
         help='Only one video stream is downloaded for each output file (default)')
     video_format.add_option(
         '--audio-multistreams',
-        action='store_true', dest='allow_multiple_audio_streams', default=False,
+        action='store_true', dest='allow_multiple_audio_streams', default=None,
         help='Allow multiple audio streams to be merged into a single file')
     video_format.add_option(
         '--no-audio-multistreams',
@@ -503,17 +513,21 @@ def parseOpts(overrideArguments=None):
         action='store_true', dest='prefer_free_formats', default=False,
         help="Don't give any special preference to free containers (default)")
     video_format.add_option(
+        '--check-formats',
+        action='store_true', dest='check_formats', default=False,
+        help="Check that the formats selected are actually downloadable (Experimental)")
+    video_format.add_option(
         '-F', '--list-formats',
         action='store_true', dest='listformats',
         help='List all available formats of requested videos')
     video_format.add_option(
         '--list-formats-as-table',
         action='store_true', dest='listformats_table', default=True,
-        help='Present the output of -F in tabular form (default)')
+        help=optparse.SUPPRESS_HELP)
     video_format.add_option(
         '--list-formats-old', '--no-list-formats-as-table',
         action='store_false', dest='listformats_table',
-        help='Present the output of -F in the old form (Alias: --no-list-formats-as-table)')
+        help=optparse.SUPPRESS_HELP)
     video_format.add_option(
         '--merge-output-format',
         action='store', dest='merge_output_format', metavar='FORMAT', default=None,
@@ -564,7 +578,7 @@ def parseOpts(overrideArguments=None):
     subtitles.add_option(
         '--sub-langs', '--srt-langs',
         action='callback', dest='subtitleslangs', metavar='LANGS', type='str',
-        default=[], callback=_comma_separated_values_options_callback,
+        default=[], callback=_list_from_options_callback,
         help=(
             'Languages of the subtitles to download (can be regex) or "all" separated by commas. (Eg: --sub-langs en.*,ja) '
             'You can prefix the language code with a "-" to exempt it from the requested languages. (Eg: --sub-langs all,-live_chat) '
@@ -666,10 +680,12 @@ def parseOpts(overrideArguments=None):
     downloader.add_option(
         '--downloader', '--external-downloader',
         dest='external_downloader', metavar='[PROTO:]NAME', default={}, type='str',
-        action='callback', callback=_dict_from_multiple_values_options_callback,
+        action='callback', callback=_dict_from_options_callback,
         callback_kwargs={
             'allowed_keys': 'http|ftp|m3u8|dash|rtsp|rtmp|mms',
-            'default_key': 'default', 'process': lambda x: x.strip()},
+            'default_key': 'default',
+            'process': lambda x: x.strip()
+        },
         help=(
             'Name or path of the external downloader to use (optionally) prefixed by '
             'the protocols (http, ftp, m3u8, dash, rstp, rtmp, mms) to use it for. '
@@ -681,10 +697,12 @@ def parseOpts(overrideArguments=None):
     downloader.add_option(
         '--downloader-args', '--external-downloader-args',
         metavar='NAME:ARGS', dest='external_downloader_args', default={}, type='str',
-        action='callback', callback=_dict_from_multiple_values_options_callback,
+        action='callback', callback=_dict_from_options_callback,
         callback_kwargs={
             'allowed_keys': '|'.join(list_external_downloaders()),
-            'default_key': 'default', 'process': compat_shlex_split},
+            'default_key': 'default',
+            'process': compat_shlex_split
+        },
         help=(
             'Give these arguments to the external downloader. '
             'Specify the downloader name and the arguments separated by a colon ":". '
@@ -715,7 +733,7 @@ def parseOpts(overrideArguments=None):
     workarounds.add_option(
         '--add-header',
         metavar='FIELD:VALUE', dest='headers', default={}, type='str',
-        action='callback', callback=_dict_from_multiple_values_options_callback,
+        action='callback', callback=_dict_from_options_callback,
         callback_kwargs={'multiple_keys': False},
         help='Specify a custom HTTP header and its value, separated by a colon ":". You can use this option multiple times',
     )
@@ -771,37 +789,44 @@ def parseOpts(overrideArguments=None):
         action='store_true', dest='skip_download', default=False,
         help='Do not download the video but write all related files (Alias: --no-download)')
     verbosity.add_option(
+        '-O', '--print', metavar='TEMPLATE',
+        action='callback', dest='forceprint', type='str', default=[],
+        callback=_list_from_options_callback, callback_kwargs={'delim': None},
+        help=(
+            'Simulate, quiet but print the given fields. Either a field name '
+            'or similar formatting as the output template can be used'))
+    verbosity.add_option(
         '-g', '--get-url',
         action='store_true', dest='geturl', default=False,
-        help='Simulate, quiet but print URL')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '-e', '--get-title',
         action='store_true', dest='gettitle', default=False,
-        help='Simulate, quiet but print title')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '--get-id',
         action='store_true', dest='getid', default=False,
-        help='Simulate, quiet but print id')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '--get-thumbnail',
         action='store_true', dest='getthumbnail', default=False,
-        help='Simulate, quiet but print thumbnail URL')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '--get-description',
         action='store_true', dest='getdescription', default=False,
-        help='Simulate, quiet but print video description')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '--get-duration',
         action='store_true', dest='getduration', default=False,
-        help='Simulate, quiet but print video length')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '--get-filename',
         action='store_true', dest='getfilename', default=False,
-        help='Simulate, quiet but print output filename')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '--get-format',
         action='store_true', dest='getformat', default=False,
-        help='Simulate, quiet but print output format')
+        help=optparse.SUPPRESS_HELP)
     verbosity.add_option(
         '-j', '--dump-json',
         action='store_true', dest='dumpjson', default=False,
@@ -877,10 +902,8 @@ def parseOpts(overrideArguments=None):
     filesystem.add_option(
         '-P', '--paths',
         metavar='TYPES:PATH', dest='paths', default={}, type='str',
-        action='callback', callback=_dict_from_multiple_values_options_callback,
-        callback_kwargs={
-            'allowed_keys': 'home|temp|%s' % '|'.join(OUTTMPL_TYPES.keys()),
-            'process': lambda x: x.strip()},
+        action='callback', callback=_dict_from_options_callback,
+        callback_kwargs={'allowed_keys': 'home|temp|%s' % '|'.join(OUTTMPL_TYPES.keys())},
         help=(
             'The paths where the files should be downloaded. '
             'Specify the type of file and the path separated by a colon ":". '
@@ -892,10 +915,11 @@ def parseOpts(overrideArguments=None):
     filesystem.add_option(
         '-o', '--output',
         metavar='[TYPES:]TEMPLATE', dest='outtmpl', default={}, type='str',
-        action='callback', callback=_dict_from_multiple_values_options_callback,
+        action='callback', callback=_dict_from_options_callback,
         callback_kwargs={
             'allowed_keys': '|'.join(OUTTMPL_TYPES.keys()),
-            'default_key': 'default', 'process': lambda x: x.strip()},
+            'default_key': 'default'
+        },
         help='Output filename template; see "OUTPUT TEMPLATE" for details')
     filesystem.add_option(
         '--output-na-placeholder',
@@ -930,15 +954,15 @@ def parseOpts(overrideArguments=None):
         dest='trim_file_name', default=0, type=int,
         help='Limit the filename length (excluding extension) to the specified number of characters')
     filesystem.add_option(
-        '-A', '--auto-number',
+        '--auto-number',
         action='store_true', dest='autonumber', default=False,
         help=optparse.SUPPRESS_HELP)
     filesystem.add_option(
-        '-t', '--title',
+        '--title',
         action='store_true', dest='usetitle', default=False,
         help=optparse.SUPPRESS_HELP)
     filesystem.add_option(
-        '-l', '--literal', default=False,
+        '--literal', default=False,
         action='store_true', dest='usetitle',
         help=optparse.SUPPRESS_HELP)
     filesystem.add_option(
@@ -1005,7 +1029,7 @@ def parseOpts(overrideArguments=None):
         help='Do not write video annotations (default)')
     filesystem.add_option(
         '--write-playlist-metafiles',
-        action='store_true', dest='allow_playlist_files', default=True,
+        action='store_true', dest='allow_playlist_files', default=None,
         help=(
             'Write playlist metadata in addition to the video metadata '
             'when using --write-info-json, --write-description etc. (default)'))
@@ -1117,10 +1141,12 @@ def parseOpts(overrideArguments=None):
     postproc.add_option(
         '--postprocessor-args', '--ppa',
         metavar='NAME:ARGS', dest='postprocessor_args', default={}, type='str',
-        action='callback', callback=_dict_from_multiple_values_options_callback,
+        action='callback', callback=_dict_from_options_callback,
         callback_kwargs={
             'allowed_keys': r'\w+(?:\+\w+)?', 'default_key': 'default-compat',
-            'process': compat_shlex_split, 'multiple_keys': False},
+            'process': compat_shlex_split,
+            'multiple_keys': False
+        },
         help=(
             'Give these arguments to the postprocessors. '
             'Specify the postprocessor/executable name and the arguments separated by a colon ":" '

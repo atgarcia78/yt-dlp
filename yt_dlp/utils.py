@@ -2166,7 +2166,7 @@ def sanitize_url(url):
     for mistake, fixup in COMMON_TYPOS:
         if re.match(mistake, url):
             return re.sub(mistake, fixup, url)
-    return url
+    return escape_url(url)
 
 
 def sanitized_Request(url, *args, **kwargs):
@@ -2340,20 +2340,31 @@ def make_HTTPS_handler(params, **kwargs):
         return YoutubeDLHTTPSHandler(params, context=context, **kwargs)
 
 
-def bug_reports_message():
+def bug_reports_message(before=';'):
     if ytdl_is_updateable():
         update_cmd = 'type  yt-dlp -U  to update'
     else:
         update_cmd = 'see  https://github.com/yt-dlp/yt-dlp  on how to update'
-    msg = '; please report this issue on https://github.com/yt-dlp/yt-dlp .'
+    msg = 'please report this issue on  https://github.com/yt-dlp/yt-dlp .'
     msg += ' Make sure you are using the latest version; %s.' % update_cmd
     msg += ' Be sure to call yt-dlp with the --verbose flag and include its complete output.'
-    return msg
+
+    before = before.rstrip()
+    if not before or before.endswith(('.', '!', '?')):
+        msg = msg[0].title() + msg[1:]
+
+    return (before + ' ' if before else '') + msg
 
 
 class YoutubeDLError(Exception):
     """Base exception for YoutubeDL errors."""
     pass
+
+
+network_exceptions = [compat_urllib_error.URLError, compat_http_client.HTTPException, socket.error]
+if hasattr(ssl, 'CertificateError'):
+    network_exceptions.append(ssl.CertificateError)
+network_exceptions = tuple(network_exceptions)
 
 
 class ExtractorError(YoutubeDLError):
@@ -2364,7 +2375,7 @@ class ExtractorError(YoutubeDLError):
         If expected is set, this is a normal error message and most likely not a bug in yt-dlp.
         """
 
-        if sys.exc_info()[0] in (compat_urllib_error.URLError, socket.timeout, UnavailableVideoError):
+        if sys.exc_info()[0] in network_exceptions:
             expected = True
         if video_id is not None:
             msg = video_id + ': ' + msg
@@ -2921,15 +2932,7 @@ class YoutubeDLCookieProcessor(compat_urllib_request.HTTPCookieProcessor):
         #                 response.headers[set_cookie_header] = set_cookie_escaped
         return compat_urllib_request.HTTPCookieProcessor.http_response(self, request, response)
 
-    def http_request(self, request):
-        # If the URL contains non-ASCII characters, the cookies
-        # are lost before the request reaches YoutubeDLHandler.
-        # So we percent encode the url before adding cookies
-        # See: https://github.com/yt-dlp/yt-dlp/issues/263
-        request = update_Request(request, url=escape_url(request.get_full_url()))
-        return compat_urllib_request.HTTPCookieProcessor.http_request(self, request)
-
-    https_request = http_request
+    https_request = compat_urllib_request.HTTPCookieProcessor.http_request
     https_response = http_response
 
 
@@ -4308,6 +4311,7 @@ OUTTMPL_TYPES = {
     'description': 'description',
     'annotation': 'annotations.xml',
     'infojson': 'info.json',
+    'pl_thumbnail': None,
     'pl_description': 'description',
     'pl_infojson': 'info.json',
 }
@@ -6078,7 +6082,7 @@ def get_executable_path():
     return os.path.abspath(path)
 
 
-def load_plugins(name, type, namespace):
+def load_plugins(name, suffix, namespace):
     plugin_info = [None]
     classes = []
     try:
@@ -6086,7 +6090,9 @@ def load_plugins(name, type, namespace):
             name, [os.path.join(get_executable_path(), 'ytdlp_plugins')])
         plugins = imp.load_module(name, *plugin_info)
         for name in dir(plugins):
-            if not name.endswith(type):
+            if name in namespace:
+                continue
+            if not name.endswith(suffix):
                 continue
             klass = getattr(plugins, name)
             classes.append(klass)
@@ -6109,11 +6115,11 @@ def traverse_dict(dictn, keys, casesense=True):
                 key = key.lower()
             dictn = dictn.get(key)
         elif isinstance(dictn, (list, tuple, compat_str)):
-            key, n = int_or_none(key), len(dictn)
-            if key is not None and -n <= key < n:
-                dictn = dictn[key]
+            if ':' in key:
+                key = slice(*map(int_or_none, key.split(':')))
             else:
-                dictn = None
+                key = int_or_none(key)
+            dictn = try_get(dictn, lambda x: x[key])
         else:
             return None
     return dictn

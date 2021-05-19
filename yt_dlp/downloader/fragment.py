@@ -31,6 +31,7 @@ class FragmentFD(FileDownloader):
                         Skip unavailable fragments (DASH and hlsnative only)
     keep_fragments:     Keep downloaded fragments on disk after downloading is
                         finished
+    _no_ytdl_file:      Don't use .ytdl file
 
     For each incomplete fragment download yt-dlp keeps on disk a special
     bookkeeping file with download state and metadata (in future such files will
@@ -69,15 +70,17 @@ class FragmentFD(FileDownloader):
         self._prepare_frag_download(ctx)
         self._start_frag_download(ctx)
 
-    @staticmethod
-    def __do_ytdl_file(ctx):
-        return not ctx['live'] and not ctx['tmpfilename'] == '-'
+    def __do_ytdl_file(self, ctx):
+        return not ctx['live'] and not ctx['tmpfilename'] == '-' and not self.params.get('_no_ytdl_file')
 
     def _read_ytdl_file(self, ctx):
         assert 'ytdl_corrupt' not in ctx
         stream, _ = sanitize_open(self.ytdl_filename(ctx['filename']), 'r')
         try:
-            ctx['fragment_index'] = json.loads(stream.read())['downloader']['current_fragment']['index']
+            ytdl_data = json.loads(stream.read())
+            ctx['fragment_index'] = ytdl_data['downloader']['current_fragment']['index']
+            if 'extra_state' in ytdl_data['downloader']:
+                ctx['extra_state'] = ytdl_data['downloader']['extra_state']
         except Exception:
             ctx['ytdl_corrupt'] = True
         finally:
@@ -90,6 +93,8 @@ class FragmentFD(FileDownloader):
                 'index': ctx['fragment_index'],
             },
         }
+        if 'extra_state' in ctx:
+            downloader['extra_state'] = ctx['extra_state']
         if ctx.get('fragment_count') is not None:
             downloader['fragment_count'] = ctx['fragment_count']
         frag_index_stream.write(json.dumps({'downloader': downloader}))

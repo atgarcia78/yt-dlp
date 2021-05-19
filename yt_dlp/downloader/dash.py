@@ -113,12 +113,14 @@ class DashSegmentsFD(FragmentFD):
                 if count > fragment_retries:
                     if not fatal:
                         return False, frag_index
+                    ctx['dest_stream'].close()
                     self.report_error('Giving up after %s fragment retries' % fragment_retries)
                     return False, frag_index
 
                 return frag_content, frag_index
 
             def append_fragment(frag_content, frag_index):
+                fatal = frag_index == 1 or not skip_unavailable_fragments
                 if frag_content:
                     fragment_filename = '%s-Frag%d' % (ctx['tmpfilename'], frag_index)
                     try:
@@ -131,18 +133,20 @@ class DashSegmentsFD(FragmentFD):
                         if ose.errno != errno.ENOENT:
                             raise
                         # FileNotFoundError
-                        if skip_unavailable_fragments:
+                        if not fatal:
                             self.report_skip_fragment(frag_index)
                             return True
                         else:
+                            ctx['dest_stream'].close()
                             self.report_error(
                                 'fragment %s not found, unable to continue' % frag_index)
                             return False
                 else:
-                    if skip_unavailable_fragments:
+                    if not fatal:
                         self.report_skip_fragment(frag_index)
                         return True
                     else:
+                        ctx['dest_stream'].close()
                         self.report_error(
                             'fragment %s not found, unable to continue' % frag_index)
                         return False

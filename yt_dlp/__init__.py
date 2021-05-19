@@ -60,6 +60,7 @@ def _real_main(argv=None):
     setproctitle('yt-dlp')
 
     parser, opts, args = parseOpts(argv)
+    warnings = []
 
     # Set user agent
     if opts.user_agent is not None:
@@ -128,16 +129,12 @@ def _real_main(argv=None):
         parser.error('account username missing\n')
     if opts.ap_password is not None and opts.ap_username is None:
         parser.error('TV Provider account username missing\n')
-    if opts.outtmpl is not None and (opts.usetitle or opts.autonumber or opts.useid):
-        parser.error('using output template conflicts with using title, video ID or auto number')
     if opts.autonumber_size is not None:
         if opts.autonumber_size <= 0:
             parser.error('auto number size must be positive')
     if opts.autonumber_start is not None:
         if opts.autonumber_start < 0:
             parser.error('auto number start must be positive or 0')
-    if opts.usetitle and opts.useid:
-        parser.error('using title conflicts with using video ID')
     if opts.username is not None and opts.password is None:
         opts.password = compat_getpass('Type account password and press [Return]: ')
     if opts.ap_username is not None and opts.ap_password is None:
@@ -177,8 +174,7 @@ def _real_main(argv=None):
             parser.error('requests sleep interval must be positive or 0')
     if opts.ap_mso and opts.ap_mso not in MSO_INFO:
         parser.error('Unsupported TV Provider, use --ap-list-mso to get a list of supported TV Providers')
-    if opts.overwrites:
-        # --yes-overwrites implies --no-continue
+    if opts.overwrites:  # --yes-overwrites implies --no-continue
         opts.continue_dl = False
     if opts.concurrent_fragment_downloads <= 0:
         raise ValueError('Concurrent fragments must be positive')
@@ -239,21 +235,75 @@ def _real_main(argv=None):
     else:
         date = DateRange(opts.dateafter, opts.datebefore)
 
-    # Do not download videos when there are audio-only formats
+    def parse_compat_opts():
+        parsed_compat_opts, compat_opts = set(), opts.compat_opts[::-1]
+        while compat_opts:
+            actual_opt = opt = compat_opts.pop().lower()
+            if opt == 'youtube-dl':
+                compat_opts.extend(['-multistreams', 'all'])
+            elif opt == 'youtube-dlc':
+                compat_opts.extend(['-no-youtube-channel-redirect', '-no-live-chat', 'all'])
+            elif opt == 'all':
+                parsed_compat_opts.update(all_compat_opts)
+            elif opt == '-all':
+                parsed_compat_opts = set()
+            else:
+                if opt[0] == '-':
+                    opt = opt[1:]
+                    parsed_compat_opts.discard(opt)
+                else:
+                    parsed_compat_opts.update([opt])
+                if opt not in all_compat_opts:
+                    parser.error('Invalid compatibility option %s' % actual_opt)
+        return parsed_compat_opts
+
+    all_compat_opts = [
+        'filename', 'format-sort', 'abort-on-error', 'format-spec', 'multistreams',
+        'no-playlist-metafiles', 'no-live-chat', 'playlist-index', 'list-formats',
+        'no-youtube-channel-redirect', 'no-youtube-unavailable-videos', 'no-attach-info-json',
+    ]
+    compat_opts = parse_compat_opts()
+
+    def _unused_compat_opt(name):
+        if name not in compat_opts:
+            return False
+        compat_opts.discard(name)
+        compat_opts.update(['*%s' % name])
+        return True
+
+    def set_default_compat(compat_name, opt_name, default=True, remove_compat=False):
+        attr = getattr(opts, opt_name)
+        if compat_name in compat_opts:
+            if attr is None:
+                setattr(opts, opt_name, not default)
+                return True
+            else:
+                if remove_compat:
+                    _unused_compat_opt(compat_name)
+                return False
+        elif attr is None:
+            setattr(opts, opt_name, default)
+        return None
+
+    set_default_compat('abort-on-error', 'ignoreerrors')
+    set_default_compat('no-playlist-metafiles', 'allow_playlist_files')
+    if 'format-sort' in compat_opts:
+        opts.format_sort.extend(InfoExtractor.FormatSort.ytdl_default)
+    _video_multistreams_set = set_default_compat('multistreams', 'allow_multiple_video_streams', False, remove_compat=False)
+    _audio_multistreams_set = set_default_compat('multistreams', 'allow_multiple_audio_streams', False, remove_compat=False)
+    if _video_multistreams_set is False and _audio_multistreams_set is False:
+        _unused_compat_opt('multistreams')
+    outtmpl_default = opts.outtmpl.get('default')
+    if 'filename' in compat_opts:
+        if outtmpl_default is None:
+            outtmpl_default = '%(title)s.%(id)s.%(ext)s'
+            opts.outtmpl.update({'default': outtmpl_default})
+        else:
+            _unused_compat_opt('filename')
+
     if opts.extractaudio and not opts.keepvideo and opts.format is None:
         opts.format = 'bestaudio/best'
 
-    outtmpl = opts.outtmpl
-    if not outtmpl:
-        outtmpl = {'default': (
-            '%(title)s-%(id)s-%(format)s.%(ext)s' if opts.format == '-1' and opts.usetitle
-            else '%(id)s-%(format)s.%(ext)s' if opts.format == '-1'
-            else '%(autonumber)s-%(title)s-%(id)s.%(ext)s' if opts.usetitle and opts.autonumber
-            else '%(title)s-%(id)s.%(ext)s' if opts.usetitle
-            else '%(id)s.%(ext)s' if opts.useid
-            else '%(autonumber)s-%(id)s.%(ext)s' if opts.autonumber
-            else None)}
-    outtmpl_default = outtmpl.get('default')
     if outtmpl_default is not None and not os.path.splitext(outtmpl_default)[1] and opts.extractaudio:
         parser.error('Cannot download a video and extract audio into the same'
                      ' file! Use "{0}.%(ext)s" instead of "{0}" as the output'
@@ -271,7 +321,7 @@ def _real_main(argv=None):
         if re.match(MetadataFromFieldPP.regex, f) is None:
             parser.error('invalid format string "%s" specified for --parse-metadata' % f)
 
-    any_getting = opts.geturl or opts.gettitle or opts.getid or opts.getthumbnail or opts.getdescription or opts.getfilename or opts.getformat or opts.getduration or opts.dumpjson or opts.dump_single_json
+    any_getting = opts.forceprint or opts.geturl or opts.gettitle or opts.getid or opts.getthumbnail or opts.getdescription or opts.getfilename or opts.getformat or opts.getduration or opts.dumpjson or opts.dump_single_json
     any_printing = opts.print_json
     download_archive_fn = expand_path(opts.download_archive) if opts.download_archive is not None else opts.download_archive
 
@@ -281,7 +331,7 @@ def _real_main(argv=None):
         opts.writeinfojson = True
 
     def report_conflict(arg1, arg2):
-        write_string('WARNING: %s is ignored since %s was given\n' % (arg2, arg1), out=sys.stderr)
+        warnings.append('%s is ignored since %s was given' % (arg2, arg1))
 
     if opts.remuxvideo and opts.recodevideo:
         report_conflict('--recode-video', '--remux-video')
@@ -419,11 +469,10 @@ def _real_main(argv=None):
         })
 
     def report_args_compat(arg, name):
-        write_string(
-            'WARNING: %s given without specifying name. The arguments will be given to all %s\n' % (arg, name),
-            out=sys.stderr)
+        warnings.append('%s given without specifying name. The arguments will be given to all %s' % (arg, name))
+
     if 'default' in opts.external_downloader_args:
-        report_args_compat('--external-downloader-args', 'external downloaders')
+        report_args_compat('--downloader-args', 'external downloaders')
 
     if 'default-compat' in opts.postprocessor_args and 'default' not in opts.postprocessor_args:
         report_args_compat('--post-processor-args', 'post-processors')
@@ -459,6 +508,7 @@ def _real_main(argv=None):
         'forceduration': opts.getduration,
         'forcefilename': opts.getfilename,
         'forceformat': opts.getformat,
+        'forceprint': opts.forceprint,
         'forcejson': opts.dumpjson or opts.print_json,
         'dump_single_json': opts.dump_single_json,
         'force_write_download_archive': opts.force_write_download_archive,
@@ -471,9 +521,10 @@ def _real_main(argv=None):
         'format_sort_force': opts.format_sort_force,
         'allow_multiple_video_streams': opts.allow_multiple_video_streams,
         'allow_multiple_audio_streams': opts.allow_multiple_audio_streams,
+        'check_formats': opts.check_formats,
         'listformats': opts.listformats,
         'listformats_table': opts.listformats_table,
-        'outtmpl': outtmpl,
+        'outtmpl': opts.outtmpl,
         'outtmpl_na_placeholder': opts.outtmpl_na_placeholder,
         'paths': opts.paths,
         'autonumber_size': opts.autonumber_size,
@@ -588,9 +639,12 @@ def _real_main(argv=None):
         'geo_bypass': opts.geo_bypass,
         'geo_bypass_country': opts.geo_bypass_country,
         'geo_bypass_ip_block': opts.geo_bypass_ip_block,
+        'warnings': warnings,
+        'compat_opts': compat_opts,
         # just for deprecation check
-        'autonumber': opts.autonumber if opts.autonumber is True else None,
-        'usetitle': opts.usetitle if opts.usetitle is True else None,
+        'autonumber': opts.autonumber or None,
+        'usetitle': opts.usetitle or None,
+        'useid': opts.useid or None,
     }
 
     with YoutubeDL(ydl_opts) as ydl:
