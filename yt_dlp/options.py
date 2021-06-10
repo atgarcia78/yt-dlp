@@ -5,7 +5,6 @@ import optparse
 import re
 import sys
 
-from .downloader.external import list_external_downloaders
 from .compat import (
     compat_expanduser,
     compat_get_terminal_size,
@@ -18,10 +17,17 @@ from .utils import (
     get_executable_path,
     OUTTMPL_TYPES,
     preferredencoding,
-    REMUX_EXTENSIONS,
     write_string,
 )
 from .version import __version__
+
+from .downloader.external import list_external_downloaders
+from .postprocessor.ffmpeg import (
+    FFmpegExtractAudioPP,
+    FFmpegSubtitlesConvertorPP,
+    FFmpegThumbnailsConvertorPP,
+    FFmpegVideoRemuxerPP,
+)
 
 
 def _hide_login_info(opts):
@@ -1048,11 +1054,15 @@ def parseOpts(overrideArguments=None):
         action='store_false', dest='clean_infojson',
         help='Write all fields to the infojson')
     filesystem.add_option(
-        '--get-comments',
+        '--write-comments', '--get-comments',
         action='store_true', dest='getcomments', default=False,
         help=(
-            'Retrieve video comments to be placed in the .info.json file. '
-            'The comments are fetched even without this option if the extraction is known to be quick'))
+            'Retrieve video comments to be placed in the infojson. '
+            'The comments are fetched even without this option if the extraction is known to be quick (Alias: --get-comments)'))
+    filesystem.add_option(
+        '--no-write-comments', '--no-get-comments',
+        action='store_true', dest='getcomments', default=False,
+        help='Do not retrieve video comments unless the extraction is known to be quick (Alias: --no-get-comments)')
     filesystem.add_option(
         '--load-info-json', '--load-info',
         dest='load_info_filename', metavar='FILE',
@@ -1067,7 +1077,7 @@ def parseOpts(overrideArguments=None):
         help='Do not read/dump cookies (default)')
     filesystem.add_option(
         '--cache-dir', dest='cachedir', default=None, metavar='DIR',
-        help='Location in the filesystem where youtube-dl can store some downloaded information permanently. By default $XDG_CACHE_HOME/youtube-dl or ~/.cache/youtube-dl . At the moment, only YouTube player files (for videos with obfuscated signatures) are cached, but that may change')
+        help='Location in the filesystem where youtube-dl can store some downloaded information (such as client ids and signatures) permanently. By default $XDG_CACHE_HOME/youtube-dl or ~/.cache/youtube-dl')
     filesystem.add_option(
         '--no-cache-dir', action='store_false', dest='cachedir',
         help='Disable filesystem caching')
@@ -1119,7 +1129,9 @@ def parseOpts(overrideArguments=None):
         help='Convert video files to audio-only files (requires ffmpeg and ffprobe)')
     postproc.add_option(
         '--audio-format', metavar='FORMAT', dest='audioformat', default='best',
-        help='Specify audio format: "best", "aac", "flac", "mp3", "m4a", "opus", "vorbis", or "wav"; "%default" by default; No effect without -x')
+        help=(
+            'Specify audio format to convert the audio to when -x is used. Currently supported formats are: '
+            'best (default) or one of %s' % '|'.join(FFmpegExtractAudioPP.SUPPORTED_EXTS)))
     postproc.add_option(
         '--audio-quality', metavar='QUALITY',
         dest='audioquality', default='5',
@@ -1130,14 +1142,14 @@ def parseOpts(overrideArguments=None):
         help=(
             'Remux the video into another container if necessary (currently supported: %s). '
             'If target container does not support the video/audio codec, remuxing will fail. '
-            'You can specify multiple rules; eg. "aac>m4a/mov>mp4/mkv" will remux aac to m4a, mov to mp4 '
-            'and anything else to mkv.' % '|'.join(REMUX_EXTENSIONS)))
+            'You can specify multiple rules; Eg. "aac>m4a/mov>mp4/mkv" will remux aac to m4a, mov to mp4 '
+            'and anything else to mkv.' % '|'.join(FFmpegVideoRemuxerPP.SUPPORTED_EXTS)))
     postproc.add_option(
         '--recode-video',
         metavar='FORMAT', dest='recodevideo', default=None,
         help=(
             'Re-encode the video into another format if re-encoding is necessary. '
-            'The supported formats are the same as --remux-video'))
+            'The syntax and supported formats are the same as --remux-video'))
     postproc.add_option(
         '--postprocessor-args', '--ppa',
         metavar='NAME:ARGS', dest='postprocessor_args', default={}, type='str',
@@ -1245,11 +1257,15 @@ def parseOpts(overrideArguments=None):
     postproc.add_option(
         '--convert-subs', '--convert-sub', '--convert-subtitles',
         metavar='FORMAT', dest='convertsubtitles', default=None,
-        help='Convert the subtitles to another format (currently supported: srt|ass|vtt|lrc) (Alias: --convert-subtitles)')
+        help=(
+            'Convert the subtitles to another format (currently supported: %s) '
+            '(Alias: --convert-subtitles)' % '|'.join(FFmpegSubtitlesConvertorPP.SUPPORTED_EXTS)))
     postproc.add_option(
         '--convert-thumbnails',
         metavar='FORMAT', dest='convertthumbnails', default=None,
-        help='Convert the thumbnails to another format (currently supported: jpg)')
+        help=(
+            'Convert the thumbnails to another format '
+            '(currently supported: %s) ' % '|'.join(FFmpegThumbnailsConvertorPP.SUPPORTED_EXTS)))
     postproc.add_option(
         '--split-chapters', '--split-tracks',
         dest='split_chapters', action='store_true', default=False,

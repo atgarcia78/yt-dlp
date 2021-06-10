@@ -203,6 +203,9 @@ class InfoExtractor(object):
                                  (HTTP or RTMP) download. Boolean.
                     * downloader_options  A dictionary of downloader options as
                                  described in FileDownloader
+                    RTMP formats can also have the additional fields: page_url,
+                    app, play_path, tc_url, flash_version, rtmp_live, rtmp_conn,
+                    rtmp_protocol, rtmp_real_time
 
     url:            Final video URL.
     ext:            Video filename extension.
@@ -421,6 +424,14 @@ class InfoExtractor(object):
     _GEO_COUNTRIES = None
     _GEO_IP_BLOCKS = None
     _WORKING = True
+
+    _LOGIN_HINTS = {
+        'any': 'Use --cookies, --username and --password or --netrc to provide account credentials',
+        'cookies': (
+            'Use --cookies for the authentication. '
+            'See  https://github.com/ytdl-org/youtube-dl#how-do-i-pass-cookies-to-youtube-dl  for how to pass cookies'),
+        'password': 'Use --username and --password or --netrc to provide account credentials',
+    }
 
     def __init__(self, downloader=None):
         """Constructor. Receives an optional downloader."""
@@ -944,6 +955,49 @@ class InfoExtractor(object):
             else:
                 self.report_warning(errmsg + str(ve))
 
+    def _parse_socket_response_as_json(self, data, video_id, transform_source=None, fatal=True):
+        return self._parse_json(
+            data[data.find('{'):data.rfind('}') + 1],
+            video_id, transform_source, fatal)
+
+    def _download_socket_json_handle(
+            self, url_or_request, video_id, note='Polling socket',
+            errnote='Unable to poll socket', transform_source=None,
+            fatal=True, encoding=None, data=None, headers={}, query={},
+            expected_status=None):
+        """
+        Return a tuple (JSON object, URL handle).
+
+        See _download_webpage docstring for arguments specification.
+        """
+        res = self._download_webpage_handle(
+            url_or_request, video_id, note, errnote, fatal=fatal,
+            encoding=encoding, data=data, headers=headers, query=query,
+            expected_status=expected_status)
+        if res is False:
+            return res
+        webpage, urlh = res
+        return self._parse_socket_response_as_json(
+            webpage, video_id, transform_source=transform_source,
+            fatal=fatal), urlh
+
+    def _download_socket_json(
+            self, url_or_request, video_id, note='Polling socket',
+            errnote='Unable to poll socket', transform_source=None,
+            fatal=True, encoding=None, data=None, headers={}, query={},
+            expected_status=None):
+        """
+        Return the JSON object as a dict.
+
+        See _download_webpage docstring for arguments specification.
+        """
+        res = self._download_socket_json_handle(
+            url_or_request, video_id, note=note, errnote=errnote,
+            transform_source=transform_source, fatal=fatal, encoding=encoding,
+            data=data, headers=headers, query=query,
+            expected_status=expected_status)
+        return res if res is False else res[0]
+
     def report_warning(self, msg, video_id=None, *args, **kwargs):
         idstr = '' if video_id is None else '%s: ' % video_id
         self._downloader.report_warning(
@@ -978,12 +1032,11 @@ class InfoExtractor(object):
         self.to_screen('Logging in')
 
     def raise_login_required(
-            self, msg='This video is only available for registered users', metadata_available=False):
+            self, msg='This video is only available for registered users',
+            metadata_available=False, method='any'):
         if metadata_available and self.get_param('ignore_no_formats_error'):
             self.report_warning(msg)
-        raise ExtractorError(
-            '%s. Use --cookies, --username and --password or --netrc to provide account credentials' % msg,
-            expected=True)
+        raise ExtractorError('%s. %s' % (msg, self._LOGIN_HINTS[method]), expected=True)
 
     def raise_geo_restricted(
             self, msg='This video is not available from your location due to geo restriction',
@@ -1895,15 +1948,15 @@ class InfoExtractor(object):
         return fmts
 
     def _extract_m3u8_formats_and_subtitles(
-            self, m3u8_url, video_id, ext=None, entry_protocol='m3u8',
+            self, m3u8_url, video_id, ext=None, entry_protocol='m3u8_native',
             preference=None, quality=None, m3u8_id=None, note=None,
             errnote=None, fatal=True, live=False, data=None, headers={},
             query={}):
 
         res = self._download_webpage_handle(
             m3u8_url, video_id,
-            note=note or 'Downloading m3u8 information',
-            errnote=errnote or 'Failed to download m3u8 information',
+            note='Downloading m3u8 information' if note is None else note,
+            errnote='Failed to download m3u8 information' if errnote is None else errnote,
             fatal=fatal, data=data, headers=headers, query=query)
 
         if res is False:
@@ -1919,7 +1972,7 @@ class InfoExtractor(object):
             headers=headers, query=query, video_id=video_id)
 
     def _parse_m3u8_formats_and_subtitles(
-            self, m3u8_doc, m3u8_url, ext=None, entry_protocol='m3u8',
+            self, m3u8_doc, m3u8_url, ext=None, entry_protocol='m3u8_native',
             preference=None, quality=None, m3u8_id=None, live=False, note=None,
             errnote=None, fatal=True, data=None, headers={}, query={},
             video_id=None):
@@ -2035,7 +2088,12 @@ class InfoExtractor(object):
             groups.setdefault(group_id, []).append(media)
             # <https://tools.ietf.org/html/rfc8216#section-4.3.4.1>
             if media_type == 'SUBTITLES':
-                lang = media['LANGUAGE']  # XXX: normalise?
+                # According to RFC 8216 §4.3.4.2.1, URI is REQUIRED in the
+                # EXT-X-MEDIA tag if the media type is SUBTITLES.
+                # However, lack of URI has been spotted in the wild.
+                # e.g. NebulaIE; see https://github.com/yt-dlp/yt-dlp/issues/339
+                if not media.get('URI'):
+                    return
                 url = format_url(media['URI'])
                 sub_info = {
                     'url': url,
@@ -2047,6 +2105,7 @@ class InfoExtractor(object):
                     # <https://tools.ietf.org/html/rfc8216#section-3.1>
                     sub_info['ext'] = 'vtt'
                     sub_info['protocol'] = 'm3u8_native'
+                lang = media.get('LANGUAGE') or 'und'
                 subtitles.setdefault(lang, []).append(sub_info)
             if media_type not in ('VIDEO', 'AUDIO'):
                 return
@@ -2452,8 +2511,8 @@ class InfoExtractor(object):
             fatal=True, data=None, headers={}, query={}):
         res = self._download_xml_handle(
             mpd_url, video_id,
-            note=note or 'Downloading MPD manifest',
-            errnote=errnote or 'Failed to download MPD manifest',
+            note='Downloading MPD manifest' if note is None else note,
+            errnote='Failed to download MPD manifest' if errnote is None else errnote,
             fatal=fatal, data=data, headers=headers, query=query)
         if res is False:
             return [], {}
@@ -2782,8 +2841,8 @@ class InfoExtractor(object):
     def _extract_ism_formats_and_subtitles(self, ism_url, video_id, ism_id=None, note=None, errnote=None, fatal=True, data=None, headers={}, query={}):
         res = self._download_xml_handle(
             ism_url, video_id,
-            note=note or 'Downloading ISM manifest',
-            errnote=errnote or 'Failed to download ISM manifest',
+            note='Downloading ISM manifest' if note is None else note,
+            errnote='Failed to download ISM manifest' if errnote is None else errnote,
             fatal=fatal, data=data, headers=headers, query=query)
         if res is False:
             return [], {}
@@ -2820,7 +2879,7 @@ class InfoExtractor(object):
             stream_name = stream.get('Name')
             stream_language = stream.get('Language', 'und')
             for track in stream.findall('QualityLevel'):
-                fourcc = track.get('FourCC', 'AACL' if track.get('AudioTag') == '255' else None)
+                fourcc = track.get('FourCC') or ('AACL' if track.get('AudioTag') == '255' else None)
                 # TODO: add support for WVC1 and WMAP
                 if fourcc not in ('H264', 'AVC1', 'AACL', 'TTML'):
                     self.report_warning('%s is not a supported codec' % fourcc)
@@ -3474,7 +3533,7 @@ class InfoExtractor(object):
         return compat_urllib_parse_unquote(os.path.splitext(url_basename(url))[0])
 
     @staticmethod
-    def _availability(is_private, needs_premium, needs_subscription, needs_auth, is_unlisted):
+    def _availability(is_private=None, needs_premium=None, needs_subscription=None, needs_auth=None, is_unlisted=None):
         all_known = all(map(
             lambda x: x is not None,
             (is_private, needs_premium, needs_subscription, needs_auth, is_unlisted)))
