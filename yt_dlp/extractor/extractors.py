@@ -291,8 +291,7 @@ from .ctvnews import CTVNewsIE
 from .cultureunplugged import CultureUnpluggedIE
 from .curiositystream import (
     CuriosityStreamIE,
-    CuriosityStreamCollectionsIE,
-    CuriosityStreamSeriesIE,
+    CuriosityStreamCollectionIE,
 )
 from .cwtv import CWTVIE
 from .dailymail import DailyMailIE
@@ -456,7 +455,10 @@ from .frontendmasters import (
     FrontendMastersCourseIE
 )
 from .fujitv import FujiTVFODPlus7IE
-from .funimation import FunimationIE
+from .funimation import (
+    FunimationIE,
+    FunimationShowIE
+)
 from .funk import FunkIE
 from .fusion import FusionIE
 from .gaia import GaiaIE
@@ -655,10 +657,6 @@ from .linkedin import (
 from .linuxacademy import LinuxAcademyIE
 from .litv import LiTVIE
 from .livejournal import LiveJournalIE
-from .liveleak import (
-    LiveLeakIE,
-    LiveLeakEmbedIE,
-)
 from .livestream import (
     LivestreamIE,
     LivestreamOriginalIE,

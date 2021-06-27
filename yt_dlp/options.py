@@ -600,6 +600,10 @@ def parseOpts(overrideArguments=None):
         dest='ratelimit', metavar='RATE',
         help='Maximum download rate in bytes per second (e.g. 50K or 4.2M)')
     downloader.add_option(
+        '--throttled-rate',
+        dest='throttledratelimit', metavar='RATE',
+        help='Minimum download rate in bytes per second below which throttling is assumed and the video data is re-extracted (e.g. 100K)')
+    downloader.add_option(
         '-R', '--retries',
         dest='retries', metavar='RETRIES', default=10,
         help='Number of retries (default is %default), or "infinite"')
@@ -712,7 +716,8 @@ def parseOpts(overrideArguments=None):
         help=(
             'Give these arguments to the external downloader. '
             'Specify the downloader name and the arguments separated by a colon ":". '
-            'You can use this option multiple times (Alias: --external-downloader-args)'))
+            'You can use this option multiple times to give different arguments to different downloaders '
+            '(Alias: --external-downloader-args)'))
 
     workarounds = optparse.OptionGroup(parser, 'Workarounds')
     workarounds.add_option(
@@ -1165,7 +1170,7 @@ def parseOpts(overrideArguments=None):
             'to give the argument to the specified postprocessor/executable. Supported PP are: '
             'Merger, ExtractAudio, SplitChapters, Metadata, EmbedSubtitle, EmbedThumbnail, '
             'SubtitlesConvertor, ThumbnailsConvertor, VideoRemuxer, VideoConvertor, '
-            'SponSkrub, FixupStretched, FixupM4a and FixupM3u8. '
+            'SponSkrub, FixupStretched, FixupM4a, FixupM3u8, FixupTimestamp and FixupDuration. '
             'The supported executables are: AtomicParsley, FFmpeg, FFprobe, and SponSkrub. '
             'You can also specify "PP+EXE:ARGS" to give the arguments to the specified executable '
             'only when being used by the specified postprocessor. Additionally, for ffmpeg/ffprobe, '
@@ -1200,19 +1205,19 @@ def parseOpts(overrideArguments=None):
     postproc.add_option(
         '--embed-thumbnail',
         action='store_true', dest='embedthumbnail', default=False,
-        help='Embed thumbnail in the audio as cover art')
+        help='Embed thumbnail in the video as cover art')
     postproc.add_option(
         '--no-embed-thumbnail',
         action='store_false', dest='embedthumbnail',
         help='Do not embed thumbnail (default)')
     postproc.add_option(
-        '--add-metadata',
+        '--embed-metadata', '--add-metadata',
         action='store_true', dest='addmetadata', default=False,
-        help='Write metadata to the video file')
+        help='Embed metadata including chapter markers (if supported by the format) to the video file (Alias: --add-metadata)')
     postproc.add_option(
-        '--no-add-metadata',
+        '--no-embed-metadata', '--no-add-metadata',
         action='store_false', dest='addmetadata',
-        help='Do not write metadata (default)')
+        help='Do not write metadata (default)  (Alias: --no-add-metadata)')
     postproc.add_option(
         '--metadata-from-title',
         metavar='FORMAT', dest='metafromtitle',
@@ -1230,10 +1235,12 @@ def parseOpts(overrideArguments=None):
     postproc.add_option(
         '--fixup',
         metavar='POLICY', dest='fixup', default=None,
+        choices=('never', 'ignore', 'warn', 'detect_or_warn', 'force'),
         help=(
             'Automatically correct known faults of the file. '
             'One of never (do nothing), warn (only emit a warning), '
-            'detect_or_warn (the default; fix file if we can, warn otherwise)'))
+            'detect_or_warn (the default; fix file if we can, warn otherwise), '
+            'force (try fixing even if file already exists'))
     postproc.add_option(
         '--prefer-avconv', '--no-prefer-ffmpeg',
         action='store_false', dest='prefer_ffmpeg',
@@ -1338,21 +1345,33 @@ def parseOpts(overrideArguments=None):
         dest='hls_split_discontinuity', action='store_false',
         help='Do not split HLS playlists to different formats at discontinuities such as ad breaks (default)')
     extractor.add_option(
+        '--extractor-args',
+        metavar='KEY:ARGS', dest='extractor_args', default={}, type='str',
+        action='callback', callback=_dict_from_options_callback,
+        callback_kwargs={
+            'multiple_keys': False,
+            'process': lambda val: dict(
+                (lambda x: (x[0], x[1].split(',')))(arg.split('=', 1) + ['', '']) for arg in val.split(';'))
+        },
+        help=(
+            'Pass these arguments to the extractor. See "EXTRACTOR ARGUMENTS" for details. '
+            'You can use this option multiple times to give different arguments to different extractors'))
+    extractor.add_option(
         '--youtube-include-dash-manifest', '--no-youtube-skip-dash-manifest',
         action='store_true', dest='youtube_include_dash_manifest', default=True,
-        help='Download the DASH manifests and related data on YouTube videos (default) (Alias: --no-youtube-skip-dash-manifest)')
+        help=optparse.SUPPRESS_HELP)
     extractor.add_option(
         '--youtube-skip-dash-manifest', '--no-youtube-include-dash-manifest',
         action='store_false', dest='youtube_include_dash_manifest',
-        help='Do not download the DASH manifests and related data on YouTube videos (Alias: --no-youtube-include-dash-manifest)')
+        help=optparse.SUPPRESS_HELP)
     extractor.add_option(
         '--youtube-include-hls-manifest', '--no-youtube-skip-hls-manifest',
         action='store_true', dest='youtube_include_hls_manifest', default=True,
-        help='Download the HLS manifests and related data on YouTube videos (default) (Alias: --no-youtube-skip-hls-manifest)')
+        help=optparse.SUPPRESS_HELP)
     extractor.add_option(
         '--youtube-skip-hls-manifest', '--no-youtube-include-hls-manifest',
         action='store_false', dest='youtube_include_hls_manifest',
-        help='Do not download the HLS manifests and related data on YouTube videos (Alias: --no-youtube-include-hls-manifest)')
+        help=optparse.SUPPRESS_HELP)
 
     parser.add_option_group(general)
     parser.add_option_group(network)

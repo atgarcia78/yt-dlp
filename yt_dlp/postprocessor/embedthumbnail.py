@@ -16,6 +16,7 @@ try:
 except ImportError:
     has_mutagen = False
 
+from .common import PostProcessor
 from .ffmpeg import (
     FFmpegPostProcessor,
     FFmpegThumbnailsConvertorPP,
@@ -62,6 +63,7 @@ class EmbedThumbnailPP(FFmpegPostProcessor):
     def _report_run(self, exe, filename):
         self.to_screen('%s: Adding thumbnail to "%s"' % (exe, filename))
 
+    @PostProcessor._restrict_to(images=False)
     def run(self, info):
         filename = info['filepath']
         temp_filename = prepend_extension(filename, 'temp')
@@ -90,7 +92,7 @@ class EmbedThumbnailPP(FFmpegPostProcessor):
         # format, there will be some additional data loss.
         # PNG, on the other hand, is lossless.
         thumbnail_ext = os.path.splitext(thumbnail_filename)[1][1:]
-        if thumbnail_ext not in ('jpg', 'png'):
+        if thumbnail_ext not in ('jpg', 'jpeg', 'png'):
             thumbnail_filename = convertor.convert_thumbnail(thumbnail_filename, 'png')
             thumbnail_ext = 'png'
 
@@ -123,8 +125,9 @@ class EmbedThumbnailPP(FFmpegPostProcessor):
             self.run_ffmpeg(filename, temp_filename, options)
 
         elif info['ext'] in ['m4a', 'mp4', 'mov']:
+            prefer_atomicparsley = 'embed-thumbnail-atomicparsley' in self.get_param('compat_opts', [])
             # Method 1: Use mutagen
-            if not has_mutagen:
+            if not has_mutagen or prefer_atomicparsley:
                 success = False
             else:
                 try:
@@ -143,7 +146,7 @@ class EmbedThumbnailPP(FFmpegPostProcessor):
                     success = False
 
             # Method 2: Use ffmpeg+ffprobe
-            if not success:
+            if not success and not prefer_atomicparsley:
                 success = True
                 try:
                     options = ['-c', 'copy', '-map', '0', '-dn', '-map', '1']

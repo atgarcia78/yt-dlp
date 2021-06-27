@@ -151,6 +151,11 @@ def _real_main(argv=None):
         if numeric_limit is None:
             parser.error('invalid rate limit specified')
         opts.ratelimit = numeric_limit
+    if opts.throttledratelimit is not None:
+        numeric_limit = FileDownloader.parse_bytes(opts.throttledratelimit)
+        if numeric_limit is None:
+            parser.error('invalid rate limit specified')
+        opts.throttledratelimit = numeric_limit
     if opts.min_filesize is not None:
         numeric_limit = FileDownloader.parse_bytes(opts.min_filesize)
         if numeric_limit is None:
@@ -268,6 +273,7 @@ def _real_main(argv=None):
         'filename', 'format-sort', 'abort-on-error', 'format-spec', 'no-playlist-metafiles',
         'multistreams', 'no-live-chat', 'playlist-index', 'list-formats', 'no-direct-merge',
         'no-youtube-channel-redirect', 'no-youtube-unavailable-videos', 'no-attach-info-json',
+        'embed-thumbnail-atomicparsley',
     ]
     compat_opts = parse_compat_opts()
 
@@ -551,6 +557,7 @@ def _real_main(argv=None):
         'ignoreerrors': opts.ignoreerrors,
         'force_generic_extractor': opts.force_generic_extractor,
         'ratelimit': opts.ratelimit,
+        'throttledratelimit': opts.throttledratelimit,
         'overwrites': opts.overwrites,
         'retries': opts.retries,
         'fragment_retries': opts.fragment_retries,
@@ -624,6 +631,7 @@ def _real_main(argv=None):
         'include_ads': opts.include_ads,
         'default_search': opts.default_search,
         'dynamic_mpd': opts.dynamic_mpd,
+        'extractor_args': opts.extractor_args,
         'youtube_include_dash_manifest': opts.youtube_include_dash_manifest,
         'youtube_include_hls_manifest': opts.youtube_include_hls_manifest,
         'encoding': opts.encoding,

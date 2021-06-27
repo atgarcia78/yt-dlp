@@ -464,20 +464,15 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         # Invidious instances taken from https://github.com/iv-org/documentation/blob/master/Invidious-Instances.md
         r'(?:www\.)?invidious\.pussthecat\.org',
         r'(?:www\.)?invidious\.zee\.li',
-        r'(?:(?:www|au)\.)?ytprivate\.com',
-        r'(?:www\.)?invidious\.namazso\.eu',
         r'(?:www\.)?invidious\.ethibox\.fr',
-        r'(?:www\.)?w6ijuptxiku4xpnnaetxvnkc5vqcdu7mgns2u77qefoixi63vbvnpnqd\.onion',
-        r'(?:www\.)?kbjggqkzv65ivcqj6bumvp337z6264huv5kpkwuv6gu5yjiskvan7fad\.onion',
         r'(?:www\.)?invidious\.3o7z6yfxhbw7n3za4rss6l434kmv55cgw2vuziwuigpwegswvwzqipyd\.onion',
-        r'(?:www\.)?grwp24hodrefzvjjuccrkw3mjq4tzhaaq32amf33dzpmuxe7ilepcmad\.onion',
         # youtube-dl invidious instances list
         r'(?:(?:www|no)\.)?invidiou\.sh',
         r'(?:(?:www|fi)\.)?invidious\.snopyta\.org',
         r'(?:www\.)?invidious\.kabi\.tk',
         r'(?:www\.)?invidious\.mastodon\.host',
         r'(?:www\.)?invidious\.zapashcanon\.fr',
-        r'(?:www\.)?invidious\.kavin\.rocks',
+        r'(?:www\.)?(?:invidious(?:-us)?|piped)\.kavin\.rocks',
         r'(?:www\.)?invidious\.tinfoil-hat\.net',
         r'(?:www\.)?invidious\.himiko\.cloud',
         r'(?:www\.)?invidious\.reallyancient\.tech',
@@ -504,6 +499,14 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         r'(?:www\.)?invidious\.toot\.koeln',
         r'(?:www\.)?invidious\.fdn\.fr',
         r'(?:www\.)?watch\.nettohikari\.com',
+        r'(?:www\.)?invidious\.namazso\.eu',
+        r'(?:www\.)?invidious\.silkky\.cloud',
+        r'(?:www\.)?invidious\.exonip\.de',
+        r'(?:www\.)?invidious\.riverside\.rocks',
+        r'(?:www\.)?invidious\.blamefran\.net',
+        r'(?:www\.)?invidious\.moomoo\.de',
+        r'(?:www\.)?ytb\.trom\.tf',
+        r'(?:www\.)?yt\.cyberhost\.uk',
         r'(?:www\.)?kgg2m7yk5aybusll\.onion',
         r'(?:www\.)?qklhadlycap4cnod\.onion',
         r'(?:www\.)?axqzx4s6s54s32yentfqojs3x5i7faxza6xo3ehd4bzzsg2ii4fv2iid\.onion',
@@ -512,6 +515,10 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         r'(?:www\.)?invidious\.l4qlywnpwqsluw65ts7md3khrivpirse744un3x7mlskqauz5pyuzgqd\.onion',
         r'(?:www\.)?owxfohz4kjyv25fvlqilyxast7inivgiktls3th44jhk3ej3i7ya\.b32\.i2p',
         r'(?:www\.)?4l2dgddgsrkf2ous66i6seeyi6etzfgrue332grh2n7madpwopotugyd\.onion',
+        r'(?:www\.)?w6ijuptxiku4xpnnaetxvnkc5vqcdu7mgns2u77qefoixi63vbvnpnqd\.onion',
+        r'(?:www\.)?kbjggqkzv65ivcqj6bumvp337z6264huv5kpkwuv6gu5yjiskvan7fad\.onion',
+        r'(?:www\.)?grwp24hodrefzvjjuccrkw3mjq4tzhaaq32amf33dzpmuxe7ilepcmad\.onion',
+        r'(?:www\.)?hpniueoejy4opn7bc4ftgazyqjoeqwlvh2uiku2xqku6zpoa4bf5ruid\.onion',
     )
     _VALID_URL = r"""(?x)^
                      (
@@ -1724,6 +1731,8 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                         'pbj': 1,
                         'type': 'next',
                     }
+                    if 'itct' in continuation:
+                        query['itct'] = continuation['itct']
                     if parent:
                         query['action_get_comment_replies'] = 1
                     else:
@@ -1769,19 +1778,27 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
 
                     response = try_get(browse,
                                        (lambda x: x['response'],
-                                        lambda x: x[1]['response'])) or {}
+                                        lambda x: x[1]['response']), dict) or {}
 
                     if response.get('continuationContents'):
                         break
 
                     # YouTube sometimes gives reload: now json if something went wrong (e.g. bad auth)
-                    if browse.get('reload'):
-                        raise ExtractorError('Invalid or missing params in continuation request', expected=False)
+                    if isinstance(browse, dict):
+                        if browse.get('reload'):
+                            raise ExtractorError('Invalid or missing params in continuation request', expected=False)
 
-                    # TODO: not tested, merged from old extractor
-                    err_msg = browse.get('externalErrorMessage')
+                        # TODO: not tested, merged from old extractor
+                        err_msg = browse.get('externalErrorMessage')
+                        if err_msg:
+                            last_error = err_msg
+                            continue
+
+                    response_error = try_get(response, lambda x: x['responseContext']['errors']['error'][0], dict) or {}
+                    err_msg = response_error.get('externalErrorMessage')
                     if err_msg:
-                        raise ExtractorError('YouTube said: %s' % err_msg, expected=False)
+                        last_error = err_msg
+                        continue
 
                     # Youtube sometimes sends incomplete data
                     # See: https://github.com/ytdl-org/youtube-dl/issues/28194
@@ -1876,6 +1893,16 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             'comment_count': len(comments),
         }
 
+    @staticmethod
+    def _get_video_info_params(video_id):
+        return {
+            'video_id': video_id,
+            'eurl': 'https://youtube.googleapis.com/v/' + video_id,
+            'html5': '1',
+            'c': 'TVHTML5',
+            'cver': '6.20180913',
+        }
+
     def _real_extract(self, url):
         url, smuggled_data = unsmuggle_url(url, {})
         video_id = self._match_id(url)
@@ -1908,16 +1935,14 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                     base_url + 'get_video_info', video_id,
                     'Fetching youtube music info webpage',
                     'unable to download youtube music info webpage', query={
-                        'video_id': video_id,
-                        'eurl': 'https://youtube.googleapis.com/v/' + video_id,
+                        **self._get_video_info_params(video_id),
                         'el': 'detailpage',
                         'c': 'WEB_REMIX',
                         'cver': '0.1',
                         'cplayer': 'UNIPLAYER',
-                        'html5': '1',
-                    }, fatal=False)),
+                    }, fatal=False) or ''),
                 lambda x: x['player_response'][0],
-                compat_str) or '{}', video_id)
+                compat_str) or '{}', video_id, fatal=False)
             ytm_streaming_data = ytm_player_response.get('streamingData') or {}
 
         player_response = None
@@ -1936,12 +1961,8 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             pr = self._parse_json(try_get(compat_parse_qs(
                 self._download_webpage(
                     base_url + 'get_video_info', video_id,
-                    'Refetching age-gated info webpage',
-                    'unable to download video info webpage', query={
-                        'video_id': video_id,
-                        'eurl': 'https://youtube.googleapis.com/v/' + video_id,
-                        'html5': '1',
-                    }, fatal=False)),
+                    'Refetching age-gated info webpage', 'unable to download video info webpage',
+                    query=self._get_video_info_params(video_id), fatal=False)),
                 lambda x: x['player_response'][0],
                 compat_str) or '{}', video_id)
             if pr:
@@ -2108,8 +2129,12 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                     dct['container'] = dct['ext'] + '_dash'
             formats.append(dct)
 
+        skip_manifests = self._configuration_arg('skip') or []
+        get_dash = 'dash' not in skip_manifests and self.get_param('youtube_include_dash_manifest', True)
+        get_hls = 'hls' not in skip_manifests and self.get_param('youtube_include_hls_manifest', True)
+
         for sd in (streaming_data, ytm_streaming_data):
-            hls_manifest_url = sd.get('hlsManifestUrl')
+            hls_manifest_url = get_hls and sd.get('hlsManifestUrl')
             if hls_manifest_url:
                 for f in self._extract_m3u8_formats(
                         hls_manifest_url, video_id, 'mp4', fatal=False):
@@ -2119,23 +2144,21 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                         f['format_id'] = itag
                     formats.append(f)
 
-        if self.get_param('youtube_include_dash_manifest', True):
-            for sd in (streaming_data, ytm_streaming_data):
-                dash_manifest_url = sd.get('dashManifestUrl')
-                if dash_manifest_url:
-                    for f in self._extract_mpd_formats(
-                            dash_manifest_url, video_id, fatal=False):
-                        itag = f['format_id']
-                        if itag in itags:
-                            continue
-                        if itag in itag_qualities:
-                            f['quality'] = q(itag_qualities[itag])
-                        filesize = int_or_none(self._search_regex(
-                            r'/clen/(\d+)', f.get('fragment_base_url')
-                            or f['url'], 'file size', default=None))
-                        if filesize:
-                            f['filesize'] = filesize
-                        formats.append(f)
+            dash_manifest_url = get_dash and sd.get('dashManifestUrl')
+            if dash_manifest_url:
+                for f in self._extract_mpd_formats(
+                        dash_manifest_url, video_id, fatal=False):
+                    itag = f['format_id']
+                    if itag in itags:
+                        continue
+                    if itag in itag_qualities:
+                        f['quality'] = q(itag_qualities[itag])
+                    filesize = int_or_none(self._search_regex(
+                        r'/clen/(\d+)', f.get('fragment_base_url')
+                        or f['url'], 'file size', default=None))
+                    if filesize:
+                        f['filesize'] = filesize
+                    formats.append(f)
 
         if not formats:
             if not self.get_param('allow_unplayable_formats') and streaming_data.get('licenseInfos'):
@@ -2294,7 +2317,9 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                         continue
                     process_language(
                         automatic_captions, base_url, translation_language_code,
-                        try_get(translation_language, lambda x: x['languageName']['simpleText']),
+                        try_get(translation_language, (
+                            lambda x: x['languageName']['simpleText'],
+                            lambda x: x['languageName']['runs'][0]['text'])),
                         {'tlang': translation_language_code})
                 info['automatic_captions'] = automatic_captions
         info['subtitles'] = subtitles
@@ -2335,18 +2360,17 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             initial_data = self._call_api(
                 'next', {'videoId': video_id}, video_id, fatal=False, api_key=self._extract_api_key(ytcfg))
 
-        if not is_live:
-            try:
-                # This will error if there is no livechat
-                initial_data['contents']['twoColumnWatchNextResults']['conversationBar']['liveChatRenderer']['continuations'][0]['reloadContinuationData']['continuation']
-                info['subtitles']['live_chat'] = [{
-                    'url': 'https://www.youtube.com/watch?v=%s' % video_id,  # url is needed to set cookies
-                    'video_id': video_id,
-                    'ext': 'json',
-                    'protocol': 'youtube_live_chat_replay',
-                }]
-            except (KeyError, IndexError, TypeError):
-                pass
+        try:
+            # This will error if there is no livechat
+            initial_data['contents']['twoColumnWatchNextResults']['conversationBar']['liveChatRenderer']['continuations'][0]['reloadContinuationData']['continuation']
+            info['subtitles']['live_chat'] = [{
+                'url': 'https://www.youtube.com/watch?v=%s' % video_id,  # url is needed to set cookies
+                'video_id': video_id,
+                'ext': 'json',
+                'protocol': 'youtube_live_chat' if is_live else 'youtube_live_chat_replay',
+            }]
+        except (KeyError, IndexError, TypeError):
+            pass
 
         if initial_data:
             chapters = self._extract_chapters_from_json(
@@ -4078,6 +4102,7 @@ class YoutubeRecommendedIE(YoutubeFeedsInfoExtractor):
     IE_DESC = 'YouTube.com recommended videos, ":ytrec" for short (requires authentication)'
     _VALID_URL = r'https?://(?:www\.)?youtube\.com/?(?:[?#]|$)|:ytrec(?:ommended)?'
     _FEED_NAME = 'recommended'
+    _LOGIN_REQUIRED = False
     _TESTS = [{
         'url': ':ytrec',
         'only_matching': True,

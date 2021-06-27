@@ -2,16 +2,19 @@
 from __future__ import unicode_literals
 
 import random
+import re
 import string
 
 from .common import InfoExtractor
 from ..compat import compat_HTTPError
 from ..utils import (
     determine_ext,
+    dict_get,
     int_or_none,
     js_to_json,
+    urlencode_postdata,
+    urljoin,
     ExtractorError,
-    urlencode_postdata
 )
 
 
@@ -109,6 +112,7 @@ class FunimationIE(InfoExtractor):
         if series:
             title = '%s - %s' % (series, title)
         description = self._html_search_meta(['description', 'og:description'], webpage, fatal=True)
+        subtitles = self.extract_subtitles(url, video_id, display_id)
 
         try:
             headers = {}
@@ -153,6 +157,74 @@ class FunimationIE(InfoExtractor):
             'season_number': int_or_none(title_data.get('seasonNum') or _search_kane('season')),
             'episode_number': int_or_none(title_data.get('episodeNum')),
             'episode': episode,
+            'subtitles': subtitles,
             'season_id': title_data.get('seriesId'),
             'formats': formats,
+        }
+
+    def _get_subtitles(self, url, video_id, display_id):
+        player_url = urljoin(url, '/player/' + video_id)
+        player_page = self._download_webpage(player_url, display_id)
+        text_tracks_json_string = self._search_regex(
+            r'"textTracks": (\[{.+?}\])',
+            player_page, 'subtitles data', default='')
+        text_tracks = self._parse_json(
+            text_tracks_json_string, display_id, js_to_json, fatal=False) or []
+        subtitles = {}
+        for text_track in text_tracks:
+            url_element = {'url': text_track.get('src')}
+            language = text_track.get('language')
+            if text_track.get('type') == 'CC':
+                language += '_CC'
+            subtitles.setdefault(language, []).append(url_element)
+        return subtitles
+
+
+class FunimationShowIE(FunimationIE):
+    IE_NAME = 'funimation:show'
+    _VALID_URL = r'(?P<url>https?://(?:www\.)?funimation(?:\.com|now\.uk)/(?P<locale>[^/]+)?/?shows/(?P<id>[^/?#&]+))/?(?:[?#]|$)'
+
+    _TESTS = [{
+        'url': 'https://www.funimation.com/en/shows/sk8-the-infinity',
+        'info_dict': {
+            'id': 1315000,
+            'title': 'SK8 the Infinity'
+        },
+        'playlist_count': 13,
+        'params': {
+            'skip_download': True,
+        },
+    }, {
+        # without lang code
+        'url': 'https://www.funimation.com/shows/ouran-high-school-host-club/',
+        'info_dict': {
+            'id': 39643,
+            'title': 'Ouran High School Host Club'
+        },
+        'playlist_count': 26,
+        'params': {
+            'skip_download': True,
+        },
+    }]
+
+    def _real_extract(self, url):
+        base_url, locale, display_id = re.match(self._VALID_URL, url).groups()
+
+        show_info = self._download_json(
+            'https://title-api.prd.funimationsvc.com/v2/shows/%s?region=US&deviceType=web&locale=%s'
+            % (display_id, locale or 'en'), display_id)
+        items = self._download_json(
+            'https://prod-api-funimationnow.dadcdigital.com/api/funimation/episodes/?limit=99999&title_id=%s'
+            % show_info.get('id'), display_id).get('items')
+        vod_items = map(lambda k: dict_get(k, ('mostRecentSvod', 'mostRecentAvod')).get('item'), items)
+
+        return {
+            '_type': 'playlist',
+            'id': show_info['id'],
+            'title': show_info['name'],
+            'entries': [
+                self.url_result(
+                    '%s/%s' % (base_url, vod_item.get('episodeSlug')), FunimationIE.ie_key(),
+                    vod_item.get('episodeId'), vod_item.get('episodeName'))
+                for vod_item in sorted(vod_items, key=lambda x: x.get('episodeOrder'))],
         }
