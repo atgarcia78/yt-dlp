@@ -1911,3 +1911,77 @@ from .zingmp3 import (
 )
 from .zoom import ZoomIE
 from .zype import ZypeIE
+
+from .myvidster import MyVidsterChannelPlaylistIE
+from .machofactory import MachoFactoryIE
+from .citebeur import CitebeurIE
+from .cazzofilm import CazzoFilmIE
+from .yourporngod import (
+    YourPornGodIE,
+    YourPornGodPlayListIE,
+)
+from .timfuck import TimFuckIE
+from .sketchysex import (
+    SketchySexIE,
+    SketchySexOnePagePlayListIE,
+    SketchySexAllPagesPlayListIE,
+)
+from .thatgvideo import ThatGVideoIE
+from .rawfuck import RawFuckIE
+from .filmin import FilminIE
+from .harlemsex import HarlemSexIE
+from .gaybeeg import (
+    GayBeegIE,
+    GayBeegPlaylistIE,
+    GayBeegPlaylistPageIE,
+)
+from .gayforfans import (
+    GayForFansIE,
+    GayForFansPlayListIE,
+)
+from .jalifstudio import JalifStudioIE
+from .hardkinks import HardKinksIE
+from .darkcruising import DarkCruisingIE
+from .tetatita import TetatitaIE
+from .cumlouder import CumlouderIE
+from .ericvideos import EricVideosIE
+from .streamtape import StreamtapeIE
+from .userload import UserLoadIE
+from .britfuckers import BritFuckersIE
+from .gayqt import GayQTIE
+from .slamrush import (
+    SlamRushIE,
+    SlamRushPlaylistIE,    
+)
+from .sketboy import SketBoyIE
+from .daftsex import DaftSexIE
+from .mat6tube import Mat6TubeIE
+from .hungyoungbrit import HungYoungBritIE
+from .nakedsword import (
+    NakedSwordSceneIE,
+    NakedSwordMovieIE,
+    NakedSwordMostWatchedIE,
+    NakedSwordStarsIE,
+)
+from .monstercockinfo import MonsterCockInfoIE
+from .onlyfans import (
+    OnlyFansPostIE,
+    OnlyFansPlaylistIE,    
+    OnlyFansPaidlistIE,
+)
+from .netdna import NetDNAIE
+from .fraternityx import (
+    FraternityXIE,    
+    FraternityxOnePagePlayListIE,
+    FraternityxAllPagesPlayListIE,    
+)
+from .youngbastards import YoungBastardsIE
+from .boyfriendtv import (
+    BoyFriendTVIE,
+    BoyFriendTVPlayListIE,
+)
+from .gayforiteu import GayForITEUIE
+from .manpornxxx import ManPornXXXIE
+from .upvideo import UpVideoIE
+from .vidoza import VidozaIE
+from .xvids import XVidsIE

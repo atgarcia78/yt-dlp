@@ -34,6 +34,8 @@ from ..utils import (
     urljoin,
 )
 
+from threading import Lock
+
 
 class BBCCoUkIE(InfoExtractor):
     IE_NAME = 'bbc.co.uk'
@@ -64,6 +66,8 @@ class BBCCoUkIE(InfoExtractor):
         'iptv-all',
         'pc',
     ]
+    
+    _LOCK = Lock()
 
     _EMP_PLAYLIST_NS = 'http://bbc.co.uk/2008/emp/playlist'
 
@@ -277,13 +281,17 @@ class BBCCoUkIE(InfoExtractor):
             'username': username,
             'password': password,
         })
+        
+        self.to_screen(login_form)
 
         post_url = urljoin(self._LOGIN_URL, self._search_regex(
             r'<form[^>]+action=(["\'])(?P<url>.+?)\1', login_page,
             'post url', default=self._LOGIN_URL, group='url'))
 
+        self.to_screen(post_url)
+        
         response, urlh = self._download_webpage_handle(
-            post_url, None, 'Logging in', data=urlencode_postdata(login_form),
+            unescapeHTML(post_url), None, 'Logging in', data=urlencode_postdata(login_form),
             headers={'Referer': self._LOGIN_URL})
 
         if self._LOGIN_URL in urlh.geturl():
@@ -294,7 +302,8 @@ class BBCCoUkIE(InfoExtractor):
             raise ExtractorError('Unable to log in')
 
     def _real_initialize(self):
-        self._login()
+        with self._LOCK:
+            self._login()
 
     class MediaSelectionError(Exception):
         def __init__(self, id):
@@ -342,21 +351,36 @@ class BBCCoUkIE(InfoExtractor):
 
     def _download_media_selector(self, programme_id):
         last_exception = None
+        
         for media_set in self._MEDIA_SETS:
             try:
-                return self._download_media_selector_url(
+                _formats, _subt = self._download_media_selector_url(
                     self._MEDIA_SELECTOR_URL_TEMPL % (media_set, programme_id), programme_id)
+                
+                
+                if _subt:
+                    return (_formats, _subt)
+                
+                    
+                
             except BBCCoUkIE.MediaSelectionError as e:
                 if e.id in ('notukerror', 'geolocation', 'selectionunavailable'):
                     last_exception = e
                     continue
                 self._raise_extractor_error(e)
-        self._raise_extractor_error(last_exception)
+        return (_formats, _subt)
+        #self._raise_extractor_error(last_exception)
 
     def _download_media_selector_url(self, url, programme_id=None):
+        
+        
         media_selection = self._download_json(
             url, programme_id, 'Downloading media selection JSON',
             expected_status=(403, 404))
+        
+        self.to_screen(url)
+        self.to_screen(media_selection)
+        
         return self._process_media_selector(media_selection, programme_id)
 
     def _process_media_selector(self, media_selection, programme_id):
@@ -452,19 +476,25 @@ class BBCCoUkIE(InfoExtractor):
                 'http://www.bbc.co.uk/programmes/%s/playlist.json' % playlist_id,
                 playlist_id, 'Downloading playlist JSON')
 
-            version = playlist.get('defaultAvailableVersion')
-            if version:
-                smp_config = version['smpConfig']
-                title = smp_config['title']
-                description = smp_config['summary']
-                for item in smp_config['items']:
-                    kind = item['kind']
-                    if kind not in ('programme', 'radioProgramme'):
-                        continue
-                    programme_id = item.get('vpid')
-                    duration = int_or_none(item.get('duration'))
-                    formats, subtitles = self._download_media_selector(programme_id)
-                return programme_id, title, description, duration, formats, subtitles
+            
+            versions = playlist.get('allAvailableVersions')
+            
+            self.to_screen(versions)
+            
+            if versions:
+                for version in versions:
+                    if version['types'] in (['Editorial'], ['Original']):
+                        smp_config = version['smpConfig']
+                        title = smp_config['title']
+                        description = smp_config['summary']
+                        for item in smp_config['items']:
+                            kind = item['kind']
+                            if kind not in ('programme', 'radioProgramme'):
+                                continue
+                            programme_id = item.get('vpid')
+                            duration = int_or_none(item.get('duration'))
+                            formats, subtitles = self._download_media_selector(programme_id)
+                        return programme_id, title, description, duration, formats, subtitles
         except ExtractorError as ee:
             if not (isinstance(ee.cause, compat_HTTPError) and ee.cause.code == 404):
                 raise
