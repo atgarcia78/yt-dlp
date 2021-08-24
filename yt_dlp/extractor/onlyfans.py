@@ -20,7 +20,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from browsermobproxy import Server
-#from collections import defaultdict
+
 import html
 
 
@@ -74,10 +74,10 @@ class succ_or_twrelogin():
             return (el[0],)       
         else:
 
-            el_username = driver.find_elements_by_partial_link_text("usuario") + driver.find_elements_by_partial_link_text("user")
-            el_password =  driver.find_elements_by_partial_link_text("Contra") + driver.find_elements_by_partial_link_text("Pass")              
+            el_username = driver.find_elements_by_partial_link_text("usuario") or driver.find_elements_by_partial_link_text("user")
+            el_password =  driver.find_elements_by_partial_link_text("Contra") or driver.find_elements_by_partial_link_text("Pass")              
            
-            el_login = driver.find_elements_by_partial_link_text("Iniciar") + driver.find_elements_by_partial_link_text("Start")
+            el_login = driver.find_elements_by_partial_link_text("Iniciar") or driver.find_elements_by_partial_link_text("Start")
             
             if el_username and el_password and el_login:
                 return (el_username[0], el_password[0], el_login[0])
@@ -194,14 +194,7 @@ class OnlyFansBaseIE(InfoExtractor):
 
             driver.get(self._SITE_URL)
             time.sleep(2)          
-            # twitter_element = self.wait_until(driver, 30, ec.presence_of_element_located(
-            #      (By.CSS_SELECTOR, "a.g-btn.m-rounded.m-twitter") ))
-   
-            # if twitter_element:
-            #     twitter_element.click()
-            #     time.sleep(2)
-            # else:
-            #     raise ExtractorError("Error in login via twitter: couldnt find twitter oauth button")
+
             
             el_init = self.wait_until(driver, 60, alreadylogin_or_reqtw())
             if not el_init: raise ExtractorError("Error in login")
@@ -266,12 +259,11 @@ class OnlyFansBaseIE(InfoExtractor):
         if index != -1:
             account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
             if acc:
-                #account = users_dict[data_post['fromUser']['id']]
+ 
                 datevideo = data_post['createdAt'].split("T")[0]
                 videoid = data_post['media'][0]['id']
             else:
-                #account = data_post['author'].get['username']
-                #account = user_profile
+
                 datevideo = data_post['postedAt'].split("T")[0]
                 videoid = data_post['id']
 
@@ -435,13 +427,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 #_firefox_prof.set_proxy(_mitmproxy.selenium_proxy())
                 driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
                 driver.set_window_size(1920,575)
-                #time.sleep(2)   
-                            
-                #driver.get(self._SITE_URL)
-                #self.wait_until(driver, 60, ec.presence_of_element_located(
-                #    (By.CSS_SELECTOR, "a.router-link-exact-active.router-link-active") ))
-                #driver.delete_all_cookies()
-                #driver.execute_script("window.localStorage.clear();") 
+    
                 self._login(driver)
                 self._DRIVER.append(driver)
                 self._QUEUE.put_nowait((driver, _mitmproxy))
@@ -546,13 +532,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
                 self.driver.set_window_size(1920,575)
-                #time.sleep(2)   
-                
-                #self.driver.get(self._SITE_URL)
-                #self.wait_until(self.driver, 60, ec.presence_of_element_located(
-                #    (By.CSS_SELECTOR, "a.router-link-exact-active.router-link-active") ))
-                #self.driver.delete_all_cookies()
-                #self.driver.execute_script("window.localStorage.clear();") 
+      
                 self._login(self.driver)
             
         except Exception as e:
@@ -757,17 +737,10 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 opts = Options()
                 opts.headless = True
                 
-                #_firefox_prof.set_proxy(self._mitmproxy.selenium_proxy())
-                
+                           
                 self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
                 self.driver.set_window_size(1920,575)
-                # time.sleep(2)   
-                
-                # self.driver.get(self._SITE_URL)
-                # self.wait_until(self.driver, 60, ec.presence_of_element_located(
-                #     (By.CSS_SELECTOR, "a.router-link-exact-active.router-link-active") ))
-                # self.driver.delete_all_cookies()
-                # self.driver.execute_script("window.localStorage.clear();") 
+
                 self._login(self.driver)
             
         except Exception as e:
