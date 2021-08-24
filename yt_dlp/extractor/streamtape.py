@@ -102,6 +102,7 @@ class StreamtapeIE(InfoExtractor):
                 el_overlay.click()
                 time.sleep(1)
                 el_overlay.click()
+                time.sleep(1)
                 
             
             video_url = el_video[0].get_attribute("src")

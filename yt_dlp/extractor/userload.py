@@ -95,11 +95,15 @@ class UserLoadIE(InfoExtractor):
             _url = url.replace('/e/', '/f/').replace('/embed/', '/f/')
             
             driver.get(_url)
-            el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videooverlay")))
-            if el: el.click()
-            res = driver.find_elements_by_id("olvideo_html5_api")
-            if not res: raise ExtractorError("no info")
-            video_url = res[0].get_attribute("src")
+            el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videooverlay")))            
+            el_video = driver.find_elements_by_id("olvideo_html5_api")
+            if not el_video: raise ExtractorError("no info")
+            if el:
+                el.click()
+                time.sleep(1)
+                
+            
+            video_url = el_video[0].get_attribute("src")
             if not video_url: raise ExtractorError("no video url") 
             
             title = driver.title.replace(" | userload","").replace(".mp4","").strip()
