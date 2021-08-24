@@ -5,7 +5,8 @@ import json
 
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError   
+    ExtractorError,
+    int_or_none   
 )
 
 
@@ -245,11 +246,11 @@ class OnlyFansBaseIE(InfoExtractor):
          
            
 
-    def _extract_from_json(self, data_post, acc=False, users_dict=None, user_profile=None):
+    def _extract_from_json(self, data_post, acc=False, users_dict={}, user_profile=None):
 
-        #self.to_screen(f"[extract_from_json] {data_post}")
+        self.to_screen(f"[extract_from_json] {data_post}")
         
-        info_dict = []
+        
         
         index = -1
         
@@ -263,129 +264,115 @@ class OnlyFansBaseIE(InfoExtractor):
                         break
             
         if index != -1:
+            account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
             if acc:
-                account = users_dict[data_post['fromUser']['id']]
+                #account = users_dict[data_post['fromUser']['id']]
                 datevideo = data_post['createdAt'].split("T")[0]
                 videoid = data_post['media'][0]['id']
             else:
                 #account = data_post['author'].get['username']
-                account = user_profile
+                #account = user_profile
                 datevideo = data_post['postedAt'].split("T")[0]
                 videoid = data_post['id']
 
             formats = []
+            info_dict = []
             
             try:
 
                 filesize = None
                 
-                if acc:
+                
+                _url = data_post['media'][index]['source']['source']
+                if _url:
                     try:
-                        filesize = int(httpx.head(data_post['media'][index]['source']['source']).headers['content-length'])
+                        filesize = int_or_none(httpx.head(_url).headers['content-length'])
                     except Exception as e:
                         pass
                     formats.append({
-                        'url': data_post['media'][index]['source']['source'],
+                        'url': _url,
                         'width': (orig_width := data_post['media'][index]['info']['source']['width']),
                         'height': (orig_height := data_post['media'][index]['info']['source']['height']),
                         'format_id': f"{orig_height}p-orig",
                         'filesize': filesize,
                         'format_note' : "original",
                         'ext': "mp4"
-                    })
-                
-                
-                else:
-                    try:
-                        filesize = int(httpx.head(data_post['media'][index]['source']['source']).headers['content-length'])
-                    except Exception as e:
-                        pass
-                    formats.append({
-                        'width': (orig_width := data_post['media'][index]['info']['source']['width']),
-                        'height': (orig_height := data_post['media'][index]['info']['source']['height']),
-                        'format_id': f"{orig_height}p-orig",
-                        'url': data_post['media'][index]['source']['source'],                        
-                        'filesize': filesize,
-                        'format_note' : "original",
-                        'ext': "mp4"
-                    })
-            except Exception as e:
-                    self.to_screen(str(e))
-                    self.to_screen("No source video format")
-
-            try:
+                    })  
                     
-                if data_post['media'][index]['videoSources']['720']:
-                    filesize = None
-                    try:
-                        filesize = int(httpx.head(data_post['media'][index]['videoSources']['720']).headers['content-length'])
-                    except Exception as e:
-                        pass
-                    
-                    if orig_width > orig_height:
-                        height = 720
-                        width = 1280
-                    else:
-                        width = 720
-                        height = 1280
-                    formats.append({
-                        'format_id': f"{height}p",
-                        'url': data_post['media'][index]['videoSources']['720'],
-                        'format_note' : "720",
-                        'height': height,
-                        'width': width,
-                        'filesize': filesize,
-                        'ext': "mp4"
-                    })
-
-            except Exception as e:
-                    self.to_screen(str(e))
-                    self.to_screen("No info for 720p format")
-
-            try:
-                if data_post['media'][index]['videoSources']['240']:
-                    filesize = None
-                    try:
-                        filesize = int(httpx.head(data_post['media'][index]['videoSources']['240']).headers['content-length'])
-                    except Exception as e:
-                        pass
-                    
-                    if orig_width > orig_height:
-                        height = 240
-                        width = 426
-                    else:
-                        width = 426
-                        height = 240
+                    if data_post.get('media',{})[index].get('videoSources',{}).get('720'):
+                        filesize = None
+                        try:
+                            filesize = int(httpx.head(data_post['media'][index]['videoSources']['720']).headers['content-length'])
+                        except Exception as e:
+                            pass
                         
-                    formats.append({
-                        'format_id': f"{height}p",
-                        'url': data_post['media'][index]['videoSources']['240'],
-                        'format_note' : "240",
-                        'height' : height,
-                        'width' : width,
-                        'filesize': filesize,
-                        'ext': "mp4"
-                    })
+                        if orig_width > orig_height:
+                            height = 720
+                            width = 1280
+                        else:
+                            width = 720
+                            height = 1280
+                        formats.append({
+                            'format_id': f"{height}p",
+                            'url': data_post['media'][index]['videoSources']['720'],
+                            'format_note' : "720",
+                            'height': height,
+                            'width': width,
+                            'filesize': filesize,
+                            'ext': "mp4"
+                        })
 
-            except Exception as e:
-                self.to_screen(str(e))
-                self.to_screen("No info for 240p format")
             
-           # self._check_formats(formats, videoid)
-            if formats:
-                if orig_width > orig_height:
-                    self._sort_formats(formats, field_preference=('height', 'width', 'format_id'))
-                else:
-                    self._sort_formats(formats, field_preference=('width', 'height', 'format_id'))
-                
-                info_dict = {
-                    "id" :  str(videoid),
-                    "title" :  datevideo.replace("-", "") + "_from_" + account,
-                    "formats" : formats,
-                    "ext" : "mp4"
-                }
 
-        return info_dict
+           
+                    if data_post.get('media',{})[index].get('videoSources',{}).get('240'):
+                        filesize = None
+                        try:
+                            filesize = int(httpx.head(data_post['media'][index]['videoSources']['240']).headers['content-length'])
+                        except Exception as e:
+                            pass
+                        
+                        if orig_width > orig_height:
+                            height = 240
+                            width = 426
+                        else:
+                            width = 426
+                            height = 240
+                            
+                        formats.append({
+                            'format_id': f"{height}p",
+                            'url': data_post['media'][index]['videoSources']['240'],
+                            'format_note' : "240",
+                            'height' : height,
+                            'width' : width,
+                            'filesize': filesize,
+                            'ext': "mp4"
+                        })
+
+
+                if formats: 
+                
+                    if orig_width > orig_height:
+                        self._sort_formats(formats, field_preference=('height', 'width', 'format_id'))
+                    else:
+                        self._sort_formats(formats, field_preference=('width', 'height', 'format_id'))
+                    
+                    info_dict = {
+                        "id" :  str(videoid),
+                        "title" :  datevideo.replace("-", "") + "_from_" + account,
+                        "formats" : formats,
+                        "ext" : "mp4"
+                    }
+                    
+                    return info_dict
+                
+            except Exception as e:            
+                self.to_screen(f'{type(e)}')
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
+                           
+        
+            
     
  
 class OnlyFansPostIE(OnlyFansBaseIE):
@@ -511,7 +498,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"(?:(onlyfans:account:(?P<account>[^:]+)(?:(:(?P<mode>(?:all|favs|tips|latest10)))?))|(https?://(?:www\.)?onlyfans.com/(?P<account2>\w+)(?:(/(?P<mode2>(?:all|favs|tips|latest10)))?)$))"
+    _VALID_URL = r"(?:(onlyfans:account:(?P<account>[^:]+)(?:(:(?P<mode>(?:all|latest10|chat)))?))|(https?://(?:www\.)?onlyfans.com/(?P<account2>\w+)(?:(/(?P<mode2>(?:all|latest10|chat)))?)$))"
     _MODE_DICT = {"favs" : "favorites_count_desc", "tips" : "tips_summ_desc", "all" : "publish_date_desc", "latest10" : "publish_date_desc"}
     
     
@@ -587,30 +574,82 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 mode = "latest10"
 
            
-            self.driver.add_cookie( {'name': 'wallLayout', 'value': 'list', 'path': '/',  'domain': '.onlyfans.com', 'secure': False, 'httpOnly': False, 'sameSite': 'None'})
-            _url = f"{self._SITE_URL}/{account}/videos"
-            
-            self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
-            
-            self.driver.get(_url)
-            self.wait_until(self.driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-wrapper")))
-            
-            
             
             entries = []
             
-            if mode in ("latest10"):
-                har = self._mitmproxy.har
-                data_json = self.scan_for_request(har, "posts/videos?")
-                if data_json:
-                    self.to_screen(data_json)
-                    list_json = data_json.get('list')
-                    if list_json:
+            if mode in ("all", "latest10"):
+                
+                self.driver.add_cookie( {'name': 'wallLayout', 'value': 'list', 'path': '/',  'domain': '.onlyfans.com', 'secure': False, 'httpOnly': False, 'sameSite': 'None'})
+            
+                _url = f"{self._SITE_URL}/{account}/videos"
+                
+                self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                
+                self.driver.get(_url)
+                self.wait_until(self.driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-wrapper")))
+                
+                
+                
+                
+                
+                if mode in ("latest10"):
+                    har = self._mitmproxy.har
+                    data_json = self.scan_for_request(har, "posts/videos?")
+                    if data_json:
+                        self.to_screen(data_json)
+                        list_json = data_json.get('list')
+                        if list_json:
+                            entries = [self._extract_from_json(info_json, user_profile=account) for info_json in list_json]
+                    
+
+                elif mode in ("all"):            
+                    
+                    
+                    SCROLL_PAUSE_TIME = 2
+
+
+                    last_height = self.driver.execute_script("return document.body.scrollHeight")
+
+                    while True:
+                        # Scroll down to bottom
+                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                        # Wait to load page
+                        time.sleep(SCROLL_PAUSE_TIME)                    
+                        
+
+                        # Calculate new scroll height and compare with last scroll height
+                        new_height = self.driver.execute_script("return document.body.scrollHeight")
+                        if new_height == last_height:
+                            break
+                        last_height = new_height
+                        
+                    har = self._mitmproxy.har
+                    _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
+                    data_json = self.scan_for_all_requests(har, _reg_str)
+                    if data_json:
+                        self.to_screen(data_json)
+                        list_json = []
+                        for el in data_json:
+                            list_json += el.get('list')
+                    
+                    
                         entries = [self._extract_from_json(info_json, user_profile=account) for info_json in list_json]
                 
-
-            elif mode in ("all"):            
+            
+            elif mode in ("chat"):
                 
+                _url =  f"{self._SITE_URL}/{account}"
+                self.driver.get(_url)
+                el = self.wait_until(self.driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "g-btn.m-rounded.m-border.m-icon.m-icon-only.m-colored.has-tooltip")))
+                for _el in el:
+                    if (link:=_el.get_attribute('href')): break
+                    
+                self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                
+                userid = link.split("/")[-1]
+                
+                self.driver.get(f'{link}/gallery')
                 
                 SCROLL_PAUSE_TIME = 2
 
@@ -630,23 +669,26 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     if new_height == last_height:
                         break
                     last_height = new_height
-                    
+                
                 har = self._mitmproxy.har
-                _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
+                _reg_str = r'/api2/v2/chats/\d+/media\?'
                 data_json = self.scan_for_all_requests(har, _reg_str)
                 if data_json:
                     self.to_screen(data_json)
                     list_json = []
                     for el in data_json:
                         list_json += el.get('list')
+                        
+                    for info_json in list_json:
+                        
+                        _entry = self._extract_from_json(info_json, acc=True, user_profile=account)
+                        if _entry: 
+                            entries.append(_entry)
+            
+            
+           
                 
-                
-                    entries = [self._extract_from_json(info_json, user_profile=account) for info_json in list_json]
-                
-                          
-
-            elif mode in ("favs", "tips"):   
-                pass             
+                      
 
             if not entries:
                 raise ExtractorError("no entries")            
@@ -794,7 +836,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             _reg_str = r'/api2/v2/posts/paid\?'
             data_json = self.scan_for_all_requests(har, _reg_str)
             if data_json:
-                self.to_screen(data_json)
+                #self.to_screen(data_json)
                 list_json = []
                 for el in data_json:
                     list_json += el['list']                               

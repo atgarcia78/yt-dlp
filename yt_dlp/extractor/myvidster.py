@@ -173,11 +173,17 @@ class MyVidsterIE(MyVidsterBaseIE):
             title = mobj[0] if mobj else url.split("/")[-1]    
             
             mobj = re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage)
-            videolink = mobj[0] if mobj else ""
+            videolink = ""
+            if mobj:
+                if self._is_valid(mobj[0], client): videolink = mobj[0]
+                
             
             
             mobj2 = re.findall(r"reload_video\([\'\"]([^\'\"]+)[\'\"]", webpage)
-            embedlink = mobj2[0] if mobj2 else ""
+            embedlink = ""
+            if mobj2:
+                if self._is_valid(mobj2[0], client): embedlink = mobj2[0]
+                
             
             real_url = videolink or embedlink      
                 
@@ -215,8 +221,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                 entry_video = {
                     '_type' : 'url_transparent',
                     'url' : unquote(real_url),
-                    'id' : video_id,
-                    'title' : sanitize_filename(title, restricted=True)
+                    #'id' : video_id,
+                    #'title' : sanitize_filename(title, restricted=True)
                 }
         
         except Exception as e:
