@@ -7,7 +7,8 @@ from .common import InfoExtractor
 from ..utils import (
     ExtractorError, 
     int_or_none,
-    sanitize_filename,    
+    sanitize_filename,
+    str_or_none    
 
 )
 
@@ -29,6 +30,19 @@ import threading
 from queue import Queue
 import json
 
+
+class warnage_or_():
+    
+    def __call__(self, driver):
+        
+        el = driver.find_elements_by_css_selector("nav.l-header__menu")        
+        if el:            
+            return ("loginok", el[0])       
+        else:
+            
+            el = driver.find_elements_by_css_selector("a.g-btn.m-rounded.m-twitter")
+            if el: return ("reqlogin", el[0])
+            else: return False
 
 class HungYoungBritIE(InfoExtractor):
     
@@ -124,9 +138,10 @@ class HungYoungBritIE(InfoExtractor):
                 driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
                 
                 
-                _title = driver.title                            
+                                           
                 driver.get("https://www.hungyoungbrit.com/members/category.php?id=5")
-                self.wait_until_not(driver, 30, ec.title_is(_title))                            
+                #self.wait_until_not(driver, 30, ec.title_is(_title))
+                #el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
                                             
                 _cookies = None
                 try:                            
@@ -142,23 +157,31 @@ class HungYoungBritIE(InfoExtractor):
                         
                     driver.get("https://www.hungyoungbrit.com/members/category.php?id=5")
                     
+                
+                
+                    
                 time.sleep(1)
                 el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
                 if not el: raise ExtractorError("not info")
-                if getattr(el, 'text', '') == 'LOG IN':
+                el_warn = driver.find_elements_by_css_selector("a.close")
+                if el_warn:
+                    el_warn[0].click()
+                if str_or_none(el.get_attribute('text'), default="").upper().strip() == 'LOG IN':
                 
                     driver.quit()
                     self.kill_geckodriver()
                     opts.headless = False
                     driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, 
                                     firefox_profile=FirefoxProfile(prof))
-                    _title = driver.title                            
+                                                
                     driver.get("https://www.hungyoungbrit.com/members/category.php?id=5")                    
                     el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
-                    if not el: raise ExtractorError("not info")                    
+                    if not el: raise ExtractorError("not info") 
+                    el_warn = driver.find_elements_by_css_selector("a.close")
+                    if el_warn:
+                        el_warn[0].click()                   
                     self.report_login()
-                    _title = driver.title
-                    time.sleep(2)
+                    time.sleep(1)
                     el.click()
                     el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
                     el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
@@ -170,7 +193,7 @@ class HungYoungBritIE(InfoExtractor):
                     time.sleep(2)
                     button_login.click()
                     
-                    self.wait_until_not(driver, 300, ec.title_is(_title)) 
+                    self.wait_until(driver, 300, ec.url_changes("https://www.hungyoungbrit.com/tour/pages.php?id=members-only")) 
                     
                     if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
                     
@@ -181,16 +204,16 @@ class HungYoungBritIE(InfoExtractor):
                     opts.headless = True
                     driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, 
                                     firefox_profile=FirefoxProfile(prof))
-                    _title = driver.title                            
+                                               
                     driver.get("https://www.hungyoungbrit.com/members/category.php?id=5")
-                    self.wait_until_not(driver, 30, ec.title_is(_title))
+                    
                     driver.delete_all_cookies()
                     for cookie in _cookies:
                         driver.add_cookie(cookie)                        
                     driver.get("https://www.hungyoungbrit.com/members/category.php?id=5")
                     el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
                     if not el: raise ExtractorError("not info")
-                    if getattr(el, 'text', '') == 'LOG IN': raise ExtractorError("not info")
+                    if str_or_none(el.get_attribute('text'), default="").upper().strip() != 'ACCOUNT': raise ExtractorError("not info")
                          
                     
                 with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
