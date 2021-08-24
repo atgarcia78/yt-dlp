@@ -1,48 +1,53 @@
-# coding: utf-8
 from __future__ import unicode_literals
 
-import re
-from .common import InfoExtractor
+
+
+from .common import InfoExtractor, ExtractorError
 from ..utils import (
-    ExtractorError, int_or_none, 
-    std_headers,
-    sanitize_filename
+    
+    sanitize_filename,
+    int_or_none
+
 )
-
-
 import httpx
-import html
-import time
-from urllib.parse import unquote
-import hashlib
-import logging
-from collections import OrderedDict
-import random
 
-logger = logging.getLogger("streamtape")
+
+from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.common.by import By
+
+import time
+
+import traceback
+import sys
 
 
 class StreamtapeIE(InfoExtractor):
+
     IE_NAME = 'streamtape'
     _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:$|/)'
     
+    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
 
-    def _headers_ordered(self, extra=None):
-        _headers = OrderedDict()
-        
-        if not extra: extra = dict()
-        
-        for key in ["User-Agent", "Accept", "Accept-Language", "Accept-Encoding", "Content-Type", "X-Requested-With", "Origin", "Connection", "Referer", "Upgrade-Insecure-Requests"]:
-        
-            value = extra.get(key) if extra.get(key) else std_headers.get(key)
-            if value:
-                _headers[key.lower()] = value
-      
-        
-        return _headers
+ 
+
+
+    def wait_until(self, _driver, time, method):
+        try:
+            el = WebDriverWait(_driver, time).until(method)
+        except Exception as e:
+            el = None
+            
+        return el  
     
-    
-    def _get_info(self, url, client):
+    def _get_filesize(self, url):
         
         count = 0
         try:
@@ -52,113 +57,89 @@ class StreamtapeIE(InfoExtractor):
                 
                 try:
                     
-                    res = client.head(url)
+                    res = httpx.head(url)
                     if res.status_code > 400:
                         time.sleep(1)
                         count += 1
                     else: 
-                        _size = int_or_none(res.headers.get('content-length'))
-                        _url = unquote(str(res.url))
-                        if _size and _url:
-                            _res = {'url': _url, 'filesize': _size}                         
-                            break
-                        else: count += 1
+                        _res = int_or_none(res.headers.get('content-length')) 
+                        break
             
                 except Exception as e:
                     count += 1
         except Exception as e:
             pass
-                
-        return _res
 
+        
+        return _res
 
     
     def _real_extract(self, url):
-
         
-        try:
-        
-            #_headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
-            #client = httpx.Client(headers=_headers, timeout=httpx.Timeout(10, connect=30), limits=httpx.Limits(max_keepalive_connections=None, max_connections=None)) 
+   
+        self.report_extraction(url)
+        prof = self._FF_PROF.pop()
+        self._FF_PROF.insert(0, prof)
             
-            client = httpx.Client()
+        opts = Options()
+        opts.headless = True
             
-            _url = unquote(url.replace("/e/", "/v/").replace("/d/", "/v/"))
-            self.report_extraction(_url)       
-            count = 0
+        try:                            
+                            
+            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+ 
+            self.to_screen(f"ffprof[{prof}]")
             
-            while( count < 20 ):
-                
-                try:
-                    res = client.get(_url)
-                    self.to_screen(res)
-                    if res.status_code > 400:
-                        
-                        count += 1
-                        time.sleep(random.random()*random.randint(1,5))
-                        continue
-                        
-                    else:    
-                        webpage = re.sub('[\t\n]', '', html.unescape(res.text))
-                      
-                    
-                        if 'Video not found' in webpage:
-                            self.to_screen(f"video not found {_url}")
-                            raise ExtractorError("Video not found")
-
-                        elif '<title>oopps</title>' in webpage:
-                            self.to_screen(f"Ooops, will retry {_url}")
-                            count += 1
-                            time.sleep(random.random()*random.randint(1,5))
-                            continue
-                        
-                        else: break
-                
-                except Exception as e:
-                    count += 1
-                    continue
-                        
-            if count == 10: 
-                
-                raise ExtractorError("video not found")
+            driver.set_window_size(1920,575)
             
-                    
-            mobj = re.findall(r'id\=[\"\']videoo?link[\"\'].*(//streamtape\.com/get_video\?id=.*token\=).*token\=([^\'\"]+)[\'\"]', webpage)
-            video_url = f"https:{mobj[0][0]}{mobj[0][1]}&dl=1" if mobj else None                                   
-            info_video = self._get_info(video_url, client) if video_url else None
-                
-            if not info_video: raise ExtractorError("No info video")
-                
-            mobj =  re.findall(r'og:title[\"\']\s*content\s*=\s*[\"\']([^\"\']+)[\"\']', webpage)
-            mobj2 = re.findall(r'<h2>([^\<]+)<', webpage)
-            title = mobj[0] if mobj else mobj2[0] if mobj2 else "video_streamtape"
-                
-            _id_str = self._match_id(url)
-                
-            videoid = str(int(hashlib.sha256(_id_str.encode('utf-8')).hexdigest(),16) % 10**8)
-                        
-            format_video = {
-                    
-                    'format_id' : 'http',
-                    'url' : info_video.get('url'),
-                    'filesize' : info_video.get('filesize'),
-                    'ext' : 'mp4'
-                }
+            _url = url.replace('/e/', '/v/').replace('/d/', '/v/')
             
-        
-        
+            driver.get(_url)
+            el_overlay = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME,"plyr-overlay")))            
+            el_video = driver.find_elements_by_id("mainvideo")
+            if not el_video: raise ExtractorError("no info")
+            if el_overlay:
+                el_overlay.click()
+                time.sleep(1)
+                el_overlay.click()
+                
+            
+            video_url = el_video[0].get_attribute("src")
+            if not video_url: raise ExtractorError("no video url") 
+            
+            title = driver.title.replace(" at Streamtape.com","").replace(".mp4","").strip()
+            videoid = self._match_id(url)
+            
+            _entry_video = None
+            
+            _format = {
+                    'format_id': 'http-mp4',
+                    'url': video_url,
+                    'filesize': self._get_filesize(video_url),
+                    'ext': 'mp4'
+            }
+            
+            _entry_video = {
+                'id' : videoid,
+                'title' : sanitize_filename(title, restricted=True),
+                'formats' : [_format],
+                'ext': 'mp4'
+            }   
+            
         except Exception as e:
-            self.to_screen(e)
-            count += 1
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
+            if "ExtractorError" in str(e.__class__): raise
+            else: raise ExtractorError(str(e))
         finally:
-            client.close()
+            driver.quit()
+        
+        if not _entry_video: raise ExtractorError("no video info")
+        else:
+            return _entry_video    
 
-        return {
-            'id': videoid,
-            'title': sanitize_filename(title, True),
-            'formats': [format_video],
-            'ext': 'mp4'
-        }
 
+
+       
 
 
