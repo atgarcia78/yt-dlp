@@ -2,13 +2,15 @@ from __future__ import unicode_literals
 
 
 import re
-from tarfile import ExtractError
+
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
     int_or_none,
     std_headers,
-    sanitize_filename
+    sanitize_filename,
+    
+    
 )
 from urllib.parse import unquote
 from collections import OrderedDict
@@ -16,6 +18,7 @@ import httpx
 import html
 import time
 from threading import Lock
+
 class MyVidsterBaseIE(InfoExtractor):
 
     _LOGIN_URL = "https://www.myvidster.com/user/"
@@ -122,6 +125,16 @@ class MyVidsterBaseIE(InfoExtractor):
         
         res = client.get(self._LOGIN_URL)
         return("action=log_out" in res.text)
+    
+    def is_generic(self, url):
+    
+        extractor = None
+        ies = self._downloader._ies
+        for ie_key, ie in ies.items():
+            if ie.suitable(url):
+                extractor = ie_key
+                break
+        return (extractor == 'Generic')
 
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster'
@@ -183,12 +196,18 @@ class MyVidsterIE(MyVidsterBaseIE):
             embedlink = ""
             if mobj2:
                 if self._is_valid(mobj2[0], client): embedlink = mobj2[0]
-                
+            
+            if videolink and embedlink:
+                if not self.is_generic(videolink) or not self.is_generic(embedlink):
+                    if self.is_generic(videolink): videolink = ""
+                    if self.is_generic(embedlink): embedlink = ""
+                                
+     
             
             real_url = videolink or embedlink      
                 
             if not real_url:
-                raise ExtractError("Can't find real URL")
+                raise ExtractorError("Can't find real URL")
 
             #self.to_screen(f"{real_url}")   
 
@@ -198,7 +217,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 webpage = re.sub('[\t\n]', '', html.unescape(res.text))
                 mobj = re.findall(r'source src="(?P<video_url>.*)" type="video', webpage)
                 video_url = mobj[0] if mobj else ""
-                if not video_url: raise ExtractError("Can't find real URL")           
+                if not video_url: raise ExtractorError("Can't find real URL")           
                 filesize = self._get_filesize(video_url)
 
 

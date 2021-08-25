@@ -13,6 +13,7 @@ from ..utils import (
 import re
 import time
 import httpx
+import os
 
 from selenium.webdriver import Firefox, FirefoxProfile
 from selenium.webdriver.firefox.options import Options
@@ -241,7 +242,7 @@ class OnlyFansBaseIE(InfoExtractor):
 
     def _extract_from_json(self, data_post, acc=False, users_dict={}, user_profile=None):
 
-        self.to_screen(f"[extract_from_json] {data_post}")
+        self.to_screen(f"[extract_from_json][input] {data_post}")
         
         
         
@@ -356,12 +357,14 @@ class OnlyFansBaseIE(InfoExtractor):
                         "ext" : "mp4"
                     }
                     
+                    
+                    self.to_screen(f"[extract_from_json][output] {info_dict}")
                     return info_dict
                 
             except Exception as e:            
-                self.to_screen(f'{type(e)}')
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
+                self.to_screen(f'[extract_from_json][output] {type(e)} \n{"!!".join(lines)}')
+                
                            
         
             
@@ -374,7 +377,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 
     _QUEUE = Queue()   
     
-    _DRIVER = []
+    _DRIVER = 0
     
     _SERVER = None
     
@@ -391,11 +394,10 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             with self._LOCK: 
                 
 
-                if len(self._DRIVER) == (self._downloader.params.get('winit', 1)):
+                if self._DRIVER == self._downloader.params.get('winit'):
                     return  
                 
-                opts = Options()
-                opts.headless = True
+                
                 prof_ff = self._FF_PROF.pop() 
                 self._FF_PROF.insert(0,prof_ff)
                 if not self._SERVER:          
@@ -403,7 +405,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                     self._SERVER.start()
                 
                 
-                _port = 8081 + len(self._DRIVER)
+                _port = 8081 + self._DRIVER
                 _host = 'localhost'
                 
                 _mitmproxy = self._SERVER.create_proxy({'port' : _port})
@@ -425,16 +427,38 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 _firefox_prof.update_preferences()
                  
                 #_firefox_prof.set_proxy(_mitmproxy.selenium_proxy())
-                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
-                driver.set_window_size(1920,575)
-    
+                opts = Options()
+                opts.headless = True
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                
+                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
+                
+                self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
+                
+                driver.uninstall_addon('uBlock0@raymondhill.net')
+                
+                self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
+                
+                driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+                
+                driver.maximize_window()
+      
+                self._login(self.driver)
+                
+                
+                
                 self._login(driver)
-                self._DRIVER.append(driver)
+                self._DRIVER += 1
                 self._QUEUE.put_nowait((driver, _mitmproxy))
             
         except Exception as e:
             if driver:                
-                self._DRIVER.remove(driver)
+                self._DRIVER -= 1
                 driver.quit()
             if _mitmproxy: _mitmproxy.close()            
             raise
@@ -484,8 +508,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"(?:(onlyfans:account:(?P<account>[^:]+)(?:(:(?P<mode>(?:all|latest10|chat)))?))|(https?://(?:www\.)?onlyfans.com/(?P<account2>\w+)(?:(/(?P<mode2>(?:all|latest10|chat)))?)$))"
-    _MODE_DICT = {"favs" : "favorites_count_desc", "tips" : "tips_summ_desc", "all" : "publish_date_desc", "latest10" : "publish_date_desc"}
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/?((?P<mode>(?:all|latest10|chat|favorites|tips))/?)?$"
+    _MODE_DICT = {"favorites" : "?order=favorites_count_desc", "tips" : "?order=tips_summ_desc", "all" : "", "latest10" : ""}
     
     
         
@@ -526,12 +550,23 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 opts = Options()
                 opts.headless = True
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
                 
+                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
                 
-               #_firefox_prof.set_proxy(self._mitmproxy.selenium_proxy())
+                self.driver.uninstall_addon('uBlock0@raymondhill.net')
                 
-                self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
-                self.driver.set_window_size(1920,575)
+                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
+                
+                self.driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+                
+                self.driver.maximize_window()
       
                 self._login(self.driver)
             
@@ -547,30 +582,24 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
  
         try:
             self.report_extraction(url)
-            (acc1, acc2, mode1, mode2) = re.search(self._VALID_URL, url).group("account", "account2", "mode", "mode2")
-            account = acc1 or acc2
-            mode = mode1 or mode2
+            account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
             if not mode:
                 mode = "latest10"
-
-           
             
             entries = []
             
-            if mode in ("all", "latest10"):
+            if mode in ("all", "latest10", "favorites","tips"):
                 
-                self.driver.add_cookie( {'name': 'wallLayout', 'value': 'list', 'path': '/',  'domain': '.onlyfans.com', 'secure': False, 'httpOnly': False, 'sameSite': 'None'})
+                #self.driver.add_cookie( {'name': 'wallLayout', 'value': 'list', 'path': '/',  'domain': '.onlyfans.com', 'secure': False, 'httpOnly': False, 'sameSite': 'None'})
             
-                _url = f"{self._SITE_URL}/{account}/videos"
+            
+                _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
+                            
                 self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
                 
                 self.driver.get(_url)
                 self.wait_until(self.driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-wrapper")))
-                
-                
-                
-                
                 
                 if mode in ("latest10"):
                     har = self._mitmproxy.har
@@ -578,11 +607,13 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     if data_json:
                         self.to_screen(data_json)
                         list_json = data_json.get('list')
-                        if list_json:
-                            entries = [self._extract_from_json(info_json, user_profile=account) for info_json in list_json]
-                    
+                        if list_json:                            
+                            for info_json in list_json:                                                  
+                                _entry = self._extract_from_json(info_json, user_profile=account)
+                                if _entry: 
+                                    entries.append(_entry)
 
-                elif mode in ("all"):            
+                else:            
                     
                     
                     SCROLL_PAUSE_TIME = 2
@@ -595,7 +626,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
                         # Wait to load page
-                        time.sleep(SCROLL_PAUSE_TIME)                    
+                        self.wait_until(self.driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                        #time.sleep(SCROLL_PAUSE_TIME)                    
                         
 
                         # Calculate new scroll height and compare with last scroll height
@@ -608,14 +640,17 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
                     data_json = self.scan_for_all_requests(har, _reg_str)
                     if data_json:
-                        self.to_screen(data_json)
+                        #self.to_screen(data_json)
                         list_json = []
                         for el in data_json:
                             list_json += el.get('list')
                     
-                    
-                        entries = [self._extract_from_json(info_json, user_profile=account) for info_json in list_json]
-                
+                        self.to_screen(list_json)
+                        
+                        for info_json in list_json:                                                  
+                            _entry = self._extract_from_json(info_json, user_profile=account)
+                            if _entry: 
+                                entries.append(_entry)
             
             elif mode in ("chat"):
                 
@@ -641,7 +676,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
                     # Wait to load page
-                    time.sleep(SCROLL_PAUSE_TIME)                    
+                    self.wait_until(self.driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                    #time.sleep(SCROLL_PAUSE_TIME)                    
                     
 
                     # Calculate new scroll height and compare with last scroll height
@@ -736,11 +772,24 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 
                 opts = Options()
                 opts.headless = True
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
                 
-                           
-                self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
-                self.driver.set_window_size(1920,575)
-
+                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
+                
+                self.driver.uninstall_addon('uBlock0@raymondhill.net')
+                
+                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
+                
+                self.driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+                
+                self.driver.maximize_window()
+      
                 self._login(self.driver)
             
         except Exception as e:
