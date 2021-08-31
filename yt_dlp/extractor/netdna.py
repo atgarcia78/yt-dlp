@@ -26,6 +26,9 @@ import time
 import httpx
 
 import traceback
+import threading
+from queue import Queue
+import os
 
 
 class NetDNAIE(InfoExtractor):
@@ -41,7 +44,11 @@ class NetDNAIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
     
-
+    _QUEUE = Queue()    
+    
+    _LOCK = threading.Lock()
+    
+    _DRIVER = 0
 
  
     @staticmethod
@@ -126,6 +133,40 @@ class NetDNAIE(InfoExtractor):
         return _res   
         
     
+    
+    def _real_initialize(self):
+        
+                 
+        with self._LOCK:
+            
+            if self._DRIVER == self._downloader.params.get('winit'):
+                return   
+
+            try:
+                prof = self._FF_PROF.pop()
+                self._FF_PROF.insert(0,prof)
+                self.to_screen(f"[ff] {prof}")
+                opts = Options()
+                opts.headless = True                
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+                driver.maximize_window()
+                
+            except Exception as e:                    
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
+                if "ExtractorError" in str(e.__class__): raise
+                else: raise ExtractorError(str(e))
+                
+            self._DRIVER += 1
+                    
+            self._QUEUE.put_nowait(driver)
+    
     def _real_extract(self, url):        
         
         info_video = NetDNAIE.get_video_info(url)
@@ -137,14 +178,7 @@ class NetDNAIE(InfoExtractor):
         
             try:
                 
-                opts = Options()
-                opts.headless = True
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof_ff))
- 
-                
-                driver.set_window_size(1920,575)
+                driver = self._QUEUE.get(block=True)
                 
                 
                 driver.get("https://gaybeeg.info") 
@@ -152,7 +186,7 @@ class NetDNAIE(InfoExtractor):
                         
                 entry = None
                 driver.get(url)
-                time.sleep(1)
+                #time.sleep(1)
                 _reswait = self.wait_until(driver, 90, ec.url_contains("download"))
                 if not _reswait:
 
@@ -160,11 +194,13 @@ class NetDNAIE(InfoExtractor):
                     _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
                     if _reswait:
                         _reswait.submit()
-                        time.sleep(10)
+                        self.wait_until(driver, 10, ec.title_is("DUMMYFORWAIT"))
+                        #time.sleep(10)
                         _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
                         if _reswait:
                             _reswait.submit()
-                            time.sleep(1)
+                            #time.sleep(1)
+                            self.wait_until(driver, 1, ec.title_is("DUMMYFORWAIT"))
                             _reswait = self.wait_until(driver, 30, ec.url_contains("download"))
                             
                 _title = driver.title.lower()        
@@ -181,7 +217,8 @@ class NetDNAIE(InfoExtractor):
                     
                     
             
-                    time.sleep(1)
+                    #time.sleep(1)
+                    self.wait_until(driver, 1, ec.title_is("DUMMYFORWAIT"))
                     formats_video = []
                     _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                     _filesize = None
@@ -197,7 +234,8 @@ class NetDNAIE(InfoExtractor):
                             raise ExtractorError(f"Bypass didnt work till the last page - {url}")
 
                         self.to_screen(driver.title)
-                        time.sleep(1)                        
+                        #time.sleep(1)                        
+                        self.wait_until(driver, 1, ec.title_is("DUMMYFORWAIT"))
 
                         _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
                         _filesize = None
@@ -251,7 +289,8 @@ class NetDNAIE(InfoExtractor):
                 self.to_screen(f"{repr(e)}, will retry \n{'!!'.join(lines)}")
                 count += 1
                 self.to_screen(f"[count] {count}")
-                driver.quit()
+                #driver.quit()
+                self._QUEUE.put_nowait(driver)
                 
                 if (count == 3):
                 
@@ -260,7 +299,8 @@ class NetDNAIE(InfoExtractor):
                     else:
                         raise ExtractorError(str(e)) from e 
             finally:
-                driver.quit()
+                #driver.quit()
+                self._QUEUE.put_nowait(driver)
                 
         return entry     
             
