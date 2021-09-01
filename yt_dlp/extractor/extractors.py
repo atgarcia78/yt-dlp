@@ -1986,3 +1986,4 @@ from .upvideo import UpVideoIE
 from .vidoza import VidozaIE
 from .xvids import XVidsIE
 from .highload import HighloadIE
+from .evoload import EvoloadIE

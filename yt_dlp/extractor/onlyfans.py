@@ -332,12 +332,13 @@ class OnlyFansBaseIE(InfoExtractor):
                             
                         _entries.append({
                                 "id" :  str(videoid),
+                                #"id" :  str(data_post['id']),
                                 "title" :  datevideo.replace("-", "") + "_from_" + account,
                                 "formats" : _formats,
-                                "duration" : _media.get("duration"),
+                                "duration" : _media.get('info',{}).get('source', {}).get('duration', 0),
                                 "ext" : "mp4"})
         
-        
+            self.to_screen(f'[extract_from_json][output] {_entries}')
             return _entries
         
         except Exception as e:            
@@ -484,8 +485,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/?((?P<mode>(?:all|latest10|chat|favorites|tips))/?)?$"
-    _MODE_DICT = {"favorites" : "?order=favorites_count_desc", "tips" : "?order=tips_summ_desc", "all" : "", "latest10" : ""}
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/?((?P<mode>(?:all|latest|chat|favorites|tips))/?)?$"
+    _MODE_DICT = {"favorites" : "?order=favorites_count_desc", "tips" : "?order=tips_summ_desc", "all" : "", "latest" : ""}
     
     
         
@@ -560,11 +561,11 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             self.report_extraction(url)
             account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
             if not mode:
-                mode = "latest10"
+                mode = "latest"
             
             entries = {}
             
-            if mode in ("all", "latest10", "favorites","tips"):
+            if mode in ("all", "latest", "favorites","tips"):
                 
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
@@ -574,7 +575,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 self.driver.get(_url)
                 self.wait_until(self.driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-wrapper")))
                 
-                if mode in ("latest10"):
+                if mode in ("latest"):
                     har = self._mitmproxy.har
                     data_json = self.scan_for_request(har, "posts/videos?")
                     if data_json:
@@ -587,7 +588,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                                     for _video in _entry:
                                         if not _video['id'] in entries.keys(): entries[_video['id']] = _video
                                         else:
-                                            if _video['duration'] > entries[_video['id']]['duration']:
+                                            if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                                 entries[_video['id']] = _video
 
                 else:            
@@ -627,11 +628,12 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                         for info_json in list_json:                                                  
                             _entry = self._extract_from_json(info_json, user_profile=account)
                             if _entry: 
-                                    for _video in _entry:
-                                        if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                                        else:
-                                            if _video['duration'] > entries[_video['id']]['duration']:
-                                                entries[_video['id']] = _video
+                                for _video in _entry:
+                                    if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                                    else:
+                                        
+                                        if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                            entries[_video['id']] = _video
             
             elif mode in ("chat"):
                 
@@ -683,7 +685,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                             for _video in _entry:
                                 if not _video['id'] in entries.keys(): entries[_video['id']] = _video
                                 else:
-                                    if _video['duration'] > entries[_video['id']]['duration']:
+                                    if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                         entries[_video['id']] = _video
                 
 
