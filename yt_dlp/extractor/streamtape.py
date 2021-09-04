@@ -22,6 +22,10 @@ import time
 
 import traceback
 import sys
+from threading import Lock
+from queue import Queue
+
+from random import randint
 
 
 class StreamtapeIE(InfoExtractor):
@@ -29,15 +33,18 @@ class StreamtapeIE(InfoExtractor):
     IE_NAME = 'streamtape'
     _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:$|/)'
     
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
+    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',                
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',                
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
 
  
-
+    _LOCK = Lock()
+    _DRIVER = 0
+    _QUEUE = Queue()
 
     def wait_until(self, _driver, time, method):
         try:
@@ -47,7 +54,7 @@ class StreamtapeIE(InfoExtractor):
             
         return el  
     
-    def _get_filesize(self, url):
+    def _get_infovideo(self, url):
         
         count = 0
         try:
@@ -62,7 +69,7 @@ class StreamtapeIE(InfoExtractor):
                         time.sleep(1)
                         count += 1
                     else: 
-                        _res = int_or_none(res.headers.get('content-length')) 
+                        _res = {'filesize' : int_or_none(res.headers.get('content-length')), 'url' : str(res.url)} 
                         break
             
                 except Exception as e:
@@ -78,45 +85,82 @@ class StreamtapeIE(InfoExtractor):
         
    
         self.report_extraction(url)
-        prof = self._FF_PROF.pop()
-        self._FF_PROF.insert(0, prof)
-            
-        opts = Options()
-        opts.headless = True
+        
+        with self._LOCK: 
+                
+            if self._DRIVER == self._downloader.params.get('winit'):
+                
+                driver = self._QUEUE.get(block=True)
+                driver.execute_script('''location.replace("about:blank");''')
+                
+            else:
+                
+        
+                prof = self._FF_PROF.pop()
+                self._FF_PROF.insert(0, prof)
+                driver = None
+                self._DRIVER += 1
+                
+        if not driver:
+                    
+                opts = Options()
+                opts.headless = True
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                
+                ff_prof = FirefoxProfile(prof)
+                ff_prof.set_preference("dom.webdriver.enabled", False)
+                ff_prof.set_preference("useAutomationExtension", False)
+                ff_prof.update_preferences()
+
+                
+                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+ 
+                self.to_screen(f"{url}:ffprof[{prof}]")
+                
+                driver.set_window_size(1920,575)
+                
+                
             
         try:                            
                             
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
- 
-            self.to_screen(f"ffprof[{prof}]")
-            
-            driver.set_window_size(1920,575)
-            
+
             _url = url.replace('/e/', '/v/').replace('/d/', '/v/')
             
+            self.wait_until(driver, randint(2, 7), ec.title_is("DUMMYFORWAIT"))
             driver.get(_url)
+            el_video = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "mainvideo")))
             el_overlay = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME,"plyr-overlay")))            
-            el_video = driver.find_elements_by_id("mainvideo")
-            if not el_video: raise ExtractorError("no info")
+            
+            if not el_video: 
+                driver.get_screenshot_as_file("/Users/antoniotorres/testing/test.png")
+                raise ExtractorError("no info")
             if el_overlay:
                 el_overlay.click()
                 time.sleep(1)
-                el_overlay.click()
-                time.sleep(1)
+                if not (el_video.get_attribute("src")):
+                    el_overlay.click()
+                    time.sleep(1)
+                     
+                    
+            video_url = el_video.get_attribute("src")
+            if not video_url: 
                 
-            
-            video_url = el_video[0].get_attribute("src")
-            if not video_url: raise ExtractorError("no video url") 
+                raise ExtractorError("no video url")
             
             title = driver.title.replace(" at Streamtape.com","").replace(".mp4","").strip()
             videoid = self._match_id(url)
             
             _entry_video = None
             
+            _info_video = self._get_infovideo(video_url)
+            
             _format = {
                     'format_id': 'http-mp4',
-                    'url': video_url,
-                    'filesize': self._get_filesize(video_url),
+                    'url': _info_video.get('url'),
+                    'filesize': _info_video.get('filesize'),
                     'ext': 'mp4'
             }
             
@@ -133,7 +177,7 @@ class StreamtapeIE(InfoExtractor):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            driver.quit()
+            self._QUEUE.put_nowait(driver)
         
         if not _entry_video: raise ExtractorError("no video info")
         else:

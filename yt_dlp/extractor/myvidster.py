@@ -26,7 +26,7 @@ class MyVidsterBaseIE(InfoExtractor):
     _NETRC_MACHINE = "myvidster"
     
     
-    def _get_filesize(self, url):
+    def _get_infovideo(self, url):
         
         count = 0
         try:
@@ -41,7 +41,7 @@ class MyVidsterBaseIE(InfoExtractor):
                         time.sleep(1)
                         count += 1
                     else: 
-                        _res = int_or_none(res.headers.get('content-length')) 
+                        _res = {'filesize': int_or_none(res.headers.get('content-length')), 'url' : str(res.url)} 
                         break
             
                 except Exception as e:
@@ -62,7 +62,8 @@ class MyVidsterBaseIE(InfoExtractor):
             self.to_screen(e)
             return False
         
-        return (res.status_code <= 200)
+        self.to_screen(f'valid:{url}:{res}')
+        return (res.status_code <= 200 and 'status=not_found' not in str(res.url))
     
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
@@ -207,24 +208,44 @@ class MyVidsterIE(MyVidsterBaseIE):
             real_url = videolink or embedlink      
                 
             if not real_url:
-                raise ExtractorError("Can't find real URL")
+                mobj3 = re.findall(r'source src="(?P<video_url>.*)" type="video', webpage)
+                source_url = mobj3[0] if mobj3 else ""
+                if not source_url: raise ExtractorError("Can't find real URL")
+                else:
+                
+                    _info_video = self._get_infovideo(source_url)
+                    
+                    format_video = {
+                        'format_id' : 'http-mp4',
+                        'url': _info_video.get('url'),
+                        'filesize': _info_video.get('filesize'),
+                        'ext' : 'mp4'
+                    }
+                    
+                    entry_video = {
+                        'id' : video_id,
+                        'title' : sanitize_filename(title, restricted=True),
+                        'formats' : [format_video],
+                        'ext': 'mp4'
+                    }
 
             #self.to_screen(f"{real_url}")   
 
-            if 'myvidster.com' in real_url:
+            elif 'myvidster.com' in real_url:
                 
                 res = client.get(real_url,headers=_headers)
                 webpage = re.sub('[\t\n]', '', html.unescape(res.text))
                 mobj = re.findall(r'source src="(?P<video_url>.*)" type="video', webpage)
                 video_url = mobj[0] if mobj else ""
                 if not video_url: raise ExtractorError("Can't find real URL")           
-                filesize = self._get_filesize(video_url)
+                
+                _info_video = self._get_infovideo(video_url)
 
 
                 format_video = {
                     'format_id' : 'http-mp4',
-                    'url' : video_url,
-                    'filesize' : filesize,
+                    'url': _info_video.get('url'),
+                    'filesize': _info_video.get('filesize'),
                     'ext' : 'mp4'
                 }
                 

@@ -399,6 +399,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 _firefox_prof.set_preference("network.proxy.ftp_port",int(_port))
                 _firefox_prof.set_preference("network.proxy.socks",_host)
                 _firefox_prof.set_preference("network.proxy.socks_port",int(_port))
+                _firefox_prof.set_preference("dom.webdriver.enabled", False)
+                _firefox_prof.set_preference("useAutomationExtension", False)
                 
                 _firefox_prof.update_preferences()
                  
@@ -522,6 +524,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 _firefox_prof.set_preference("network.proxy.ftp_port",int(_port))
                 _firefox_prof.set_preference("network.proxy.socks",_host)
                 _firefox_prof.set_preference("network.proxy.socks_port",int(_port))
+                _firefox_prof.set_preference("dom.webdriver.enabled", False)
+                _firefox_prof.set_preference("useAutomationExtension", False)
                 
                 _firefox_prof.update_preferences()
                 
@@ -748,6 +752,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 _firefox_prof.set_preference("network.proxy.ftp_port",int(_port))
                 _firefox_prof.set_preference("network.proxy.socks",_host)
                 _firefox_prof.set_preference("network.proxy.socks_port",int(_port))
+                _firefox_prof.set_preference("dom.webdriver.enabled", False)
+                _firefox_prof.set_preference("useAutomationExtension", False)
                 
                 _firefox_prof.update_preferences()
                 

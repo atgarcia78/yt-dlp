@@ -1987,3 +1987,5 @@ from .vidoza import VidozaIE
 from .xvids import XVidsIE
 from .highload import HighloadIE
 from .evoload import EvoloadIE
+from .gaystream import GayStreamIE
+from .gay0day import Gay0DayIE
