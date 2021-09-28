@@ -7,23 +7,28 @@ from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
     HEADRequest,
-    int_or_none
+    int_or_none,
+    sanitize_filename
 )
 
 
 class GayForITEUIE(InfoExtractor):
     
-    _VALID_URL = r'https?://(?:www\.)gayforit\.eu/(?:playvideo.php\?vkey\=(?P<vkey>[\w-]+)|video/(?P<id>\d+))'
+    _VALID_URL = r'https?://(?:www\.)gayforit\.eu/(?:playvideo.php\?vkey\=[^&]+&vid\=(?P<vid>[\w-]+)|video/(?P<id>[\w-]+))'
 
     def _real_extract(self, url):
         
         videoid = self._search_regex(self._VALID_URL, url, 'videoid',default=None, fatal=False, group='id' )
+        if not videoid:
+            videoid = self._search_regex(self._VALID_URL, url, 'videoid',default=None, fatal=False, group='vid')
+            
+            
 
         webpage = self._download_webpage(url, videoid, "Downloading video webpage")
 
-        title = self._search_regex(r'<title>GayForIt - Free Gay Porn Videos - ([\w\s]+)</title>', webpage, 'title', default=None, fatal=False)
+        title = self._html_search_regex((r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+?)</title>'), webpage, 'title')
         
-        if title: title=title.replace(" ","_")
+        if title: title=title.strip()
         else: title="GayForIt_eu"
         
         video_url = self._search_regex(r'<source src=\"([^\"]+)\" type=\"video/mp4', webpage, 'videourl', default=None, fatal=False)
@@ -49,7 +54,7 @@ class GayForITEUIE(InfoExtractor):
 
         return {
             'id': videoid,
-            'title': title,
+            'title': sanitize_filename(title, restricted=True),
             'formats': [format_video],
             'ext': 'mp4'
         }
