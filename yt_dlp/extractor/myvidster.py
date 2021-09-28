@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 
 import re
+from tarfile import ExtractError
 
 from .common import InfoExtractor
 from ..utils import (
@@ -25,45 +26,52 @@ class MyVidsterBaseIE(InfoExtractor):
     _SITE_URL = "https://www.myvidster.com"
     _NETRC_MACHINE = "myvidster"
     
+    _LOCK = Lock()
+    _COOKIES = {}
     
-    def _get_infovideo(self, url):
-        
+    def _get_info_video(self, url, client):
+       
         count = 0
-        try:
-            
-            _res = None
-            while (count<3):
+        while (count<5):
                 
-                try:
+            try:
+                
+                res = client.head(url, headers={'Referer': f'{self._SITE_URL}/'})
+                if res.status_code > 400:
                     
-                    res = httpx.head(url)
-                    if res.status_code > 400:
-                        time.sleep(1)
-                        count += 1
-                    else: 
-                        _res = {'filesize': int_or_none(res.headers.get('content-length')), 'url' : str(res.url)} 
-                        break
-            
-                except Exception as e:
                     count += 1
-        except Exception as e:
-            pass
-
+                else: 
+                    
+                    _filesize = int_or_none(res.headers.get('content-length')) 
+                    _url = str(res.url)
+                    #self.to_screen(f"{url}:{_url}:{_res}")
+                    if _filesize and _url: 
+                        break
+                    else:
+                        count += 1
         
-        return _res
+            except Exception as e:
+                count += 1
+                
+            time.sleep(1)
+                
+        if count < 5: return ({'url': _url, 'filesize': _filesize}) 
+        else: return ({'error': 'max retries'})  
     
     def _is_valid(self, url, client):
         
         try:
             
-            res = client.head(url)
+            res = client.get(url)
         
         except Exception as e:
             self.to_screen(e)
             return False
         
-        self.to_screen(f'valid:{url}:{res}')
-        return (res.status_code <= 200 and 'status=not_found' not in str(res.url))
+        webpage = res.text.lower()
+        valid = (res.status_code <= 400) and not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'invalid', 'video not found'])
+        self.to_screen(f'valid:{url}:{valid}')
+        return valid
     
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
@@ -105,7 +113,7 @@ class MyVidsterBaseIE(InfoExtractor):
         _aux = {
                 "Referer": self._LOGIN_URL,
                 "Origin": self._SITE_URL,
-                "Content-Type": "application/x-www-form-urlencoded"
+                #"Content-Type": "application/x-www-form-urlencoded"
         }
         _headers_post = self._headers_ordered(_aux)
         
@@ -118,9 +126,10 @@ class MyVidsterBaseIE(InfoExtractor):
                     timeout=60
                 )
 
-        if str(res.url) != "https://www.myvidster.com/user/home.php":
-            raise ExtractorError("Login failed")
+        if not "https://www.myvidster.com/user/home.php" in str(res.url):
+            raise ExtractorError(f"Login failed: {res} : {res.url}")
 
+        else: self.to_screen("LOGIN OK")
 
     def islogged(self, client):
         
@@ -135,17 +144,14 @@ class MyVidsterBaseIE(InfoExtractor):
             if ie.suitable(url):
                 extractor = ie_key
                 break
-        return (extractor == 'Generic')
+        return (extractor == 'Generic', extractor)
 
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster'
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
     _NETRC_MACHINE = "myvidster"
     
-    _LOCK = Lock()
-    _COOKIES = {}
     
- 
 
     def _real_initialize(self):
         with MyVidsterIE._LOCK:
@@ -174,14 +180,17 @@ class MyVidsterIE(MyVidsterBaseIE):
         
         try:
         
-            client = httpx.Client(timeout=60)
+            _timeout = httpx.Timeout(30, connect=60)        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')))
             
             client.get(self._SITE_URL, headers=_headers)
             
             for cookie in MyVidsterIE._COOKIES.jar:
                 client.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
                     
-            res = client.get(url, headers=_headers) 
+            res = client.get(url, headers=_headers)
+            if str(res.url.params) in ('status=not_found', 'status=broken'): raise ExtractorError("Page not found or Page broken") 
             webpage = re.sub('[\t\n]', '', html.unescape(res.text))
             mobj = re.findall(r"<title>([^<]+)<", webpage)
             title = mobj[0] if mobj else url.split("/")[-1]    
@@ -197,82 +206,86 @@ class MyVidsterIE(MyVidsterBaseIE):
             embedlink = ""
             if mobj2:
                 if self._is_valid(mobj2[0], client): embedlink = mobj2[0]
+                
+            mobj3 = re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage)
+            source_url = ""
+            if mobj3:
+                if self._is_valid(mobj3[0], client): source_url = mobj3[0]
             
-            if videolink and embedlink:
-                if not self.is_generic(videolink) or not self.is_generic(embedlink):
-                    if self.is_generic(videolink): videolink = ""
-                    if self.is_generic(embedlink): embedlink = ""
-                                
-     
+           
             
-            real_url = videolink or embedlink      
+            if source_url:
                 
-            if not real_url:
-                mobj3 = re.findall(r'source src="(?P<video_url>.*)" type="video', webpage)
-                source_url = mobj3[0] if mobj3 else ""
-                if not source_url: raise ExtractorError("Can't find real URL")
-                else:
                 
-                    _info_video = self._get_infovideo(source_url)
+                self.to_screen(f"video found: {source_url}")
+                
+                
+                _info_video = self._get_info_video(source_url, client)
+                
+                if (_error:=_info_video.get('error')): 
+                    self.to_screen(_error)
+                    raise ExtractorError('Error 404')
                     
-                    format_video = {
-                        'format_id' : 'http-mp4',
-                        'url': _info_video.get('url'),
-                        'filesize': _info_video.get('filesize'),
-                        'ext' : 'mp4'
-                    }
-                    
-                    entry_video = {
-                        'id' : video_id,
-                        'title' : sanitize_filename(title, restricted=True),
-                        'formats' : [format_video],
-                        'ext': 'mp4'
-                    }
-
-            #self.to_screen(f"{real_url}")   
-
-            elif 'myvidster.com' in real_url:
-                
-                res = client.get(real_url,headers=_headers)
-                webpage = re.sub('[\t\n]', '', html.unescape(res.text))
-                mobj = re.findall(r'source src="(?P<video_url>.*)" type="video', webpage)
-                video_url = mobj[0] if mobj else ""
-                if not video_url: raise ExtractorError("Can't find real URL")           
-                
-                _info_video = self._get_infovideo(video_url)
-
-
-                format_video = {
+                _format_video = {
                     'format_id' : 'http-mp4',
                     'url': _info_video.get('url'),
                     'filesize': _info_video.get('filesize'),
                     'ext' : 'mp4'
                 }
                 
-                entry_video = {
+                return({
                     'id' : video_id,
                     'title' : sanitize_filename(title, restricted=True),
-                    'formats' : [format_video],
+                    'formats' : [_format_video],
                     'ext': 'mp4'
-                }
-                
+                })
+            
+            
             else:
+                
+                if videolink and embedlink:
+                    _videolink = "" if self.is_generic(videolink)[0] else videolink
+                    _embedlink = "" if self.is_generic(embedlink)[0] else embedlink
+            
+                    real_url = _videolink or _embedlink
+                
+                    if not real_url: real_url = videolink
+                
+                else: real_url = videolink or embedlink
+                
+                self.to_screen(f"url found: {real_url}")
+                
+                if real_url:
+                    return({
+                        '_type' : 'url_transparent',
+                        'id' : video_id,
+                        'url' : unquote(real_url),
+                        'ie_key': self.is_generic(real_url)[1]                     
+                    })
+                    
+                else: raise ExtractorError("Page not found")
+                    
+                
+       
+            
 
-                entry_video = {
-                    '_type' : 'url_transparent',
-                    'url' : unquote(real_url),
-                    #'id' : video_id,
-                    #'title' : sanitize_filename(title, restricted=True)
-                }
-        
+        except ExtractorError as e:
+            raise 
         except Exception as e:
-            self.to_screen(e)
-            raise
+            raise ExtractorError("No video info") from e
         finally:
             client.close()
+            with MyVidsterIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                self.to_screen(f"COUNT: [{len(self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]))}]")
+                    
             
-        return entry_video
-
+            
+        
 
 class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:channel:playlist'   
@@ -290,7 +303,10 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         
         try:
         
-            client = httpx.Client(timeout=60)
+            _timeout = httpx.Timeout(10, connect=30)
+        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')))
                     
             res = client.get(url, headers=_headers)
             webpage = re.sub('[\t\n]', '', html.unescape(res.text))
@@ -329,18 +345,36 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
             list_videos = re.findall(r'<a href=\"(/video/[^\"]+)\" class', webpage)
 
-            entries = [{'_type':'url', 'url': f'{self._SITE_URL}{video}', 'ie_key': 'MyVidster'} for video in list_videos]
+            entries = []
+            
+            if list_videos:
+                
+                entries = [{'_type':'url', 'url': f'{self._SITE_URL}{video}', 'ie_key': 'MyVidster'} for video in list_videos]
+            
+            return {
+                '_type': 'playlist',
+                'id': channelid,
+                'title': sanitize_filename(title, True),
+                'entries': entries,
+            }
             
         except Exception as e:
             self.to_screen(e)
-            raise
+            raise ExtractorError from e
         finally:
             client.close()
+            with MyVidsterBaseIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                self.to_screen(f"COUNT: [{len(self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]))}]")
+                    
+            
+            
 
 
-        return {
-            '_type': 'playlist',
-            'id': channelid,
-            'title': sanitize_filename(title, True),
-            'entries': entries,
-        }
+        
+
+

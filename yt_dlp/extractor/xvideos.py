@@ -19,7 +19,7 @@ class XVideosIE(InfoExtractor):
                         (?:
                             (?:[^/]+\.)?xvideos2?\.com/video|
                             (?:www\.)?xvideos\.es/video|
-                            flashservice\.xvideos\.com/embedframe/|
+                            (?:www\.|flashservice\.)?xvideos\.com/embedframe/|
                             static-hw\.xvideos\.com/swf/xv-player\.swf\?.*?\bid_video=
                         )
                         (?P<id>[0-9]+)

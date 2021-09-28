@@ -749,7 +749,7 @@ class YoutubeDL(object):
     def to_stdout(self, message, skip_eol=False, quiet=False):
         """Print message to stdout"""
         if self.params.get('logger'):
-            self.params['logger'].debug(message)
+            self.params['logger'].info(message)
         elif not quiet or self.params.get('verbose'):
             self._write_string(
                 '%s%s' % (self._bidi_workaround(message), ('' if skip_eol else '\n')),

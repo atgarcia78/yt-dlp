@@ -1820,7 +1820,7 @@ from .ximalaya import (
 from .xminus import XMinusIE
 from .xnxx import XNXXIE
 from .xstream import XstreamIE
-from .xtube import XTubeUserIE, XTubeIE
+#from .xtube import XTubeUserIE, XTubeIE
 from .xuite import XuiteIE
 from .xvideos import XVideosIE
 from .xxxymovies import XXXYMoviesIE
@@ -1978,6 +1978,7 @@ from .fraternityx import (
 from .youngbastards import YoungBastardsIE
 from .boyfriendtv import (
     BoyFriendTVIE,
+    BoyFriendTVEmbedIE,
     BoyFriendTVPlayListIE,
 )
 from .gayforiteu import GayForITEUIE
@@ -1989,3 +1990,6 @@ from .highload import HighloadIE
 from .evoload import EvoloadIE
 from .gaystream import GayStreamIE
 from .gay0day import Gay0DayIE
+from .gaydelicious import GayDeliciousIE
+from .youporngay import YouPornGayIE
+from .gaymentubexxx import GayMenTubexxxIE

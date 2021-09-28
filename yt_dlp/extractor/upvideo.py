@@ -10,7 +10,8 @@ from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    int_or_none    
+    int_or_none,
+    std_headers  
 )
 
 
@@ -29,6 +30,9 @@ from selenium.webdriver.common.by import By
 import time
 import httpx
 
+from queue import Queue
+from threading import Lock
+
 
 class UpVideoIE(InfoExtractor):
     
@@ -46,7 +50,9 @@ class UpVideoIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
 
- 
+    _LOCK = Lock()
+    _DRIVER = 0
+    _QUEUE = Queue()
 
 
     def wait_until(self, _driver, time, method):
@@ -67,7 +73,7 @@ class UpVideoIE(InfoExtractor):
                 
                 try:
                     
-                    res = httpx.head(url)
+                    res = httpx.head(url, headers=std_headers)
                     if res.status_code > 400:
                         time.sleep(1)
                         count += 1
@@ -88,19 +94,47 @@ class UpVideoIE(InfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        prof = self._FF_PROF.pop()
-        self._FF_PROF.insert(0, prof)
-            
-        opts = Options()
-        opts.headless = True
+
+        with self._LOCK: 
+                
+            if self._DRIVER == self._downloader.params.get('winit'):
+                
+                driver = self._QUEUE.get(block=True)
+                driver.execute_script('''location.replace("about:blank");''')
+                
+            else:
+                
+        
+                prof = self._FF_PROF.pop()
+                self._FF_PROF.insert(0, prof)
+                driver = None
+                self._DRIVER += 1
+                
+        if not driver:
+                    
+                opts = Options()
+                opts.headless = True
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                
+                ff_prof = FirefoxProfile(prof)
+                ff_prof.set_preference("dom.webdriver.enabled", False)
+                ff_prof.set_preference("useAutomationExtension", False)
+                ff_prof.update_preferences()
+
+                
+                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+ 
+                self.to_screen(f"{url}:ffprof[{prof}]")
+                
+                driver.set_window_size(1920,575)        
+        
+
             
         try:                            
-                            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
- 
-            self.to_screen(f"ffprof[{prof}]")
-            
-            driver.set_window_size(1920,575)
+
             
             driver.get(url)
             
@@ -137,7 +171,7 @@ class UpVideoIE(InfoExtractor):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            driver.quit()
+            self._QUEUE.put_nowait(driver)
         
         if not _entry_video: raise ExtractorError("no video info")
         else:

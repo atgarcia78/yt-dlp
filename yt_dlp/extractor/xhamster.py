@@ -370,7 +370,7 @@ class XHamsterIE(InfoExtractor):
 
 
 class XHamsterEmbedIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:.+?\.)?%s/xembed\.php\?video=(?P<id>\d+)' % XHamsterIE._DOMAINS
+    _VALID_URL = r'https?://(?:.+?\.)?%s/(?:xembed\.php\?video=|embed/)(?P<id>\w+)' % XHamsterIE._DOMAINS
     _TEST = {
         'url': 'http://xhamster.com/xembed.php?video=3328539',
         'info_dict': {
@@ -388,17 +388,23 @@ class XHamsterEmbedIE(InfoExtractor):
     @staticmethod
     def _extract_urls(webpage):
         return [url for _, url in re.findall(
-            r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:www\.)?xhamster\.com/xembed\.php\?video=\d+)\1',
+            r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:.+?\.)?xhamster\.com/(?:xembed\.php\?video=|embed/)\w+)\1',
             webpage)]
 
     def _real_extract(self, url):
-        video_id = self._match_id(url)
+        
 
-        webpage = self._download_webpage(url, video_id)
+        webpage, urlh = self._download_webpage_handle(url, None)
+        
+        _url = urlh.geturl()
+        
+        self.to_screen(_url)  
+             
+        video_id = self._match_id(_url)
 
-        video_url = self._search_regex(
-            r'href="(https?://xhamster\.com/(?:movies/{0}/[^"]*\.html|videos/[^/]*-{0})[^"]*)"'.format(video_id),
-            webpage, 'xhamster url', default=None)
+        mobj = re.findall(rf'href=\"(https?://(?:.+?\.)?xhamster\.com/(?:movies/{video_id}/[^\"]*\.html|videos/[^\"]*-{video_id}))\"', webpage)
+        
+        video_url = mobj[0] if mobj else ""
 
         if not video_url:
             vars = self._parse_json(

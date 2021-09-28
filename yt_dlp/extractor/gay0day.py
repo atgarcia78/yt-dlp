@@ -63,7 +63,7 @@ class Gay0DayIE(InfoExtractor):
         
         try:
             
-            client = httpx.Client(headers=std_headers)
+            client = httpx.Client(headers=std_headers,timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
             
             res = client.get(url)
             if res.status_code > 400: raise ExtractorError(f'{url}:{res}')

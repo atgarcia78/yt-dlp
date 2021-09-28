@@ -168,7 +168,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             if not NakedSwordSceneIE._COOKIES:
                 try:
                                         
-                    client = httpx.Client()
+                    client = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
                     self._login(client)
                     NakedSwordSceneIE._COOKIES = client.cookies
                     
@@ -239,7 +239,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         try:
             
             _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
-            client = httpx.Client()
+            client = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
         
             with NakedSwordSceneIE._LOCK:
                 if not NakedSwordSceneIE._COOKIES:

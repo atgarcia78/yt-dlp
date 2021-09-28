@@ -46,7 +46,7 @@ class YourPornGodIE(InfoExtractor):
         try:
             
             _res = None
-            while (count<3):
+            while (count<5):
                 
                 try:
                     
@@ -66,8 +66,9 @@ class YourPornGodIE(InfoExtractor):
                     count += 1
         except Exception as e:
             pass
-                
-        return _res
+        
+        if (count < 5): return _res
+        else: return ({'error': 'Max retries'})
     
     def wait_until(self, driver, time, method):        
         
@@ -92,7 +93,7 @@ class YourPornGodIE(InfoExtractor):
         mobj = re.findall(r"<title>([^<]+)<", webpage)
         title = mobj[0] if mobj else re.search(self._VALID_URL, url).group('title')
         
-        mobj = re.findall(r'var\s+flashvars\s*=\s*({.+?});',webpage)
+        mobj = re.findall(r'var\s+flashvars\s*=\s*([^;]+);',webpage)
         info_video = demjson.decode(mobj[0]) if mobj else None
         if info_video: 
         
