@@ -9,13 +9,13 @@ from ..utils import ExtractorError
 from .common import InfoExtractor
 
 from concurrent.futures import (
-    ThreadPoolExecutor
+    ThreadPoolExecutor,
+    wait,
+    ALL_COMPLETED
 )
 
-import traceback
-import sys
-import threading
 
+import threading
 
 
 from selenium.webdriver import Firefox, FirefoxProfile
@@ -30,6 +30,10 @@ from queue import Queue
 from .netdna import NetDNAIE
 
 import logging
+import traceback
+import sys
+
+import os
 
 logger = logging.getLogger("gaybeeg")
 
@@ -42,31 +46,30 @@ class GayBeegBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
     
+    _LOCK = threading.Lock()
+    _QUEUE = Queue()
+    _DRIVER = 0
     
-    
-    def _get_entries_netdna(self, el_list):
+    @staticmethod
+    def _get_entries_netdna(el_list):
         
-        _list_urls_netdna = []
+        _list_urls_netdna = {}
         for _el in el_list:
-            for _el_tag in _el.find_elements_by_tag_name("a"):
-                if "netdna-storage" in (_url:=_el_tag.get_attribute('href')):
-                    _list_urls_netdna.append(_url)
-        _final_list = list(set(_list_urls_netdna))
-        
-        logger.info(_final_list)
+            _url = _el.get_attribute('href')
+            _list_urls_netdna[_url] = _el.text
+         
         
         entries = []
         
-        for _item in _final_list:
+        for _url, _item in _list_urls_netdna.items():
             _info_video = NetDNAIE.get_video_info(_item)
-            entries.append({'_type' : 'url', 'url' : _item, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')})
-                
-  
+            entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')})
+        
                                     
         return entries
     
-   
-    def _get_entries_gaybeeg(self, el_list):
+    @staticmethod
+    def _get_entries_gaybeeg(el_list):
         entries = [{'_type' : 'url', 'url' : _url, 'ie' : 'GayBeeg'}
                         for el in el_list
                                     for el_tagh2 in el.find_elements_by_tag_name("h2")
@@ -82,289 +85,347 @@ class GayBeegBaseIE(InfoExtractor):
             el = None
     
         return el   
+    
+    
+    def _get_entries(self, url):
+        
+        try:
+        
+            self._launch_driver()
+            
+            driver = GayBeegBaseIE._QUEUE.get(block=True)
+            
+            
+            driver.get(url)
+            
+            SCROLL_PAUSE_TIME = 2
+
+            last_height = driver.execute_script("return document.body.scrollHeight")
+
+            while True:
+                # Scroll down to bottom
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                # Wait to load page
+                self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                #time.sleep(SCROLL_PAUSE_TIME)                    
+                
+
+                # Calculate new scroll height and compare with last scroll height
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    break
+                last_height = new_height
+        
+            el_list = self.wait_until(driver, 120, ec.visibility_of_all_elements_located((By.CLASS_NAME, "button")))
+                
+                #el = self.wait_until(driver, 120, ec.element_to_be_clickable((By.CLASS_NAME, "button")))
+                
+            entries = GayBeegBaseIE._get_entries_netdna(el_list)
+            
+            return entries
+            
+        finally:
+            GayBeegBaseIE._QUEUE.put_nowait(driver)
+            
+            
+        
+                
+    def _launch_driver(self):
+        
+        with GayBeegBaseIE._LOCK:
+            
+            try:
+  
+                if GayBeegBaseIE._DRIVER == self._downloader.params.get('winit', 6):
+                    return 
+                
+                prof_ff = GayBeegBaseIE._FF_PROF.pop() 
+                GayBeegBaseIE._FF_PROF.insert(0,prof_ff) 
+                
+                _firefox_prof = FirefoxProfile(prof_ff)              
+            
+            
+                opts = Options()
+                opts.headless = True
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                
+                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
+                
+                 
+                driver.maximize_window()
+                
+                GayBeegBaseIE._DRIVER += 1
+                
+                GayBeegBaseIE._QUEUE.put_nowait(driver)
+                
+            except ExtractorError as e:                 
+                raise 
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+                raise ExtractorError(str(e)) from e
+        
+             
+        
+    
+    def _real_initialize(self):
+        
+        try:
+        
+            self._launch_driver()
+            
+        except ExtractorError as e:                 
+                raise 
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(str(e)) from e
+        
+        
+        
+           
 
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepage:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info.*/page/.*'
     
-    _lock = threading.Lock()
+    
         
     
     def _real_extract(self, url):        
         
         try:
-            opts = Options()
-            opts.headless = True
-            with self._lock:
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof_ff))            
-            
-            driver.set_window_size(1920,575)
-            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_ff}]")          
+                   
             self.report_extraction(url)
-            driver.get(url)
-            time.sleep(1) 
-            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
-           
-                           
-            entries_final = self._get_entries_netdna(el_list) if el_list else None         
+            
+            
+            entries = self._get_entries(url)
+            
+            if not entries: raise ExtractorError("No entries")  
+                      
+            return {
+                '_type': "playlist",
+                'id': "gaybeeg",
+                'title': "gaybeeg",
+                'entries': entries
+            }          
    
             
+        except ExtractorError as e:
+            raise
         except Exception as e:
             self.to_screen(str(e))
             logger.error(str(e), exc_info=True)
             raise 
-        finally:
-            driver.quit()        
+        finally:                         
+            with GayBeegPlaylistPageIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeegPlaylistPage',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeegPlayList',[])) + len(self._downloader.params.get('GayBeegPlaylistPageIE', {})) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeeg',[]))
+                
+                self.to_screen(f"COUNT: [{count}]")
+                if count == 0:
+                    self.to_screen("LETS CLOSE DRIVERS")
+                    for __driver in list(GayBeegPlaylistIE._QUEUE.queue):
+                        try:
+                            __driver.quit()                            
+                        except Exception as e:
+                            self.to_screen(str(e))
         
-        return {
-            '_type': "playlist",
-            'id': "gaybeeg",
-            'title': "gaybeeg",
-            'entries': entries_final
-        } 
+        
+        
     
 class GayBeegPlaylistIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:allpages:playlist"    
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:((?P<type>(?:site|pornstar|tag))(?:$|(/(?P<name>[^\/$\?]+)))(?:$|/$|/(?P<search1>\?(?:tag|s)=[^$]+)$))|((?P<search2>\?(?:tag|s)=[^$]+)$))'
     
-    _lock = threading.Lock()
-        
-    def _worker_pl(self, i):        
-               
-        
-        try:
-            
-            opts = Options()
-            opts.headless = True
-            with self._lock:
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof_ff))            
-            
-            driver.set_window_size(1920,575)
-                    
-            
-            while not self.queue_in.empty():
-                
-                info_dict = self.queue_in.get()
-                url_p = info_dict['url']
-                npage = info_dict['page']
-                self.to_screen(f"[worker_pl{i}] page {npage}  {url_p}")
-                if url_p == "KILL":
-                    
-                    self.completed += 1
-                    self.to_screen(f"[worker_pl{i}] bye bye, completed {self.completed}")                   
-                    break
-                elif url_p == "KILLANDCLEAN":
-                    while(self.completed < self.workers - 1):
-                        time.sleep(1)
-                        self.to_screen(f"[worker_pl{i}] completed {self.completed}")
-                    pending_pages = list(self.queue_nok.queue)
-                    if pending_pages:
-                        self.to_screen(f"[worker_pl{i}] retry with pending pages \n {pending_pages}")
-                        for info_page in pending_pages:
-                            self.queue_in.put(info_page)
-                        self.queue_in.put({'url': "KILL", 'page': 0})
-                        continue
-                    else:
-                        self.to_screen(f"[worker_pl{i}] no need to retry pending pages") 
-                        break
-                        
-                else:
-                    try:
-                        driver.get(url_p)
-                        time.sleep(1)                
-
-                        el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
-                        if el_list:
-                            
-                            _entries = self._get_entries_netdna(el_list)
-                            if _entries:
-                                for entry in _entries:
-                                    if entry.get('id'): self.queue_entries.put(entry)
-                            self.to_screen(f"[worker_pl{i}]: entries [{len(_entries)}]\n {_entries}")
-
-                        else:
-                            self.queue_nok.put({'url': url_p, 'page': npage})
-                    except Exception as e:
-                        self.to_screen(f"[worker_pl{i}] {e}")
-                        self.queue_nok.put({'url': url_p, 'page': npage})
-                    
-        except Exception as e:
-            self.to_screen(f"[worker_pl{i}] {e}")
-            logger.error(str(e), exc_info=True)
-
-        finally:
-            driver.quit()
-        
-
-        
+       
     
     def _real_extract(self, url):        
         
         try:
+                       
+
+            driver = GayBeegPlaylistIE._QUEUE.get(block=True)
             
-            self.queue_in = Queue()
-            self.queue_entries= Queue()
-            self.queue_nok = Queue()
-            
-            opts = Options()
-            opts.headless = True
-            with self._lock:
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof_ff))            
-            
-            driver.set_window_size(1920,575)
-            
-            
-            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_ff}]")
-            
-            driver.get("https://gaybeeg.info") 
-            self.wait_until(driver, 30, ec.title_contains("GayBeeg"))
-                        
+                                    
             self.report_extraction(url)
+            
             driver.get(url)
-            time.sleep(1)                
-            el_list = self.wait_until(driver, 120, ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
-            if el_list:
+            
+            SCROLL_PAUSE_TIME = 2
+
+            last_height = driver.execute_script("return document.body.scrollHeight")
+
+            while True:
+                # Scroll down to bottom
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                # Wait to load page
+                self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                #time.sleep(SCROLL_PAUSE_TIME)                    
                 
-                _entries = self._get_entries_netdna(el_list)
-                if _entries:
-                    logger.info(_entries)
-                    for entry in _entries:
-                        if entry.get('id'): self.queue_entries.put(entry)
+
+                # Calculate new scroll height and compare with last scroll height
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    break
+                last_height = new_height
             
             
             
-            mobj = re.search(self._VALID_URL,url)
+            el_pages = driver.find_elements_by_class_name("pages")
             
-            _type, _name, _search1, _search2 = mobj.group('type','name','search1','search2')
-            
-            _search = _search1 or _search2
-            
-            
-            _items_url_fix = [_item for _item in ["https://gaybeeg.info",_type,_name] if _item]
-            
-            _url_fix = "/".join(_items_url_fix)
-            
-            el_pagination = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "pagination")))
-            
-            if el_pagination:
-                webpage = el_pagination[0].get_attribute("innerHTML")
-                _n_pages = re.search(r'Page 1 of (?P<n_pages>[\d]+)<', webpage)
-                if _n_pages:
-                    n_pages = int(_n_pages.group("n_pages"))
-                else:
-                    n_pages = 0
+            if el_pages:
                 
-                self.to_screen(f"[worker_pl_main] Playlist with {n_pages} pages including this main page. Starting to process the pending {n_pages - 1} pages")
-                if n_pages == 2:
-                    _items_url = [_item for _item in [_url_fix,"page","2", _search] if _item]
-                    _url = "/".join(_items_url)                   
-                    driver.get(_url)
-                    time.sleep(1) 
-                    el_list = self.wait_until(driver, 120, ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
-                    #self.to_screen([el.text for el in el_list])
-                    if el_list:
-                        _entries = self._get_entries_netdna(el_list)
-                        if _entries:
-                            for entry in _entries:
-                                if entry.get('id'): self.queue_entries.put(entry)
-                        self.to_screen(f"[worker_pl_main]: entries [{len(_entries)}]\n {_entries}")
-                elif n_pages > 2:    
-                    for num in range(2,n_pages+1):
-                        _items_url = [_item for _item in [_url_fix,"page",str(num), _search] if _item]
-                        _url = "/".join(_items_url) 
-                        
-                        self.queue_in.put({'url': _url, 'page': num})
-                                                
-                    for _ in range(min(16,n_pages-1) - 1):
-                        self.queue_in.put({'url': "KILL", 'page': 0})
-                        
-                    self.queue_in.put({'url': "KILLANDCLEAN", 'page': 0})
-                        
-                    self.to_screen(list(self.queue_in.queue))
-                    
-                    
-                    self.workers = min(12,n_pages-1)
-                    self.total = n_pages - 1
-                    self.completed = 0
-                    self.to_screen(f"[worker_pl_main] nworkers pool [{self.workers}] total pages to download [{self.total}]")
-                    
+                num_pages = int(el_pages[0].get_attribute('innerHTML').split(' ')[-1])
+                self.to_screen(num_pages)
+                el_page = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "page")))
+                _href = el_page.get_attribute('href')
+                list_urls_pages = [re.sub('page/\d+/', f'page/{i}/', _href) for i in range(1, num_pages+1)]
                 
-                    with ThreadPoolExecutor(max_workers=self.workers) as ex:
-                        for i in range(self.workers):
-                            ex.submit(self._worker_pl,i) 
- 
-                    
-            entries_final = list(self.queue_entries.queue)   
+                self.to_screen(list_urls_pages)
+
+                _num_workers = min(6, len(list_urls_pages))
+                
+                with ThreadPoolExecutor(max_workers=_num_workers) as ex:
+                    futures = [ex.submit(self._get_entries, _url) for _url in list_urls_pages] 
+                
+                    done, _ = wait(futures)
+                
+                entries = []
+                for d in done:
+                    try:
+                        entries += d.result()
+                    except Exception as e:
+                        lines = traceback.format_exception(*sys.exc_info())
+                        self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+                        raise ExtractorError(str(e)) from e
+                        
+            else: #single page
+                entries = self._get_entries(url)
+                                       
+            if entries:
+                    return self.playlist_result(entries, "gaybeegplaylist", "gaybeegplaylist")
+            else: raise ExtractorError("No entries")
             
+        except ExtractorError as e:                 
+            raise 
         except Exception as e:
-            self.to_screen(str(e))
-            logger.error(str(e), exc_info=True)
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(str(e)) from e
 
         finally:
-            driver.quit()        
+            GayBeegPlaylistIE._QUEUE.put_nowait(driver)
+                         
+            with GayBeegPlaylistIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeegPlayList',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeegPlayList',[])) + len(self._downloader.params.get('GayBeegPlaylistPage', {})) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeeg',[]))
+                
+                self.to_screen(f"COUNT: [{count}]")
+                if count == 0:
+                    self.to_screen("LETS CLOSE DRIVERS")
+                    for __driver in list(GayBeegPlaylistIE._QUEUE.queue):
+                        try:
+                            __driver.quit()                            
+                        except Exception as e:
+                            self.to_screen(str(e))
+                            
         
-        return {
-            '_type': "playlist",
-            'id': "gaybeeg",
-            'title': "gaybeeg",
-            'entries': entries_final
-        }       
+           
         
         
 class GayBeegIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:post:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/\d\d\d\d/\d\d/\d\d/.*'
     
-
-    _lock = threading.Lock()
-            
+           
     def _real_extract(self, url):        
         
         try:
-            entries = None
-
-            opts = Options()
-            opts.headless = True
-            with self._lock:
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof_ff))            
             
-            driver.set_window_size(1920,575)            
-            
-            
-            self.to_screen(f"[worker_pl_main] init with ffprof[{prof_ff}]")
-         
+                 
             self.report_extraction(url)
+            
+            driver = GayBeegIE._QUEUE.get(block=True)
+            
             driver.get(url)
-            time.sleep(1)                
-            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "hentry-large")))
+            
+            SCROLL_PAUSE_TIME = 2
+
+            last_height = driver.execute_script("return document.body.scrollHeight")
+
+            while True:
+                # Scroll down to bottom
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                # Wait to load page
+                self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                #time.sleep(SCROLL_PAUSE_TIME)                    
+                
+
+                # Calculate new scroll height and compare with last scroll height
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    break
+                last_height = new_height
+                         
+            el_list = WebDriverWait(driver, 120).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "button")))
             
             
-            entries = self._get_entries_netdna(el_list) if el_list else None
+            entries = GayBeegBaseIE._get_entries_netdna(el_list) if el_list else None
             
+            if not entries:
+                raise ExtractorError("No video entries")
+            else:
+                return{
+                    '_type': "playlist",
+                    'id': "gaybeeg",
+                    'title': "gaybeeg",
+                    'entries': entries
+                }      
+            
+        except ExtractorError as e:                 
+            raise 
         except Exception as e:
-            logger.error(str(e), exc_info=True)
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(str(e)) from e
 
         finally:
-            driver.quit()
+            GayBeegIE._QUEUE.put_nowait(driver) 
             
-        if not entries:
-            raise ExtractorError(f'no video info: {str(e)}')
-        else:
-            return{
-                '_type': "playlist",
-                'id': "gaybeeg",
-                'title': "gaybeeg",
-                'entries': entries
-            }      
+                         
+            with GayBeegIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeeg',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeegPlayList',[])) + len(self._downloader.params.get('GayBeegPlaylistPage', {})) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('GayBeeg',[]))
+                
+                self.to_screen(f"COUNT: [{count}]")
+                if count == 0:
+                    self.to_screen("LETS CLOSE DRIVERS")
+                    for __driver in list(GayBeegPlaylistIE._QUEUE.queue):
+                        try:
+                            __driver.quit()                            
+                        except Exception as e:
+                            self.to_screen(str(e))
+            
+        
         

@@ -28,7 +28,7 @@ class Mat6TubeIE(InfoExtractor):
         
         count = 0
         try:
-            cl = httpx.Client()
+            cl = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
             _res = None
             while (count<3):
                 
@@ -57,7 +57,7 @@ class Mat6TubeIE(InfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        cl = httpx.Client()
+        cl = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
         res = cl.get(url)
         if res.status_code > 400: raise ExtractorError()
         mobj = re.findall(r'iplayer\"src=\"/([^\"]+)\"',res.text.replace(" ",""))

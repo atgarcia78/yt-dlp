@@ -16,7 +16,7 @@ import demjson
 
 class ManPornXXXIE(InfoExtractor):
     IE_NAME = 'manpornxxx'
-    _VALID_URL = r'https?://(?:www\.)?manporn\.xxx/videos/(?P<id>\d+)/(?P<title>[^\/$]+)/?$'
+    _VALID_URL = r'https?://(?:www\.)?manporn\.xxx/videos/(?P<id>\d+)/(?P<title>[^/$]+)[/?$]'
    
    
     def _get_filesize(self, url):

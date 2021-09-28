@@ -29,6 +29,12 @@ from selenium.webdriver.common.by import By
 import time
 import httpx
 
+from queue import (
+    Queue,
+    Empty)
+
+from threading import Lock
+
 
 class EvoloadIE(InfoExtractor):
     
@@ -47,6 +53,9 @@ class EvoloadIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
 
  
+    _LOCK = Lock()
+    _DRIVER = 0
+    _QUEUE = Queue()
 
 
     def wait_until(self, _driver, time, method):
@@ -88,27 +97,56 @@ class EvoloadIE(InfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        prof = self._FF_PROF.pop()
-        self._FF_PROF.insert(0, prof)
+        
+        
+        with self._LOCK: 
+                
+            if self._DRIVER == self._downloader.params.get('winit'):
+                
+                driver = self._QUEUE.get(block=True)
+                driver.execute_script('''location.replace("about:blank");''')
+                
+            else:
+                
+                try:
+                
+                    driver = self._QUEUE.get(block=False)
+                    driver.execute_script('''location.replace("about:blank");''')
+                    
+                except Empty:
+                    
+                    driver = None
+                    prof = self._FF_PROF.pop()
+                    self._FF_PROF.insert(0, prof)
+                    self._DRIVER += 1
+        
+                
+        
+        if not driver:
+                
+            opts = Options()
+            opts.headless = True
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
             
-        opts = Options()
-        opts.headless = True
-            
-        try:                            
                             
             driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
- 
-            self.to_screen(f"ffprof[{prof}]")
+
+            self.to_screen(f"{url}:ffprof[{prof}]")
             
-            self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-            driver.uninstall_addon('uBlock0@raymondhill.net')
-                
-            self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-            driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+            #elf.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
             
-            driver.set_window_size(1920,575)
+            #driver.uninstall_addon('uBlock0@raymondhill.net')
+            
+            #self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
+            
+            #driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+                   
+            driver.set_window_size(1920,575)        
+            
+        try:            
             
             _url = url.replace('/e/', '/v/')
             
