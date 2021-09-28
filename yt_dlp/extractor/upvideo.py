@@ -23,6 +23,9 @@ from ratelimit import (
 
 
 
+from queue import Queue
+from threading import Lock
+
 
 class UpVideoIE(SeleniumInfoExtractor):
     
