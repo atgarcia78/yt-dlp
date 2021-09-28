@@ -32,6 +32,23 @@ import threading
 from queue import Queue
 
 
+class error404_or_found():
+    
+    def __call__(self, driver):
+        
+        el = driver.find_elements_by_class_name("b-404")        
+        if el:            
+            return ("error404", el[0])       
+        else:
+            
+            el = driver.find_elements_by_class_name("b-profile__user")
+            if el: return ("userfound", el[0])
+            else: 
+                el = driver.find_elements_by_class_name("video-wrapper")
+                if el: return ("postfound", el[0])
+                return False
+    
+
 class alreadylogin_or_reqtw():
     
     def __call__(self, driver):
@@ -41,7 +58,9 @@ class alreadylogin_or_reqtw():
             return ("loginok", el[0])       
         else:
             
-            el = driver.find_elements_by_css_selector("a.g-btn.m-rounded.m-twitter")
+            el = driver.find_elements_by_css_selector("a.g-btn.m-rounded.m-twitter.m-lg")
+            #el = driver.find_elements_by_class_name("g-btn.m-rounded.m-twitter.m-lg")
+            #el = driver.find_elements_by_link_text("SIGN IN WITH TWITTER")
             if el: return ("reqlogin", el[0])
             else: return False
             
@@ -52,7 +71,7 @@ class succ_or_twlogin():
         
         el = driver.find_elements_by_css_selector("nav.l-header__menu")        
         if el:            
-            return (el[0],)       
+            return ("loginok", el[0])       
         else:
             
             el_username = driver.find_elements_by_css_selector("input#username_or_email")
@@ -60,7 +79,7 @@ class succ_or_twlogin():
             el_login = driver.find_elements_by_css_selector("input#allow.submit")
                         
             if el_username and el_password and el_login:
-                return (el_username[0], el_password[0], el_login[0])
+                return ("twlogin", el_username[0], el_password[0], el_login[0])
             
             else:
                 return False
@@ -72,7 +91,7 @@ class succ_or_twrelogin():
         
         el = driver.find_elements_by_css_selector("nav.l-header__menu")        
         if el:            
-            return (el[0],)       
+            return ("loginok", el[0])       
         else:
 
             el_username = driver.find_elements_by_partial_link_text("usuario") or driver.find_elements_by_partial_link_text("user")
@@ -81,7 +100,7 @@ class succ_or_twrelogin():
             el_login = driver.find_elements_by_partial_link_text("Iniciar") or driver.find_elements_by_partial_link_text("Start")
             
             if el_username and el_password and el_login:
-                return (el_username[0], el_password[0], el_login[0])
+                return ("twrelogin", el_username[0], el_password[0], el_login[0])
             
             else:
                 return False
@@ -102,8 +121,14 @@ class OnlyFansBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
     
       
-       
     _LOCK = threading.Lock()
+    
+    _SERVER = None
+    
+    _QUEUE = Queue() 
+    
+    _DRIVER = 0    
+  
     
     def wait_until(self, driver, time, method):
         try:
@@ -112,16 +137,14 @@ class OnlyFansBaseIE(InfoExtractor):
             el = None
             
         return el  
-    
-     
-    
+
     def scan_for_request(self, _har, _link):
                           
         for entry in _har['log']['entries']:
                             
             if _link in (_url:=entry['request']['url']):
                 
-                self.to_screen(_url)                   
+                self.write_debug(_url)                   
           
                 if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
                 
@@ -131,7 +154,6 @@ class OnlyFansBaseIE(InfoExtractor):
                     if _info_json:
                         return(_info_json)
                     
-                    
     def scan_for_all_requests(self, _har, _reg):
                           
         _list_info_json = []
@@ -140,25 +162,22 @@ class OnlyFansBaseIE(InfoExtractor):
                             
             if re.search(_reg, (_url:=entry['request']['url'])):
                 
-                self.to_screen(_url)                   
+                self.write_debug(_url)                   
           
                 if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
                 
-                    _str = html.unescape(_text)
-                    _info_str = re.sub('[\t\n]', '', _str)
+                    
+                    _info_str = re.sub('[\t\n]', '', html.unescape(_text))
                     _info_json = json.loads(_info_str)
                     if _info_json: _list_info_json.append(_info_json)
         
         return _list_info_json
                         
-           
-            
-     
     def kill_java_process(self, port):
         
         res = subprocess.run(["ps","ax","-o","pid","-o","command"], encoding='utf-8', capture_output=True).stdout
-        process_id = mobj[0] if (mobj:=re.findall(rf'^\ *(\d+)\ java\ .*browsermob.*port={port}', res, flags=re.MULTILINE)) else None
-        if process_id:
+        _pid_list = re.findall(rf'^\ *(\d+)\ java\ .*browsermob.*port={port}', res, flags=re.MULTILINE)
+        for process_id in _pid_list:
             res = subprocess.run(["kill","-9",process_id], encoding='utf-8', capture_output=True)
             if res.returncode != 0: 
                 self.to_screen("cant kill java proxy: " + res.stderr.decode())
@@ -181,6 +200,7 @@ class OnlyFansBaseIE(InfoExtractor):
                     return
     
     def _login(self, driver):
+        
 
         username, password = self._get_login_info()
     
@@ -199,14 +219,22 @@ class OnlyFansBaseIE(InfoExtractor):
             
             el_init = self.wait_until(driver, 60, alreadylogin_or_reqtw())
             if not el_init: raise ExtractorError("Error in login")
-            if el_init[0] == "loginok": return
-            else: el_init[1].click()
+            if el_init[0] == "loginok": 
+                self.to_screen("Login OK")
+                return
+            else: 
+                #el_init[1].click()
+                driver.get(el_init[1].get_attribute('href'))
             
             el = self.wait_until(driver, 60, succ_or_twlogin())            
- 
+
             if el:
-                if len(el) == 3:
-                    username_element, password_element, login_element = el
+                if el[0] == "loginok":
+                    self.to_screen("Login OK")
+                    return
+                    
+                else:
+                    username_element, password_element, login_element = el[1], el[2], el[3]
                     username_element.send_keys(username)
                     password_element.send_keys(password)            
                     login_element.submit()
@@ -214,14 +242,20 @@ class OnlyFansBaseIE(InfoExtractor):
                     el = self.wait_until(driver, 60, succ_or_twrelogin())
                 
                     if el:
-                        if (len(el) == 3):
-                            username_element, password_element, login_element = el
+                        if el[0] == "loginok":
+                            self.to_screen("Login OK")
+                            return
+                        else:
+                            username_element, password_element, login_element = el[1], el[2], el[3]
                             username_element.send_keys(username)
                             password_element.send_keys(password)            
                             login_element.submit()
                             el = self.wait_until(driver, 30, ec.presence_of_all_elements_located(
                                 (By.CSS_SELECTOR, "nav.l-header__menu") ))
-                            if not el: raise ExtractorError("login error")
+                            if el:
+                                self.to_screen("Login OK")
+                                return
+                            else: raise ExtractorError("login error")
                         
                                             
                     else:
@@ -237,14 +271,11 @@ class OnlyFansBaseIE(InfoExtractor):
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
             raise           
  
-         
-           
-
     def _extract_from_json(self, data_post, acc=False, users_dict={}, user_profile=None):
 
         
         try:
-            self.to_screen(f"[extract_from_json][input] {data_post}")
+            self.write_debug(f"[extract_from_json][input] {data_post}")
             
             
             account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
@@ -338,7 +369,7 @@ class OnlyFansBaseIE(InfoExtractor):
                                 "duration" : _media.get('info',{}).get('source', {}).get('duration', 0),
                                 "ext" : "mp4"})
         
-            self.to_screen(f'[extract_from_json][output] {_entries}')
+            self.write_debug(f'[extract_from_json][output] {_entries}')
             return _entries
         
         except Exception as e:            
@@ -346,45 +377,31 @@ class OnlyFansBaseIE(InfoExtractor):
             self.to_screen(f'[extract_from_json][output] {type(e)} \n{"!!".join(lines)}')
                 
 
-class OnlyFansPostIE(OnlyFansBaseIE):
-    IE_NAME = 'onlyfans:post:playlist'
-    IE_DESC = 'onlyfans:post:playlist'
-    _VALID_URL =  r"(?:(onlyfans:post:(?P<post>.*?):(?P<account>[\da-zA-Z]+))|(https?://(?:www\.)?onlyfans.com/(?P<post2>[\d]+)/(?P<account2>[\da-zA-Z]+)))"
-
-    _QUEUE = Queue()   
-    
-    _DRIVER = 0
-    
-    _SERVER = None
-    
-    
     def _real_initialize(self):
         
-        driver = None
-        _mitmproxy = None
-  
+             
+        with OnlyFansBaseIE._LOCK: 
         
-        try:
-            
-            
-            with self._LOCK: 
-                
+            try:  
 
-                if self._DRIVER == self._downloader.params.get('winit'):
+                if OnlyFansBaseIE._DRIVER == self._downloader.params.get('winit'):
                     return  
                 
+                driver = None
+                _mitmproxy = None
                 
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                if not self._SERVER:          
-                    self._SERVER = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy")
-                    self._SERVER.start()
+                prof_ff = OnlyFansBaseIE._FF_PROF.pop() 
+                OnlyFansBaseIE._FF_PROF.insert(0,prof_ff)
+                if not OnlyFansBaseIE._SERVER:
+                              
+                    OnlyFansBaseIE._SERVER = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': 18080})
+                    OnlyFansBaseIE._SERVER.start()
                 
                 
-                _port = 8081 + self._DRIVER
+                _port = 18081 + OnlyFansBaseIE._DRIVER
                 _host = 'localhost'
                 
-                _mitmproxy = self._SERVER.create_proxy({'port' : _port})
+                _mitmproxy = OnlyFansBaseIE._SERVER.create_proxy({'port' : _port})
                 
                 _firefox_prof = FirefoxProfile(prof_ff)
                 
@@ -416,38 +433,42 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 
                 driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
                 
-                self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-                driver.uninstall_addon('uBlock0@raymondhill.net')
-                
-                self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-                driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
-                
+                 
                 driver.maximize_window()
       
-                self._login(driver)   
+                self._login(driver) 
+                
+                OnlyFansBaseIE._DRIVER += 1
+                
+                OnlyFansBaseIE._QUEUE.put_nowait((driver, _mitmproxy))
+                
+            except ExtractorError as e:                 
+                raise 
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+                raise ExtractorError(str(e)) from e
+                                            
+                
             
-        except Exception as e:
-            if driver: driver.quit()
-            if _mitmproxy: _mitmproxy.close()            
-            raise
-        
-        self._DRIVER += 1
-        self._QUEUE.put_nowait((driver, _mitmproxy))
-        
+
+
+class OnlyFansPostIE(OnlyFansBaseIE):
+    IE_NAME = 'onlyfans:post:playlist'
+    IE_DESC = 'onlyfans:post:playlist'
+    _VALID_URL =  r"https?://(?:www\.)?onlyfans.com/(?P<post>[\d]+)/(?P<account>[\da-zA-Z]+)"
+
                 
     def _real_extract(self, url):
  
         try:
             
-            driver, _mitmproxy = self._QUEUE.get(block=True)
+            driver, _mitmproxy = OnlyFansPostIE._QUEUE.get(block=True)
             
             self.report_extraction(url)                  
 
-            (post1, post2, acc1, acc2) = re.search(self._VALID_URL, url).group("post", "post2", "account", "account2")
-            post = post1 or post2
-            account = acc1 or acc2
+            post, account = re.search(self._VALID_URL, url).group("post", "account")
+            
 
             self.to_screen("post:" + post + ":" + "account:" + account)
         
@@ -457,11 +478,12 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             
             _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har1")
             driver.get(url) 
-            self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "video-wrapper")))
+            res = self.wait_until(driver, 30, error404_or_found())
+            if not res or res[0] == "error404": raise ExtractorError("Post doesnt exists")
             har = _mitmproxy.har            
             data_json = self.scan_for_request(har, f"/api2/v2/posts/{post}")
             if data_json:
-                self.to_screen(data_json)                
+                self.write_debug(data_json)                
                 _entry = self._extract_from_json(data_json, user_profile=account)
                 if _entry: 
                     for _video in _entry:
@@ -469,121 +491,97 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                         else:
                             if _video['duration'] > entries[_video['id']]['duration']:
                                 entries[_video['id']] = _video               
+            
+            if entries:
+                return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
+            else:
+                raise ExtractorError("No entries")
                  
-        except Exception as e:
-                
+        
+        except ExtractorError as e:
+            raise
+        except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
             raise                
  
             
         finally:
-            self._QUEUE.put_nowait((driver, _mitmproxy))            
-           
+            OnlyFansPostIE._QUEUE.put_nowait((driver, _mitmproxy)) 
+            with OnlyFansPostIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
+                
+                self.to_screen(f"COUNT: [{count}]")
+                if count == 0:
+                    self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+                    for __driver, __mitmproxy in list(OnlyFansPostIE._QUEUE.queue):
+                        try:
+                            __driver.quit()
+                            __mitmproxy.close()
+                        except Exception as e:
+                            self.to_screen(str(e))
+                    self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+                    OnlyFansPostIE._SERVER.stop()
+                    self.to_screen("SERVER STOPPED")
+                    self.kill_java_process(OnlyFansPostIE._SERVER.port)
+                    
+                            
+          
         
-        return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
+        
                                                        
 
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/?((?P<mode>(?:all|latest|chat|favorites|tips))/?)?$"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/((?P<mode>(?:all|latest|chat|favorites|tips))/?)$"
     _MODE_DICT = {"favorites" : "?order=favorites_count_desc", "tips" : "?order=tips_summ_desc", "all" : "", "latest" : ""}
     
     
-        
-    def _real_initialize(self):
-        
-        self._mitmproxy = None
-        self._server = None
-        self.driver = None
-        
-        try:
-            
-            with self._LOCK:     
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                self._server = Server("/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy")
-                self._server.start()
-                self._mitmproxy  = self._server.create_proxy()
-                                
-                _port = self._mitmproxy.port
-                _host = 'localhost'                
-                
-                
-                _firefox_prof = FirefoxProfile(prof_ff)
-                
-                _firefox_prof.set_preference("network.proxy.type", 1)
-                _firefox_prof.set_preference("network.proxy.http",_host)
-                _firefox_prof.set_preference("network.proxy.http_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.https",_host)
-                _firefox_prof.set_preference("network.proxy.https_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.ssl",_host)
-                _firefox_prof.set_preference("network.proxy.ssl_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.ftp",_host)
-                _firefox_prof.set_preference("network.proxy.ftp_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.socks",_host)
-                _firefox_prof.set_preference("network.proxy.socks_port",int(_port))
-                _firefox_prof.set_preference("dom.webdriver.enabled", False)
-                _firefox_prof.set_preference("useAutomationExtension", False)
-                
-                _firefox_prof.update_preferences()
-                
-                opts = Options()
-                opts.headless = True
-                opts.add_argument("--no-sandbox")
-                opts.add_argument("--disable-application-cache")
-                opts.add_argument("--disable-gpu")
-                opts.add_argument("--disable-dev-shm-usage")
-                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
-                self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
-                
-                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-                self.driver.uninstall_addon('uBlock0@raymondhill.net')
-                
-                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-                self.driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
-                
-                self.driver.maximize_window()
-      
-                self._login(self.driver)
-            
-        except Exception as e:
-            if self.driver: self.driver.quit()
-            if self._mitmproxy: self._mitmproxy.close()
-            if self._server: 
-                self._server.stop()
-                #self.kill_java_process()
-            raise
-
+           
+   
     def _real_extract(self, url):
  
         try:
             self.report_extraction(url)
+            
+            driver, _mitmproxy = OnlyFansPlaylistIE._QUEUE.get(block=True)
+            
             account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
             if not mode:
                 mode = "latest"
             
             entries = {}
             
+            driver.get(f"{self._SITE_URL}/{account}")
+            res = self.wait_until(driver, 30, error404_or_found())
+            if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
+            
+            
+            
             if mode in ("all", "latest", "favorites","tips"):
                 
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
-                            
-                self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                self.to_screen(f"URL: {_url}")
                 
-                self.driver.get(_url)
-                self.wait_until(self.driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-wrapper")))
+                driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
+                            
+                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                
+                driver.get(_url)
+                self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "js-posts-container")))
                 
                 if mode in ("latest"):
-                    har = self._mitmproxy.har
+                    har = _mitmproxy.har
                     data_json = self.scan_for_request(har, "posts/videos?")
                     if data_json:
-                        self.to_screen(data_json)
+                        self.write_debug(data_json)
                         list_json = data_json.get('list')
                         if list_json:                            
                             for info_json in list_json:                                                  
@@ -601,33 +599,33 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     SCROLL_PAUSE_TIME = 2
 
 
-                    last_height = self.driver.execute_script("return document.body.scrollHeight")
+                    last_height = driver.execute_script("return document.body.scrollHeight")
 
                     while True:
                         # Scroll down to bottom
-                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
                         # Wait to load page
-                        self.wait_until(self.driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                        self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
                         #time.sleep(SCROLL_PAUSE_TIME)                    
                         
 
                         # Calculate new scroll height and compare with last scroll height
-                        new_height = self.driver.execute_script("return document.body.scrollHeight")
+                        new_height = driver.execute_script("return document.body.scrollHeight")
                         if new_height == last_height:
                             break
                         last_height = new_height
                         
-                    har = self._mitmproxy.har
+                    har = _mitmproxy.har
                     _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
                     data_json = self.scan_for_all_requests(har, _reg_str)
                     if data_json:
-                        #self.to_screen(data_json)
+                        self.write_debug(data_json)
                         list_json = []
                         for el in data_json:
                             list_json += el.get('list')
                     
-                        self.to_screen(list_json)
+                        self.write_debug(list_json)
                         
                         for info_json in list_json:                                                  
                             _entry = self._extract_from_json(info_json, user_profile=account)
@@ -642,42 +640,42 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             elif mode in ("chat"):
                 
                 _url =  f"{self._SITE_URL}/{account}"
-                self.driver.get(_url)
-                el = self.wait_until(self.driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "g-btn.m-rounded.m-border.m-icon.m-icon-only.m-colored.has-tooltip")))
+                driver.get(_url)
+                el = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "g-btn.m-rounded.m-border.m-icon.m-icon-only.m-colored.has-tooltip")))
                 for _el in el:
                     if (link:=_el.get_attribute('href')): break
                     
-                self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
                 
                 userid = link.split("/")[-1]
                 
-                self.driver.get(f'{link}/gallery')
+                driver.get(f'{link}/gallery')
                 
                 SCROLL_PAUSE_TIME = 2
 
 
-                last_height = self.driver.execute_script("return document.body.scrollHeight")
+                last_height = driver.execute_script("return document.body.scrollHeight")
 
                 while True:
                     # Scroll down to bottom
-                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
                     # Wait to load page
-                    self.wait_until(self.driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                    self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
                     #time.sleep(SCROLL_PAUSE_TIME)                    
                     
 
                     # Calculate new scroll height and compare with last scroll height
-                    new_height = self.driver.execute_script("return document.body.scrollHeight")
+                    new_height = driver.execute_script("return document.body.scrollHeight")
                     if new_height == last_height:
                         break
                     last_height = new_height
                 
-                har = self._mitmproxy.har
+                har = _mitmproxy.har
                 _reg_str = r'/api2/v2/chats/\d+/media\?'
                 data_json = self.scan_for_all_requests(har, _reg_str)
                 if data_json:
-                    self.to_screen(data_json)
+                    self.write_debug(data_json)
                     list_json = []
                     for el in data_json:
                         list_json += el.get('list')
@@ -692,138 +690,96 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                                     if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                         entries[_video['id']] = _video
                 
-
-            if not entries:
+            if entries:
+                return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
+            else:
                 raise ExtractorError("no entries") 
             
+        
+        except ExtractorError as e:
+            raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise
+            raise ExtractorError(str(e)) from e
         
         finally:
+            OnlyFansPlaylistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
+            with OnlyFansPlaylistIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
+                
+                self.to_screen(f"COUNT: [{count}]")
+                if count == 0:
+                    self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+                    for __driver, __mitmproxy in list(OnlyFansPlaylistIE._QUEUE.queue):
+                        try:
+                            __driver.quit()
+                            __mitmproxy.close()
+                        except Exception as e:
+                            self.to_screen(str(e))
+                    self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+                    OnlyFansPlaylistIE._SERVER.stop()
+                    self.to_screen("SERVER STOPPED")
+                    self.kill_java_process(OnlyFansPlaylistIE._SERVER.port)
+           
             
-            self._logout(self.driver)          
-            self.driver.quit()
-            self._mitmproxy.close()
-            self._server.stop()
-            self.kill_java_process(self._server.port)
-            
-        return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
+        
             
             
 class OnlyFansPaidlistIE(OnlyFansBaseIE):
-    IE_NAME = 'onlyfans:playlist:paidlist'
-    IE_DESC = 'onlyfans:playlist:paidlist'
-    _VALID_URL = r"onlyfans:paidlist"
+    IE_NAME = 'onlyfanspaidlist:playlist'
+    IE_DESC = 'onlyfanspaidlist:playlist'
+    _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/paidlist"
     _PAID_URL = "https://onlyfans.com/purchased"
     
-
     
-    def _real_initialize(self):
-        
-        self._mitmproxy = None
-        self._server = None
-        self.driver = None
-        
-        try:
-                 
-            with self._LOCK:     
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                self._server = Server("/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy")
-                self._server.start()
-                self._mitmproxy  = self._server.create_proxy()
-                                
-                _port = self._mitmproxy.port
-                _host = 'localhost'                
-                
-                
-                _firefox_prof = FirefoxProfile(prof_ff)
-                
-                _firefox_prof.set_preference("network.proxy.type", 1)
-                _firefox_prof.set_preference("network.proxy.http",_host)
-                _firefox_prof.set_preference("network.proxy.http_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.https",_host)
-                _firefox_prof.set_preference("network.proxy.https_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.ssl",_host)
-                _firefox_prof.set_preference("network.proxy.ssl_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.ftp",_host)
-                _firefox_prof.set_preference("network.proxy.ftp_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.socks",_host)
-                _firefox_prof.set_preference("network.proxy.socks_port",int(_port))
-                _firefox_prof.set_preference("dom.webdriver.enabled", False)
-                _firefox_prof.set_preference("useAutomationExtension", False)
-                
-                _firefox_prof.update_preferences()
-                
-                opts = Options()
-                opts.headless = True
-                opts.add_argument("--no-sandbox")
-                opts.add_argument("--disable-application-cache")
-                opts.add_argument("--disable-gpu")
-                opts.add_argument("--disable-dev-shm-usage")
-                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
-                self.driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
-                
-                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-                self.driver.uninstall_addon('uBlock0@raymondhill.net')
-                
-                self.wait_until(self.driver, 5, ec.title_is("DUMMYFORWAIT"))
-                
-                self.driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
-                
-                self.driver.maximize_window()
-      
-                self._login(self.driver)
-            
-        except Exception as e:
-            if self.driver: self.driver.quit()
-            if self._mitmproxy: self._mitmproxy.close()
-            if self._server: 
-                self._server.stop()
-                self.kill_java_process(self._server.port)
-            raise
 
     def _real_extract(self, url):
  
         try:
             
+            
             self.report_extraction(url)
-            self._mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="paid")
-            self.driver.get(self._SITE_URL)
-            list_el = self.wait_until(self.driver, 60, ec.presence_of_all_elements_located(
+            
+            driver, _mitmproxy = OnlyFansPaidlistIE._QUEUE.get(block=True)
+            
+            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="paid")
+            driver.get(self._SITE_URL)
+            list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
                 (By.CLASS_NAME, "b-tabs__nav__item") ))
             for el in list_el:
-                if re.search(r'purchased|comprado',el.get_attribute("textContent").lower()):
+                if re.search(r'(?:purchased|comprado)',el.get_attribute("textContent").lower()):
                     el.click()
                     break
-            self.wait_until(self.driver, 60, ec.presence_of_element_located(
+            self.wait_until(driver, 60, ec.presence_of_element_located(
                 (By.CLASS_NAME, "user_posts") ))
        
                 
             SCROLL_PAUSE_TIME = 2
 
 
-            last_height = self.driver.execute_script("return document.body.scrollHeight")
+            last_height = driver.execute_script("return document.body.scrollHeight")
 
             while True:
                 # Scroll down to bottom
-                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
                 # Wait to load page
-                self.wait_until(self.driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
+                self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
 
                 # Calculate new scroll height and compare with last scroll height
-                new_height = self.driver.execute_script("return document.body.scrollHeight")
+                new_height = driver.execute_script("return document.body.scrollHeight")
                 if new_height == last_height:
                     break
                 last_height = new_height
                 
             
-            har = self._mitmproxy.har           
+            har = _mitmproxy.har           
             users_json = self.scan_for_all_requests(har, r'/api2/v2/users/list')
             if users_json:
                 self.to_screen("users list attempt success")                    
@@ -845,29 +801,51 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             _reg_str = r'/api2/v2/posts/paid\?'
             data_json = self.scan_for_all_requests(har, _reg_str)
             if data_json:
-                #self.to_screen(data_json)
+                self.write_debug(data_json)
                 list_json = []
                 for el in data_json:
                     list_json += el['list']                               
           
-                entries = [self._extract_from_json(info_json, acc=True, users_dict=users_dict) for info_json in list_json]
+                entries = [self._extract_from_json(info_json, acc=True, users_dict=users_dict)[0] for info_json in list_json]
            
-            if not entries:
-                raise ExtractorError("no entries")
+            if entries:
+                self.write_debug(entries)
+                return self.playlist_result(entries, "Onlyfanspaidlist", "Onlyfanspaidlist")
+            else: raise ExtractorError("no entries")
                  
             
+        except ExtractorError as e:
+            raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}') 
-            raise
+            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(str(e)) from e
             
             
         finally:
-            self._logout(self.driver)           
-            self.driver.quit()
-            self._mitmproxy.close()
-            self._server.stop()
-            self.kill_java_process(self._server.port)
+            OnlyFansPaidlistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
+            with OnlyFansPaidlistIE._LOCK:
+                
+                try:
+                    self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]).remove(url)
+                except ValueError as e:
+                    self.to_screen(str(e))
+                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
+                
+                self.to_screen(f"COUNT: [{count}]")
+                if count == 0:
+                    self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+                    for __driver, __mitmproxy in list(OnlyFansPaidlistIE._QUEUE.queue):
+                        try:
+                            __driver.quit()
+                            __mitmproxy.close()
+                        except Exception as e:
+                            self.to_screen(str(e))
+                    self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+                    OnlyFansPaidlistIE._SERVER.stop()
+                    self.to_screen("SERVER STOPPED")
+                    self.kill_java_process(OnlyFansPaidlistIE._SERVER.port)
         
-        return self.playlist_result(entries, "Onlyfans:paidlist", "Onlyfans:paidlist")
+        
+        
             
