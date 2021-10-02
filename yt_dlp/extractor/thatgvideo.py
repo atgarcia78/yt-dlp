@@ -90,7 +90,7 @@ class ThatGVideoIE(InfoExtractor):
         
         with self._LOCK: 
                 
-            if self._DRIVER == self._downloader.params.get('winit'):
+            if self._DRIVER == self._downloader.params.get('winit', 5):
                 
                 driver = self._QUEUE.get(block=True)
                 driver.execute_script('''location.replace("about:blank");''')

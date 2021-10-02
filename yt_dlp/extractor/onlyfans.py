@@ -127,7 +127,20 @@ class OnlyFansBaseIE(InfoExtractor):
     
     _QUEUE = Queue() 
     
-    _DRIVER = 0    
+    _DRIVER = 0
+    
+    _COUNT = 0
+    
+    
+    def __init__(self, *args, **kwargs):
+        super(OnlyFansBaseIE, self).__init__(*args, **kwargs)
+        
+        with OnlyFansBaseIE._LOCK:
+            OnlyFansBaseIE._COUNT += 1
+        
+            
+    
+      
   
     
     def wait_until(self, driver, time, method):
@@ -138,50 +151,58 @@ class OnlyFansBaseIE(InfoExtractor):
             
         return el  
 
-    def scan_for_request(self, _har, _link):
+    def scan_for_request(self, _har, _ref, _link):
                           
+        self.write_debug(_har)
+        
         for entry in _har['log']['entries']:
                             
-            if _link in (_url:=entry['request']['url']):
+            if entry['pageref'] == _ref:
                 
-                self.write_debug(_url)                   
-          
-                if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
-                
-                    _str = html.unescape(_text)
-                    _info_str = re.sub('[\t\n]', '', _str)
-                    _info_json = json.loads(_info_str)
-                    if _info_json:
-                        return(_info_json)
+                if _link in (_url:=entry['request']['url']):
                     
-    def scan_for_all_requests(self, _har, _reg):
+                    self.write_debug(_url)                   
+            
+                    if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
+                    
+                        _str = html.unescape(_text)
+                        _info_str = re.sub('[\t\n]', '', _str)
+                        _info_json = json.loads(_info_str)
+                        if _info_json:
+                            return(_info_json)
+                    
+    def scan_for_all_requests(self, _har, _ref, _reg):
                           
         _list_info_json = []
         
+        self.write_debug(_har)
+        
         for entry in _har['log']['entries']:
                             
-            if re.search(_reg, (_url:=entry['request']['url'])):
-                
-                self.write_debug(_url)                   
-          
-                if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
-                
+            if entry['pageref'] == _ref:
+                if re.search(_reg, (_url:=entry['request']['url'])):
                     
-                    _info_str = re.sub('[\t\n]', '', html.unescape(_text))
-                    _info_json = json.loads(_info_str)
-                    if _info_json: _list_info_json.append(_info_json)
-        
-        return _list_info_json
+                    self.write_debug(_url)                   
+            
+                    if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
+                    
                         
-    def kill_java_process(self, port):
+                        _info_str = re.sub('[\t\n]', '', html.unescape(_text))
+                        _info_json = json.loads(_info_str)
+                        if _info_json: _list_info_json.append(_info_json)
+            
+        return _list_info_json
+    
+    @staticmethod                    
+    def kill_java_process(port):
         
         res = subprocess.run(["ps","ax","-o","pid","-o","command"], encoding='utf-8', capture_output=True).stdout
         _pid_list = re.findall(rf'^\ *(\d+)\ java\ .*browsermob.*port={port}', res, flags=re.MULTILINE)
         for process_id in _pid_list:
             res = subprocess.run(["kill","-9",process_id], encoding='utf-8', capture_output=True)
-            if res.returncode != 0: 
-                self.to_screen("cant kill java proxy: " + res.stderr.decode())
-            else: self.to_screen("java proxy killed")
+            # if res.returncode != 0: 
+            #     self.to_screen("cant kill java proxy: " + res.stderr.decode())
+            # else: self.to_screen("java proxy killed")
             
     def _logout(self, driver):
               
@@ -384,7 +405,7 @@ class OnlyFansBaseIE(InfoExtractor):
         
             try:  
 
-                if OnlyFansBaseIE._DRIVER == self._downloader.params.get('winit'):
+                if OnlyFansBaseIE._DRIVER == self._downloader.params.get('winit', 5):
                     return  
                 
                 driver = None
@@ -451,7 +472,25 @@ class OnlyFansBaseIE(InfoExtractor):
                                             
                 
             
-
+    def __del__(self):
+       
+        with OnlyFansBaseIE._LOCK: 
+            
+            OnlyFansBaseIE._COUNT -= 1
+            if OnlyFansBaseIE._COUNT == 0:
+                #self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+                for __driver, __mitmproxy in list(OnlyFansBaseIE._QUEUE.queue):
+                    try:
+                        __driver.quit()
+                        __mitmproxy.close()
+                    except Exception as e:
+                        pass
+                        #self.to_screen(str(e))
+                #self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+                if OnlyFansBaseIE._SERVER:
+                    OnlyFansBaseIE._SERVER.stop()
+                #self.to_screen("SERVER STOPPED")
+                OnlyFansBaseIE.kill_java_process(OnlyFansBaseIE._SERVER.port) 
 
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'
@@ -476,12 +515,12 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             entries = {}            
         
             
-            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har1")
+            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
             driver.get(url) 
             res = self.wait_until(driver, 30, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("Post doesnt exists")
             har = _mitmproxy.har            
-            data_json = self.scan_for_request(har, f"/api2/v2/posts/{post}")
+            data_json = self.scan_for_request(har, f"har_{post}", f"/api2/v2/posts/{post}")
             if data_json:
                 self.write_debug(data_json)                
                 _entry = self._extract_from_json(data_json, user_profile=account)
@@ -508,27 +547,27 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             
         finally:
             OnlyFansPostIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-            with OnlyFansPostIE._LOCK:
+            # with OnlyFansPostIE._LOCK:
                 
-                try:
-                    self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[]).remove(url)
-                except ValueError as e:
-                    self.to_screen(str(e))
-                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
+            #     try:
+            #         self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[]).remove(url)
+            #     except ValueError as e:
+            #         self.to_screen(str(e))
+            #     count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
                 
-                self.to_screen(f"COUNT: [{count}]")
-                if count == 0:
-                    self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-                    for __driver, __mitmproxy in list(OnlyFansPostIE._QUEUE.queue):
-                        try:
-                            __driver.quit()
-                            __mitmproxy.close()
-                        except Exception as e:
-                            self.to_screen(str(e))
-                    self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-                    OnlyFansPostIE._SERVER.stop()
-                    self.to_screen("SERVER STOPPED")
-                    self.kill_java_process(OnlyFansPostIE._SERVER.port)
+            #     self.to_screen(f"COUNT: [{count}]")
+            #     if count == 0:
+            #         self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+            #         for __driver, __mitmproxy in list(OnlyFansPostIE._QUEUE.queue):
+            #             try:
+            #                 __driver.quit()
+            #                 __mitmproxy.close()
+            #             except Exception as e:
+            #                 self.to_screen(str(e))
+            #         self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+            #         OnlyFansPostIE._SERVER.stop()
+            #         self.to_screen("SERVER STOPPED")
+            #         self.kill_java_process(OnlyFansPostIE._SERVER.port)
                     
                             
           
@@ -572,14 +611,14 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
                             
-                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
                 driver.get(_url)
                 self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "js-posts-container")))
                 
                 if mode in ("latest"):
                     har = _mitmproxy.har
-                    data_json = self.scan_for_request(har, "posts/videos?")
+                    data_json = self.scan_for_request(har, f"har_{account}_{mode}", "posts/videos?")
                     if data_json:
                         self.write_debug(data_json)
                         list_json = data_json.get('list')
@@ -618,7 +657,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                         
                     har = _mitmproxy.har
                     _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
-                    data_json = self.scan_for_all_requests(har, _reg_str)
+                    data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
                     if data_json:
                         self.write_debug(data_json)
                         list_json = []
@@ -645,7 +684,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 for _el in el:
                     if (link:=_el.get_attribute('href')): break
                     
-                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="har2")
+                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
                 userid = link.split("/")[-1]
                 
@@ -673,7 +712,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 har = _mitmproxy.har
                 _reg_str = r'/api2/v2/chats/\d+/media\?'
-                data_json = self.scan_for_all_requests(har, _reg_str)
+                data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
                 if data_json:
                     self.write_debug(data_json)
                     list_json = []
@@ -705,27 +744,27 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         
         finally:
             OnlyFansPlaylistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-            with OnlyFansPlaylistIE._LOCK:
+            # with OnlyFansPlaylistIE._LOCK:
                 
-                try:
-                    self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[]).remove(url)
-                except ValueError as e:
-                    self.to_screen(str(e))
-                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
+            #     try:
+            #         self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[]).remove(url)
+            #     except ValueError as e:
+            #         self.to_screen(str(e))
+            #     count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
                 
-                self.to_screen(f"COUNT: [{count}]")
-                if count == 0:
-                    self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-                    for __driver, __mitmproxy in list(OnlyFansPlaylistIE._QUEUE.queue):
-                        try:
-                            __driver.quit()
-                            __mitmproxy.close()
-                        except Exception as e:
-                            self.to_screen(str(e))
-                    self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-                    OnlyFansPlaylistIE._SERVER.stop()
-                    self.to_screen("SERVER STOPPED")
-                    self.kill_java_process(OnlyFansPlaylistIE._SERVER.port)
+            #     self.to_screen(f"COUNT: [{count}]")
+            #     if count == 0:
+            #         self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+            #         for __driver, __mitmproxy in list(OnlyFansPlaylistIE._QUEUE.queue):
+            #             try:
+            #                 __driver.quit()
+            #                 __mitmproxy.close()
+            #             except Exception as e:
+            #                 self.to_screen(str(e))
+            #         self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+            #         OnlyFansPlaylistIE._SERVER.stop()
+            #         self.to_screen("SERVER STOPPED")
+            #         self.kill_java_process(OnlyFansPlaylistIE._SERVER.port)
            
             
         
@@ -748,7 +787,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
             driver, _mitmproxy = OnlyFansPaidlistIE._QUEUE.get(block=True)
             
-            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, title="paid")
+            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
             driver.get(self._SITE_URL)
             list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
                 (By.CLASS_NAME, "b-tabs__nav__item") ))
@@ -780,7 +819,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 
             
             har = _mitmproxy.har           
-            users_json = self.scan_for_all_requests(har, r'/api2/v2/users/list')
+            users_json = self.scan_for_all_requests(har, "har_paid", r'/api2/v2/users/list')
             if users_json:
                 self.to_screen("users list attempt success")                    
                 users_dict = dict()
@@ -799,7 +838,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
             entries = []
             _reg_str = r'/api2/v2/posts/paid\?'
-            data_json = self.scan_for_all_requests(har, _reg_str)
+            data_json = self.scan_for_all_requests(har, "har_paid", _reg_str)
             if data_json:
                 self.write_debug(data_json)
                 list_json = []
@@ -824,27 +863,27 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
         finally:
             OnlyFansPaidlistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-            with OnlyFansPaidlistIE._LOCK:
+            # with OnlyFansPaidlistIE._LOCK:
                 
-                try:
-                    self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]).remove(url)
-                except ValueError as e:
-                    self.to_screen(str(e))
-                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
+            #     try:
+            #         self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]).remove(url)
+            #     except ValueError as e:
+            #         self.to_screen(str(e))
+            #     count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
                 
-                self.to_screen(f"COUNT: [{count}]")
-                if count == 0:
-                    self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-                    for __driver, __mitmproxy in list(OnlyFansPaidlistIE._QUEUE.queue):
-                        try:
-                            __driver.quit()
-                            __mitmproxy.close()
-                        except Exception as e:
-                            self.to_screen(str(e))
-                    self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-                    OnlyFansPaidlistIE._SERVER.stop()
-                    self.to_screen("SERVER STOPPED")
-                    self.kill_java_process(OnlyFansPaidlistIE._SERVER.port)
+            #     self.to_screen(f"COUNT: [{count}]")
+            #     if count == 0:
+            #         self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
+            #         for __driver, __mitmproxy in list(OnlyFansPaidlistIE._QUEUE.queue):
+            #             try:
+            #                 __driver.quit()
+            #                 __mitmproxy.close()
+            #             except Exception as e:
+            #                 self.to_screen(str(e))
+            #         self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
+            #         OnlyFansPaidlistIE._SERVER.stop()
+            #         self.to_screen("SERVER STOPPED")
+            #         self.kill_java_process(OnlyFansPaidlistIE._SERVER.port)
         
         
         

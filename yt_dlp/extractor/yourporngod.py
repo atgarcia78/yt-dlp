@@ -103,11 +103,13 @@ class YourPornGodIE(InfoExtractor):
                 
                 _url = re.findall(r'(https.*)', _target)[0]
                 if (_rnd:=info_video.get('rnd')): _url = _url +"?rnd=" + _rnd
-                formats.append({'format_id': 'http' + info_video.get("video_url_text", ""), 'url': (_info:=self._get_info(_url)).get('url'), 'filesize': _info.get('filesize'), 'ext': 'mp4', 'height' : int(info_video.get("video_url_text")[:-1]) if info_video.get("video_url_text") else None})
+                _desc = info_video.get("video_url_text", "")
+                formats.append({'format_id': 'http' + _desc, 'url': (_info:=self._get_info(_url)).get('url'), 'filesize': _info.get('filesize'), 'ext': 'mp4', 'resolution': _desc, 'height' : int_or_none(_desc[:-1] if _desc else None)})
                 
             if (_urlalt:=info_video.get("video_alt_url")):
                 
-                formats.append({'format_id': 'http' + info_video.get("video_alt_url_text", ""), 'url': (_info:=self._get_info(_urlalt)).get('url'), 'filesize': _info.get('filesize'), 'ext': 'mp4', 'height' : int(info_video.get("video_alt_url_text")[:-1]) if info_video.get("video_alt_url_text") else None})
+                _desc = info_video.get("video_alt_url_text", "")
+                formats.append({'format_id': 'http' + _desc, 'url': (_info:=self._get_info(_urlalt)).get('url'), 'filesize': _info.get('filesize'), 'ext': 'mp4', 'resolution': _desc, 'height' : int_or_none(_desc[:-1] if _desc else None)})
                 
             if not formats: raise ExtractorError("No formats found")
             
