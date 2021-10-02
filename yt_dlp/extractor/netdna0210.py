@@ -30,8 +30,6 @@ import threading
 from queue import Queue
 import os
 
-from urllib.parse import unquote
-
 
 
 class NetDNAIE(InfoExtractor):
@@ -53,16 +51,7 @@ class NetDNAIE(InfoExtractor):
     
     _DRIVER = 0
 
-    _COUNT = 0
-    
-    
-    def __init__(self, *args, **kwargs):
-        super(NetDNAIE, self).__init__(*args, **kwargs)
-        
-        with NetDNAIE._LOCK:
-            NetDNAIE._COUNT += 1        
-            
-    
+
     
  
     @staticmethod
@@ -140,51 +129,33 @@ class NetDNAIE(InfoExtractor):
         return el   
 
     
-    def _get_infovideo(self, url, client):
+    def _get_filesize(self, url):
         
         count = 0
         try:
-            
+            cl = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
             _res = None
             while (count<3):
                 
                 try:
                     
-                    #res = self._send_request(client, url, 'HEAD')
-                    res = client.head(url, headers={'Referer': 'https://netdna-storage.com/'})
-                    if res.status_code >= 400:
-                        
+                    res = cl.head(url)
+                    if res.status_code > 400:
+                        time.sleep(1)
                         count += 1
                     else: 
-                        _filesize = int_or_none(res.headers.get('content-length'))
-                        _url = str(res.url)
-                        if _filesize and _url:
-                            break
-                        else:
-                            count += 1
-                        
+                        _res = int_or_none(res.headers.get('content-length')) 
+                        break
             
-                except Exception as e:
+                except (httpx.HTTPError, httpx.CloseError, httpx.RemoteProtocolError, httpx.ReadTimeout, 
+                        httpx.ProxyError, AttributeError, RuntimeError) as e:
                     count += 1
         except Exception as e:
             pass
-
-        if count < 3: return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': 'max retries'})  
-    
-
+        finally:
+            cl.close()
         
-
-    def get_format(self, client, text, url):
-        
-        
-        res = client.get(url)
-        _video_url = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text).group('file')
-        _info = self._get_infovideo(_video_url, client)
-        return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
-            
- 
-
+        return _res   
         
 
     
@@ -227,7 +198,7 @@ class NetDNAIE(InfoExtractor):
         
         count = 0
         
-        while count < 3:        
+        while count < 5:        
         
             try:
                 
@@ -267,61 +238,65 @@ class NetDNAIE(InfoExtractor):
                     
                     self.to_screen(_curl)
                     
-                    try:
                     
-                        _timeout = httpx.Timeout(30, connect=30)        
-                        _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                        client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
-                        
-                        
-                        el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
-                        
-                        if el_formats: 
-                            
-                            _formats = [self.get_format(client, _el.text, _el.get_attribute('href')) for _el in el_formats]
-                            
-                            self._sort_formats(_formats)
-                            
-                            entry = {
-                                'id' : info_video.get('id'),
-                                'title': sanitize_filename(info_video.get('title'),restricted=True),
-                                'formats': _formats,
-                                'ext' : info_video.get('ext')
-                            }
-                                
-                            return entry
-                        
-                        else:
-                            el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
-                            if el_download:
-                                _video_url = el_download.get_attribute('href')
-                                _info = self._get_infovideo(_video_url, client)
-                                _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
-                                                                
-                                entry = {
-                                    'id' : info_video.get('id'),
-                                    'title': sanitize_filename(info_video.get('title'),restricted=True),
-                                    'formats': _formats,
-                                    'ext' : info_video.get('ext')
-                                } 
-                                return entry  
-                                
-                                
-                          
+                    formats_video = []
+                    _reswait = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
+                    _filesize = None
+                    if _reswait:
+                        _url = _reswait.get_attribute('href')
+                        _filesize = self._get_filesize(_url)
+                        self.to_screen(f"url[{_url}] filesize:{_filesize}")
                     
-                    except Exception as e:
-                        lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f"{repr(e)}, \n{'!!'.join(lines)}")
-                        raise
-                    finally:
-                        client.close()
+                    if not _filesize:
+                        count += 1
+                        continue
+
+                    else:
+                        
+                        formats_video.append({'format_id': 'ORIGINAL', 
+                                                    'url': _url,
+                                                    'ext': info_video.get('ext'),
+                                                    'filesize' : _filesize 
+                                                })
+                        
+                        _reswait = self.wait_until(driver, 10, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
+                        
+                        el_formats = []
+                        if _reswait:
+                            el_formats = [{'url' : el.get_attribute('href'), 'text': re.sub('[\t\n]', '', el.get_attribute('innerText'))} 
+                                        for el in _reswait]
+                        
+                        if el_formats and len(el_formats) > 1: 
+                            
+                            for fmt in el_formats[1:]:
+                                
+                                driver.get(fmt['url'])
+                                el_url = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"a.btn.btn--xLarge")))
+                                if el_url:
+                                    formats_video.append({'format_id': fmt['text'], 
+                                                    'url': (_url:=el_url.get_attribute('href')),
+                                                    'ext': info_video.get('ext'),
+                                                    'filesize' : self._get_filesize(_url)
+                                                    
+                                                })
+                                
+                        self._sort_formats(formats_video)
+                            
+                        entry = {
+                            'id' : info_video.get('id'),
+                            'title': sanitize_filename(info_video.get('title'),restricted=True),
+                            'formats': formats_video,
+                            'ext' : info_video.get('ext')
+                        }
+                            
+                        return entry  
                     
             
             except ExtractorError as e:
                 self.to_screen(f"{repr(e)}")
                 count += 1
                 self.to_screen(f"[count] {count}")
-                if count == 3: raise
+                if count == 5: raise
             except Exception as e:  
                           
                 lines = traceback.format_exception(*sys.exc_info())
@@ -329,25 +304,29 @@ class NetDNAIE(InfoExtractor):
                 count += 1
                 self.to_screen(f"[count] {count}")
                 
-                if (count == 3):  raise ExtractorError(str(e)) from e 
+                if (count == 5):  raise ExtractorError(str(e)) from e 
             finally:
                 NetDNAIE._QUEUE.put_nowait(driver)
+                with NetDNAIE._LOCK:
                 
+                    try:
+                        self._downloader.params.get('dict_videos_to_dl', {}).get('NetDNA',[]).remove(url)
+                    except ValueError as e:
+                        self.to_screen(str(e))
+                    count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('NetDNA',[])) 
+                    
+                    self.to_screen(f"COUNT: [{count}]")
+                    if count == 0:
+                        self.to_screen("LETS CLOSE DRIVERS")
+                        for __driver in list(NetDNAIE._QUEUE.queue):
+                            try:
+                                __driver.quit()
+                                
+                            except Exception as e:
+                                self.to_screen(str(e))
                        
                 
-
-    def __del__(self):
-       
-        with NetDNAIE._LOCK: 
-            NetDNAIE._COUNT -= 1
-            if NetDNAIE._COUNT == 0:
-                self.to_screen("LETS CLOSE DRIVERS")
-                for __driver in list(NetDNAIE._QUEUE.queue):
-                    try:
-                        __driver.quit()
-                        
-                    except Exception as e:                    
-                        self.to_screen(str(e))           
+           
             
                      
             

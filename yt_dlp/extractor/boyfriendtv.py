@@ -162,7 +162,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             
             try:
     
-                if self._DRIVER == self._downloader.params.get('winit'):
+                if self._DRIVER == self._downloader.params.get('winit', 5):
                     return 
                 opts = Options()
                 opts.headless = False
@@ -270,8 +270,9 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                     _formats.append({
                         'url': _info_video.get('url'),
                         'ext': 'mp4',
-                        'format_id': 'http-mp4',
+                        'format_id': f"http-{_src.get('desc')}",
                         'resolution': _src.get('desc'),
+                        'height': int_or_none(_src.get('desc').lower().replace('p','')),
                         'filesize': _info_video.get('filesize')
                     })
                     
@@ -340,8 +341,9 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                     _formats.append({
                         'url': _info_video.get('url'),
                         'ext': 'mp4',
-                        'format_id': 'http-mp4',
+                        'format_id': f"http-{_src.get('desc')}",
                         'resolution': _src.get('desc'),
+                        'height': int_or_none(_src.get('desc').lower().replace('p','')),
                         'filesize': _info_video.get('filesize')
                     })
                     

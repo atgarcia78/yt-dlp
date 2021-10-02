@@ -19,6 +19,10 @@ import httpx
 import html
 import time
 from threading import Lock
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
 
 class MyVidsterBaseIE(InfoExtractor):
 
@@ -145,6 +149,16 @@ class MyVidsterBaseIE(InfoExtractor):
                 extractor = ie_key
                 break
         return (extractor == 'Generic', extractor)
+    
+    @sleep_and_retry
+    @limits(calls=1, period=1)
+    def _send_request(self, client, url, _type, _headers=None):
+        
+        self.to_screen(f'[send_request] {_type}:{url}')
+        if _type == 'GET': 
+            return client.get(url, headers=_headers)
+        elif _type == 'HEAD':
+            return client.head(url, headers=_headers)
 
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster'
@@ -184,12 +198,17 @@ class MyVidsterIE(MyVidsterBaseIE):
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
             client = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')))
             
-            client.get(self._SITE_URL, headers=_headers)
+            
+            
+            #client.get(self._SITE_URL, headers=_headers)
+            self._send_request(client, self._SITE_URL, "GET", _headers)
             
             for cookie in MyVidsterIE._COOKIES.jar:
                 client.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
                     
-            res = client.get(url, headers=_headers)
+            #res = client.get(url, headers=_headers)
+            res = self._send_request(client, url, "GET", _headers)
+            
             if str(res.url.params) in ('status=not_found', 'status=broken'): raise ExtractorError("Page not found or Page broken") 
             webpage = re.sub('[\t\n]', '', html.unescape(res.text))
             mobj = re.findall(r"<title>([^<]+)<", webpage)
@@ -275,13 +294,13 @@ class MyVidsterIE(MyVidsterBaseIE):
             raise ExtractorError("No video info") from e
         finally:
             client.close()
-            with MyVidsterIE._LOCK:
+            # with MyVidsterIE._LOCK:
                 
-                try:
-                    self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]).remove(url)
-                except ValueError as e:
-                    self.to_screen(str(e))
-                self.to_screen(f"COUNT: [{len(self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]))}]")
+            #     try:
+            #         self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]).remove(url)
+            #     except ValueError as e:
+            #         self.to_screen(str(e))
+            #     self.to_screen(f"COUNT: [{len(self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]))}]")
                     
             
             
@@ -308,7 +327,8 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
             client = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')))
                     
-            res = client.get(url, headers=_headers)
+            #res = client.get(url, headers=_headers)
+            res = self._send_request(client, url, "GET", _headers)
             webpage = re.sub('[\t\n]', '', html.unescape(res.text))
             
             title = self._search_regex(r'<title>([\w\s]+)</title>', webpage, 'title', default=f"MyVidsterChannel_{channelid}", fatal=False)
@@ -363,13 +383,13 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             raise ExtractorError from e
         finally:
             client.close()
-            with MyVidsterBaseIE._LOCK:
+            # with MyVidsterChannelPlaylistIE._LOCK:
                 
-                try:
-                    self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]).remove(url)
-                except ValueError as e:
-                    self.to_screen(str(e))
-                self.to_screen(f"COUNT: [{len(self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidster',[]))}]")
+            #     try:
+            #         self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidsterChannelPlaylist',[]).remove(url)
+            #     except ValueError as e:
+            #         self.to_screen(str(e))
+            #     self.to_screen(f"COUNT: [{len(self._downloader.params.get('dict_videos_to_dl', {}).get('MyVidsterChannelPlaylist',[]))}]")
                     
             
             

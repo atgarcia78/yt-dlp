@@ -14,12 +14,18 @@ from ..utils import (
     float_or_none,
     int_or_none,
     parse_duration,
+    sanitize_filename,
     str_or_none,
     try_get,
     unified_strdate,
     url_or_none,
     urljoin,
+    std_headers
 )
+
+import httpx
+
+from urllib.parse import unquote
 
 
 class XHamsterIE(InfoExtractor):
@@ -118,6 +124,38 @@ class XHamsterIE(InfoExtractor):
         'url': 'http://de.xhamster.com/videos/skinny-girl-fucks-herself-hard-in-the-forest-xhnBJZx',
         'only_matching': True,
     }]
+    
+    def _get_info_video(self, url):
+        
+        count = 0
+        _headers = std_headers
+        _headers['Origin'] = 'https://xhamster.com'
+        _headers['Referer'] = 'https://xhamster.com/'
+        try:
+            
+            _res = None
+            while (count<3):
+                
+                try:
+                    
+                    res = httpx.head(url, headers=_headers)
+                    if res.status_code >= 400:
+                        
+                        count += 1
+                    else: 
+                        _size = int_or_none(res.headers.get('content-length'))
+                        _url = unquote(str(res.url))
+                        if _size and _url:
+                            _res = {'url': _url, 'filesize': _size}                         
+                            break
+                        else: count += 1
+            
+                except Exception as e:
+                    count += 1
+        except Exception as e:
+            pass
+                
+        return _res
 
     def _real_extract(self, url):
         mobj = self._match_valid_url(url)
@@ -132,19 +170,29 @@ class XHamsterIE(InfoExtractor):
             webpage, 'error', default=None)
         if error:
             raise ExtractorError(error, expected=True)
-
+        
         age_limit = self._rta_search(webpage)
+        
+       
+        
+        
 
         def get_height(s):
             return int_or_none(self._search_regex(
                 r'^(\d+)[pP]', s, 'height', default=None))
 
+        
         initials = self._parse_json(
             self._search_regex(
                 (r'window\.initials\s*=\s*({.+?})\s*;\s*</script>',
                  r'window\.initials\s*=\s*({.+?})\s*;'), webpage, 'initials',
                 default='{}'),
             video_id, fatal=False)
+        
+            
+                
+            
+            
         if initials:
             video = initials['videoModel']
             title = video['title']
@@ -270,6 +318,11 @@ class XHamsterIE(InfoExtractor):
                 'formats': formats,
             }
 
+        
+        
+            
+            
+        
         # Old layout fallback
 
         title = self._html_search_regex(
@@ -286,87 +339,131 @@ class XHamsterIE(InfoExtractor):
                 r'sources\s*:\s*({.+?})\s*,?\s*\n', webpage, 'sources',
                 default='{}'),
             video_id, fatal=False)
-        for format_id, format_url in sources.items():
-            format_url = url_or_none(format_url)
-            if not format_url:
-                continue
-            if format_url in format_urls:
-                continue
-            format_urls.add(format_url)
-            formats.append({
-                'format_id': format_id,
-                'url': format_url,
-                'height': get_height(format_id),
-            })
+        
+        
+                
+        if sources:
+            for format_id, format_url in sources.items():
+                format_url = url_or_none(format_url)
+                if not format_url:
+                    continue
+                if format_url in format_urls:
+                    continue
+                format_urls.add(format_url)
+                formats.append({
+                    'format_id': format_id,
+                    'url': format_url,
+                    'height': get_height(format_id),
+                })
 
-        video_url = self._search_regex(
-            [r'''file\s*:\s*(?P<q>["'])(?P<mp4>.+?)(?P=q)''',
-             r'''<a\s+href=(?P<q>["'])(?P<mp4>.+?)(?P=q)\s+class=["']mp4Thumb''',
-             r'''<video[^>]+file=(?P<q>["'])(?P<mp4>.+?)(?P=q)[^>]*>'''],
-            webpage, 'video url', group='mp4', default=None)
-        if video_url and video_url not in format_urls:
-            formats.append({
-                'url': video_url,
-            })
+            video_url = self._search_regex(
+                [r'''file\s*:\s*(?P<q>["'])(?P<mp4>.+?)(?P=q)''',
+                r'''<a\s+href=(?P<q>["'])(?P<mp4>.+?)(?P=q)\s+class=["']mp4Thumb''',
+                r'''<video[^>]+file=(?P<q>["'])(?P<mp4>.+?)(?P=q)[^>]*>'''],
+                webpage, 'video url', group='mp4', default=None)
+            if video_url and video_url not in format_urls:
+                formats.append({
+                    'url': video_url,
+                })
 
-        self._sort_formats(formats)
+            self._sort_formats(formats)
 
-        # Only a few videos have an description
-        mobj = re.search(r'<span>Description: </span>([^<]+)', webpage)
-        description = mobj.group(1) if mobj else None
+            # Only a few videos have an description
+            mobj = re.search(r'<span>Description: </span>([^<]+)', webpage)
+            description = mobj.group(1) if mobj else None
 
-        upload_date = unified_strdate(self._search_regex(
-            r'hint=["\'](\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} [A-Z]{3,4}',
-            webpage, 'upload date', fatal=False))
+            upload_date = unified_strdate(self._search_regex(
+                r'hint=["\'](\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} [A-Z]{3,4}',
+                webpage, 'upload date', fatal=False))
 
-        uploader = self._html_search_regex(
-            r'<span[^>]+itemprop=["\']author[^>]+><a[^>]+><span[^>]+>([^<]+)',
-            webpage, 'uploader', default='anonymous')
+            uploader = self._html_search_regex(
+                r'<span[^>]+itemprop=["\']author[^>]+><a[^>]+><span[^>]+>([^<]+)',
+                webpage, 'uploader', default='anonymous')
 
-        thumbnail = self._search_regex(
-            [r'''["']thumbUrl["']\s*:\s*(?P<q>["'])(?P<thumbnail>.+?)(?P=q)''',
-             r'''<video[^>]+"poster"=(?P<q>["'])(?P<thumbnail>.+?)(?P=q)[^>]*>'''],
-            webpage, 'thumbnail', fatal=False, group='thumbnail')
+            thumbnail = self._search_regex(
+                [r'''["']thumbUrl["']\s*:\s*(?P<q>["'])(?P<thumbnail>.+?)(?P=q)''',
+                r'''<video[^>]+"poster"=(?P<q>["'])(?P<thumbnail>.+?)(?P=q)[^>]*>'''],
+                webpage, 'thumbnail', fatal=False, group='thumbnail')
 
-        duration = parse_duration(self._search_regex(
-            [r'<[^<]+\bitemprop=["\']duration["\'][^<]+\bcontent=["\'](.+?)["\']',
-             r'Runtime:\s*</span>\s*([\d:]+)'], webpage,
-            'duration', fatal=False))
+            duration = parse_duration(self._search_regex(
+                [r'<[^<]+\bitemprop=["\']duration["\'][^<]+\bcontent=["\'](.+?)["\']',
+                r'Runtime:\s*</span>\s*([\d:]+)'], webpage,
+                'duration', fatal=False))
 
-        view_count = int_or_none(self._search_regex(
-            r'content=["\']User(?:View|Play)s:(\d+)',
-            webpage, 'view count', fatal=False))
+            view_count = int_or_none(self._search_regex(
+                r'content=["\']User(?:View|Play)s:(\d+)',
+                webpage, 'view count', fatal=False))
 
-        mobj = re.search(r'hint=[\'"](?P<likecount>\d+) Likes / (?P<dislikecount>\d+) Dislikes', webpage)
-        (like_count, dislike_count) = (mobj.group('likecount'), mobj.group('dislikecount')) if mobj else (None, None)
+            mobj = re.search(r'hint=[\'"](?P<likecount>\d+) Likes / (?P<dislikecount>\d+) Dislikes', webpage)
+            (like_count, dislike_count) = (mobj.group('likecount'), mobj.group('dislikecount')) if mobj else (None, None)
 
-        mobj = re.search(r'</label>Comments \((?P<commentcount>\d+)\)</div>', webpage)
-        comment_count = mobj.group('commentcount') if mobj else 0
+            mobj = re.search(r'</label>Comments \((?P<commentcount>\d+)\)</div>', webpage)
+            comment_count = mobj.group('commentcount') if mobj else 0
 
-        categories_html = self._search_regex(
-            r'(?s)<table.+?(<span>Categories:.+?)</table>', webpage,
-            'categories', default=None)
-        categories = [clean_html(category) for category in re.findall(
-            r'<a[^>]+>(.+?)</a>', categories_html)] if categories_html else None
+            categories_html = self._search_regex(
+                r'(?s)<table.+?(<span>Categories:.+?)</table>', webpage,
+                'categories', default=None)
+            categories = [clean_html(category) for category in re.findall(
+                r'<a[^>]+>(.+?)</a>', categories_html)] if categories_html else None
 
-        return {
-            'id': video_id,
-            'display_id': display_id,
-            'title': title,
-            'description': description,
-            'upload_date': upload_date,
-            'uploader': uploader,
-            'uploader_id': uploader.lower() if uploader else None,
-            'thumbnail': thumbnail,
-            'duration': duration,
-            'view_count': view_count,
-            'like_count': int_or_none(like_count),
-            'dislike_count': int_or_none(dislike_count),
-            'comment_count': int_or_none(comment_count),
-            'age_limit': age_limit,
-            'categories': categories,
-            'formats': formats,
-        }
+            return {
+                'id': video_id,
+                'display_id': display_id,
+                'title': title,
+                'description': description,
+                'upload_date': upload_date,
+                'uploader': uploader,
+                'uploader_id': uploader.lower() if uploader else None,
+                'thumbnail': thumbnail,
+                'duration': duration,
+                'view_count': view_count,
+                'like_count': int_or_none(like_count),
+                'dislike_count': int_or_none(dislike_count),
+                'comment_count': int_or_none(comment_count),
+                'age_limit': age_limit,
+                'categories': categories,
+                'formats': formats,
+            }
+        
+        #my way
+        
+        
+        mobj = re.search(r'<iframe.+src="(?P<embed>[^"]+)"[^<]+</iframe', webpage)
+        _embed_url = mobj.group('embed') if mobj else ""
+        if _embed_url:
+            _webpage, _urlh = self._download_webpage_handle(_embed_url, video_id)
+            error = self._html_search_regex(
+                r'<div[^>]+id=["\']videoClosed["\'][^>]*>(.+?)</div>',
+                _webpage, 'error', default=None)
+            if error:
+                raise ExtractorError(error, expected=True)
+            sources = self._parse_json(
+                self._search_regex(
+                    r'\"sources\":({.+?}),\"user', re.sub('[\n\t\ ]', '', _webpage), 'sources',
+                    default='{}'),
+            video_id, fatal=False)
+            if sources:
+                _sources = sources.get('standard', {}).get('mp4', [])                
+                _formats = [{'format_id': f"http_{_format['label']}", 'url': (_info_video:=self._get_info_video(_format['url']))['url'], 'resolution': _format['quality'], 'height': int(_format['quality'][:-1]), 'filesize':_info_video['filesize'], 'ext': 'mp4'} for _format in _sources if _format['label'] != 'auto']
+                
+                #self.to_screen(_formats)
+                
+                self._sort_formats(_formats)
+                
+                #self.to_screen(_formats)
+                
+                if _formats:
+                    title = re.search(r'title>(?P<title>[^<]+)<', _webpage).group('title').replace('Video: ','')
+                    return({
+                        'id': video_id,
+                        'title': sanitize_filename(title,restricted=True),
+                        'ext': 'mp4',
+                        'formats': _formats                       
+                        
+                    })
+                
+                
+        
 
 
 class XHamsterEmbedIE(InfoExtractor):

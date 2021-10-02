@@ -1923,8 +1923,8 @@ from .yourporngod import (
 from .timfuck import TimFuckIE
 from .sketchysex import (
     SketchySexIE,
-    SketchySexOnePagePlayListIE,
-    SketchySexAllPagesPlayListIE,
+    SketchySexOnePagePlaylistIE,
+    SketchySexAllPagesPlaylistIE,
 )
 from .thatgvideo import ThatGVideoIE
 from .rawfuck import RawFuckIE
@@ -1956,7 +1956,10 @@ from .slamrush import (
 from .sketboy import SketBoyIE
 from .daftsex import DaftSexIE
 from .mat6tube import Mat6TubeIE
-from .hungyoungbrit import HungYoungBritIE
+from .hungyoungbrit import (
+    HungYoungBritIE,
+    HungYoungBritPlaylistIE,
+)
 from .nakedsword import (
     NakedSwordSceneIE,
     NakedSwordMovieIE,
@@ -1972,8 +1975,8 @@ from .onlyfans import (
 from .netdna import NetDNAIE
 from .fraternityx import (
     FraternityXIE,    
-    FraternityxOnePagePlayListIE,
-    FraternityxAllPagesPlayListIE,    
+    FraternityXOnePagePlaylistIE,
+    FraternityXAllPagesPlaylistIE,    
 )
 from .youngbastards import YoungBastardsIE
 from .boyfriendtv import (
