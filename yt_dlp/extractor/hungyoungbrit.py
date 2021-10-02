@@ -33,22 +33,16 @@ import json
 import os
 
 
-
-
-class HungYoungBritIE(InfoExtractor):
+class HungYoungBritBaseIE(InfoExtractor):
     
-    IE_NAME = "hungyoungbrit"
     _SITE_URL = 'https://www.hungyoungbrit.com'
     _NETRC_MACHINE = 'hungyoungbrit'
-    _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
-   
-    
     
     _LOCK = threading.Lock()
     
     _COOKIES = []
     
-    _CLIENT = []
+    _CLIENT = None
     
    
     
@@ -58,8 +52,20 @@ class HungYoungBritIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+    
+    _COUNT = 0
+    
+    
+    def __init__(self, *args, **kwargs):
+        super(HungYoungBritBaseIE, self).__init__(*args, **kwargs)
+        
+        with HungYoungBritBaseIE._LOCK:
+            HungYoungBritBaseIE._COUNT += 1
+        
+            
+    
 
-
+    
     def kill_geckodriver(self):
         res = subprocess.run(["ps","-o","pid","-o","comm"], encoding='utf-8', capture_output=True).stdout
         mobj = re.findall(r'(\d+) geckodriver', res)
@@ -114,6 +120,25 @@ class HungYoungBritIE(InfoExtractor):
             el = None
             
         return el 
+    
+    
+    def __del__(self):
+       
+        with HungYoungBritBaseIE._LOCK: 
+            
+            HungYoungBritBaseIE._COUNT -= 1
+            if HungYoungBritBaseIE._COUNT == 0:
+                #self.to_screen("CLOSE CLIENT")
+                if HungYoungBritBaseIE._CLIENT:
+                    HungYoungBritBaseIE._CLIENT.close()
+
+class HungYoungBritIE(HungYoungBritBaseIE):
+    
+    IE_NAME = "hungyoungbrit"
+    
+    _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
+   
+
     
     
     def _real_initialize(self):
@@ -301,23 +326,205 @@ class HungYoungBritIE(InfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
-        finally:
-            with HungYoungBritIE._LOCK:
+        # finally:
+        #     with HungYoungBritIE._LOCK:
                 
-                try:
-                    self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBrit',[]).remove(url)
-                except ValueError as e:
-                    self.to_screen(str(e))
-                count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBrit',[]))  
-                self.to_screen(f"COUNT: [{count}]")
-                if count == 0:
-                    self.to_screen("CLOSE CLIENT")
-                    HungYoungBritIE._CLIENT.close()
+        #         try:
+        #             self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBrit',[]).remove(url)
+        #         except ValueError as e:
+        #             self.to_screen(str(e))
+        #         count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBrit',[]))  
+        #         self.to_screen(f"COUNT: [{count}]")
+        #         if count == 0:
+        #             self.to_screen("CLOSE CLIENT")
+        #             HungYoungBritIE._CLIENT.close()
                     
        
                     
                     
+class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
+    
+    IE_NAME = "hungyoungbrit:playlist"
+    
+    _VALID_URL = r'https?://(?:www\.)?hungyoungbrit\.com/members/category\.php\?id=5(?:&page=(?P<page>\d+))?(?:&(?P<search>s=\w))?'
+   
+    
+    
+    
+    def _real_initialize(self):
+        
+        _home_url = "https://www.hungyoungbrit.com/members/category.php?id=5"
+        
+        with HungYoungBritPlaylistIE._LOCK:
+        
+            if not HungYoungBritPlaylistIE._CLIENT:        
+ 
+                try:                
+                        
+                    _timeout = httpx.Timeout(30, connect=30)        
+                    _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+                    HungYoungBritPlaylistIE._CLIENT = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')), headers=std_headers)
+                
+                    _cookies = None
+                    if not HungYoungBritPlaylistIE._COOKIES:
+                        
+                        try:
+                            with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "r") as f:
+                                _cookies = json.load(f)
+                        except Exception as e:
+                            self.to_screen(str(e))
+                    else: _cookies = HungYoungBritPlaylistIE._COOKIES
+                    
+                    if _cookies:
+                                
+                        for cookie in _cookies:
+                            HungYoungBritPlaylistIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                        
+                        res = HungYoungBritPlaylistIE._CLIENT.get(_home_url)
+                        
+                        if _home_url in str(res.url):
+                            self.to_screen("login OK - 151")
+                            HungYoungBritPlaylistIE._COOKIES = _cookies
+                            return
+                                    
+                                    
+                                    
+                    self.report_login()                                        
+                    prof = HungYoungBritPlaylistIE._FF_PROF.pop()
+                    HungYoungBritPlaylistIE._FF_PROF.insert(0,prof)
+                    self.to_screen(f"[ff] {prof}")
+                    opts = Options()
+                    opts.headless = False                
+                    opts.add_argument("--no-sandbox")
+                    opts.add_argument("--disable-application-cache")
+                    opts.add_argument("--disable-gpu")
+                    opts.add_argument("--disable-dev-shm-usage")
+                    os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                    os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                    driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+                    
+                    self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
+                    
+                    driver.uninstall_addon('uBlock0@raymondhill.net')
+                    
+                    self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+                    
+                    driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+                    
+                    self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+                    
+                    #driver.set_window_size(1920, 525)
+                    driver.maximize_window()                    
+                    
+                    driver.get(self._SITE_URL)
+                    driver.add_cookie({"name": "warn", "value":"1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})  
+                    driver.get(_home_url)  
+                    #self.wait_until(driver, 30, ec.url_changes(""))
+                    self.to_screen(f"current url: {driver.current_url}")
+                    if _home_url not in driver.current_url:
+                            
+                        
+                                
+                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+                        el.click()
+                        
+                        el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
+                        el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
+                        button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR,"button#btnLogin.btn.btn-primary.btn-sm.btn-block")))                    
+                        username, password = self._get_login_info()
+                        el_username.send_keys(username)
+                        self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
+                        el_password.send_keys(password)
+                        self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
+                        
+                        button_login.click()
+                        
+                        #self.wait_until(driver, 300, ec.url_changes(_url)) 
+                        self.wait_until(driver, 300, ec.invisibility_of_element(button_login)) 
+                        
+                        #if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
+                        
+                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+                        
+                        if el.text != 'ACCOUNT': raise ExtractorError("log in error")
+
+                                        
+                    #self.to_screen("login OK")
+                    HungYoungBritPlaylistIE._COOKIES = driver.get_cookies()
+                    driver.quit()
+                                
+                    with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
+                        json.dump(HungYoungBritPlaylistIE._COOKIES, f)
+                        
+                    for cookie in HungYoungBritPlaylistIE._COOKIES:
+                        HungYoungBritPlaylistIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                        
+                    res = HungYoungBritPlaylistIE._CLIENT.get(_home_url)
+                        
+                    if _home_url in str(res.url):
+                        self.to_screen("login OK - 229")
+                    else: raise ExtractorError("Error cookies")
+                        
+                    
+                                
+                                
+                except ExtractorError as e:
+                    raise
+                except Exception as e:                    
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")                    
+                    raise ExtractorError(str(e)) from e
+                        
+    def _real_extract(self, url):
+        
             
+        try:  
+               
+            self.report_extraction(url)
+            
+ 
+            res = HungYoungBritPlaylistIE._CLIENT.get(url)
+        
+            webpage = re.sub('[\n\t]', '', html.unescape(res.text))
+            
+            
+            
+            mobj = re.findall(r'data-setid="(\d+)"', webpage)
+            if not mobj: 
+                self.write_debug(webpage)
+                raise ExtractorError("no video entries")
+          
+            entries = [self.url_result(f"https://www.hungyoungbrit.com/members/gallery.php?id={_id}&type=vids", ie="HungYoungBrit") for _id in mobj]
+            
+            
+                        
+            return self.playlist_result(entries, playlist_id="HYBplaylist", playlist_title="HYBplaylist")
+               
+            
+        except ExtractorError as e:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
+            raise ExtractorError(str(e)) from e
+        # finally:
+        #     with HungYoungBritPlaylistIE._LOCK:
+                
+        #         try:
+        #             self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBritPlaylist',[]).remove(url)
+        #         except ValueError as e:
+        #             self.to_screen(str(e))
+        #         count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBritPlaylist',[]))  
+        #         self.to_screen(f"COUNT: [{count}]")
+        #         if count == 0:
+        #             self.to_screen("CLOSE CLIENT")
+        #             HungYoungBritPlaylistIE._CLIENT.close()
+                    
+       
+                    
+                   
+                            
+             
             
             
           

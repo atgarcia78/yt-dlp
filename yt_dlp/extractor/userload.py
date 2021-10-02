@@ -92,7 +92,7 @@ class UserLoadIE(InfoExtractor):
         
         with UserLoadIE._LOCK: 
                 
-            if UserLoadIE._DRIVER == self._downloader.params.get('winit'):
+            if UserLoadIE._DRIVER == self._downloader.params.get('winit', 5):
                 
                 driver = UserLoadIE._QUEUE.get(block=True)
                 driver.execute_script('''location.replace("about:blank");''')

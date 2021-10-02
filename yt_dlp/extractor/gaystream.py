@@ -16,6 +16,7 @@ import time
 import traceback
 import sys
 from random import randint
+import os
 
 from selenium.webdriver import Firefox, FirefoxProfile
 from selenium.webdriver.firefox.options import Options
@@ -52,6 +53,31 @@ class GayStreamIE(InfoExtractor):
     _DRIVER = 0
     
     _LOCK =  Lock()
+    
+    _COUNT = 0
+    
+    
+    def __init__(self, *args, **kwargs):
+        super(GayStreamIE, self).__init__(*args, **kwargs)
+        
+        with GayStreamIE._LOCK:
+            GayStreamIE._COUNT += 1
+        
+            
+    
+    def __del__(self):
+       
+        with GayStreamIE._LOCK: 
+            GayStreamIE._COUNT -= 1
+            if GayStreamIE._COUNT == 0:
+                #self.to_screen("LETS CLOSE DRIVERS")
+                for __driver in list(GayStreamIE._QUEUE.queue):
+                    try:
+                        __driver.quit()
+                        
+                    except Exception as e:
+                        pass
+                        #self.to_screen(str(e))
     
     
 
@@ -107,11 +133,7 @@ class GayStreamIE(InfoExtractor):
                 count += 1
                     
                 
-            
      
-
-
-
 
 
     def _real_extract(self, url):
@@ -119,28 +141,35 @@ class GayStreamIE(InfoExtractor):
         self.report_extraction(url)
         
         
-        with self._LOCK: 
+        with GayStreamIE._LOCK: 
                 
-            if self._DRIVER == self._downloader.params.get('winit'):
+            if GayStreamIE._DRIVER == self._downloader.params.get('winit', 5):
                 
-                driver = self._QUEUE.get(block=True)
+                driver = GayStreamIE._QUEUE.get(block=True)
                 
             else:
                 
         
-                prof = self._FF_PROF.pop()
-                self._FF_PROF.insert(0, prof)
+                prof = GayStreamIE._FF_PROF.pop()
+                GayStreamIE._FF_PROF.insert(0, prof)
                     
                 opts = Options()
                 opts.headless = True
-                
+                opts.add_argument("--no-sandbox")
+                opts.add_argument("--disable-application-cache")
+                opts.add_argument("--disable-gpu")
+                opts.add_argument("--disable-dev-shm-usage")
+                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
+                                
                 driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
- 
+    
                 self.to_screen(f"ffprof[{prof}]")
                 
-                driver.set_window_size(1920,575)
+                #driver.set_window_size(1920,575)
+                driver.maximize_window()   
                 
-                self._DRIVER += 1
+                GayStreamIE._DRIVER += 1
                     
         try:                            
             
@@ -169,7 +198,8 @@ class GayStreamIE(InfoExtractor):
                         _formats.append({
                                 'format_id': vid.get('label'),
                                 'url': (_url:=vid.get('file')),
-                                'resolution' : vid.get('label'),                                
+                                'resolution' : vid.get('label'),
+                                'height': int_or_none(vid.get('label')[:-1]),                                
                                 'filesize': self._get_filesize(_url),
                                 'ext': "mp4"
                             })
@@ -187,20 +217,35 @@ class GayStreamIE(InfoExtractor):
                         'ext': 'mp4'
                     } 
                     
-                    self.to_screen(f'{url}\n{_entry_video}')  
-                
+                    self.to_screen(f'{url}\n{_entry_video}') 
+                    
+                    if not _entry_video: raise ExtractorError("no video info")
+                    else:
+                        return _entry_video      
+         
+        except ExtractorError as e:
+            raise        
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            if "ExtractorError" in str(e.__class__): raise
-            else: raise ExtractorError(str(e))
+            raise ExtractorError(str(e)) from e
         finally:
             self._QUEUE.put_nowait(driver)
         
-        if not _entry_video: raise ExtractorError("no video info")
-        else:
-            return _entry_video    
+        
         
 
-      
+    def __del__(self):
+       
+        with GayStreamIE._LOCK: 
+            GayStreamIE._COUNT -= 1
+            if GayStreamIE._COUNT == 0:
+                #self.to_screen("LETS CLOSE DRIVERS")
+                for __driver in list(GayStreamIE._QUEUE.queue):
+                    try:
+                        __driver.quit()
+                        
+                    except Exception as e:
+                        pass
+                        #self.to_screen(str(e))      
 
