@@ -2,7 +2,8 @@ from __future__ import unicode_literals
 
 
 import re
-from tarfile import ExtractError
+
+import threading
 
 from .common import InfoExtractor
 from ..utils import (
@@ -13,19 +14,28 @@ from ..utils import (
     
     
 )
-from urllib.parse import unquote
-from collections import OrderedDict
-import httpx
+
+from httpx import (
+    Client,
+    Timeout,
+    Limits,
+)
 import html
 import time
 import sys
 import traceback
+import threading
+
+from ratelimit import limits, sleep_and_retry
 
 
 class StreamtapeIE(InfoExtractor):
 
     IE_NAME = 'streamtape'
     _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:$|/)'
+    
+    
+    _LOCK = threading.Lock()
     
     
     @staticmethod
@@ -41,13 +51,14 @@ class StreamtapeIE(InfoExtractor):
         try:
             
             _res = None
-            while (count<5):
+            while (count<3):
                 
                 try:
                     
+                    #res = self._send_request(client, url, 'HEAD')
                     res = client.head(url)
-                    if res.status_code > 400:
-                        time.sleep(1)
+                    if res.status_code >= 400:
+                        
                         count += 1
                     else: 
                         _filesize = int_or_none(res.headers.get('content-length'))
@@ -63,29 +74,63 @@ class StreamtapeIE(InfoExtractor):
         except Exception as e:
             pass
 
-        if count < 5: return ({'url': _url, 'filesize': _filesize}) 
+        if count < 3: return ({'url': _url, 'filesize': _filesize}) 
         else: return ({'error': 'max retries'})  
 
+    
+    @sleep_and_retry
+    @limits(calls=1, period=3)
+    def _send_request(self, client, url, _type):
+        
+        self.to_screen(f'[send_request] {_type}:{url}')
+        if _type == 'GET': 
+            return client.get(url)
+        elif _type == 'HEAD':
+            return client.head(url)
+        
     
     def _real_extract(self, url):
         
    
-        self.report_extraction(url)
+        
         
         try:
         
-            _timeout = httpx.Timeout(30, connect=30)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
+            _timeout = Timeout(30, connect=30)        
+            _limits = Limits(max_keepalive_connections=None, max_connections=None)
+            client = Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
             
             _url = re.search(r'(?P<url>https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+))', url.replace('/e/', '/v/')).group('url')
+            if url == _url:
+                self.report_extraction(url)
+                
+            else:
+                self.report_extraction(f'{_url} from {url}')
             
             count = 0
             while(count < 3):
                 
                 try:
                 
-                    res = client.get(_url)            
+                    # with StreamtapeIE._LOCK:
+                        
+                    #     try:                            
+                            
+                    #         res = self._send_request(client, _url, 'GET')            
+                    #         if res.status_code >= 400:
+                    #             raise ExtractorError(f"Error {res.status_code} - Page not found")                                                       
+                    #     except Exception as e:
+                    #         raise  
+                    
+                    try:                            
+                        
+                        res = self._send_request(client, _url, 'GET')            
+                        if res.status_code >= 400:
+                            raise ExtractorError(f"Error {res.status_code} - Page not found")                                                       
+                    except Exception as e:
+                        raise  
+                            
+                    
                     webpage = re.sub('[\n\t]', '', res.text)
                     mobj = re.findall(r'id=\"norobotlink\" style\=\"display\:none;\"\>/streamtape\.com/get_video\?([^\<]+)\<', webpage)
                     mobj2 = re.findall(r"getElementById\(\'norobotlink\'\).+(token=[^\"\']+)[\'\"]", webpage)
@@ -94,7 +139,7 @@ class StreamtapeIE(InfoExtractor):
                         
                         video_url = f"https://streamtape.com/get_video?{_params}"
                         _info_video = self._get_infovideo(video_url, client)
-                        title = re.sub('\.mp4| at Streamtape.com', '', re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage).group('title'))
+                        title = re.sub('\.mp4| at Streamtape\.com|amp;', '', re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage).group('title'))
                         
                         videoid = self._match_id(url)
                     
@@ -116,7 +161,7 @@ class StreamtapeIE(InfoExtractor):
                             return _entry_video
                         else: raise ExtractorError("No video info")
                     else: 
-                        self.to_screen(webpage)
+                        self.write_debug(webpage)
                         raise ExtractorError("Couldnt find tokens")
                     
                 except ExtractorError as e:
@@ -124,7 +169,7 @@ class StreamtapeIE(InfoExtractor):
                     if count == 3: 
                         raise
                     else: 
-                        self.to_screen(f"count: {count}")
+                        self.to_screen(f"count[{count}] {_url}")
                         continue
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())

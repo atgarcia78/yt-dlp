@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 
 import re
-import random
+
 
 
 from .common import InfoExtractor
@@ -17,6 +17,7 @@ import threading
 import time
 import traceback
 import sys
+import os
 
 
 from selenium.webdriver import Firefox, FirefoxProfile
@@ -46,6 +47,15 @@ class FraternityXBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
 
+    
+    _LOCK = threading.Lock()
+    
+    _QUEUE = Queue()   
+    
+    _DRIVER = 0
+    
+    _COOKIES = None 
+    
     def wait_until(self, _driver, time, method):
         try:
             el = WebDriverWait(_driver, time).until(method)
@@ -260,41 +270,40 @@ class FraternityXIE(FraternityXBaseIE):
     IE_DESC = 'fraternityx'
     _VALID_URL = r'https?://(?:www\.)?fraternityx.com/episode/.*'
    
-    
-    _LOCK = threading.Lock()
-    
-    _QUEUE = Queue()   
-    
-    _DRIVER = []
-    
-    _COOKIES = None
+
     
     
     def _real_initialize(self):
         
         with self._LOCK:
-            if len(self._DRIVER) == (self._downloader.params.get('winit', 1)):
+            if FraternityXIE._DRIVER == (self._downloader.params.get('winit', 5)):
                 return  
             
-            prof = self._FF_PROF.pop()
-            self._FF_PROF.insert(0, prof)
+            prof = FraternityXIE._FF_PROF.pop()
+            FraternityXIE._FF_PROF.insert(0, prof)
             
             opts = Options()
-            opts.headless = True                            
+            opts.headless = True
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
                             
             driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
  
             self.to_screen(f"ffprof[{prof}]")
             
-            driver.set_window_size(1920,575)
-            
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()             
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
-            if self._COOKIES:
+            if FraternityXIE._COOKIES:
             
                 driver.delete_all_cookies()
-                for cookie in self._COOKIES:
+                for cookie in FraternityXIE._COOKIES:
                     driver.add_cookie(cookie)
                         
                 driver.get(self._SITE_URL)
@@ -302,14 +311,15 @@ class FraternityXIE(FraternityXBaseIE):
             
             try:
                 self._login(driver)
+                FraternityXIE._COOKIES = driver.get_cookies()
+                FraternityXIE._DRIVER += 1
+                FraternityXIE._QUEUE.put_nowait(driver)
             
             except Exception as e:
                 self.to_screen("error when login")
                 raise
             
-            self._COOKIES = driver.get_cookies()
-            self._DRIVER.append(driver)
-            self._QUEUE.put_nowait(driver)
+
         
 
     def _real_extract(self, url):
@@ -318,7 +328,7 @@ class FraternityXIE(FraternityXBaseIE):
         data = None
         try:
         
-            driver = self._QUEUE.get(block=True) 
+            driver = FraternityXIE._QUEUE.get(block=True) 
             data = self._extract_from_page(driver, url)
                  
             
@@ -328,7 +338,7 @@ class FraternityXIE(FraternityXBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            self._QUEUE.put_nowait(driver)
+            FraternityXIE._QUEUE.put_nowait(driver)
             
         if not data:
             raise ExtractorError("Not any video format found")
@@ -337,7 +347,7 @@ class FraternityXIE(FraternityXBaseIE):
         else:
             return(data)
 
-class FraternityxOnePagePlayListIE(FraternityXBaseIE):
+class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx:onepage:playlist'
     IE_DESC = 'fraternityx:onepage:playlist'
     _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/(?P<id>\d+)"
@@ -351,15 +361,23 @@ class FraternityxOnePagePlayListIE(FraternityXBaseIE):
         
         try:              
                         
-            prof = self._FF_PROF.pop()
+            prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
             
             opts = Options()
-            opts.headless = True                            
+            opts.headless = True
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
                             
             driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
  
-            self.to_screen(f"ffprof[{prof}]")            
+            self.to_screen(f"ffprof[{prof}]")
             
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()              
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
@@ -383,7 +401,7 @@ class FraternityxOnePagePlayListIE(FraternityXBaseIE):
         
         return self.playlist_result(entries, f"fraternityx:page_{playlistid}", f"fraternity:page_{playlistid}")
     
-class FraternityxAllPagesPlayListIE(FraternityXBaseIE):
+class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx:allpagesplaylist'
     IE_DESC = 'fraternityx:allpagesplaylist'
     _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/?$"
@@ -395,15 +413,23 @@ class FraternityxAllPagesPlayListIE(FraternityXBaseIE):
         
         try:              
                         
-            prof = self._FF_PROF.pop()
+            prof = FraternityXAllPagesPlaylistIE._FF_PROF.pop()
             
             opts = Options()
-            opts.headless = True                            
+            opts.headless = True
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
                             
             driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
  
-            self.to_screen(f"ffprof[{prof}]")            
+            self.to_screen(f"ffprof[{prof}]")
             
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()              
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
