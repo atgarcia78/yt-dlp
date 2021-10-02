@@ -1,7 +1,4 @@
 from __future__ import unicode_literals
-import threading
-
-from numpy import block
 
 
 

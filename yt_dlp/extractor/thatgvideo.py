@@ -119,9 +119,6 @@ class ThatGVideoIE(SeleniumInfoExtractor):
             except Exception:
                 pass
     
-        if _entry_video:
-            return _entry_video
-            
 
             
 
