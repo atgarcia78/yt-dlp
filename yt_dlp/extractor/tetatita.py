@@ -5,17 +5,12 @@ import re
 from bs4 import BeautifulSoup
 
 from .common import InfoExtractor
-from ..utils import (
-    urlencode_postdata,
-    clean_html
-)
+
 import urllib.parse
 
 from bs4 import BeautifulSoup
 
-import pprint
 
-from html5print import HTMLBeautifier
 
 class TetatitaIE(InfoExtractor):
 
@@ -60,7 +55,7 @@ class TetatitaIE(InfoExtractor):
                 content = self._download_webpage(self._VIDEOS_URL + str(i), "Analizando web page")
                 #print(content)
                     
-                bs = BeautifulSoup(content, "html5lib")
+                bs = BeautifulSoup(content, "html.parser")
                 divs = bs.findAll("div", {"class": "project-item-inner"})
                 for div in divs:
                     tag = div.find("a")
