@@ -97,7 +97,7 @@ class SketchySexBaseIE(InfoExtractor):
             self.report_login()
             username, password = self._get_login_info()
 
-            self.to_screen(f"{username}#{password}#")
+            
             
             if not username or not password:
                 self.raise_login_required(
