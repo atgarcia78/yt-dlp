@@ -281,7 +281,7 @@ class NetDNAIE(InfoExtractor):
                                 el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
                                 if el_download:
                                     _video_url = el_download.get_attribute('href')
-                                    _info = self._get_infovideo(_video_url, client)
+                                    _info = self._get_info(_video_url, client)
                                     _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
                                                                     
                                     entry = {
