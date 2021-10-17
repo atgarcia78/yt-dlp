@@ -4,11 +4,10 @@ from __future__ import unicode_literals
 
 import re
 
-
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
-    sanitize_filename    
+    sanitize_filename
 )
 
 
@@ -29,7 +28,6 @@ import html
 import demjson
 import time
 
-
 class SketchySexBaseIE(InfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
     _SITE_URL = "https://sketchysex.com"
@@ -38,9 +36,9 @@ class SketchySexBaseIE(InfoExtractor):
     _ABORT_URL = "https://sketchysex.com/multiple-sessions/abort"
     _AUTH_URL = "https://sketchysex.com/authorize2"
     _BASE_URL_PL = "https://sketchysex.com/episodes/"
-    
+
     _NETRC_MACHINE = 'sketchysex'
-    
+
     _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
@@ -55,7 +53,6 @@ class SketchySexBaseIE(InfoExtractor):
     _DRIVER = 0
     
     _COOKIES = None 
-
 
     def wait_until(self, _driver, time, method):
         try:
@@ -112,9 +109,9 @@ class SketchySexBaseIE(InfoExtractor):
             el_login = _driver.find_element_by_css_selector("input#submit1.submit1")
             if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
             el_username.send_keys(username)
-            time.sleep(3)
+            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
             el_password.send_keys(password)
-            time.sleep(3)
+            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
             #_title = _driver.title
             _current_url = _driver.current_url
             #self.to_screen(f"{_title}#{driver.current_url}")
@@ -134,7 +131,9 @@ class SketchySexBaseIE(InfoExtractor):
                     el_enter = _driver.find_element_by_css_selector("button")
                     if not el_email or not el_lastname or not el_enter: raise ExtractorError("couldnt find text elements")
                     el_email.send_keys("a.tgarc@gmail.com")
-                    el_lastname.send_keys("Torres")                
+                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    el_lastname.send_keys("Torres")
+                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))                
                     _current_url = _driver.current_url
                     el_enter.click()
                     self.wait_until(_driver, 60, ec.url_changes(_current_url))
@@ -234,7 +233,7 @@ class SketchySexBaseIE(InfoExtractor):
 
             url_pl = f"{self._BASE_URL_PL}{int(playlistid) + i}"
 
-            self.to_screen(url_pl)
+            #self.to_screen(url_pl)
             
             _driver.get(url_pl)
             el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "content")))
@@ -253,21 +252,17 @@ class SketchySexBaseIE(InfoExtractor):
                 i += 1
             else:
                 break
-            
-        if not entries: raise ExtractorError("no videos found")
-        
-        return entries        
 
+        if not entries: raise ExtractorError("no videos found")
+
+        return entries
 
 
 class SketchySexIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex'
     IE_DESC = 'sketchysex'
     _VALID_URL = r'https?://(?:www\.)?sketchysex.com/episode/.*'
-    
-    
-   
-    
+
     def _real_initialize(self):
         
         with SketchySexIE._LOCK:
@@ -292,7 +287,6 @@ class SketchySexIE(SketchySexBaseIE):
             
             #driver.set_window_size(1920,575)
             driver.maximize_window()
-            
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
@@ -315,9 +309,6 @@ class SketchySexIE(SketchySexBaseIE):
                 self.to_screen("error when login")
                 raise
             
-            
-         
-        
 
     def _real_extract(self, url):
         
@@ -343,16 +334,13 @@ class SketchySexIE(SketchySexBaseIE):
             raise ExtractorError(str(data['cause']))
         else:
             return(data)
-            
-        
 
 class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex:playlist'
     IE_DESC = 'sketchysex:playlist'
     _VALID_URL = r"https?://(?:www\.)?sketchysex\.com/episodes/(?P<id>\d+)"
-   
-           
-    
+
+
     def _real_extract(self, url):
 
         playlistid = re.search(self._VALID_URL, url).group("id")
@@ -361,7 +349,9 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
         
         try:              
                         
-            prof = SketchySexOnePagePlaylistIE._FF_PROF.pop()
+            with SketchySexOnePagePlaylistIE._LOCK:
+                prof = SketchySexOnePagePlaylistIE._FF_PROF.pop()
+                SketchySexOnePagePlaylistIE._FF_PROF.insert(0, prof)
             
             opts = Options()
             opts.headless = True
@@ -377,9 +367,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
             self.to_screen(f"ffprof[{prof}]")
             
             #driver.set_window_size(1920,575)
-            driver.maximize_window()                           
-           
-            
+            driver.maximize_window()
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
@@ -415,7 +403,9 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
         
         try:              
                         
-            prof = SketchySexAllPagesPlaylistIE._FF_PROF.pop()
+            with SketchySexAllPagesPlaylistIE._LOCK:
+                prof = SketchySexAllPagesPlaylistIE._FF_PROF.pop()
+                SketchySexAllPagesPlaylistIE._FF_PROF.insert(0, prof)
             
             opts = Options()
             opts.headless = True
@@ -431,8 +421,7 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
             self.to_screen(f"ffprof[{prof}]")
             
             #driver.set_window_size(1920,575)
-            driver.maximize_window()           
-            
+            driver.maximize_window()
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
