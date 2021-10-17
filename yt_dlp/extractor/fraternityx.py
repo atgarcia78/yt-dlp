@@ -4,7 +4,11 @@ from __future__ import unicode_literals
 
 import re
 
+<<<<<<< HEAD
 
+=======
+from .common import InfoExtractor
+>>>>>>> f88c7cdd6 (upt)
 from ..utils import (
     ExtractorError,
     sanitize_filename,
@@ -15,7 +19,15 @@ from ..utils import (
 import threading
 import traceback
 import sys
+<<<<<<< HEAD
 
+=======
+import os
+
+from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+>>>>>>> f88c7cdd6 (upt)
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
@@ -36,12 +48,46 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
     _BASE_URL_PL = "https://fraternityx.com/episodes/"
 
     _NETRC_MACHINE = 'fraternityx'
+<<<<<<< HEAD
 
     _LOCK = threading.Lock()
     
     
     _COOKIES = None
 
+=======
+
+    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+
+    _LOCK = threading.Lock()
+    
+    _QUEUE = Queue()   
+    
+    _DRIVER = 0
+    
+    _COOKIES = None 
+
+    def wait_until(self, _driver, time, method):
+        try:
+            el = WebDriverWait(_driver, time).until(method)
+        except Exception as e:
+            el = None
+            
+        return el  
+    
+    def wait_until_not(self, _driver, time, method):
+        try:
+            el = WebDriverWait(_driver, time).until_not(method)
+        except Exception as e:
+            el = None
+            
+        return el 
+>>>>>>> f88c7cdd6 (upt)
 
     def _login(self, _driver):
         
@@ -53,10 +99,18 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
             if not el_enter: raise ExtractorError("couldnt find adult consent button")
             _current_url = _driver.current_url
+<<<<<<< HEAD
+=======
+            #self.to_screen(_current_url)
+>>>>>>> f88c7cdd6 (upt)
             el_enter.click()
             self.wait_until(_driver, 60, ec.url_changes(_current_url))
         
         el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul.inline-list")))
+<<<<<<< HEAD
+=======
+        #self.to_screen(el_top.get_attribute('innerText').upper())
+>>>>>>> f88c7cdd6 (upt)
         if "MEMBERS" in el_top.get_attribute('innerText').upper():
             self.report_login()
             username, password = self._get_login_info()
@@ -227,6 +281,33 @@ class FraternityXIE(FraternityXBaseIE):
     def _real_initialize(self):
         
         with FraternityXIE._LOCK:
+<<<<<<< HEAD
+=======
+            if FraternityXIE._DRIVER == (self._downloader.params.get('winit', 5)):
+                return  
+            
+            prof = FraternityXIE._FF_PROF.pop()
+            FraternityXIE._FF_PROF.insert(0, prof)
+            
+            opts = Options()
+            opts.headless = True
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
+                            
+            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+ 
+            self.to_screen(f"ffprof[{prof}]")
+            
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()
+            driver.get(self._SITE_URL)
+            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            
+>>>>>>> f88c7cdd6 (upt)
             if FraternityXIE._COOKIES:
                 return  
 
@@ -289,10 +370,21 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
         
         try:              
                         
+<<<<<<< HEAD
             driver = self.get_driver()
+=======
+            with FraternityXOnePagePlaylistIE._LOCK:
+                prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
+                FraternityXOnePagePlaylistIE._FF_PROF.insert(0, prof)
+>>>>>>> f88c7cdd6 (upt)
             
 
             
+<<<<<<< HEAD
+=======
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()
+>>>>>>> f88c7cdd6 (upt)
             driver.get(self._SITE_URL)
             
             _title = driver.title.lower()
@@ -327,10 +419,33 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
         entries = None
         
         try:              
+<<<<<<< HEAD
 
 
             driver = self.get_driver()
             
+=======
+                        
+            with FraternityXAllPagesPlaylistIE._LOCK:
+                prof = FraternityXAllPagesPlaylistIE._FF_PROF.pop()
+                FraternityXAllPagesPlaylistIE._FF_PROF.insert(0, prof)
+            
+            opts = Options()
+            opts.headless = True
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
+                            
+            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+ 
+            self.to_screen(f"ffprof[{prof}]")
+            
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()
+>>>>>>> f88c7cdd6 (upt)
             driver.get(self._SITE_URL)
             _title = driver.title.lower()            
             if "warning" in _title:
