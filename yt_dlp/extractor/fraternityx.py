@@ -4,8 +4,6 @@ from __future__ import unicode_literals
 
 import re
 
-
-
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
@@ -18,7 +16,6 @@ import time
 import traceback
 import sys
 import os
-
 
 from selenium.webdriver import Firefox, FirefoxProfile
 from selenium.webdriver.firefox.options import Options
@@ -39,7 +36,9 @@ class FraternityXBaseIE(InfoExtractor):
     _ABORT_URL = "https://fraternityx.com/multiple-sessions/abort"
     _AUTH_URL = "https://fraternityx.com/authorize2"
     _BASE_URL_PL = "https://fraternityx.com/episodes/"
+
     _NETRC_MACHINE = 'fraternityx'
+
     _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
@@ -47,7 +46,6 @@ class FraternityXBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
 
-    
     _LOCK = threading.Lock()
     
     _QUEUE = Queue()   
@@ -55,7 +53,7 @@ class FraternityXBaseIE(InfoExtractor):
     _DRIVER = 0
     
     _COOKIES = None 
-    
+
     def wait_until(self, _driver, time, method):
         try:
             el = WebDriverWait(_driver, time).until(method)
@@ -87,12 +85,12 @@ class FraternityXBaseIE(InfoExtractor):
             el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
             if not el_enter: raise ExtractorError("couldnt find adult consent button")
             _current_url = _driver.current_url
-            self.to_screen(_current_url)
+            #self.to_screen(_current_url)
             el_enter.click()
             self.wait_until(_driver, 60, ec.url_changes(_current_url))
         
         el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul.inline-list")))
-        self.to_screen(el_top.get_attribute('innerText').upper())
+        #self.to_screen(el_top.get_attribute('innerText').upper())
         if "MEMBERS" in el_top.get_attribute('innerText').upper():
             self.report_login()
             username, password = self._get_login_info()
@@ -112,9 +110,9 @@ class FraternityXBaseIE(InfoExtractor):
             el_login = _driver.find_element_by_css_selector("button")
             if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
             el_username.send_keys(username)
-            time.sleep(3)
+            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
             el_password.send_keys(password)
-            time.sleep(3)
+            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
             #_title = _driver.title
             _current_url = _driver.current_url
             #self.to_screen(f"{_title}#{driver.current_url}")
@@ -134,7 +132,9 @@ class FraternityXBaseIE(InfoExtractor):
                     el_enter = _driver.find_element_by_css_selector("button")
                     if not el_email or not el_lastname or not el_enter: raise ExtractorError("couldnt find text elements")
                     el_email.send_keys("a.tgarc@gmail.com")
-                    el_lastname.send_keys("Torres")                
+                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    el_lastname.send_keys("Torres")
+                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))                
                     _current_url = _driver.current_url
                     el_enter.click()
                     self.wait_until(_driver, 60, ec.url_changes(_current_url))
@@ -235,7 +235,7 @@ class FraternityXBaseIE(InfoExtractor):
 
             url_pl = f"{self._BASE_URL_PL}{int(playlistid) + i}"
 
-            self.to_screen(url_pl)
+            #self.to_screen(url_pl)
             
             _driver.get(url_pl)
             el_listmedia = self.wait_until(_driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
@@ -255,27 +255,20 @@ class FraternityXBaseIE(InfoExtractor):
                 i += 1
             else:
                 break
-         
-        if not entries: raise ExtractorError("no videos found")
-            
-        return entries
-         
-   
-       
 
+        if not entries: raise ExtractorError("no videos found")
+
+        return entries
 
 
 class FraternityXIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx'
     IE_DESC = 'fraternityx'
     _VALID_URL = r'https?://(?:www\.)?fraternityx.com/episode/.*'
-   
 
-    
-    
     def _real_initialize(self):
         
-        with self._LOCK:
+        with FraternityXIE._LOCK:
             if FraternityXIE._DRIVER == (self._downloader.params.get('winit', 5)):
                 return  
             
@@ -296,7 +289,7 @@ class FraternityXIE(FraternityXBaseIE):
             self.to_screen(f"ffprof[{prof}]")
             
             #driver.set_window_size(1920,575)
-            driver.maximize_window()             
+            driver.maximize_window()
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
@@ -319,8 +312,6 @@ class FraternityXIE(FraternityXBaseIE):
                 self.to_screen("error when login")
                 raise
             
-
-        
 
     def _real_extract(self, url):
         
@@ -351,8 +342,8 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx:onepage:playlist'
     IE_DESC = 'fraternityx:onepage:playlist'
     _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/(?P<id>\d+)"
-   
- 
+
+
     def _real_extract(self, url):
 
         playlistid = re.search(self._VALID_URL, url).group("id")
@@ -361,7 +352,9 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
         
         try:              
                         
-            prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
+            with FraternityXOnePagePlaylistIE._LOCK:
+                prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
+                FraternityXOnePagePlaylistIE._FF_PROF.insert(0, prof)
             
             opts = Options()
             opts.headless = True
@@ -377,7 +370,7 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
             self.to_screen(f"ffprof[{prof}]")
             
             #driver.set_window_size(1920,575)
-            driver.maximize_window()              
+            driver.maximize_window()
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
@@ -413,7 +406,9 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
         
         try:              
                         
-            prof = FraternityXAllPagesPlaylistIE._FF_PROF.pop()
+            with FraternityXAllPagesPlaylistIE._LOCK:
+                prof = FraternityXAllPagesPlaylistIE._FF_PROF.pop()
+                FraternityXAllPagesPlaylistIE._FF_PROF.insert(0, prof)
             
             opts = Options()
             opts.headless = True
@@ -429,7 +424,7 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
             self.to_screen(f"ffprof[{prof}]")
             
             #driver.set_window_size(1920,575)
-            driver.maximize_window()              
+            driver.maximize_window()
             driver.get(self._SITE_URL)
             self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
