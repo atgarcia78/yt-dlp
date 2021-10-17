@@ -78,6 +78,7 @@ class NetDNAIE(InfoExtractor):
                                 _num = _num_list[0][0].replace(',','.')
                                 if _num.count('.') == 2:
                                     _num = _num.replace('.','', 1)
+                                _num = f"{float(_num):.2f}"
                                 _unit = _num_list[0][1]
                             _title_list = re.findall(r'h1 class="h2">([^\.]+).([^\<]+)<',res.text)
                             if _title_list:
@@ -109,6 +110,7 @@ class NetDNAIE(InfoExtractor):
             _num, _unit = mobj[0][2].split(' ')
             _num = _num.replace(',', '.')
             if _num.count('.') == 2:  _num = _num.replace('.','', 1)
+            _num = f"{float(_num):.2f}"
             title = mobj[0][0].replace('-', '_').upper()
             ext = mobj[0][1]
             str_id = f"{title}{_num}"
