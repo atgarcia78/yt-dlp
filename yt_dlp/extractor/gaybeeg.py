@@ -62,7 +62,7 @@ class GayBeegBaseIE(InfoExtractor):
                 _list_urls_netdna[_url] = _next
                 _next = None
             else:
-                _tree = _el.find_elements_by_xpath("./ancestor-or-self::*")
+                _tree = _el.find_elements(by=By.XPATH, value="./ancestor-or-self::*")
                 _tree.reverse()
                 if any((_res:=el.text) for el in _tree):
             
@@ -87,8 +87,8 @@ class GayBeegBaseIE(InfoExtractor):
     def _get_entries_gaybeeg(el_list):
         entries = [{'_type' : 'url', 'url' : _url, 'ie' : 'GayBeeg'}
                         for el in el_list
-                                    for el_tagh2 in el.find_elements_by_tag_name("h2")
-                                        for el_taga in el_tagh2.find_elements_by_tag_name("a")
+                                    for el_tagh2 in el.find_elements(by=By.TAG_NAME, value="h2")
+                                        for el_taga in el_tagh2.find_elements(by=By.TAG_NAME, value="a")
                                             if "//gaybeeg.info" in (_url:=el_taga.get_attribute('href'))]    
         return entries
     

@@ -121,7 +121,7 @@ class UpVideoIE(InfoExtractor):
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"overlay")))
             if el: el.click()
             
-            res = driver.find_elements_by_id("vplayer_html5_api")
+            res = driver.find_elements(by=By.ID, value="vplayer_html5_api")
             if not res: raise ExtractorError("no info")
             video_url = res[0].get_attribute("src")
             if not video_url: raise ExtractorError("no video url") 

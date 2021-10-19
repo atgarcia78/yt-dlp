@@ -153,7 +153,7 @@ class YourPornGodIE(InfoExtractor):
                 el_settings = self.wait_until(driver, 60, ec.presence_of_all_elements_located(((By.CSS_SELECTOR, "a.fp-settings"))))
                 _url = None
                 for el in el_settings:
-                    el_tag = el.find_elements_by_tag_name('a')
+                    el_tag = el.find_elements(by=By.TAG_NAME, value='a')
                     for tag in el_tag:
                         if "download" in tag.get_attribute('innerHTML').lower():
                             _url = tag.get_attribute('href')
