@@ -17,7 +17,6 @@ import traceback
 
 
 from selenium.webdriver import Firefox
-from selenium.webdriver import FirefoxProfile
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -42,7 +41,7 @@ class NetDNAIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
 
     _LOCK = threading.Lock()
@@ -190,17 +189,20 @@ class NetDNAIE(InfoExtractor):
 
                     
         opts = Options()
-        opts.headless = True
+        opts.add_argument("--headless")
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-application-cache")
         opts.add_argument("--disable-gpu")
         opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--profile")
+        opts.add_argument(prof)                        
         os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'      
         
         try:
                         
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+         
+            driver = Firefox(options=opts)
 
             self.to_screen(f"{url}:ffprof[{prof}]")
             
