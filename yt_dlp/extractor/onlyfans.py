@@ -36,15 +36,15 @@ class error404_or_found():
     
     def __call__(self, driver):
         
-        el = driver.find_elements_by_class_name("b-404")        
+        el = driver.find_elements(by=By.CLASS_NAME, value="b-404")        
         if el:            
             return ("error404", el[0])       
         else:
             
-            el = driver.find_elements_by_class_name("b-profile__user")
+            el = driver.find_elements(by=By.CLASS_NAME, value="b-profile__user")
             if el: return ("userfound", el[0])
             else: 
-                el = driver.find_elements_by_class_name("video-wrapper")
+                el = driver.find_elements(by=By.CLASS_NAME, value="video-wrapper")
                 if el: return ("postfound", el[0])
                 return False
     
@@ -53,14 +53,14 @@ class alreadylogin_or_reqtw():
     
     def __call__(self, driver):
         
-        el = driver.find_elements_by_css_selector("nav.l-header__menu")        
+        el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
             return ("loginok", el[0])       
         else:
             
-            el = driver.find_elements_by_css_selector("a.g-btn.m-rounded.m-twitter.m-lg")
-            #el = driver.find_elements_by_class_name("g-btn.m-rounded.m-twitter.m-lg")
-            #el = driver.find_elements_by_link_text("SIGN IN WITH TWITTER")
+            el = driver.find_elements(by=By.CSS_SELECTOR, value="a.g-btn.m-rounded.m-twitter.m-lg")
+            #el = driver.find_elements(by=By.CLASS_NAME, value="g-btn.m-rounded.m-twitter.m-lg")
+            #el = driver.find_elements(by=By.LINK_TEXT, value="SIGN IN WITH TWITTER")
             if el: return ("reqlogin", el[0])
             else: return False
             
@@ -69,14 +69,14 @@ class succ_or_twlogin():
     
     def __call__(self, driver):
         
-        el = driver.find_elements_by_css_selector("nav.l-header__menu")        
+        el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
             return ("loginok", el[0])       
         else:
             
-            el_username = driver.find_elements_by_css_selector("input#username_or_email")
-            el_password =  driver.find_elements_by_css_selector("input#password") 
-            el_login = driver.find_elements_by_css_selector("input#allow.submit")
+            el_username = driver.find_elements(by=By.CSS_SELECTOR, value="input#username_or_email")
+            el_password =  driver.find_elements(by=By.CSS_SELECTOR, value="input#password") 
+            el_login = driver.find_elements(by=By.CSS_SELECTOR, value="input#allow.submit")
                         
             if el_username and el_password and el_login:
                 return ("twlogin", el_username[0], el_password[0], el_login[0])
@@ -89,15 +89,15 @@ class succ_or_twrelogin():
     
     def __call__(self, driver):
         
-        el = driver.find_elements_by_css_selector("nav.l-header__menu")        
+        el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
             return ("loginok", el[0])       
         else:
 
-            el_username = driver.find_elements_by_partial_link_text("usuario") or driver.find_elements_by_partial_link_text("user")
-            el_password =  driver.find_elements_by_partial_link_text("Contra") or driver.find_elements_by_partial_link_text("Pass")              
+            el_username = driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="usuario") or driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="user")
+            el_password =  driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Contra") or driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Pass")              
            
-            el_login = driver.find_elements_by_partial_link_text("Iniciar") or driver.find_elements_by_partial_link_text("Start")
+            el_login = driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Iniciar") or driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Start")
             
             if el_username and el_password and el_login:
                 return ("twrelogin", el_username[0], el_password[0], el_login[0])

@@ -101,7 +101,7 @@ class GayForFansIE(InfoExtractor):
             
             el_video = WebDriverWait(driver, 30).until(ec.presence_of_all_elements_located((By.TAG_NAME,'video')))
             
-            _url = el_video[0].find_element_by_tag_name('source').get_attribute('src') if el_video else None
+            _url = el_video[0].find_element(by=By.TAG_NAME, value='source').get_attribute('src') if el_video else None
             
             
             
@@ -218,10 +218,10 @@ class GayForFansPlayListIE(InfoExtractor):
             
                 el_videos = WebDriverWait(driver, 30).until(ec.presence_of_all_elements_located((By.TAG_NAME,'article')))
                 for _el in el_videos:
-                    _url = _el.find_element_by_tag_name('a').get_attribute('href')
+                    _url = _el.find_element(by=By.TAG_NAME, value='a').get_attribute('href')
                     if _url: entries.append({'_type': 'url', 'url': _url, 'ie_key': 'GayForFans'})
 
-                el_next = driver.find_elements_by_css_selector('a.next.page-numbers')
+                el_next = driver.find_elements(by=By.CSS_SELECTOR, value='a.next.page-numbers')
                 if el_next:
                     el_next[0].click()
                 else:          
