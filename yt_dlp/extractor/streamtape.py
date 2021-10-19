@@ -132,7 +132,7 @@ class StreamtapeIE(InfoExtractor):
                             
                     
                     webpage = re.sub('[\n\t]', '', res.text)
-                    mobj = re.findall(r'id=\"norobotlink\" style\=\"display\:none;\"\>/streamtape\.com/get_video\?([^\<]+)\<', webpage)
+                    mobj = re.findall(r'id=\"norobotlink\" style\=\"display\:none;\"\>/streamtape\.(?:com|net)/get_video\?([^\<]+)\<', webpage)
                     mobj2 = re.findall(r"getElementById\(\'norobotlink\'\).+(token=[^\"\']+)[\'\"]", webpage)
                     if mobj and mobj2:
                         _params = mobj[0].split('token')[0] + mobj2[0]
