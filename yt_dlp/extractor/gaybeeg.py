@@ -53,15 +53,29 @@ class GayBeegBaseIE(InfoExtractor):
     def _get_entries_netdna(el_list):
         
         _list_urls_netdna = {}
+        _next = None
         for _el in el_list:
             _url = _el.get_attribute('href')
-            if _url:
-                _list_urls_netdna[_url] = _el.text
+            
+            if _next:
+                _list_urls_netdna[_url] = _next
+                _next = None
+            else:
+                _tree = _el.find_elements_by_xpath("./ancestor-or-self::*")
+                _tree.reverse()
+                if any((_res:=el.text) for el in _tree):
+            
+                    _text = _res.splitlines()
+                    _list_urls_netdna[_url] = _text[0]
+                    if len(_text) == 2 and any(_ext in _text[1] for _ext in ('mp4', 'zip')):
+                        _next = _text[1]
+                        
          
         
         entries = []
         
         for _url, _item in _list_urls_netdna.items():
+            
             _info_video = NetDNAIE.get_video_info(_item)
             entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')})
         
@@ -117,10 +131,13 @@ class GayBeegBaseIE(InfoExtractor):
                     break
                 last_height = new_height
         
-            el_list = self.wait_until(driver, 120, ec.visibility_of_all_elements_located((By.CLASS_NAME, "button")))
-            if el_list:
+            # el_list = self.wait_until(driver, 120, ec.presence_of_all_elements_located((By.CLASS_NAME, "henry-large")))
+            # if el_list:
+            
+            el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))
+            if el_a_list:
                 
-                entries = GayBeegBaseIE._get_entries_netdna(el_list)
+                entries = GayBeegBaseIE._get_entries_netdna(el_a_list)
             
                 return entries
             
@@ -218,7 +235,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             if el_pages:
                 
                 num_pages = int(el_pages[0].get_attribute('innerHTML').split(' ')[-1])
-                self.to_screen(num_pages)
+                self.to_screen(f"Pages to check: {num_pages}")
                 el_page = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "page")))
                 _href = el_page.get_attribute('href')
                 list_urls_pages = [re.sub('page/\d+/', f'page/{i}/', _href) for i in range(1, num_pages+1)]
@@ -229,17 +246,16 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 
                 with ThreadPoolExecutor(max_workers=_num_workers) as ex:
                     futures = [ex.submit(self._get_entries, _url) for _url in list_urls_pages] 
+            
                 
-                    #done, _ = wait(futures)
-                
-                    entries = []
-                    for d in futures:
-                        try:
-                            entries += d.result()
-                        except Exception as e:
-                            lines = traceback.format_exception(*sys.exc_info())
-                            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-                            raise ExtractorError(str(e)) from e
+                entries = []
+                for d in futures:
+                    try:
+                        entries += d.result()
+                    except Exception as e:
+                        lines = traceback.format_exception(*sys.exc_info())
+                        self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+                        raise ExtractorError(str(e)) from e
                         
             else: #single page
                 self.to_screen("Single page, lets get entries")
@@ -265,8 +281,7 @@ class GayBeegIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:post:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/\d\d\d\d/\d\d/\d\d/.*'
     
-
-           
+               
     def _real_extract(self, url):        
         
         try:
