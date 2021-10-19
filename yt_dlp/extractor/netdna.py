@@ -23,15 +23,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
-import time
 import httpx
 
 import traceback
 import threading
-from queue import Queue
 import os
-
-from urllib.parse import unquote
 
 
 
@@ -106,7 +102,8 @@ class NetDNAIE(InfoExtractor):
        
 
         else:
-            mobj = re.findall(r'Download ([^\.]+)\.([^ ]+) \[([^\[]+)\]', item)
+            
+            mobj = re.findall(r'(?:Download\s+)?([^\.]+)\.([^\s]+)\s+\[([^\[]+)\]', item)
             _num, _unit = mobj[0][2].split(' ')
             _num = _num.replace(',', '.')
             if _num.count('.') == 2:  _num = _num.replace('.','', 1)
@@ -179,11 +176,7 @@ class NetDNAIE(InfoExtractor):
         _video_url = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text).group('file')
         _info = self._get_info(_video_url, client)
         return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
-            
- 
-
-        
-
+  
     
     def _real_extract(self, url):        
         
@@ -218,13 +211,11 @@ class NetDNAIE(InfoExtractor):
             while count < 3:        
             
                 try:
-                    
 
                     entry = None
                     driver.get(url) #using firefox extension universal bypass to get video straight forward
-                
                     
-                    _reswait = self.wait_until(driver, 120, ec.url_contains("download"))
+                    _reswait = self.wait_until(driver, 120, ec.url_contains("netdna-storage.com/download/"))
                     
                     if not _reswait:
                         
@@ -248,12 +239,12 @@ class NetDNAIE(InfoExtractor):
                                 
                     
                     
-                    if not "download" in (_curl:=driver.current_url): 
+                    if not "netdna-storage.com/download/" in (_curl:=driver.current_url): 
                         self.write_debug(f"{info_video.get('title')} Bypass stopped at: {_curl}")
                         raise ExtractorError(f"{url} - Bypass stopped at: {_curl}") 
                     else:
                         
-                        self.to_screen(_curl)
+                        #self.to_screen(_curl)
                         
                         try:
                         
