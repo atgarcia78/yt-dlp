@@ -2,9 +2,6 @@
 from __future__ import unicode_literals
 
 
-import re
-import random
-
 
 from .common import InfoExtractor
 from ..utils import (
@@ -18,15 +15,15 @@ from ..utils import (
 import time
 import traceback
 import sys
+import os
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 
-import time
 import httpx
 
 from queue import (
@@ -50,7 +47,7 @@ class EvoloadIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
 
  
     _LOCK = Lock()
@@ -125,14 +122,17 @@ class EvoloadIE(InfoExtractor):
         if not driver:
                 
             opts = Options()
-            opts.headless = True
+            opts.add_argument("--headless")
             opts.add_argument("--no-sandbox")
             opts.add_argument("--disable-application-cache")
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-dev-shm-usage")
-            
-                            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+            opts.add_argument("--profile")
+            opts.add_argument(prof)                        
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                
+            driver = Firefox(options=opts)
 
             self.to_screen(f"{url}:ffprof[{prof}]")
             

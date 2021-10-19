@@ -23,7 +23,6 @@ import time
 import threading
 
 from selenium.webdriver import Firefox
-from selenium.webdriver import FirefoxProfile
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -52,7 +51,7 @@ class BoyFriendTVBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0'
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0'
                 ]
     
     def wait_until(self, driver, time, method):
@@ -164,23 +163,24 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
     
                 if self._DRIVER == self._downloader.params.get('winit', 5):
                     return 
+                
+
+                prof = self._FF_PROF.pop() 
+                self._FF_PROF.insert(0,prof)
+                self.to_screen(f"ff_prof: {prof}")
+                
                 opts = Options()
-                opts.headless = False
+                opts.add_argument("--headless")
                 opts.add_argument("--no-sandbox")
                 opts.add_argument("--disable-application-cache")
                 opts.add_argument("--disable-gpu")
                 opts.add_argument("--disable-dev-shm-usage")
+                opts.add_argument("--profile")
+                opts.add_argument(prof)                        
                 os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
-                prof_ff = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof_ff)
-                self.to_screen(f"ff_prof: {prof_ff}")
-                _firefox_prof = FirefoxProfile(prof_ff) 
-                #_firefox_prof.set_preference("dom.webdriver.enabled", False)
-                #_firefox_prof.set_preference("useAutomationExtension", False)
-                #_firefox_prof.update_preferences()
-                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=_firefox_prof, options=opts)
-                
+                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                    
+                driver = Firefox(options=opts)
                 
                 self.wait_until(driver, 5, ec.presence_of_element_located((By.CSS_SELECTOR, "DUMMYFORWAIT")))
                 
@@ -202,17 +202,13 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                         driver.get(self._SITE_URL)
                         el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
                         if el_menu:
-                            self.to_screen(f"Driver init ok: {prof_ff}")
+                            self.to_screen(f"Driver init ok: {prof}")
                             
                         else:
                             self._login(driver)
                     else:
                         driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'sameSite': 'Lax', 'secure': True, 'domain': '.boyfriendtv.com'})                
                         self._login(driver)
-
-                
-                            
-                
                 
             except Exception as e:
                
@@ -248,9 +244,6 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             webpage = el_html.get_attribute("outerHTML")
                        
             mobj = re.findall(r'sources:\s+(\{.*\})\,\s+poster',re.sub('[\t\n]','', html.unescape(webpage)))
-            
-           
-            
             
             
             if mobj:
@@ -387,23 +380,24 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
 
         try:
             
+            prof = self._FF_PROF.pop() 
+            self._FF_PROF.insert(0,prof)
+            
+            
             opts = Options()
-            opts.headless = True
+            opts.add_argument("--headless")
             opts.add_argument("--no-sandbox")
             opts.add_argument("--disable-application-cache")
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-dev-shm-usage")
-            prof_ff = self._FF_PROF.pop() 
-            self._FF_PROF.insert(0,prof_ff)
-            _firefox_prof = FirefoxProfile(prof_ff)
-            _firefox_prof.set_preference("dom.webdriver.enabled", False)
-            _firefox_prof.set_preference("useAutomationExtension", False)
-            _firefox_prof.update_preferences()
+            opts.add_argument("--profile")
+            opts.add_argument(prof)                        
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                    
+            driver = Firefox(options=opts)
 
-            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
-
-            self.to_screen(f"{url}:ffprof[{prof_ff}]")
+            self.to_screen(f"{url}:ffprof[{prof}]")
             
             driver.set_window_size(1920,575)
                 

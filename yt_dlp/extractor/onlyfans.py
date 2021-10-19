@@ -15,7 +15,7 @@ import time
 import httpx
 import os
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -118,7 +118,7 @@ class OnlyFansBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
       
     _LOCK = threading.Lock()
@@ -129,19 +129,7 @@ class OnlyFansBaseIE(InfoExtractor):
     
     _DRIVER = 0
     
-    _COUNT = 0
-    
-    
-    def __init__(self, *args, **kwargs):
-        super(OnlyFansBaseIE, self).__init__(*args, **kwargs)
-        
-        with OnlyFansBaseIE._LOCK:
-            OnlyFansBaseIE._COUNT += 1
-        
-            
-    
-      
-  
+
     
     def wait_until(self, driver, time, method):
         try:
@@ -424,35 +412,34 @@ class OnlyFansBaseIE(InfoExtractor):
                 
                 _mitmproxy = OnlyFansBaseIE._SERVER.create_proxy({'port' : _port})
                 
-                _firefox_prof = FirefoxProfile(prof_ff)
-                
-                _firefox_prof.set_preference("network.proxy.type", 1)
-                _firefox_prof.set_preference("network.proxy.http",_host)
-                _firefox_prof.set_preference("network.proxy.http_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.https",_host)
-                _firefox_prof.set_preference("network.proxy.https_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.ssl",_host)
-                _firefox_prof.set_preference("network.proxy.ssl_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.ftp",_host)
-                _firefox_prof.set_preference("network.proxy.ftp_port",int(_port))
-                _firefox_prof.set_preference("network.proxy.socks",_host)
-                _firefox_prof.set_preference("network.proxy.socks_port",int(_port))
-                _firefox_prof.set_preference("dom.webdriver.enabled", False)
-                _firefox_prof.set_preference("useAutomationExtension", False)
-                
-                _firefox_prof.update_preferences()
-                 
-                #_firefox_prof.set_proxy(_mitmproxy.selenium_proxy())
+
                 opts = Options()
-                opts.headless = True
+                opts.add_argument("--headless")
                 opts.add_argument("--no-sandbox")
                 opts.add_argument("--disable-application-cache")
                 opts.add_argument("--disable-gpu")
                 opts.add_argument("--disable-dev-shm-usage")
+                opts.add_argument("--profile")
+                opts.add_argument(prof_ff)   
+                opts.set_preference("network.proxy.type", 1)
+                opts.set_preference("network.proxy.http",_host)
+                opts.set_preference("network.proxy.http_port",int(_port))
+                opts.set_preference("network.proxy.https",_host)
+                opts.set_preference("network.proxy.https_port",int(_port))
+                opts.set_preference("network.proxy.ssl",_host)
+                opts.set_preference("network.proxy.ssl_port",int(_port))
+                opts.set_preference("network.proxy.ftp",_host)
+                opts.set_preference("network.proxy.ftp_port",int(_port))
+                opts.set_preference("network.proxy.socks",_host)
+                opts.set_preference("network.proxy.socks_port",int(_port))
+                opts.set_preference("dom.webdriver.enabled", False)
+                opts.set_preference("useAutomationExtension", False)
+                
+                
                 os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
                 os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
                 
-                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=_firefox_prof)
+                driver = Firefox(options=opts)
                 
                  
                 driver.maximize_window()
@@ -470,27 +457,7 @@ class OnlyFansBaseIE(InfoExtractor):
                 self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
                 raise ExtractorError(str(e)) from e
                                             
-                
-            
-    def __del__(self):
-       
-        with OnlyFansBaseIE._LOCK: 
-            
-            OnlyFansBaseIE._COUNT -= 1
-            if OnlyFansBaseIE._COUNT == 0:
-                #self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-                for __driver, __mitmproxy in list(OnlyFansBaseIE._QUEUE.queue):
-                    try:
-                        __driver.quit()
-                        __mitmproxy.close()
-                    except Exception as e:
-                        pass
-                        #self.to_screen(str(e))
-                #self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-                if OnlyFansBaseIE._SERVER:
-                    OnlyFansBaseIE._SERVER.stop()
-                #self.to_screen("SERVER STOPPED")
-                OnlyFansBaseIE.kill_java_process(OnlyFansBaseIE._SERVER.port) 
+
 
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'
@@ -547,31 +514,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             
         finally:
             OnlyFansPostIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-            # with OnlyFansPostIE._LOCK:
-                
-            #     try:
-            #         self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[]).remove(url)
-            #     except ValueError as e:
-            #         self.to_screen(str(e))
-            #     count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
-                
-            #     self.to_screen(f"COUNT: [{count}]")
-            #     if count == 0:
-            #         self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-            #         for __driver, __mitmproxy in list(OnlyFansPostIE._QUEUE.queue):
-            #             try:
-            #                 __driver.quit()
-            #                 __mitmproxy.close()
-            #             except Exception as e:
-            #                 self.to_screen(str(e))
-            #         self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-            #         OnlyFansPostIE._SERVER.stop()
-            #         self.to_screen("SERVER STOPPED")
-            #         self.kill_java_process(OnlyFansPostIE._SERVER.port)
-                    
-                            
-          
-        
+
         
                                                        
 
@@ -744,27 +687,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         
         finally:
             OnlyFansPlaylistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-            # with OnlyFansPlaylistIE._LOCK:
-                
-            #     try:
-            #         self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[]).remove(url)
-            #     except ValueError as e:
-            #         self.to_screen(str(e))
-            #     count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
-                
-            #     self.to_screen(f"COUNT: [{count}]")
-            #     if count == 0:
-            #         self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-            #         for __driver, __mitmproxy in list(OnlyFansPlaylistIE._QUEUE.queue):
-            #             try:
-            #                 __driver.quit()
-            #                 __mitmproxy.close()
-            #             except Exception as e:
-            #                 self.to_screen(str(e))
-            #         self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-            #         OnlyFansPlaylistIE._SERVER.stop()
-            #         self.to_screen("SERVER STOPPED")
-            #         self.kill_java_process(OnlyFansPlaylistIE._SERVER.port)
+
            
             
         
@@ -863,27 +786,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
         finally:
             OnlyFansPaidlistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-            # with OnlyFansPaidlistIE._LOCK:
-                
-            #     try:
-            #         self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]).remove(url)
-            #     except ValueError as e:
-            #         self.to_screen(str(e))
-            #     count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPost',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPlaylist',[])) + len(self._downloader.params.get('dict_videos_to_dl', {}).get('OnlyFansPaidlist',[]))
-                
-            #     self.to_screen(f"COUNT: [{count}]")
-            #     if count == 0:
-            #         self.to_screen("LETS CLOSE DRIVERS AND PROXIES")
-            #         for __driver, __mitmproxy in list(OnlyFansPaidlistIE._QUEUE.queue):
-            #             try:
-            #                 __driver.quit()
-            #                 __mitmproxy.close()
-            #             except Exception as e:
-            #                 self.to_screen(str(e))
-            #         self.to_screen("ALL DRIVERS AND PROXIES CLOSED")
-            #         OnlyFansPaidlistIE._SERVER.stop()
-            #         self.to_screen("SERVER STOPPED")
-            #         self.kill_java_process(OnlyFansPaidlistIE._SERVER.port)
+
         
         
         
