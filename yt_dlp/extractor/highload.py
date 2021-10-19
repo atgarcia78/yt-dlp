@@ -126,7 +126,7 @@ class HighloadIE(InfoExtractor):
             driver.get(_url)
             
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videerlay")))
-            res = driver.find_elements_by_id("faststream_html5_api")
+            res = driver.find_elements(by=By.ID, value="faststream_html5_api")
             if not res: raise ExtractorError("no info")
             if el: 
                 el.click()            

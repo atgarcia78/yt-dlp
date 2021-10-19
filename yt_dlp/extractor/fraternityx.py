@@ -103,7 +103,7 @@ class FraternityXBaseIE(InfoExtractor):
             
             el_password = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password")))   
             
-            el_login = _driver.find_element_by_css_selector("button")
+            el_login = _driver.find_element(by=By.CSS_SELECTOR, value="button")
             if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
             el_username.send_keys(username)
             self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
@@ -125,7 +125,7 @@ class FraternityXBaseIE(InfoExtractor):
                 if "authorize2" in _driver.current_url:
                     el_email = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#email")))
                     el_lastname = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#last-name")))
-                    el_enter = _driver.find_element_by_css_selector("button")
+                    el_enter = _driver.find_element(by=By.CSS_SELECTOR, value="button")
                     if not el_email or not el_lastname or not el_enter: raise ExtractorError("couldnt find text elements")
                     el_email.send_keys("a.tgarc@gmail.com")
                     self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
@@ -172,7 +172,7 @@ class FraternityXBaseIE(InfoExtractor):
         
         if not _title: _title = 'fraternity_video'    
         #self.to_screen(_title)
-        el_iframe = _driver.find_elements_by_tag_name("iframe")
+        el_iframe = _driver.find_elements(by=By.TAG_NAME, value="iframe")
         if not el_iframe: raise ExtractorError("no iframe")
         embedurl = el_iframe[0].get_attribute('src')
         #self.to_screen(f"embedurl:{embedurl}")
@@ -237,8 +237,8 @@ class FraternityXBaseIE(InfoExtractor):
             el_listmedia = self.wait_until(_driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
             if not el_listmedia: raise ExtractorError("no info")
             for media in el_listmedia:
-                el_tag = media.find_element_by_tag_name("a")
-                el_title = el_tag.find_element_by_class_name("episode-tile") #class name weird but it is what its been used in site page
+                el_tag = media.find_element(by=By.TAG_NAME, value="a")
+                el_title = el_tag.find_element(by=By.CLASS_NAME, value="episode-tile") #class name weird but it is what its been used in site page
                 _title = el_title.get_attribute('innerText').replace(" ", "_")
                 _title = sanitize_filename(_title, restricted=True)
                 entries.append(self.url_result(el_tag.get_attribute("href"), ie=FraternityXIE.ie_key(), video_title=_title))      
