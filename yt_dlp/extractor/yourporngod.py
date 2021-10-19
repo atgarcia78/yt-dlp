@@ -19,13 +19,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from selenium.webdriver import Firefox
-from selenium.webdriver import FirefoxProfile
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-import random
+import os
 from urllib.parse import unquote
+
+from threading import Lock
 
 
 class YourPornGodIE(InfoExtractor):
@@ -38,7 +39,7 @@ class YourPornGodIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
     def _get_info(self, url):
         
@@ -116,19 +117,32 @@ class YourPornGodIE(InfoExtractor):
             self._sort_formats(formats)
             
         else:
-            prof_id = random.randint(0,5) 
+            with YourPornGodIE._LOCK:
+                prof = YourPornGodIE._FF_PROF.pop()
+                YourPornGodIE._FF_PROF.insert(0, prof)
+        
+        
             opts = Options()
-            opts.headless = True
-            prof_ff = FirefoxProfile(self._FF_PROF[prof_id]) 
-            
+            opts.add_argument("--headless")
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--profile")
+            opts.add_argument(prof)                        
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                    
+            driver = Firefox(options=opts)
+    
+            self.to_screen(f"ffprof[{prof}]")
+
             try:
-                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=prof_ff)
-                #driver.maximize_window()
-                time.sleep(5)
-                try:
-                    driver.uninstall_addon('@VPNetworksLLC')
-                except Exception as e:            
-                    self.to.screen(f"Error: {repr(e)}")
+            
+                driver.maximize_window()
+            
+                self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+    
                 driver.get(url)
                 el_frames = self.wait_until(driver, 60, ec.presence_of_all_elements_located(((By.TAG_NAME, "iframe"))))
                 for i,el in enumerate(el_frames):

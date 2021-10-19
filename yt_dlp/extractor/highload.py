@@ -2,8 +2,6 @@
 from __future__ import unicode_literals
 
 
-import re
-import random
 
 
 from .common import InfoExtractor
@@ -14,12 +12,12 @@ from ..utils import (
 )
 
 
-
 import time
 import traceback
 import sys
+import os
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -29,6 +27,7 @@ from selenium.webdriver.common.by import By
 import time
 import httpx
 
+from threading import Lock
 
 class HighloadIE(InfoExtractor):
     
@@ -44,9 +43,9 @@ class HighloadIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
 
- 
+    _LOCK = Lock()
 
 
     def wait_until(self, _driver, time, method):
@@ -88,18 +87,30 @@ class HighloadIE(InfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        prof = self._FF_PROF.pop()
-        self._FF_PROF.insert(0, prof)
+        
+        with HighloadIE._LOCK:
+            prof = self._FF_PROF.pop()
+            self._FF_PROF.insert(0, prof)
             
         opts = Options()
-        opts.headless = True
+        opts.add_argument("--headless")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-application-cache")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--profile")
+        opts.add_argument(prof)                        
+        os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                            
+        
+        self.to_screen(f"ffprof[{prof}]")
+        
+        driver = Firefox(options=opts)
             
         try:                            
-                            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
- 
-            self.to_screen(f"ffprof[{prof}]")
-            
+                           
+                        
             self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
                 
             driver.uninstall_addon('uBlock0@raymondhill.net')
