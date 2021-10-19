@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -21,6 +21,8 @@ from ..utils import (
 
 import httpx
 import time
+from threading import Lock
+import os
 
 class GayForFansIE(InfoExtractor):
     IE_NAME = 'gayforfans'
@@ -32,9 +34,11 @@ class GayForFansIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
 
+    _LOCK = Lock()
+    
     def _get_filesize(self, url):
         
         count = 0
@@ -69,13 +73,32 @@ class GayForFansIE(InfoExtractor):
         self.report_extraction(url)
         try:
             
+            with GayForFansIE._LOCK:
+                prof_ff = self._FF_PROF.pop() 
+                self._FF_PROF.insert(0,prof_ff)
+                
             opts = Options()
-            opts.headless = True
-            prof_ff = self._FF_PROF.pop() 
-            self._FF_PROF.insert(0,prof_ff)
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=FirefoxProfile(prof_ff), options=opts)
-            driver.set_window_size(1920,575)
+            opts.add_argument("--headless")
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--profile")
+            opts.add_argument(prof_ff)                        
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                
+            driver = Firefox(options=opts)
+ 
+            self.to_screen(f"ffprof[{prof_ff}]")
+            
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()
+            
+            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            
             driver.get(url)
+            
             el_video = WebDriverWait(driver, 30).until(ec.presence_of_all_elements_located((By.TAG_NAME,'video')))
             
             _url = el_video[0].find_element_by_tag_name('source').get_attribute('src') if el_video else None
@@ -127,7 +150,7 @@ class GayForFansPlayListIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
 
     def _get_filesize(self, url):
@@ -164,12 +187,30 @@ class GayForFansPlayListIE(InfoExtractor):
         self.report_extraction(url)
         try:
             
+            with GayForFansPlayListIE._LOCK:
+                prof_ff = self._FF_PROF.pop() 
+                self._FF_PROF.insert(0,prof_ff)
+                
             opts = Options()
-            opts.headless = True
-            prof_ff = self._FF_PROF.pop() 
-            self._FF_PROF.insert(0,prof_ff)
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", firefox_profile=FirefoxProfile(prof_ff), options=opts)
-            driver.set_window_size(1920,575)
+            opts.add_argument("--headless")
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--profile")
+            opts.add_argument(prof_ff)                        
+            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                
+            driver = Firefox(options=opts)
+ 
+            self.to_screen(f"ffprof[{prof_ff}]")
+            
+            #driver.set_window_size(1920,575)
+            driver.maximize_window()
+            
+            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            
             driver.get(url)
             entries = []
             

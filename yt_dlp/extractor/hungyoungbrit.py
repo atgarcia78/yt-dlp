@@ -8,13 +8,12 @@ from ..utils import (
     ExtractorError, 
     int_or_none,
     sanitize_filename,
-    str_or_none,
     std_headers    
 
 )
 
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -51,19 +50,9 @@ class HungYoungBritBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
-    _COUNT = 0
-    
-    
-    def __init__(self, *args, **kwargs):
-        super(HungYoungBritBaseIE, self).__init__(*args, **kwargs)
-        
-        with HungYoungBritBaseIE._LOCK:
-            HungYoungBritBaseIE._COUNT += 1
-        
-            
-    
+
 
     
     def kill_geckodriver(self):
@@ -121,25 +110,13 @@ class HungYoungBritBaseIE(InfoExtractor):
             
         return el 
     
-    
-    def __del__(self):
-       
-        with HungYoungBritBaseIE._LOCK: 
-            
-            HungYoungBritBaseIE._COUNT -= 1
-            if HungYoungBritBaseIE._COUNT == 0:
-                #self.to_screen("CLOSE CLIENT")
-                if HungYoungBritBaseIE._CLIENT:
-                    HungYoungBritBaseIE._CLIENT.close()
+
 
 class HungYoungBritIE(HungYoungBritBaseIE):
     
     IE_NAME = "hungyoungbrit"
     
     _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
-   
-
-    
     
     def _real_initialize(self):
         
@@ -177,22 +154,27 @@ class HungYoungBritIE(HungYoungBritBaseIE):
                             HungYoungBritIE._COOKIES = _cookies
                             return
                                     
-                                    
-                                    
                     self.report_login()                                        
                     prof = HungYoungBritIE._FF_PROF.pop()
                     HungYoungBritIE._FF_PROF.insert(0,prof)
-                    self.to_screen(f"[ff] {prof}")
+                   
+
                     opts = Options()
-                    opts.headless = False                
+                    #opts.add_argument("--headless")
                     opts.add_argument("--no-sandbox")
                     opts.add_argument("--disable-application-cache")
                     opts.add_argument("--disable-gpu")
                     opts.add_argument("--disable-dev-shm-usage")
+                    opts.add_argument("--profile")
+                    opts.add_argument(prof)                        
                     os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                    os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
-                    driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+                    os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                        
                     
+                    self.to_screen(f"ffprof[{prof}]")
+                    
+                    driver = Firefox(options=opts)
+                                
                     self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
                     
                     driver.uninstall_addon('uBlock0@raymondhill.net')
@@ -255,20 +237,14 @@ class HungYoungBritIE(HungYoungBritBaseIE):
                         self.to_screen("login OK - 229")
                     else: raise ExtractorError("Error cookies")
                         
-                    
-                                
-                                
+                               
                 except ExtractorError as e:
                     raise
                 except Exception as e:                    
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")                    
                     raise ExtractorError(str(e)) from e
-                        
-                    
-                            
-                            
-                
+              
                 
     
     def _real_extract(self, url):
@@ -326,18 +302,7 @@ class HungYoungBritIE(HungYoungBritBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
-        # finally:
-        #     with HungYoungBritIE._LOCK:
-                
-        #         try:
-        #             self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBrit',[]).remove(url)
-        #         except ValueError as e:
-        #             self.to_screen(str(e))
-        #         count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBrit',[]))  
-        #         self.to_screen(f"COUNT: [{count}]")
-        #         if count == 0:
-        #             self.to_screen("CLOSE CLIENT")
-        #             HungYoungBritIE._CLIENT.close()
+
                     
        
                     
@@ -348,8 +313,6 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
     
     _VALID_URL = r'https?://(?:www\.)?hungyoungbrit\.com/members/category\.php\?id=5(?:&page=(?P<page>\d+))?(?:&(?P<search>s=\w))?'
    
-    
-    
     
     def _real_initialize(self):
         
@@ -392,16 +355,21 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
                     self.report_login()                                        
                     prof = HungYoungBritPlaylistIE._FF_PROF.pop()
                     HungYoungBritPlaylistIE._FF_PROF.insert(0,prof)
-                    self.to_screen(f"[ff] {prof}")
                     opts = Options()
-                    opts.headless = False                
+                    #opts.add_argument("--headless")
                     opts.add_argument("--no-sandbox")
                     opts.add_argument("--disable-application-cache")
                     opts.add_argument("--disable-gpu")
                     opts.add_argument("--disable-dev-shm-usage")
+                    opts.add_argument("--profile")
+                    opts.add_argument(prof)                        
                     os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                    os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
-                    driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+                    os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                        
+                    
+                    self.to_screen(f"ffprof[{prof}]")
+                    
+                    driver = Firefox(options=opts)
                     
                     self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
                     
@@ -422,8 +390,6 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
                     #self.wait_until(driver, 30, ec.url_changes(""))
                     self.to_screen(f"current url: {driver.current_url}")
                     if _home_url not in driver.current_url:
-                            
-                        
                                 
                         el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
                         el.click()
@@ -507,18 +473,7 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
-        # finally:
-        #     with HungYoungBritPlaylistIE._LOCK:
-                
-        #         try:
-        #             self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBritPlaylist',[]).remove(url)
-        #         except ValueError as e:
-        #             self.to_screen(str(e))
-        #         count = len(self._downloader.params.get('dict_videos_to_dl', {}).get('HungYoungBritPlaylist',[]))  
-        #         self.to_screen(f"COUNT: [{count}]")
-        #         if count == 0:
-        #             self.to_screen("CLOSE CLIENT")
-        #             HungYoungBritPlaylistIE._CLIENT.close()
+
                     
        
                     

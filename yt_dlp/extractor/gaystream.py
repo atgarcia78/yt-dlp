@@ -18,13 +18,13 @@ import sys
 from random import randint
 import os
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-from queue import Queue
+
 from threading import Lock
 
 
@@ -46,39 +46,10 @@ class GayStreamIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
 
-    _QUEUE = Queue()   
-    
-    _DRIVER = 0
     
     _LOCK =  Lock()
-    
-    _COUNT = 0
-    
-    
-    def __init__(self, *args, **kwargs):
-        super(GayStreamIE, self).__init__(*args, **kwargs)
-        
-        with GayStreamIE._LOCK:
-            GayStreamIE._COUNT += 1
-        
-            
-    
-    def __del__(self):
-       
-        with GayStreamIE._LOCK: 
-            GayStreamIE._COUNT -= 1
-            if GayStreamIE._COUNT == 0:
-                #self.to_screen("LETS CLOSE DRIVERS")
-                for __driver in list(GayStreamIE._QUEUE.queue):
-                    try:
-                        __driver.quit()
-                        
-                    except Exception as e:
-                        pass
-                        #self.to_screen(str(e))
-    
     
 
 
@@ -142,38 +113,29 @@ class GayStreamIE(InfoExtractor):
         
         
         with GayStreamIE._LOCK: 
-                
-            if GayStreamIE._DRIVER == self._downloader.params.get('winit', 5):
-                
-                driver = GayStreamIE._QUEUE.get(block=True)
-                
-            else:
-                
         
-                prof = GayStreamIE._FF_PROF.pop()
-                GayStreamIE._FF_PROF.insert(0, prof)
+            prof = GayStreamIE._FF_PROF.pop()
+            GayStreamIE._FF_PROF.insert(0, prof)
                     
-                opts = Options()
-                opts.headless = True
-                opts.add_argument("--no-sandbox")
-                opts.add_argument("--disable-application-cache")
-                opts.add_argument("--disable-gpu")
-                opts.add_argument("--disable-dev-shm-usage")
-                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                            
-                                
-                driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
-    
-                self.to_screen(f"ffprof[{prof}]")
-                
-                #driver.set_window_size(1920,575)
-                driver.maximize_window()   
-                
-                GayStreamIE._DRIVER += 1
-                    
-        try:                            
+        opts = Options()
+        opts.add_argument("--headless")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-application-cache")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--profile")
+        opts.add_argument(prof)                        
+        os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                            
+        
+        self.to_screen(f"ffprof[{prof}]")
+        
+        driver = Firefox(options=opts)
+                            
+        try: 
             
-            
+            driver.maximize_window() 
             driver.get(url)
             
             el_over =  self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.boner")))
@@ -230,22 +192,7 @@ class GayStreamIE(InfoExtractor):
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
         finally:
-            self._QUEUE.put_nowait(driver)
+            driver.quit()
         
-        
-        
-
-    def __del__(self):
-       
-        with GayStreamIE._LOCK: 
-            GayStreamIE._COUNT -= 1
-            if GayStreamIE._COUNT == 0:
-                #self.to_screen("LETS CLOSE DRIVERS")
-                for __driver in list(GayStreamIE._QUEUE.queue):
-                    try:
-                        __driver.quit()
-                        
-                    except Exception as e:
-                        pass
-                        #self.to_screen(str(e))      
+ 
 

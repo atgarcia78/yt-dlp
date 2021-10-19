@@ -11,8 +11,7 @@ from ..utils import (
 )
 import httpx
 
-
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -22,11 +21,6 @@ import time
 
 import traceback
 import sys
-
-from queue import (
-    Queue,
-    Empty)
-
 import os
 
 
@@ -40,12 +34,11 @@ class UserLoadIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
 
  
     _LOCK = threading.Lock()
-    _DRIVER = 0
-    _QUEUE = Queue()
+
 
     def wait_until(self, _driver, time, method):
         try:
@@ -88,50 +81,34 @@ class UserLoadIE(InfoExtractor):
         self.report_extraction(url)
         
         with UserLoadIE._LOCK: 
-                
-            if UserLoadIE._DRIVER == self._downloader.params.get('winit', 5):
-                
-                driver = UserLoadIE._QUEUE.get(block=True)
-                driver.execute_script('''location.replace("about:blank");''')
-                
-            else:
-                
-                try:
-                
-                    driver = UserLoadIE._QUEUE.get(block=False)
-                    driver.execute_script('''location.replace("about:blank");''')
-                    
-                except Empty:
-                    
-                    driver = None
-                    prof = UserLoadIE._FF_PROF.pop()
-                    UserLoadIE._FF_PROF.insert(0, prof)
-                    UserLoadIE._DRIVER += 1
-        
-                
-        
-        if not driver:
-                
-            opts = Options()
-            opts.headless = True
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
-                            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
-
-            self.to_screen(f"{url}:ffprof[{prof}]")
             
+            prof = UserLoadIE._FF_PROF.pop()
+            UserLoadIE._FF_PROF.insert(0, prof)
+            
+        opts = Options()
+        opts.add_argument("--headless")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-application-cache")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--profile")
+        opts.add_argument(prof)                        
+        os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                
+        driver = Firefox(options=opts)
+ 
+        self.to_screen(f"ffprof[{prof}]")
 
-
-            driver.maximize_window()
+        
             
         try:
             
+            driver.maximize_window()
+            
             _url = url.replace('/e/', '/f/').replace('/embed/', '/f/')
+            
+            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             driver.get(_url)
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videooverlay"))) 
@@ -203,7 +180,7 @@ class UserLoadIE(InfoExtractor):
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
         finally:
-            UserLoadIE._QUEUE.put_nowait(driver)
+            driver.quit()
         
         
 

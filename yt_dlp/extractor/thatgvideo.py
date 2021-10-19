@@ -9,7 +9,7 @@ from ..utils import (
     int_or_none
 )
 
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -21,8 +21,8 @@ import time
 
 import traceback
 import sys
-from queue import Queue, Empty
 from threading import Lock
+import os
 
 
 
@@ -35,12 +35,11 @@ class ThatGVideoIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/0khfuzdw.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
     
     
     _LOCK = Lock()
-    _DRIVER = 0
-    _QUEUE = Queue()
+
     
     def _get_infovideo(self, url):
         
@@ -88,56 +87,37 @@ class ThatGVideoIE(InfoExtractor):
         
         self.report_extraction(url)
         
-        with self._LOCK: 
-                
-            if self._DRIVER == self._downloader.params.get('winit', 5):
-                
-                driver = self._QUEUE.get(block=True)
-                driver.execute_script('''location.replace("about:blank");''')
-                
-            else:
-                
-                try:
-                
-                    driver = self._QUEUE.get(block=False)
-                    driver.execute_script('''location.replace("about:blank");''')
-                    
-                except Empty:
-                    
-                    driver = None
-                    prof = self._FF_PROF.pop()
-                    self._FF_PROF.insert(0, prof)
-                    self._DRIVER += 1
-        
-                
-        
-        if not driver:
-                
-            opts = Options()
-            opts.headless = True
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            
-                            
-            driver = Firefox(firefox_binary="/Applications/Firefox Nightly.app/Contents/MacOS/firefox", options=opts, firefox_profile=FirefoxProfile(prof))
+        with ThatGVideoIE._LOCK: 
 
-            self.to_screen(f"{url}:ffprof[{prof}]")
+            prof = self._FF_PROF.pop()
+            self._FF_PROF.insert(0, prof)
+       
+        
+                
+        opts = Options()
+        opts.add_argument("--headless")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-application-cache")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--profile")
+        opts.add_argument(prof)                        
+        os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
+        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+                                
+        driver = Firefox(options=opts)
+ 
+        self.to_screen(f"ffprof[{prof}]")
             
-            #elf.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
-            
-            #driver.uninstall_addon('uBlock0@raymondhill.net')
-            
-            #self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
-            
-            #driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
-                   
-            driver.set_window_size(1920,575)         
         try:
-                        
-                        
-            driver.get(url)
+            
+            
+            driver.maximize_window()
+            
+            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+           
+            driver.get(url)      
+
             el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
             video_url = el_video.get_attribute('src') if el_video else ""
             _format_video = {}
@@ -172,7 +152,7 @@ class ThatGVideoIE(InfoExtractor):
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
         finally:
-            self._QUEUE.put_nowait(driver)
+            driver.quit()
     
         if _entry_video:
             return _entry_video
