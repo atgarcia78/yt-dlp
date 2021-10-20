@@ -43,8 +43,8 @@ class SketchySexBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
-
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
+    
     _LOCK = threading.Lock()
     
     _QUEUE = Queue()   
@@ -273,9 +273,10 @@ class SketchySexIE(SketchySexBaseIE):
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--profile")
-            opts.add_argument(prof)                        
-            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+            opts.add_argument(prof)
+            opts.set_preference("network.proxy.type", 0)                       
+            
+                                           
                                 
             driver = Firefox(options=opts)
  
@@ -360,8 +361,8 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--profile")
             opts.add_argument(prof)                        
-            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+            opts.set_preference("network.proxy.type", 0)
+                                           
                                 
             driver = Firefox(options=opts)
  
@@ -383,11 +384,12 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
             self.wait_until(driver, 60, ec.title_contains("Episodes"))
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            if "ExtractorError" in str(e.__class__): raise
-            else: raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
             driver.quit()
             
@@ -418,9 +420,10 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
             opts.add_argument("--disable-gpu")
             opts.add_argument("--disable-dev-shm-usage")
             opts.add_argument("--profile")
-            opts.add_argument(prof)                        
-            os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-            os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+            opts.add_argument(prof)
+            opts.set_preference("network.proxy.type", 0)                    
+            
+                                           
                                 
             driver = Firefox(options=opts)
  

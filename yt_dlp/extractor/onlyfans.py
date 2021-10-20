@@ -59,8 +59,7 @@ class alreadylogin_or_reqtw():
         else:
             
             el = driver.find_elements(by=By.CSS_SELECTOR, value="a.g-btn.m-rounded.m-twitter.m-lg")
-            #el = driver.find_elements(by=By.CLASS_NAME, value="g-btn.m-rounded.m-twitter.m-lg")
-            #el = driver.find_elements(by=By.LINK_TEXT, value="SIGN IN WITH TWITTER")
+
             if el: return ("reqlogin", el[0])
             else: return False
             
@@ -118,7 +117,7 @@ class OnlyFansBaseIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
     
       
     _LOCK = threading.Lock()
@@ -436,8 +435,8 @@ class OnlyFansBaseIE(InfoExtractor):
                 opts.set_preference("useAutomationExtension", False)
                 
                 
-                os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-                os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'
+                
+                
                 
                 driver = Firefox(options=opts)
                 
