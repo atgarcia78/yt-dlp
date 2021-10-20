@@ -38,7 +38,7 @@ class GayTheBestIE(InfoExtractor):
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
                 '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ultb56bi.selenium0']
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
 
  
     _LOCK = threading.Lock()
@@ -101,9 +101,11 @@ class GayTheBestIE(InfoExtractor):
         opts.add_argument("--disable-gpu")
         opts.add_argument("--disable-dev-shm-usage")
         opts.add_argument("--profile")
-        opts.add_argument(prof)                        
-        os.environ['MOZ_HEADLESS_WIDTH'] = '1920'
-        os.environ['MOZ_HEADLESS_HEIGHT'] = '1080'                               
+        opts.add_argument(prof)
+        opts.set_preference("network.proxy.type", 0)   
+                           
+        
+                                       
                             
         
         self.to_screen(f"ffprof[{prof}]")
