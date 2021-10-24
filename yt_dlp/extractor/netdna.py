@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 import re
 
-from .common import InfoExtractor
+from .seleniuminfoextractor import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError, 
     int_or_none,
@@ -25,26 +25,11 @@ from selenium.common.exceptions import WebDriverException
 import httpx
 
 import traceback
-import threading
-import os
 
 
-
-class NetDNAIE(InfoExtractor):
+class NetDNAIE(SeleniumInfoExtractor):
     IE_NAME = "netdna"
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*'
-    
-
-    
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
-    
-
-    _LOCK = threading.Lock()
     
     
  
@@ -113,9 +98,7 @@ class NetDNAIE(InfoExtractor):
             videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
             return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*_DICT_BYTES[_unit]})
   
-            
-            
-            
+
     def wait_until(self, driver, time, method):        
         
         try:
@@ -159,7 +142,6 @@ class NetDNAIE(InfoExtractor):
         else: return ({'error': 'max retries'})  
     
 
-        
 
     def get_format(self, client, text, url):
         
@@ -180,34 +162,17 @@ class NetDNAIE(InfoExtractor):
     def _real_extract(self, url):        
         
         info_video = NetDNAIE.get_video_info(url)
-        self.report_extraction(f"[{info_video.get('id')}][{info_video.get('title')}]")
-        
-        with NetDNAIE._LOCK:
-            prof = NetDNAIE._FF_PROF.pop()
-            NetDNAIE._FF_PROF.insert(0, prof)
-               
+        self.report_extraction(f"[{info_video.get('id')}][{info_video.get('title')}]")        
 
-                    
-        opts = Options()
-        opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-application-cache")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--profile")
-        opts.add_argument(prof)
-        opts.set_preference("network.proxy.type", 0)                        
         
+        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
               
         
         try:
-                        
-         
-            driver = Firefox(options=opts)
-
-            self.to_screen(f"{url}:ffprof[{prof}]")
             
             driver.maximize_window()
+            
+            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             count = 0
             
@@ -318,7 +283,7 @@ class NetDNAIE(InfoExtractor):
                     if (count == 3):  raise ExtractorError(str(e))  
         finally:
             try:
-                driver.quit()
+                self.rm_driver(driver, tempdir)
             except Exception:
                 pass 
                        
