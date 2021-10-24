@@ -6,7 +6,7 @@ import re
 
 from ..utils import ExtractorError
 
-from .common import InfoExtractor
+from .seleniuminfoextractor import SeleniumInfoExtractor
 
 from concurrent.futures import (
     ThreadPoolExecutor,
@@ -25,7 +25,6 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 
-
 from .netdna import NetDNAIE
 
 import logging
@@ -36,18 +35,7 @@ import os
 
 logger = logging.getLogger("gaybeeg")
 
-class GayBeegBaseIE(InfoExtractor):
-    
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
-                ]
-    
-    _LOCK = threading.Lock()
-
+class GayBeegBaseIE(SeleniumInfoExtractor):
     
     
     @staticmethod
@@ -108,7 +96,7 @@ class GayBeegBaseIE(InfoExtractor):
         
             if not driver:
                 _keep = False
-                driver = self._launch_driver()
+                driver, tempdir = self._launch_driver()
             else:
                 _keep = True
                         
@@ -143,53 +131,29 @@ class GayBeegBaseIE(InfoExtractor):
                 return entries
             
         finally:
-            if not _keep: driver.quit()
+            if not _keep: 
+                self.rm_driver(driver, tempdir)
             
             
         
                 
     def _launch_driver(self):
         
-        with GayBeegBaseIE._LOCK:
-            
-                
-            prof = GayBeegBaseIE._FF_PROF.pop() 
-            GayBeegBaseIE._FF_PROF.insert(0,prof)
         
         try:
                 
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof)
-            opts.set_preference("network.proxy.type", 0)
-            opts.set_preference("dom.webdriver.enabled", False)
-            opts.set_preference("useAutomationExtension", False)                        
-            
-                                        
-                        
-            
-            driver = Firefox(options=opts)
-
-            self.to_screen(f"ffprof[{prof}]")
-        
-            #driver.set_window_size(1920,575)
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+           
             driver.maximize_window()
             
-            return driver
+            return (driver, tempdir)
             
         except ExtractorError as e:                 
             raise 
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e)) from e
-        
-
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(repr(e)) from e
 
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepage:playlist"
@@ -220,8 +184,7 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
             self.to_screen(str(e))
             logger.error(str(e), exc_info=True)
             raise 
-        
-    
+
 class GayBeegPlaylistIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:allpages:playlist"    
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:((?P<type>(?:site|pornstar|tag))(?:$|(/(?P<name>[^\/$\?]+)))(?:$|/$|/(?P<search1>\?(?:tag|s)=[^$]+)$))|((?P<search2>\?(?:tag|s)=[^$]+)$))'
@@ -233,7 +196,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                                    
             self.report_extraction(url)
             
-            driver = self._launch_driver()
+            driver, tempdir = self._launch_driver()
             driver.get(url)
             
             
@@ -248,8 +211,10 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 list_urls_pages = [re.sub('page/\d+/', f'page/{i}/', _href) for i in range(1, num_pages+1)]
                 
                 self.to_screen(list_urls_pages)
+                
+                self.rm_driver(driver, tempdir)
 
-                _num_workers = min(6, len(list_urls_pages))
+                _num_workers = min(4, len(list_urls_pages))
                 
                 with ThreadPoolExecutor(max_workers=_num_workers) as ex:
                     futures = [ex.submit(self._get_entries, _url) for _url in list_urls_pages] 
@@ -280,10 +245,11 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             raise ExtractorError(str(e)) from e
 
         finally:
-            driver.quit()
+            try:
+                self.rm_driver(driver, tempdir)
+            except:
+                pass
 
-        
-        
 class GayBeegIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:post:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/\d\d\d\d/\d\d/\d\d/.*'
