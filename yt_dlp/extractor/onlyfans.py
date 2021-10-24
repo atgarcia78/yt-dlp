@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import json
 
 
-from .common import InfoExtractor
+from .seleniuminfoextractor import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     int_or_none   
@@ -13,7 +13,7 @@ from ..utils import (
 import re
 import time
 import httpx
-import os
+
 
 from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
@@ -27,7 +27,6 @@ import html
 
 import sys
 import traceback
-import subprocess
 import threading
 from queue import Queue
 
@@ -104,22 +103,13 @@ class succ_or_twrelogin():
             else:
                 return False
 
-class OnlyFansBaseIE(InfoExtractor):
+class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://onlyfans.com"   
 
     #log in via twitter
     _NETRC_MACHINE = 'twitter2'
-    
-       
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
-    
-      
+
     _LOCK = threading.Lock()
     
     _SERVER = None
@@ -127,9 +117,7 @@ class OnlyFansBaseIE(InfoExtractor):
     _QUEUE = Queue() 
     
     _DRIVER = 0
-    
 
-    
     def wait_until(self, driver, time, method):
         try:
             el = WebDriverWait(driver, time).until(method)
@@ -180,17 +168,6 @@ class OnlyFansBaseIE(InfoExtractor):
             
         return _list_info_json
     
-    @staticmethod                    
-    def kill_java_process(port):
-        
-        res = subprocess.run(["ps","ax","-o","pid","-o","command"], encoding='utf-8', capture_output=True).stdout
-        _pid_list = re.findall(rf'^\ *(\d+)\ java\ .*browsermob.*port={port}', res, flags=re.MULTILINE)
-        for process_id in _pid_list:
-            res = subprocess.run(["kill","-9",process_id], encoding='utf-8', capture_output=True)
-            # if res.returncode != 0: 
-            #     self.to_screen("cant kill java proxy: " + res.stderr.decode())
-            # else: self.to_screen("java proxy killed")
-            
     def _logout(self, driver):
               
         push_el = self.wait_until(driver, 30, ec.presence_of_element_located(
@@ -383,7 +360,6 @@ class OnlyFansBaseIE(InfoExtractor):
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'[extract_from_json][output] {type(e)} \n{"!!".join(lines)}')
-                
 
     def _real_initialize(self):
         
@@ -398,8 +374,9 @@ class OnlyFansBaseIE(InfoExtractor):
                 driver = None
                 _mitmproxy = None
                 
-                prof_ff = OnlyFansBaseIE._FF_PROF.pop() 
-                OnlyFansBaseIE._FF_PROF.insert(0,prof_ff)
+                # prof_ff = OnlyFansBaseIE._FF_PROF.pop() 
+                # OnlyFansBaseIE._FF_PROF.insert(0,prof_ff)
+                
                 if not OnlyFansBaseIE._SERVER:
                               
                     OnlyFansBaseIE._SERVER = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': 18080})
@@ -407,32 +384,35 @@ class OnlyFansBaseIE(InfoExtractor):
                 
                 
                 _port = 18081 + OnlyFansBaseIE._DRIVER
+                
                 _host = 'localhost'
                 
                 _mitmproxy = OnlyFansBaseIE._SERVER.create_proxy({'port' : _port})
                 
 
-                opts = Options()
-                opts.add_argument("--headless")
-                opts.add_argument("--no-sandbox")
-                opts.add_argument("--disable-application-cache")
-                opts.add_argument("--disable-gpu")
-                opts.add_argument("--disable-dev-shm-usage")
-                opts.add_argument("--profile")
-                opts.add_argument(prof_ff)   
-                opts.set_preference("network.proxy.type", 1)
-                opts.set_preference("network.proxy.http",_host)
-                opts.set_preference("network.proxy.http_port",int(_port))
-                opts.set_preference("network.proxy.https",_host)
-                opts.set_preference("network.proxy.https_port",int(_port))
-                opts.set_preference("network.proxy.ssl",_host)
-                opts.set_preference("network.proxy.ssl_port",int(_port))
-                opts.set_preference("network.proxy.ftp",_host)
-                opts.set_preference("network.proxy.ftp_port",int(_port))
-                opts.set_preference("network.proxy.socks",_host)
-                opts.set_preference("network.proxy.socks_port",int(_port))
-                opts.set_preference("dom.webdriver.enabled", False)
-                opts.set_preference("useAutomationExtension", False)
+                opts, tempdir = self.get_opts(Options(), prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0', host=_host, port=_port)
+
+                # opts = Options()
+                # opts.add_argument("--headless")
+                # opts.add_argument("--no-sandbox")
+                # opts.add_argument("--disable-application-cache")
+                # opts.add_argument("--disable-gpu")
+                # opts.add_argument("--disable-dev-shm-usage")
+                # opts.add_argument("--profile")
+                # opts.add_argument(prof_ff)   
+                # opts.set_preference("network.proxy.type", 1)
+                # opts.set_preference("network.proxy.http",_host)
+                # opts.set_preference("network.proxy.http_port",int(_port))
+                # opts.set_preference("network.proxy.https",_host)
+                # opts.set_preference("network.proxy.https_port",int(_port))
+                # opts.set_preference("network.proxy.ssl",_host)
+                # opts.set_preference("network.proxy.ssl_port",int(_port))
+                # opts.set_preference("network.proxy.ftp",_host)
+                # opts.set_preference("network.proxy.ftp_port",int(_port))
+                # opts.set_preference("network.proxy.socks",_host)
+                # opts.set_preference("network.proxy.socks_port",int(_port))
+                # opts.set_preference("dom.webdriver.enabled", False)
+                # opts.set_preference("useAutomationExtension", False)
                 
                 
                 
