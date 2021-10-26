@@ -30,6 +30,8 @@ import traceback
 import threading
 from queue import Queue
 
+from datetime import datetime 
+
 
 class error404_or_found():
     
@@ -118,13 +120,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     
     _DRIVER = 0
 
-    def wait_until(self, driver, time, method):
-        try:
-            el = WebDriverWait(driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el  
+ 
 
     def scan_for_request(self, _har, _ref, _link):
                           
@@ -198,8 +194,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         try:
 
+             
             driver.get(self._SITE_URL)
-            time.sleep(2)          
+            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))        
 
             
             el_init = self.wait_until(driver, 60, alreadylogin_or_reqtw())
@@ -256,7 +253,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
             raise           
  
-    def _extract_from_json(self, data_post, acc=False, users_dict={}, user_profile=None):
+    def _extract_from_json(self, data_post, users_dict={}, user_profile=None):
 
         
         try:
@@ -264,7 +261,20 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             
             
             account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
-            datevideo = data_post.get('createdAt','').split('T')[0] or data_post.get('postedAt','').split('T')[0]
+            date_timestamp = int(datetime.fromisoformat((_datevideo:=data_post.get('createdAt','') or data_post.get('postedAt',''))).timestamp())
+            
+            def _get_filesize(_vurl):
+                _fsize = None 
+                _count = 0
+                while True:
+                    try:
+                        _fsize = int_or_none(httpx.head(_vurl).headers['content-length'])
+                        break
+                    except Exception as e:
+                        _count += 1
+                        if _count == 3: break
+                return _fsize
+                
             
             _entries = []
             
@@ -274,13 +284,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     
                     videoid = _media['id']
                     _formats = []
+                    orig_width = orig_height = None
                     
                     if _url:=_media.get('source',{}).get('source'):
-                        _filesize = None 
-                        try:
-                            _filesize = int_or_none(httpx.head(_url).headers['content-length'])
-                        except Exception as e:
-                            pass
+                        _filesize = _get_filesize(_url)
+                                
                         _formats.append({
                             'url': _url,
                             'width': (orig_width := _media.get('info',{}).get('source', {}).get('width')),
@@ -292,13 +300,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         })
                         
                     if _url2:=_media.get('videoSources',{}).get('720'):
-                            _filesize2 = None
-                            try:
-                                _filesize2 = int_or_none(httpx.head(_url2).headers['content-length'])
-                            except Exception as e:
-                                pass
+                            _filesize2 = _get_filesize(_url2)
                             
-                            if orig_width > orig_height:
+                            if orig_width and orig_height and (orig_width > orig_height):
                                 height = 720
                                 width = 1280
                             else:
@@ -316,13 +320,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             })
 
                     if _url3:=_media.get('videoSources',{}).get('240'):
-                            _filesize3 = None
-                            try:
-                                _filesize3 = int_or_none(httpx.head(_url2).headers['content-length'])
-                            except Exception as e:
-                                pass
+                            _filesize3 = _get_filesize(_url3)
                             
-                            if orig_width > orig_height:
+                            if orig_width and orig_height and (orig_width > orig_height):
                                 height = 240
                                 width = 426
                             else:
@@ -348,8 +348,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             
                         _entries.append({
                                 "id" :  str(videoid),
-                                #"id" :  str(data_post['id']),
-                                "title" :  datevideo.replace("-", "") + "_from_" + account,
+                                "release_timestamp": date_timestamp,
+                                "release_date" :  _datevideo.split("T")[0].replace("-", ""),
+                                "title" :  _datevideo.split("T")[0].replace("-", "") + "_from_" + account,
                                 "formats" : _formats,
                                 "duration" : _media.get('info',{}).get('source', {}).get('duration', 0),
                                 "ext" : "mp4"})
@@ -371,11 +372,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 if OnlyFansBaseIE._DRIVER == self._downloader.params.get('winit', 5):
                     return  
                 
-                driver = None
-                _mitmproxy = None
-                
-                # prof_ff = OnlyFansBaseIE._FF_PROF.pop() 
-                # OnlyFansBaseIE._FF_PROF.insert(0,prof_ff)
+
                 
                 if not OnlyFansBaseIE._SERVER:
                               
@@ -390,39 +387,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 _mitmproxy = OnlyFansBaseIE._SERVER.create_proxy({'port' : _port})
                 
 
-                opts, tempdir = self.get_opts(Options(), prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0', host=_host, port=_port)
+                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0', host=_host, port=_port)
 
-                # opts = Options()
-                # opts.add_argument("--headless")
-                # opts.add_argument("--no-sandbox")
-                # opts.add_argument("--disable-application-cache")
-                # opts.add_argument("--disable-gpu")
-                # opts.add_argument("--disable-dev-shm-usage")
-                # opts.add_argument("--profile")
-                # opts.add_argument(prof_ff)   
-                # opts.set_preference("network.proxy.type", 1)
-                # opts.set_preference("network.proxy.http",_host)
-                # opts.set_preference("network.proxy.http_port",int(_port))
-                # opts.set_preference("network.proxy.https",_host)
-                # opts.set_preference("network.proxy.https_port",int(_port))
-                # opts.set_preference("network.proxy.ssl",_host)
-                # opts.set_preference("network.proxy.ssl_port",int(_port))
-                # opts.set_preference("network.proxy.ftp",_host)
-                # opts.set_preference("network.proxy.ftp_port",int(_port))
-                # opts.set_preference("network.proxy.socks",_host)
-                # opts.set_preference("network.proxy.socks_port",int(_port))
-                # opts.set_preference("dom.webdriver.enabled", False)
-                # opts.set_preference("useAutomationExtension", False)
-                
-                
-                
-                
-                
-                driver = Firefox(options=opts)
-                
-                 
-                driver.maximize_window()
-      
                 self._login(driver) 
                 
                 OnlyFansBaseIE._DRIVER += 1
@@ -448,7 +414,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
  
         try:
             
-            driver, _mitmproxy = OnlyFansPostIE._QUEUE.get(block=True)
+            driver, _mitmproxy = OnlyFansPostIE._QUEUE.get(block=True, timeout=120)
             
             self.report_extraction(url)                  
 
@@ -511,7 +477,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         try:
             self.report_extraction(url)
             
-            driver, _mitmproxy = OnlyFansPlaylistIE._QUEUE.get(block=True)
+            driver, _mitmproxy = OnlyFansPlaylistIE._QUEUE.get(block=True, timeout=120)
             
             account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
             if not mode:
@@ -643,7 +609,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                         
                     for info_json in list_json:
                         
-                        _entry = self._extract_from_json(info_json, acc=True, user_profile=account)
+                        _entry = self._extract_from_json(info_json, user_profile=account)
                         if _entry: 
                             for _video in _entry:
                                 if not _video['id'] in entries.keys(): entries[_video['id']] = _video
@@ -687,7 +653,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
             self.report_extraction(url)
             
-            driver, _mitmproxy = OnlyFansPaidlistIE._QUEUE.get(block=True)
+            driver, _mitmproxy = OnlyFansPaidlistIE._QUEUE.get(block=True, timeout=120)
             
             _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
             driver.get(self._SITE_URL)
@@ -747,7 +713,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 for el in data_json:
                     list_json += el['list']                               
           
-                entries = [self._extract_from_json(info_json, acc=True, users_dict=users_dict)[0] for info_json in list_json]
+                entries = [self._extract_from_json(info_json, users_dict=users_dict)[0] for info_json in list_json]
            
             if entries:
                 self.write_debug(entries)

@@ -99,17 +99,10 @@ class NetDNAIE(SeleniumInfoExtractor):
             return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*_DICT_BYTES[_unit]})
   
 
-    def wait_until(self, driver, time, method):        
-        
-        try:
-            el = WebDriverWait(driver, time).until(method)
-        except Exception as e:
-            el = None
-    
-        return el   
+ 
 
     
-    def _get_info(self, url, client):
+    def _get_info_format(self, url, client):
         
         count = 0
         try:
@@ -155,7 +148,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         if count == 3: raise ExtractorError('Couldn get format')    
         _video_url = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text).group('file')
-        _info = self._get_info(_video_url, client)
+        _info = self._get_info_format(_video_url, client)
         return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
   
     
@@ -170,9 +163,9 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         try:
             
-            driver.maximize_window()
+            # driver.maximize_window()
             
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            # self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             count = 0
             
@@ -242,7 +235,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                                 el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
                                 if el_download:
                                     _video_url = el_download.get_attribute('href')
-                                    _info = self._get_info(_video_url, client)
+                                    _info = self._get_info_format(_video_url, client)
                                     _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
                                                                     
                                     entry = {

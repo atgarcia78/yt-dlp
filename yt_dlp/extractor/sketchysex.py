@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 import re
 
-from .common import InfoExtractor
+
 from ..utils import (
     ExtractorError,
     sanitize_filename
@@ -25,9 +25,10 @@ from selenium.webdriver.common.by import By
 from queue import Queue
 import html
 import demjson
-import time
 
-class SketchySexBaseIE(InfoExtractor):
+from .seleniuminfoextractor import SeleniumInfoExtractor
+
+class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
     _SITE_URL = "https://sketchysex.com"
     _LOGOUT_URL = "https://sketchysex.com/sign-out"
@@ -38,12 +39,7 @@ class SketchySexBaseIE(InfoExtractor):
 
     _NETRC_MACHINE = 'sketchysex'
 
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
+
     
     _LOCK = threading.Lock()
     
@@ -53,26 +49,13 @@ class SketchySexBaseIE(InfoExtractor):
     
     _COOKIES = None 
 
-    def wait_until(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el  
-    
-    def wait_until_not(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until_not(method)
-        except Exception as e:
-            el = None
-            
-        return el 
+
 
     def _login(self, _driver):
         
 
         
+        _driver.get(self._SITE_URL)
         _title = _driver.title.upper()
         #self.to_screen(_title)
         if "WARNING" in _title:
@@ -166,7 +149,7 @@ class SketchySexBaseIE(InfoExtractor):
                 mobj = re.findall(r'(.*) ::', el_title.get_attribute('innerText'))
                 if mobj: _title = mobj[0]
         
-        if not _title: _title = 'sketchysex_video'    
+        if not _title: _title = url.split('/')[-1].replace("-","_").upper() 
         #self.to_screen(_title)
         el_iframe = _driver.find_elements(by=By.TAG_NAME, value="iframe")
         if not el_iframe: raise ExtractorError("no iframe")
@@ -263,41 +246,24 @@ class SketchySexIE(SketchySexBaseIE):
             if SketchySexIE._DRIVER == (self._downloader.params.get('winit', 5)):
                 return  
             
-            prof = SketchySexIE._FF_PROF.pop()
-            SketchySexIE._FF_PROF.insert(0, prof)
+
             
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof)
-            opts.set_preference("network.proxy.type", 0)                       
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
             
-                                           
-                                
-            driver = Firefox(options=opts)
- 
-            self.to_screen(f"ffprof[{prof}]")
+
             
-            #driver.set_window_size(1920,575)
-            driver.maximize_window()
-            
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
-            
-            driver.get(self._SITE_URL)
-            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            # driver.get(self._SITE_URL)
+            # self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             if SketchySexIE._COOKIES:
             
+                driver.get(self._SITE_URL)
                 driver.delete_all_cookies()
                 for cookie in SketchySexIE._COOKIES:
                     driver.add_cookie(cookie)
                         
-                driver.get(self._SITE_URL)
-                self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))               
+                # driver.get(self._SITE_URL)
+                # self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))               
             
             try:
                 self._login(driver)
@@ -316,7 +282,7 @@ class SketchySexIE(SketchySexBaseIE):
         data = None
         try:
         
-            driver = SketchySexIE._QUEUE.get(block=True) 
+            driver = SketchySexIE._QUEUE.get(block=True, timeout=120) 
             data = self._extract_from_page(driver, url)
                  
             
@@ -349,39 +315,41 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
         
         try:              
                         
-            with SketchySexOnePagePlaylistIE._LOCK:
-                prof = SketchySexOnePagePlaylistIE._FF_PROF.pop()
-                SketchySexOnePagePlaylistIE._FF_PROF.insert(0, prof)
+            # with SketchySexOnePagePlaylistIE._LOCK:
+            #     prof = SketchySexOnePagePlaylistIE._FF_PROF.pop()
+            #     SketchySexOnePagePlaylistIE._FF_PROF.insert(0, prof)
             
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof)                        
-            opts.set_preference("network.proxy.type", 0)
+            # opts = Options()
+            # opts.add_argument("--headless")
+            # opts.add_argument("--no-sandbox")
+            # opts.add_argument("--disable-application-cache")
+            # opts.add_argument("--disable-gpu")
+            # opts.add_argument("--disable-dev-shm-usage")
+            # opts.add_argument("--profile")
+            # opts.add_argument(prof)                        
+            # opts.set_preference("network.proxy.type", 0)
                                            
                                 
-            driver = Firefox(options=opts)
+            # driver = Firefox(options=opts)
  
-            self.to_screen(f"ffprof[{prof}]")
+            #self.to_screen(f"ffprof[{prof}]")
             
             #driver.set_window_size(1920,575)
-            driver.maximize_window()
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
             
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            # driver.maximize_window()
+            
+            # self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             driver.get(self._SITE_URL)
-            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "enter-btn")))
                 if el_enter: el_enter.click()
-            self.wait_until(driver, 60, ec.title_contains("Episodes"))
+            #self.wait_until(driver, 60, ec.title_contains("Episodes"))
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
         except ExtractorError:
@@ -391,7 +359,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            driver.quit()
+            self.rm_driver(driver, tempdir)
             
         if not entries: raise ExtractorError("no video list") 
         
@@ -409,40 +377,22 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
         
         try:              
                         
-            with SketchySexAllPagesPlaylistIE._LOCK:
-                prof = SketchySexAllPagesPlaylistIE._FF_PROF.pop()
-                SketchySexAllPagesPlaylistIE._FF_PROF.insert(0, prof)
+
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
             
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof)
-            opts.set_preference("network.proxy.type", 0)                    
+            # driver.maximize_window()
             
-                                           
-                                
-            driver = Firefox(options=opts)
- 
-            self.to_screen(f"ffprof[{prof}]")
-            
-            #driver.set_window_size(1920,575)
-            driver.maximize_window()
-            
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            # self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             driver.get(self._SITE_URL)
-            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "enter-btn")))
                 if el_enter: el_enter.click()
-            self.wait_until(driver, 60, ec.title_contains("Episodes"))       
+            #self.wait_until(driver, 60, ec.title_contains("Episodes"))       
         
             entries = self._extract_list(driver, 1, nextpages=True)  
         
@@ -452,7 +402,7 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            driver.quit()
+            self.rm_driver(driver, tempdir)
             
         if not entries: raise ExtractorError("no video list") 
         

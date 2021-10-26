@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 
 
-from .common import InfoExtractor
 
 from ..utils import (
     ExtractorError, 
@@ -25,14 +24,14 @@ import html
 import traceback
 import sys
 import hashlib
-import subprocess
 import threading
 import json
+from .seleniuminfoextractor import SeleniumInfoExtractor
 
 import os
 
 
-class HungYoungBritBaseIE(InfoExtractor):
+class HungYoungBritBaseIE(SeleniumInfoExtractor):
     
     _SITE_URL = 'https://www.hungyoungbrit.com'
     _NETRC_MACHINE = 'hungyoungbrit'
@@ -43,27 +42,7 @@ class HungYoungBritBaseIE(InfoExtractor):
     
     _CLIENT = None
     
-   
-    
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
-    
 
-
-    
-    def kill_geckodriver(self):
-        res = subprocess.run(["ps","-o","pid","-o","comm"], encoding='utf-8', capture_output=True).stdout
-        mobj = re.findall(r'(\d+) geckodriver', res)
-        if mobj:
-            for process in mobj:                    
-                res = subprocess.run(["kill","-9",process[0]], encoding='utf-8', capture_output=True)
-                if res.returncode != 0: self.logger.debug(f"cant kill {process[0]} : {process[1]} : {res.stderr}")
-                else: self.logger.info(f"killed {process[0]} : {process[1]}")    
-        
 
     def _get_info_video(self, url):
        
@@ -72,127 +51,89 @@ class HungYoungBritBaseIE(InfoExtractor):
                 
             try:
                 
-                res = httpx.head(url, verify=(not self._downloader.params.get('nocheckcertificate')))
-                if res.status_code > 400:
+                #res = httpx.head(url, verify=(not self._downloader.params.get('nocheckcertificate')))
+                with HungYoungBritBaseIE._LOCK:
+                    res = HungYoungBritBaseIE._CLIENT.head(url)
+                
+                    if res.status_code > 400:
                     
-                    count += 1
-                else: 
-                    
-                    _res = int_or_none(res.headers.get('content-length')) 
-                    _url = str(res.url)
-                    #self.to_screen(f"{url}:{_url}:{_res}")
-                    if _res and _url: 
-                        break
-                    else:
                         count += 1
+                    else: 
+                    
+                        _filesize = int_or_none(res.headers.get('content-length')) 
+                        _url = str(res.url)
+                    
+                        #self.to_screen(f"{url}:{_url}:{_filesize}")
+                        if _filesize: 
+                            # for key, value in HungYoungBritBaseIE._CLIENT.cookies.jar.__dict__['_cookies']['.xvid.com']['/'].items():
+                            #     self._set_cookie(domain='.xvid.com', name=key, value=value.value)
+                            res = {'url': _url, 'filesize': _filesize}
+                            return res
+                        else:
+                            count += 1
         
             except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+                
                 count += 1
                 
-            time.sleep(1)
+            
                 
-        if count < 5: return ({'url': _url, 'filesize': _res}) 
-        else: return   
-
-    def wait_until(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el  
-    
-    def wait_until_not(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until_not(method)
-        except Exception as e:
-            el = None
-            
-        return el 
-    
+        
 
 
-class HungYoungBritIE(HungYoungBritBaseIE):
-    
-    IE_NAME = "hungyoungbrit"
-    
-    _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
-    
     def _real_initialize(self):
         
         _home_url = "https://www.hungyoungbrit.com/members/category.php?id=5"
         
-        with HungYoungBritIE._LOCK:
+        with HungYoungBritBaseIE._LOCK:
         
-            if not HungYoungBritIE._CLIENT:        
+            if not HungYoungBritBaseIE._CLIENT:        
  
                 try:                
                         
                     _timeout = httpx.Timeout(30, connect=30)        
                     _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                    HungYoungBritIE._CLIENT = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')), headers=std_headers)
+                    HungYoungBritBaseIE._CLIENT = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')), headers=std_headers)
                 
                     _cookies = None
-                    if not HungYoungBritIE._COOKIES:
+                    if not HungYoungBritBaseIE._COOKIES:
                         
                         try:
                             with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "r") as f:
                                 _cookies = json.load(f)
                         except Exception as e:
                             self.to_screen(str(e))
-                    else: _cookies = HungYoungBritIE._COOKIES
+                    else: _cookies = HungYoungBritBaseIE._COOKIES
                     
                     if _cookies:
                                 
                         for cookie in _cookies:
-                            HungYoungBritIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                            HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                         
-                        res = HungYoungBritIE._CLIENT.get(_home_url)
+                        res = HungYoungBritBaseIE._CLIENT.get(_home_url)
                         
                         if _home_url in str(res.url):
-                            self.to_screen("login OK - 151")
-                            HungYoungBritIE._COOKIES = _cookies
+                            self.to_screen("login OK - 112")
+                            HungYoungBritBaseIE._COOKIES = _cookies
                             return
                                     
                     self.report_login()                                        
-                    prof = HungYoungBritIE._FF_PROF.pop()
-                    HungYoungBritIE._FF_PROF.insert(0,prof)
-                   
+                    
+                    
+                    
+                    
+                    driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0', noheadless=True)
 
-                    opts = Options()
-                    #opts.add_argument("--headless")
-                    opts.add_argument("--no-sandbox")
-                    opts.add_argument("--disable-application-cache")
-                    opts.add_argument("--disable-gpu")
-                    opts.add_argument("--disable-dev-shm-usage")
-                    opts.add_argument("--profile")
-                    opts.add_argument(prof)
-                    opts.set_preference("network.proxy.type", 0)                        
-                    
-                                                   
-                                        
-                    
-                    self.to_screen(f"ffprof[{prof}]")
-                    
-                    driver = Firefox(options=opts)
                                 
-                    self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
                     
-                    driver.uninstall_addon('uBlock0@raymondhill.net')
-                    
-                    self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
-                    
-                    driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
-                    
-                    self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
-                    
-                    #driver.set_window_size(1920, 525)
-                    driver.maximize_window()                    
                     
                     driver.get(self._SITE_URL)
                     driver.add_cookie({"name": "warn", "value":"1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})  
+                    
                     driver.get(_home_url)  
-                    #self.wait_until(driver, 30, ec.url_changes(""))
+                    self.wait_until(driver, 30, ec.url_changes(""))
                     self.to_screen(f"current url: {driver.current_url}")
                     if _home_url not in driver.current_url:
                             
@@ -223,19 +164,19 @@ class HungYoungBritIE(HungYoungBritBaseIE):
 
                                         
                     #self.to_screen("login OK")
-                    HungYoungBritIE._COOKIES = driver.get_cookies()
-                    driver.quit()
+                    HungYoungBritBaseIE._COOKIES = driver.get_cookies()
+                    self.rm_driver(driver, tempdir)
                                 
                     with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
-                        json.dump(HungYoungBritIE._COOKIES, f)
+                        json.dump(HungYoungBritBaseIE._COOKIES, f)
                         
-                    for cookie in HungYoungBritIE._COOKIES:
-                        HungYoungBritIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    for cookie in HungYoungBritBaseIE._COOKIES:
+                        HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                         
-                    res = HungYoungBritIE._CLIENT.get(_home_url)
+                    res = HungYoungBritBaseIE._CLIENT.get(_home_url)
                         
                     if _home_url in str(res.url):
-                        self.to_screen("login OK - 229")
+                        self.to_screen("login OK - 172")
                     else: raise ExtractorError("Error cookies")
                         
                                
@@ -243,11 +184,20 @@ class HungYoungBritIE(HungYoungBritBaseIE):
                     raise
                 except Exception as e:                    
                     lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")                    
-                    raise ExtractorError(str(e)) from e
+                    self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")                    
+                    raise ExtractorError(repr(e)) from e
               
                 
     
+
+
+class HungYoungBritIE(HungYoungBritBaseIE):
+    
+    IE_NAME = "hungyoungbrit"
+    
+    _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
+    
+ 
     def _real_extract(self, url):
         
             
@@ -255,8 +205,9 @@ class HungYoungBritIE(HungYoungBritBaseIE):
                
             self.report_extraction(url)
             
- 
-            res = HungYoungBritIE._CLIENT.get(url)
+            with HungYoungBritBaseIE._LOCK:
+                
+                res = HungYoungBritBaseIE._CLIENT.get(url)
         
             webpage = re.sub('[\n\t]', '', html.unescape(res.text))
             
@@ -272,10 +223,17 @@ class HungYoungBritIE(HungYoungBritBaseIE):
             
             
             formats = []
+            
             for el in mobj:
+                # std_headers['Accept'] = "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5"
+                # std_headers['Referer'] = "https://www.hungyoungbrit.com/"
+                # std_headers['Accept-Language'] = "en,es-ES;q=0.5"
+                # std_headers['Accept-Encoding'] = "gzip, deflate, br"
+
                 _info_video = self._get_info_video(el[1])
+            
                 if _info_video:
-                    _url = _info_video['url']
+                    _url = _info_video['url']                    
                     _filesize = _info_video['filesize']
                 else:
                     _url = el[1]
@@ -285,7 +243,7 @@ class HungYoungBritIE(HungYoungBritBaseIE):
                         'width': int(el[2]),
                         'height': int(el[3]),
                         'filesize': _filesize,
-                        'format_id': f'http{el[3]}',
+                        'format_id': f'http{el[3]}',                        
                         'ext': 'mp4'})
             
             self._sort_formats(formats)
@@ -315,133 +273,133 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
     _VALID_URL = r'https?://(?:www\.)?hungyoungbrit\.com/members/category\.php\?id=5(?:&page=(?P<page>\d+))?(?:&(?P<search>s=\w))?'
    
     
-    def _real_initialize(self):
+    # def _real_initialize(self):
         
-        _home_url = "https://www.hungyoungbrit.com/members/category.php?id=5"
+    #     _home_url = "https://www.hungyoungbrit.com/members/category.php?id=5"
         
-        with HungYoungBritPlaylistIE._LOCK:
+    #     with HungYoungBritPlaylistIE._LOCK:
         
-            if not HungYoungBritPlaylistIE._CLIENT:        
+    #         if not HungYoungBritPlaylistIE._CLIENT:        
  
-                try:                
+    #             try:                
                         
-                    _timeout = httpx.Timeout(30, connect=30)        
-                    _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                    HungYoungBritPlaylistIE._CLIENT = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')), headers=std_headers)
+    #                 _timeout = httpx.Timeout(30, connect=30)        
+    #                 _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+    #                 HungYoungBritPlaylistIE._CLIENT = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')), headers=std_headers)
                 
-                    _cookies = None
-                    if not HungYoungBritPlaylistIE._COOKIES:
+    #                 _cookies = None
+    #                 if not HungYoungBritPlaylistIE._COOKIES:
                         
-                        try:
-                            with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "r") as f:
-                                _cookies = json.load(f)
-                        except Exception as e:
-                            self.to_screen(str(e))
-                    else: _cookies = HungYoungBritPlaylistIE._COOKIES
+    #                     try:
+    #                         with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "r") as f:
+    #                             _cookies = json.load(f)
+    #                     except Exception as e:
+    #                         self.to_screen(str(e))
+    #                 else: _cookies = HungYoungBritPlaylistIE._COOKIES
                     
-                    if _cookies:
+    #                 if _cookies:
                                 
-                        for cookie in _cookies:
-                            HungYoungBritPlaylistIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+    #                     for cookie in _cookies:
+    #                         HungYoungBritPlaylistIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                         
-                        res = HungYoungBritPlaylistIE._CLIENT.get(_home_url)
+    #                     res = HungYoungBritPlaylistIE._CLIENT.get(_home_url)
                         
-                        if _home_url in str(res.url):
-                            self.to_screen("login OK - 151")
-                            HungYoungBritPlaylistIE._COOKIES = _cookies
-                            return
+    #                     if _home_url in str(res.url):
+    #                         self.to_screen("login OK - 151")
+    #                         HungYoungBritPlaylistIE._COOKIES = _cookies
+    #                         return
                                     
                                     
                                     
-                    self.report_login()                                        
-                    prof = HungYoungBritPlaylistIE._FF_PROF.pop()
-                    HungYoungBritPlaylistIE._FF_PROF.insert(0,prof)
-                    opts = Options()
-                    #opts.add_argument("--headless")
-                    opts.add_argument("--no-sandbox")
-                    opts.add_argument("--disable-application-cache")
-                    opts.add_argument("--disable-gpu")
-                    opts.add_argument("--disable-dev-shm-usage")
-                    opts.add_argument("--profile")
-                    opts.add_argument(prof)
-                    opts.set_preference("network.proxy.type", 0)                        
+    #                 self.report_login()                                        
+    #                 prof = HungYoungBritPlaylistIE._FF_PROF.pop()
+    #                 HungYoungBritPlaylistIE._FF_PROF.insert(0,prof)
+    #                 opts = Options()
+    #                 #opts.add_argument("--headless")
+    #                 opts.add_argument("--no-sandbox")
+    #                 opts.add_argument("--disable-application-cache")
+    #                 opts.add_argument("--disable-gpu")
+    #                 opts.add_argument("--disable-dev-shm-usage")
+    #                 opts.add_argument("--profile")
+    #                 opts.add_argument(prof)
+    #                 opts.set_preference("network.proxy.type", 0)                        
                     
                                                    
                                         
                     
-                    self.to_screen(f"ffprof[{prof}]")
+    #                 self.to_screen(f"ffprof[{prof}]")
                     
-                    driver = Firefox(options=opts)
+    #                 driver = Firefox(options=opts)
                     
-                    self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
+    #                 self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))
                     
-                    driver.uninstall_addon('uBlock0@raymondhill.net')
+    #                 driver.uninstall_addon('uBlock0@raymondhill.net')
                     
-                    self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+    #                 self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
                     
-                    driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
+    #                 driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
                     
-                    self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+    #                 self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
                     
-                    #driver.set_window_size(1920, 525)
-                    driver.maximize_window()                    
+    #                 #driver.set_window_size(1920, 525)
+    #                 driver.maximize_window()                    
                     
-                    driver.get(self._SITE_URL)
-                    driver.add_cookie({"name": "warn", "value":"1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})  
-                    driver.get(_home_url)  
-                    #self.wait_until(driver, 30, ec.url_changes(""))
-                    self.to_screen(f"current url: {driver.current_url}")
-                    if _home_url not in driver.current_url:
+    #                 driver.get(self._SITE_URL)
+    #                 driver.add_cookie({"name": "warn", "value":"1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})  
+    #                 driver.get(_home_url)  
+    #                 #self.wait_until(driver, 30, ec.url_changes(""))
+    #                 self.to_screen(f"current url: {driver.current_url}")
+    #                 if _home_url not in driver.current_url:
                                 
-                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
-                        el.click()
+    #                     el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+    #                     el.click()
                         
-                        el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
-                        el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
-                        button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR,"button#btnLogin.btn.btn-primary.btn-sm.btn-block")))                    
-                        username, password = self._get_login_info()
-                        el_username.send_keys(username)
-                        self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
-                        el_password.send_keys(password)
-                        self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
+    #                     el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
+    #                     el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
+    #                     button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR,"button#btnLogin.btn.btn-primary.btn-sm.btn-block")))                    
+    #                     username, password = self._get_login_info()
+    #                     el_username.send_keys(username)
+    #                     self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
+    #                     el_password.send_keys(password)
+    #                     self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
                         
-                        button_login.click()
+    #                     button_login.click()
                         
-                        #self.wait_until(driver, 300, ec.url_changes(_url)) 
-                        self.wait_until(driver, 300, ec.invisibility_of_element(button_login)) 
+    #                     #self.wait_until(driver, 300, ec.url_changes(_url)) 
+    #                     self.wait_until(driver, 300, ec.invisibility_of_element(button_login)) 
                         
-                        #if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
+    #                     #if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
                         
-                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+    #                     el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
                         
-                        if el.text != 'ACCOUNT': raise ExtractorError("log in error")
+    #                     if el.text != 'ACCOUNT': raise ExtractorError("log in error")
 
                                         
-                    #self.to_screen("login OK")
-                    HungYoungBritPlaylistIE._COOKIES = driver.get_cookies()
-                    driver.quit()
+    #                 #self.to_screen("login OK")
+    #                 HungYoungBritPlaylistIE._COOKIES = driver.get_cookies()
+    #                 driver.quit()
                                 
-                    with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
-                        json.dump(HungYoungBritPlaylistIE._COOKIES, f)
+    #                 with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
+    #                     json.dump(HungYoungBritPlaylistIE._COOKIES, f)
                         
-                    for cookie in HungYoungBritPlaylistIE._COOKIES:
-                        HungYoungBritPlaylistIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+    #                 for cookie in HungYoungBritPlaylistIE._COOKIES:
+    #                     HungYoungBritPlaylistIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                         
-                    res = HungYoungBritPlaylistIE._CLIENT.get(_home_url)
+    #                 res = HungYoungBritPlaylistIE._CLIENT.get(_home_url)
                         
-                    if _home_url in str(res.url):
-                        self.to_screen("login OK - 229")
-                    else: raise ExtractorError("Error cookies")
+    #                 if _home_url in str(res.url):
+    #                     self.to_screen("login OK - 229")
+    #                 else: raise ExtractorError("Error cookies")
                         
                     
                                 
                                 
-                except ExtractorError as e:
-                    raise
-                except Exception as e:                    
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")                    
-                    raise ExtractorError(str(e)) from e
+    #             except ExtractorError as e:
+    #                 raise
+    #             except Exception as e:                    
+    #                 lines = traceback.format_exception(*sys.exc_info())
+    #                 self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")                    
+    #                 raise ExtractorError(str(e)) from e
                         
     def _real_extract(self, url):
         
@@ -450,8 +408,8 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
                
             self.report_extraction(url)
             
- 
-            res = HungYoungBritPlaylistIE._CLIENT.get(url)
+            with HungYoungBritBaseIE._LOCK:
+                res = HungYoungBritBaseIE._CLIENT.get(url)
         
             webpage = re.sub('[\n\t]', '', html.unescape(res.text))
             
