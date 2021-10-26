@@ -26,8 +26,10 @@ from queue import Queue
 import html
 import demjson
 
+from .seleniuminfoextractor import SeleniumInfoExtractor
 
-class FraternityXBaseIE(InfoExtractor):
+
+class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fraternityx.com/sign-in"
     _SITE_URL = "https://fraternityx.com"
     _LOGOUT_URL = "https://fraternityx.com/sign-out"
@@ -38,12 +40,6 @@ class FraternityXBaseIE(InfoExtractor):
 
     _NETRC_MACHINE = 'fraternityx'
 
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
 
     _LOCK = threading.Lock()
     
@@ -53,27 +49,13 @@ class FraternityXBaseIE(InfoExtractor):
     
     _COOKIES = None 
 
-    def wait_until(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el  
-    
-    def wait_until_not(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until_not(method)
-        except Exception as e:
-            el = None
-            
-        return el 
 
     def _login(self, _driver):
         
         
 
-        
+        _driver.get(self._SITE_URL)
+        #self.wait_until(_driver, 60, ec.url_changes(_current_url))
         _title = _driver.title.upper()
         #self.to_screen(_title)
         if "WARNING" in _title:
@@ -170,7 +152,7 @@ class FraternityXBaseIE(InfoExtractor):
                 mobj = re.findall(r'(.*) ::', el_title.get_attribute('innerText'))
                 if mobj: _title = mobj[0]
         
-        if not _title: _title = 'fraternity_video'    
+        if not _title: _title = url.split('/')[-1].replace("-","_").upper() 
         #self.to_screen(_title)
         el_iframe = _driver.find_elements(by=By.TAG_NAME, value="iframe")
         if not el_iframe: raise ExtractorError("no iframe")
@@ -234,7 +216,7 @@ class FraternityXBaseIE(InfoExtractor):
             #self.to_screen(url_pl)
             
             _driver.get(url_pl)
-            el_listmedia = self.wait_until(_driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
+            el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
             if not el_listmedia: raise ExtractorError("no info")
             for media in el_listmedia:
                 el_tag = media.find_element(by=By.TAG_NAME, value="a")
@@ -268,43 +250,27 @@ class FraternityXIE(FraternityXBaseIE):
             if FraternityXIE._DRIVER == (self._downloader.params.get('winit', 5)):
                 return  
             
-            prof = FraternityXIE._FF_PROF.pop()
-            FraternityXIE._FF_PROF.insert(0, prof)
-            
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")            
-            opts.add_argument(prof) 
-            opts.set_preference("network.proxy.type", 0)
-            opts.set_preference("dom.webdriver.enabled", False)
-            opts.set_preference("useAutomationExtension", False)
-            
-            driver = Firefox(options=opts)
  
-            self.to_screen(f"ffprof[{prof}]")
             
-            #driver.set_window_size(1920,575)
-            driver.maximize_window()
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
             
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
-            driver.get(self._SITE_URL)
-            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            
+            
+            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             if FraternityXIE._COOKIES:
             
+                driver.get(self._SITE_URL)
                 driver.delete_all_cookies()
                 for cookie in FraternityXIE._COOKIES:
                     driver.add_cookie(cookie)
                         
-                driver.get(self._SITE_URL)
-                self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))               
+                
+                #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))               
             
             try:
+                
                 self._login(driver)
                 FraternityXIE._COOKIES = driver.get_cookies()
                 FraternityXIE._DRIVER += 1
@@ -321,7 +287,7 @@ class FraternityXIE(FraternityXBaseIE):
         data = None
         try:
         
-            driver = FraternityXIE._QUEUE.get(block=True) 
+            driver = FraternityXIE._QUEUE.get(block=True, timeout=120) 
             data = self._extract_from_page(driver, url)
                  
             
@@ -354,51 +320,54 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
         
         try:              
                         
-            with FraternityXOnePagePlaylistIE._LOCK:
-                prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
-                FraternityXOnePagePlaylistIE._FF_PROF.insert(0, prof)
+            # with FraternityXOnePagePlaylistIE._LOCK:
+            #     prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
+            #     FraternityXOnePagePlaylistIE._FF_PROF.insert(0, prof)
             
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof)  
-            opts.set_preference("network.proxy.type", 0)
-            opts.set_preference("dom.webdriver.enabled", False)
-            opts.set_preference("useAutomationExtension", False)                                
+            # opts = Options()
+            # opts.add_argument("--headless")
+            # opts.add_argument("--no-sandbox")
+            # opts.add_argument("--disable-application-cache")
+            # opts.add_argument("--disable-gpu")
+            # opts.add_argument("--disable-dev-shm-usage")
+            # opts.add_argument("--profile")
+            # opts.add_argument(prof)  
+            # opts.set_preference("network.proxy.type", 0)
+            # opts.set_preference("dom.webdriver.enabled", False)
+            # opts.set_preference("useAutomationExtension", False)                                
             
                                            
                                 
-            driver = Firefox(options=opts)
+            # driver = Firefox(options=opts)
  
-            self.to_screen(f"ffprof[{prof}]")
+            # self.to_screen(f"ffprof[{prof}]")
             
-            driver.set_window_size(1920,575)
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+            
+            # driver.set_window_size(1920,575)
             #driver.maximize_window()
             
             #self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             driver.get(self._SITE_URL)
-            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
                 if el_enter: el_enter.click()
-            self.wait_until(driver, 60, ec.title_contains("Episodes"))
+            #self.wait_until(driver, 60, ec.title_contains("Episodes"))
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            if "ExtractorError" in str(e.__class__): raise
-            else: raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
-            driver.quit()
+            self.rm_driver(driver, tempdir)
             
         if not entries: raise ExtractorError("no video list") 
         
@@ -416,40 +385,21 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
         
         try:              
                         
-            with FraternityXAllPagesPlaylistIE._LOCK:
-                prof = FraternityXAllPagesPlaylistIE._FF_PROF.pop()
-                FraternityXAllPagesPlaylistIE._FF_PROF.insert(0, prof)
+
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+            # driver.maximize_window()
             
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof) 
-            opts.set_preference("network.proxy.type", 0)
-            opts.set_preference("dom.webdriver.enabled", False)
-            opts.set_preference("useAutomationExtension", False)   
-                                
-            driver = Firefox(options=opts)
- 
-            self.to_screen(f"ffprof[{prof}]")
-            
-            #driver.set_window_size(1920,575)
-            driver.maximize_window()
-            
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            # self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
             
             driver.get(self._SITE_URL)
-            self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
+            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
                 if el_enter: el_enter.click()
-            self.wait_until(driver, 60, ec.title_contains("Episodes"))       
+            #self.wait_until(driver, 60, ec.title_contains("Episodes"))       
         
             entries = self._extract_list(driver, 1, nextpages=True)  
         
@@ -459,7 +409,8 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            driver.quit()
+            #driver.quit()
+            self.rm_driver(driver, tempdir)
             
         if not entries: raise ExtractorError("no video list") 
         

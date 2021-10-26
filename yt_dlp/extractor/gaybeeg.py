@@ -80,14 +80,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                                             if "//gaybeeg.info" in (_url:=el_taga.get_attribute('href'))]    
         return entries
     
-    def wait_until(self, driver, time, method):        
-        
-        try:
-            el = WebDriverWait(driver, time).until(method)
-        except Exception as e:
-            el = None
-    
-        return el   
+ 
     
     
     def _get_entries(self, url, driver=None):
@@ -96,7 +89,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         
             if not driver:
                 _keep = False
-                driver, tempdir = self._launch_driver()
+                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
             else:
                 _keep = True
                         
@@ -137,23 +130,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
         
                 
-    def _launch_driver(self):
-        
-        
-        try:
-                
-            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
-           
-            driver.maximize_window()
-            
-            return (driver, tempdir)
-            
-        except ExtractorError as e:                 
-            raise 
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e
+
 
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepage:playlist"
@@ -196,7 +173,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                                    
             self.report_extraction(url)
             
-            driver, tempdir = self._launch_driver()
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
             driver.get(url)
             
             
