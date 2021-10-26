@@ -91,7 +91,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         return (opts, tempdir)
     
-    def get_driver(self, prof=None, host=None, port=None):
+    def get_driver(self, prof=None, noheadless=False, host=None, port=None):
         
         if not prof:
             prof = self.get_profile_path()
@@ -102,7 +102,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         opts = Options()
         
-        opts.add_argument("--headless")
+        if not noheadless:
+            opts.add_argument("--headless")
+        
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-application-cache")
         opts.add_argument("--disable-gpu")
@@ -135,7 +137,27 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         driver = Firefox(options=opts)
         
+        driver.maximize_window()
+        
+        self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+        
         return (driver, tempdir)
+    
+    def wait_until(self, driver, time, method):
+        try:
+            el = WebDriverWait(driver, time).until(method)
+        except Exception as e:
+            el = None
+            
+        return el 
+    
+    def wait_until_not(self, _driver, time, method):
+        try:
+            el = WebDriverWait(_driver, time).until_not(method)
+        except Exception as e:
+            el = None
+            
+        return el 
         
         
         
