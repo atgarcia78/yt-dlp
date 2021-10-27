@@ -1965,6 +1965,7 @@ from .nakedsword import (
     NakedSwordMovieIE,
     NakedSwordMostWatchedIE,
     NakedSwordStarsIE,
+    NakedSwordPlaylistIE
 )
 from .monstercockinfo import MonsterCockInfoIE
 from .onlyfans import (

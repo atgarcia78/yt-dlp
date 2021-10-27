@@ -15,7 +15,7 @@ from concurrent.futures import (
 )
 
 
-import threading
+
 
 
 from selenium.webdriver import Firefox
@@ -31,7 +31,7 @@ import logging
 import traceback
 import sys
 
-import os
+from datetime import datetime
 
 logger = logging.getLogger("gaybeeg")
 
@@ -45,19 +45,22 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         _next = None
         for _el in el_list:
             _url = _el.get_attribute('href')
-            
+            _tree = _el.find_elements(by=By.XPATH, value="./ancestor-or-self::*")
+            _tree.reverse()
             if _next:
-                _list_urls_netdna[_url] = _next
+                _list_urls_netdna[_url] = {'text': _next}
                 _next = None
             else:
-                _tree = _el.find_elements(by=By.XPATH, value="./ancestor-or-self::*")
-                _tree.reverse()
                 if any((_res:=el.text) for el in _tree):
             
                     _text = _res.splitlines()
-                    _list_urls_netdna[_url] = _text[0]
+                    _list_urls_netdna[_url] = {'text': _text[0]}
                     if len(_text) == 2 and any(_ext in _text[1] for _ext in ('mp4', 'zip')):
                         _next = _text[1]
+            if any((_el_date:=el.find_elements(by=By.CLASS_NAME, value='date')) for el in _tree):
+                    _date = _el_date[0].text
+                    _list_urls_netdna[_url].update({'date': _date})
+                    
                         
          
         
@@ -65,8 +68,9 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         
         for _url, _item in _list_urls_netdna.items():
             
-            _info_video = NetDNAIE.get_video_info(_item)
-            entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')})
+            _info_video = NetDNAIE.get_video_info(_item.get('text'))
+            _info_date = datetime. strptime(_item.get('date'), '%B %d, %Y')
+            entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
         
                                     
         return entries
@@ -117,6 +121,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             # if el_list:
             
             el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))
+            #el_date_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, 'date')))
             if el_a_list:
                 
                 entries = GayBeegBaseIE._get_entries_netdna(el_a_list)
