@@ -107,8 +107,7 @@ class succ_or_twrelogin():
 
 class OnlyFansBaseIE(SeleniumInfoExtractor):
 
-    _SITE_URL = "https://onlyfans.com"   
-
+    _SITE_URL = "https://onlyfans.com"
     #log in via twitter
     _NETRC_MACHINE = 'twitter2'
 
@@ -704,7 +703,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 
             self.to_screen(users_dict)
             
-            entries = []
+            entries = {}
             _reg_str = r'/api2/v2/posts/paid\?'
             data_json = self.scan_for_all_requests(har, "har_paid", _reg_str)
             if data_json:
@@ -712,13 +711,20 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 list_json = []
                 for el in data_json:
                     list_json += el['list']                               
-          
-                entries = [self._extract_from_json(info_json, users_dict=users_dict)[0] for info_json in list_json]
+                
+                for info_json in list_json:
+                    for _video in self._extract_from_json(info_json, users_dict=users_dict):
+                        if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                        else:
+                            if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                entries[_video['id']] = _video
+                         
+                
            
             if entries:
-                self.write_debug(entries)
-                return self.playlist_result(entries, "Onlyfanspaidlist", "Onlyfanspaidlist")
-            else: raise ExtractorError("no entries")
+                return self.playlist_result(list(entries.values()), "Onlyfans:paid", "Onlyfans:paid")
+            else:
+                raise ExtractorError("no entries") 
                  
             
         except ExtractorError as e:
