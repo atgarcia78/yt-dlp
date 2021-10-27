@@ -29,10 +29,7 @@ class NakedSwordBaseIE(InfoExtractor):
     _LOGIN_URL = "https://nakedsword.com/signin"
     _LOGOUT_URL = "https://nakedsword.com/signout"
     _NETRC_MACHINE = 'nakedsword'
-    
-    
-    
-   
+
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
         
@@ -110,9 +107,53 @@ class NakedSwordBaseIE(InfoExtractor):
         
         _headers = self._headers_ordered()
         res = client.get(self._LOGOUT_URL, headers=_headers, timeout=120)
-       
-
-
+        
+    def get_entries_scenes(self, url):
+        
+        entries = []
+        webpage = self._download_webpage(url, None, "Downloading web page playlist", fatal=False)
+        if webpage:  
+                        
+            videos_paths = re.findall(
+                r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
+                webpage)     
+            
+            if videos_paths:
+                
+                for video in videos_paths:
+                    _url = self._SITE_URL + video
+                    res = NakedSwordSceneIE._get_info(_url)
+                    if res:
+                        _id = res.get('id')
+                        _title = res.get('title')
+                    entry = self.url_result(_url, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
+                    entries.append(entry)
+ 
+        return entries
+    
+    def get_entries_movies(self, url):
+        
+        entries = []
+        webpage = self._download_webpage(url, None, "Downloading web page playlist", fatal=False)
+        if webpage:  
+                        
+            videos_paths = re.findall(
+                r"<div class='BoxResultsLink'><a href='/([^\']+)'>",
+                webpage)     
+            
+            if videos_paths:
+                
+                for video in videos_paths:
+                    _url = self._SITE_URL + video                    
+                    entry = self.url_result(_url, ie=NakedSwordMovieIE.ie_key())
+                    entries.append(entry)
+ 
+        return entries
+        
+        
+        
+        
+        
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:scene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
@@ -216,7 +257,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
                 
             if _type == "m3u8":
-                formats = self._parse_m3u8_formats(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
+                formats, subtitles = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
             elif _type == "dash":
                 formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
                 
@@ -316,15 +357,9 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         webpage = self._download_webpage(url, playlist_id, "Downloading web page playlist")
 
-        #print(webpage)
-
         pl_title = self._html_search_regex(r'(?s)<title>(?P<title>.*?)<', webpage, 'title', group='title').split(" | ")[1]
 
-        #print(title)
-
         scenes_paths = re.findall(rf'{title}/scene/([\d]+)', webpage)
-
-        #print(scenes_paths)
 
         entries = []
         for scene in scenes_paths:
@@ -335,10 +370,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                 _title = res.get('title')
             entry = self.url_result(_url, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
             entries.append(entry)
-
-        #print(entries)
-
-        
 
         return {
             '_type': 'playlist',
@@ -357,34 +388,17 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
 
         entries = []
 
-        for i in range(1,5):
-               
-            webpage = self._download_webpage(f"{self._MOST_WATCHED}{i}", None, "Downloading web page playlist")
-            if webpage:  
-                #print(webpage)          
-                videos_paths = re.findall(
-                    r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
-                    webpage)     
-                
-                if videos_paths:
-
-                    for j, video in enumerate(videos_paths):
-                        _url = self._SITE_URL + video
-                        res = NakedSwordSceneIE._get_info(_url)
-                        if res:
-                            _id = res.get('id')
-                            _title = res.get('title')
-                        entry = self.url_result(_url, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
-                        entries.append(entry)
-                else:
-                    raise ExtractorError("No info")
-
-
-                
-            else:
-                raise ExtractorError("No info")
-
-                
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            
+            futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, 6)]
+        
+        for fut in futures:
+            try:
+                entries += fut.result()
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+                raise ExtractorError(repr(e)) from e
 
         return {
             '_type': 'playlist',
@@ -398,7 +412,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:stars:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?$'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
-    _NPAGES = {"stars" : 1, "studios" : 1}
+    _NPAGES = {"stars" : 3, "studios" : 3}
     
     def _real_extract(self, url):     
        
@@ -407,36 +421,18 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
         
         entries = []
 
-        for i in range(self._NPAGES[data_list[0]]):
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            
+            futures = [ex.submit(self.get_entries_scenes, f"{url}{self._MOST_WATCHED}{i}") for i in range(1, self._NPAGES[data_list[0]] + 1)]
 
-
-            webpage = self._download_webpage(f"{url}{self._MOST_WATCHED}{i+1}", None, "Downloading web page playlist")
-            if webpage:  
-                #print(webpage)          
-                videos_paths = re.findall(
-                    r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
-                    webpage)     
-                
-                if videos_paths:
-
-                    for j, video in enumerate(videos_paths):
-                        
-                        _url = self._SITE_URL + video
-                        res = NakedSwordSceneIE._get_info(_url)
-                        if res:
-                            _id = res.get('id')
-                            _title = res.get('title')                        
-                        entry = self.url_result(_url, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
-                        entries.append(entry)
-                else:
-                    raise ExtractorError("No info")
-
-                if not "pagination-next" in webpage: break
-                
-            else:
-                raise ExtractorError("No info")
-
-                
+        for fut in futures:
+            try:
+                entries += fut.result()
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+                raise ExtractorError(repr(e)) from e
+        
 
         return {
             '_type': 'playlist',
@@ -444,3 +440,34 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
             'title':  f"NSw{data_list[0].capitalize()}_{''.join(w.capitalize() for w in data_list[2].split('-'))}",
             'entries': entries,
         }
+        
+class NakedSwordPlaylistIE(NakedSwordBaseIE):
+    IE_NAME = "nakedsword:playlist"
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<id>.+)$'
+    
+    
+    def _real_extract(self, url):      
+       
+
+        entries = []
+
+        webpage = self._download_webpage(url, None, "Downloading web page playlist")
+        if webpage: 
+
+            if 'SCENE LIST GRID WRAPPER' in webpage:
+                
+                entries = self.get_entries_scenes(url)
+                
+            else:
+                
+                entries = self.get_entries_movies(url)
+                       
+        if entries:
+            return {
+                '_type': 'playlist',
+                'id': "NakedSword_Playlist",
+                'title': sanitize_filename(self._match_id(url), restricted=True).upper(),
+                'entries': entries,
+            }
+        
+        else: raise ExtractorError("No entries")
