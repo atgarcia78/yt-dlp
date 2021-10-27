@@ -32,21 +32,39 @@ class NetDNAIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*'
     
     
- 
+    @staticmethod
+    def get_entry(url, ytdl):
+        
+        _info_video = NetDNAIE.get_video_info(url)
+        #entry =  {'_type' : 'url', 'url' : _info_video.get('url'), 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')}
+        _title_search =  _info_video.get('title').replace("_",",")
+        _id = _info_video.get('id')
+        
+        _info = ytdl.extract_info(f"https://gaybeeg.info/?s={_title_search}", download=False)
+        
+        _entries = _info.get('entries')
+        for _entry in _entries:
+            if _entry['id'] == _id:
+                return _entry
+        
+        
+        
     @staticmethod
     def get_video_info(item):
         
         _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
  
         if item.startswith('http'):
-        
+
+            title = None
+            _num = None
+            _unit = None
+            _timeout = httpx.Timeout(30, connect=30)        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers)
+            
             try:
-                title = None
-                _num = None
-                _unit = None
-                _timeout = httpx.Timeout(30, connect=30)        
-                _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers)
+                
                 count = 0        
                 while(count<5):        
                     try:                
@@ -67,22 +85,22 @@ class NetDNAIE(SeleniumInfoExtractor):
                                 
                             if title and _num and _unit: break
                             else: count += 1
-                        else: count += 1
-                        
+                        else: count += 1                       
                         
                     except Exception as e:
                         #lines = traceback.format_exception(*sys.exc_info())
                         #NetDNAIE.to_screen(NetDNAIE, f"Error: {repr(e)}\n{'!!'.join(lines)}")
                         count += 1
-                    
-                if count == 5: return({'error': 'max tries'})
-                else:
-                                        
-                    str_id = f"{title}{_num}"
-                    videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
-                    return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*_DICT_BYTES[_unit]})
             finally:
                 client.close()
+                        
+            if count == 5: return({'error': 'max tries'})
+            else:
+                                    
+                str_id = f"{title}{_num}"
+                videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
+                return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*_DICT_BYTES[_unit]})
+            
        
 
         else:
