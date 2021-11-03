@@ -1,6 +1,9 @@
 from __future__ import unicode_literals
 
-from .common import InfoExtractor
+from .common import InfoExtractor, ExtractorError
+
+import sys
+import traceback
 
 import threading
 import tempfile
@@ -16,18 +19,10 @@ from selenium.webdriver.common.by import By
 
 class SeleniumInfoExtractor(InfoExtractor):
     
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
-                ]
+    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
+                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
     
-    _MASTERLOCK = threading.Lock()
-    
-    
-    
+    _MASTERLOCK = threading.Lock()   
     
     def get_profile_path(self):
         
@@ -135,11 +130,19 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.to_screen(f"ffprof[{prof}]")
         self.to_screen(f"tempffprof[{tempdir}]")
         
-        driver = Firefox(options=opts)
+        try:
         
-        driver.maximize_window()
+            driver = Firefox(options=opts)
         
-        self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            driver.maximize_window()
+        
+            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
+            shutil.rmtree(tempdir, ignore_errors=True)  
+            raise ExtractorError(str(e)) from e
         
         return (driver, tempdir)
     
@@ -158,9 +161,3 @@ class SeleniumInfoExtractor(InfoExtractor):
             el = None
             
         return el 
-        
-        
-        
-        
-        
-        
