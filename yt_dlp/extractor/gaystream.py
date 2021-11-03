@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 
 
-from .common import InfoExtractor
+from .seleniuminfoextractor import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     sanitize_filename,
@@ -10,56 +10,32 @@ from ..utils import (
     std_headers   
 )
 
-
-
 import time
 import traceback
 import sys
 from random import randint
-import os
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 
 from threading import Lock
 
-
-
 import httpx
 
 
-class GayStreamIE(InfoExtractor):
+class GayStreamIE(SeleniumInfoExtractor):
     
     _SITE_URL = "https://gaystream.pw"
     
     IE_NAME = 'gaystream'
     _VALID_URL = r'https?://(?:www\.)?gaystream.pw/video/(?P<id>\d+)/?([^$]+)?$'
 
-    
-    
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
-
+ 
     
     _LOCK =  Lock()
     
 
-
-    def wait_until(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el  
     
     def _get_filesize(self, url):
         
@@ -110,34 +86,16 @@ class GayStreamIE(InfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        
-        
-        with GayStreamIE._LOCK: 
-        
-            prof = GayStreamIE._FF_PROF.pop()
-            GayStreamIE._FF_PROF.insert(0, prof)
-                    
-        opts = Options()
-        opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-application-cache")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--profile")
-        opts.add_argument(prof)
-        opts.set_preference("network.proxy.type", 0)                        
-        
-                                       
-                            
-        
-        self.to_screen(f"ffprof[{prof}]")
-        
-        driver = Firefox(options=opts)
+ 
+        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')            
+   
                             
         try: 
             
-            driver.maximize_window() 
-            driver.get(url)
+           
+            with GayStreamIE._LOCK: 
+                
+                driver.get(url)
             
             el_over =  self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.boner")))
             if el_over:
@@ -193,7 +151,10 @@ class GayStreamIE(InfoExtractor):
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
         finally:
-            driver.quit()
+            try:
+                self.rm_driver(driver, tempdir)
+            except Exception:
+                pass
         
  
 
