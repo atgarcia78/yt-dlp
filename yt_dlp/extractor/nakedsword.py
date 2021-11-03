@@ -150,10 +150,6 @@ class NakedSwordBaseIE(InfoExtractor):
  
         return entries
         
-        
-        
-        
-        
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:scene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
@@ -162,8 +158,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     _COOKIES = {}
     
     @staticmethod
-    def _get_info(url, _res=None):
-        
+    def _get_info(url, _res=None):       
         
         if not _res:
             count = 0
@@ -199,8 +194,6 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             except Exception as e:
                 count += 1
         return(_res if count < 3 else None)
-        
-        
     
     
     def _real_initialize(self):
@@ -412,7 +405,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:stars:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?$'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
-    _NPAGES = {"stars" : 3, "studios" : 3}
+    _NPAGES = {"stars" : 2, "studios" : 3}
     
     def _real_extract(self, url):     
        
