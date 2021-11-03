@@ -15,10 +15,6 @@ import hashlib
 import sys
 import traceback
 
-
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
@@ -32,14 +28,17 @@ class NetDNAIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*'
     
     
-    @staticmethod
-    def get_entry(url, ytdl):
+    @classmethod
+    def get_entry(cls, url, ytdl=None):
         
         _info_video = NetDNAIE.get_video_info(url)
         #entry =  {'_type' : 'url', 'url' : _info_video.get('url'), 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')}
         _title_search =  _info_video.get('title').replace("_",",")
         _id = _info_video.get('id')
-        
+        if not ytdl:
+            if any((_ytdl:=el._downloader) for el in  cls.__mro__):
+                ytdl = _ytdl
+        #para poder obtener la release date hay que buscar el post asociado en gaybeeg
         _info = ytdl.extract_info(f"https://gaybeeg.info/?s={_title_search}", download=False)
         
         _entries = _info.get('entries')
@@ -49,8 +48,8 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         
         
-    @staticmethod
-    def get_video_info(item):
+    @classmethod
+    def get_video_info(cls, item):
         
         _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
  

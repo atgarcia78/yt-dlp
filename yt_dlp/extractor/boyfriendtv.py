@@ -1,13 +1,9 @@
 # coding: utf-8
 from __future__ import unicode_literals
-from distutils.log import info
 
 import re
-import os
 
-
-from .common import InfoExtractor
-
+from .seleniuminfoextractor import SeleniumInfoExtractor
 
 from ..utils import (
     ExtractorError,  
@@ -22,9 +18,7 @@ import html
 import time
 import threading
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
@@ -36,43 +30,15 @@ import demjson
 from urllib.parse import unquote
 
 
-from queue import Queue
-
-
-class BoyFriendTVBaseIE(InfoExtractor):
+class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = 'https://www.boyfriendtv.com/login/'
     _SITE_URL = 'https://www.boyfriendtv.com/'
     _NETRC_MACHINE = 'boyfriendtv'
     _LOGOUT_URL = 'https://www.boyfriendtv.com/logout'
-   
+
+    _LOCK = threading.Lock()
     
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
-                ]
-    
-    def wait_until(self, driver, time, method):
-        
-        
-        try:
-            el = WebDriverWait(driver, time).until(method)
-        except Exception as e:
-            el = None
-         
-        return el 
-    
-    def wait_until_not(self, driver, time, method):
-        
-      
-        try:
-            el = WebDriverWait(driver, time).until_not(method)
-        except Exception as e:
-            el = None
-   
-        return el
+    _COOKIES = {}
     
     def _get_info_video(self, url, client):
        
@@ -102,10 +68,7 @@ class BoyFriendTVBaseIE(InfoExtractor):
                 
         if count < 5: return ({'url': _url, 'filesize': _filesize}) 
         else: return ({'error': 'max retries'})  
-    
-   
 
-    
     def _login(self, driver):
         
         
@@ -145,150 +108,119 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv'
     _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/videos/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
 
-    _LOCK = threading.Lock()
-    
-    _QUEUE = Queue()
-    
-    _DRIVER = 0
-    
-    _COOKIES = {}
-    
-    def _real_initialize(self):
+
+    def _real_extract(self, url):
         
-        driver = None
-        
-        with self._LOCK:
+                
+        with BoyFriendTVIE._LOCK:
             
             try:
-    
-                if self._DRIVER == self._downloader.params.get('winit', 5):
-                    return 
-                
 
-                prof = self._FF_PROF.pop() 
-                self._FF_PROF.insert(0,prof)
-                self.to_screen(f"ff_prof: {prof}")
-                
-                opts = Options()
-                opts.add_argument("--headless")
-                opts.add_argument("--no-sandbox")
-                opts.add_argument("--disable-application-cache")
-                opts.add_argument("--disable-gpu")
-                opts.add_argument("--disable-dev-shm-usage")
-                opts.add_argument("--profile")
-                opts.add_argument(prof)
-                opts.set_preference("network.proxy.type", 0)                        
-                
-                                               
-                                    
-                driver = Firefox(options=opts)
-                
-                self.wait_until(driver, 5, ec.presence_of_element_located((By.CSS_SELECTOR, "DUMMYFORWAIT")))
-                
-                driver.uninstall_addon('uBlock0@raymondhill.net')
-                
-                self.wait_until(driver, 5, ec.presence_of_element_located((By.CSS_SELECTOR, "DUMMYFORWAIT")))
-                
-                driver.uninstall_addon("{529b261b-df0b-4e3b-bf42-07b462da0ee8}")
-                
-                driver.set_window_size(1920,575)
-                driver.minimize_window()
-                #driver.maximize_window()
+                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
                     
                 driver.get(self._SITE_URL)
                 el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
                 if not el_menu:
-                    if self._COOKIES:
-                        for _cookie in self._COOKIE: driver.add_cookie(_cookie)
+                    if BoyFriendTVIE._COOKIES:
+                        for _cookie in BoyFriendTVIE._COOKIE: driver.add_cookie(_cookie)
                         driver.get(self._SITE_URL)
                         el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
                         if el_menu:
-                            self.to_screen(f"Driver init ok: {prof}")
+                            self.to_screen(f"Login already")
                             
                         else:
                             self._login(driver)
                     else:
                         driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'sameSite': 'Lax', 'secure': True, 'domain': '.boyfriendtv.com'})                
                         self._login(driver)
+                else:
+                    self.to_screen("Login already")
+                    
+                BoyFriendTVIE._COOKIES = driver.get_cookies()
                 
             except Exception as e:
-               
-                raise 
-    
-            self._COOKIES = driver.get_cookies()
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+                raise ExtractorError(f"Login error: {repr(e)}") from e
+            finally:
+                try:
+                    self.rm_driver(driver, tempdir)
+                except Exception:
+                    pass
+                           
+                
             
-            self._DRIVER += 1
-                    
-            self._QUEUE.put_nowait(driver)
-    
-    def _real_extract(self, url):
+        self.report_extraction(url) 
         
         
         try:
-            
-            driver = self._QUEUE.get(block=True)
-            
-            self.report_extraction(url) 
-            
-            client = None  
-
-                       
-            #driver.get(self._SITE_URL)
-            #self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+        
             driver.get(url)
+            
             el_vplayer = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-player")))
             el_title = self.wait_until(driver, 10, ec.presence_of_element_located((By.TAG_NAME, "title")))
             if el_title: _title = el_title.get_attribute("innerHTML")
-            if "deleted" in _title or "removed" in _title or "page not found" in _title or not el_vplayer: raise ExtractorError("Page not found")   
+            if "deleted" in _title or "removed" in _title or "page not found" in _title or not el_vplayer:
+                raise ExtractorError("Page not found")   
             _title_video = _title.replace(" - BoyFriendTV.com", "").strip()            
             el_html = self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "html")))
-            webpage = el_html.get_attribute("outerHTML")
-                       
+            webpage = el_html.get_attribute("outerHTML")                    
             mobj = re.findall(r'sources:\s+(\{.*\})\,\s+poster',re.sub('[\t\n]','', html.unescape(webpage)))
             
-            
             if mobj:
-                _timeout = httpx.Timeout(10, connect=30)        
-                _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                client = httpx.Client(timeout=_timeout, limits=_limits, headers={'User-Agent': std_headers['User-Agent']}, verify=(not self._downloader.params.get('nocheckcertificate')))
-                info_sources = demjson.decode(mobj[0])
-                _formats = []
-                for _src in info_sources.get('mp4'):
-                    _url = unquote(_src.get('src'))
-                    _info_video = self._get_info_video(_url, client)
-                     
-                    if (_error:=_info_video.get('error')): 
-                        self.to_screen(_error)
-                        raise ExtractorError('Error 404')
-                    
-                    _formats.append({
-                        'url': _info_video.get('url'),
-                        'ext': 'mp4',
-                        'format_id': f"http-{_src.get('desc')}",
-                        'resolution': _src.get('desc'),
-                        'height': int_or_none(_src.get('desc').lower().replace('p','')),
-                        'filesize': _info_video.get('filesize')
-                    })
-                    
-                self._sort_formats(_formats)
                 
-                return({
-                    'id': self._match_id(url),
-                    'title': sanitize_filename(_title_video, restricted=True),
-                    'formats': _formats,
-                    'ext': 'mp4'
-            
-                })
+                try:
+                        
+                    client = httpx.Client(timeout=10, headers={'User-Agent': std_headers['User-Agent']}, verify=(not self._downloader.params.get('nocheckcertificate')))
+                    info_sources = demjson.decode(mobj[0])
+                    _formats = []
+                    for _src in info_sources.get('mp4'):
+                        _url = unquote(_src.get('src'))
+                        _info_video = self._get_info_video(_url, client)
+                            
+                        if (_error:=_info_video.get('error')): 
+                            self.to_screen(_error)
+                            raise ExtractorError('Error 404')
+                        
+                        _formats.append({
+                            'url': _info_video.get('url'),
+                            'ext': 'mp4',
+                            'format_id': f"http-{_src.get('desc')}",
+                            'resolution': _src.get('desc'),
+                            'height': int_or_none(_src.get('desc').lower().replace('p','')),
+                            'filesize': _info_video.get('filesize')
+                        })
+                        
+                    self._sort_formats(_formats)
+                    
+                    return({
+                        'id': self._match_id(url),
+                        'title': sanitize_filename(_title_video, restricted=True),
+                        'formats': _formats,
+                        'ext': 'mp4'
+                
+                    })
+                  
                    
-        except ExtractorError as e:
-            raise     
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+                    raise ExtractorError(repr(e)) from e
+                finally:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+        
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e)) from e
         finally:
-            self._QUEUE.put_nowait(driver)
-            if client: client.close()
+            try:
+                self.rm_driver(driver, tempdir)
+            except Exception:
+                pass
            
        
  
@@ -308,9 +240,8 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 _url = f"https://{_url_embed.host}/embed/{_params_dict.get('m')}/{_params_dict.get('h')}"
             else: _url = url
             
-            _timeout = httpx.Timeout(10, connect=30)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers={'User-Agent': std_headers['User-Agent']}, verify=(not self._downloader.params.get('nocheckcertificate')))
+            
+            client = httpx.Client(timeout=10, headers={'User-Agent': std_headers['User-Agent']}, verify=(not self._downloader.params.get('nocheckcertificate')))
             
             res = client.get(_url)            
                 
@@ -321,11 +252,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             mobj2 = re.findall(r'title:\s+\"([^-\"]*)[-\"]', webpage)        
             
             _title_video = mobj2[0].strip() if mobj2 else "boyfriendtv_video"
-          
-             
-            #self.to_screen(_title_video)    
-            #_entry_video = {}
-                
+ 
             if mobj:
                 info_sources = demjson.decode(mobj[0])
                 _formats = []
@@ -359,13 +286,13 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
         
-        
-       
-            
-        
-       
-    
+
 
 class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv:playlist'
@@ -378,32 +305,12 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
         mobj = re.match(self._VALID_URL, url)
         playlist_id = mobj.group('playlist_id')
 
-
         try:
             
-            prof = self._FF_PROF.pop() 
-            self._FF_PROF.insert(0,prof)
-            
-            
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof) 
-            opts.set_preference("network.proxy.type", 0)                       
-            
-                                           
-                                    
-            driver = Firefox(options=opts)
-
-            self.to_screen(f"{url}:ffprof[{prof}]")
-            
-            driver.set_window_size(1920,575)
+            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
                 
             driver.get(self._SITE_URL)
+            
             el = self.wait_until(driver, 15, ec.presence_of_element_located((By.CLASS_NAME, "swal2-container")))
             if el:
                 driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'sameSite': 'Lax', 'secure': True, 'domain': '.boyfriendtv.com'})      
@@ -428,6 +335,13 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
                 
             if not entries: raise ExtractorError("cant find any video")
             
+            return {
+                '_type': 'playlist',
+                'id': playlist_id,
+                'title': sanitize_filename(_title, restricted=True),
+                'entries': entries,
+            }
+            
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
@@ -435,13 +349,11 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))            
         finally:
-            driver.quit()
+            try:
+                self.rm_dir(driver, tempdir)
+            except Exception:
+                pass
 
                 
 
-        return {
-            '_type': 'playlist',
-            'id': playlist_id,
-            'title': sanitize_filename(_title, restricted=True),
-            'entries': entries,
-        }
+        
