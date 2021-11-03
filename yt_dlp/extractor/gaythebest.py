@@ -2,9 +2,9 @@ from __future__ import unicode_literals
 
 import threading
 
-from .common import InfoExtractor, ExtractorError
+from .seleniuminfoextractor import SeleniumInfoExtractor
 from ..utils import (
-    
+    ExtractorError,
     sanitize_filename,
     int_or_none,
     std_headers
@@ -13,9 +13,6 @@ from ..utils import (
 import httpx
 
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
@@ -28,29 +25,15 @@ import sys
 import os
 
 
-class GayTheBestIE(InfoExtractor):
+class GayTheBestIE(SeleniumInfoExtractor):
 
     IE_NAME = 'gaythebest'
     _VALID_URL = r'https?://(?:www\.)?gaythebest\.com/videos/(?P<id>\d+)/.+'
     
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
 
  
     _LOCK = threading.Lock()
 
-
-    def wait_until(self, _driver, time, method):
-        try:
-            el = WebDriverWait(_driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el  
     
     def _get_info(self, url):
         
@@ -89,42 +72,13 @@ class GayTheBestIE(InfoExtractor):
    
         self.report_extraction(url)
         
-        with GayTheBestIE._LOCK:
-            prof = GayTheBestIE._FF_PROF.pop()
-            GayTheBestIE._FF_PROF.insert(0, prof)
-        
-        
-        opts = Options()
-        #opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-application-cache")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--profile")
-        opts.add_argument(prof)
-        opts.set_preference("network.proxy.type", 0)   
-                           
-        
-                                       
-                            
-        
-        self.to_screen(f"ffprof[{prof}]")
-        
-        driver = Firefox(options=opts)
+        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
         
         try:
-            
-            driver.set_window_size(1920,575)
-            
-            driver.minimize_window()
-            
-            self.wait_until(driver, 1, ec.title_is("DUMMYFORWAIT"))
-             
-            driver.uninstall_addon('uBlock0@raymondhill.net')
-            
-            self.wait_until(driver, 5, ec.title_is("DUMMYFORWAIT"))        
+   
 
-            driver.get(url)
+            with GayTheBestIE._LOCK:
+                driver.get(url)
             
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME,"fp-player"))) 
             el.click()
@@ -161,10 +115,13 @@ class GayTheBestIE(InfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
-            driver.quit()
+            try:
+                self.rm_driver(driver, tempdir)
+            except Exception:
+                pass
         
         
 

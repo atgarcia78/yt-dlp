@@ -2,12 +2,12 @@ from __future__ import unicode_literals
 
 
 import re
-from .common import InfoExtractor
+
 from ..utils import (
     ExtractorError,   
     std_headers,
     sanitize_filename,
-    int_or_none,
+    int_or_none
 
 )
 
@@ -17,10 +17,9 @@ import demjson
 import time
 
 from concurrent.futures import ThreadPoolExecutor
+from .common import InfoExtractor
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 import os
@@ -28,19 +27,14 @@ from urllib.parse import unquote
 
 from threading import Lock
 
-
-class YourPornGodIE(InfoExtractor):
+from .seleniuminfoextractor import SeleniumInfoExtractor
+class YourPornGodIE(SeleniumInfoExtractor):
     
     IE_NAME = 'yourporngod'
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
     
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
-    
+    _LOCK = Lock()
+        
     def _get_info(self, url):
         
         count = 0
@@ -71,15 +65,6 @@ class YourPornGodIE(InfoExtractor):
         if (count < 5): return _res
         else: return ({'error': 'Max retries'})
     
-    def wait_until(self, driver, time, method):        
-        
-        try:
-            el = WebDriverWait(driver, time).until(method)
-        except Exception as e:
-            el = None
-    
-        return(el)   
-    
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
@@ -87,7 +72,8 @@ class YourPornGodIE(InfoExtractor):
                
         self.report_extraction(url)
         
-        res = httpx.get(url, headers=std_headers)
+        with YourPornGodIE._LOCK:
+            res = httpx.get(url, headers=std_headers)
         
         webpage = re.sub('[\t\n]', '', html.unescape(res.text))
         
@@ -114,37 +100,13 @@ class YourPornGodIE(InfoExtractor):
                 
             if not formats: raise ExtractorError("No formats found")
             
-            self._sort_formats(formats)
+            
             
         else:
-            with YourPornGodIE._LOCK:
-                prof = YourPornGodIE._FF_PROF.pop()
-                YourPornGodIE._FF_PROF.insert(0, prof)
-        
-        
-            opts = Options()
-            opts.add_argument("--headless")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(prof)
-            opts.set_preference("network.proxy.type", 0)                        
-            
-                                           
-                                    
-            driver = Firefox(options=opts)
-    
-            self.to_screen(f"ffprof[{prof}]")
-
             try:
-            
-                driver.maximize_window()
-            
-                self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
-    
-                driver.get(url)
+                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+                with YourPornGodIE._LOCK:
+                    driver.get(url)
                 el_frames = self.wait_until(driver, 60, ec.presence_of_all_elements_located(((By.TAG_NAME, "iframe"))))
                 for i,el in enumerate(el_frames):
                     if "embed" in el.get_attribute('src'):
@@ -167,21 +129,26 @@ class YourPornGodIE(InfoExtractor):
                 if not video_url: raise ExtractorError("No video url")
                 
                 formats = [{'format_id': 'http', 'url': (_info:=self._get_info(video_url)).get('url'), 'filesize': _info.get('filesize'), 'ext': 'mp4'}]
+            
             except Exception as e:
                 self.to_screen(e)
                 raise
             finally:
-                driver.quit()
+                try:
+                    self.rm_driver(driver, tempdir)
+                except Exception:
+                    pass
         
-        
-        entry = {
-                'id' : video_id,
-                'title' : sanitize_filename(title, restricted=True),
-                'formats' : formats,
-                'ext': 'mp4'
-            }
-        
-        return entry
+        if not formats: raise ExtractorError("No formats found")
+        else:
+            self._sort_formats(formats)        
+            entry = {
+                    'id' : video_id,
+                    'title' : sanitize_filename(title, restricted=True),
+                    'formats' : formats,
+                    'ext': 'mp4'
+                }            
+            return entry
     
 class YourPornGodPlayListIE(InfoExtractor):
     

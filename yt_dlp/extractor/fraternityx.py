@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 import re
 
-from .common import InfoExtractor
+
 from ..utils import (
     ExtractorError,
     sanitize_filename
@@ -16,9 +16,7 @@ import traceback
 import sys
 import os
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
@@ -135,8 +133,6 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         _driver.get(self._LOGOUT_URL)
 
     def _extract_from_page(self, _driver, url):
-        
-              
   
         _driver.get(url)
         _title = None

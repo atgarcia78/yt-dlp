@@ -1,17 +1,14 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-from .common import InfoExtractor
+from .seleniuminfoextractor import SeleniumInfoExtractor
 from ..utils import (
-    ExtractorError, 
+    ExtractorError,
     std_headers,
     sanitize_filename,
     int_or_none
 )
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
@@ -26,18 +23,10 @@ import os
 
 
 
-class ThatGVideoIE(InfoExtractor):
+class ThatGVideoIE(SeleniumInfoExtractor):
     IE_NAME = 'thatgvideo'
     _VALID_URL = r'https?://thatgvideo\.com/videos/(?P<id>\d+).*'
 
-    _FF_PROF = ['/Users/antoniotorres/Library/Application Support/Firefox/Profiles/cs2cluq5.selenium5_sin_proxy',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/7mt9y40a.selenium4',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/yhlzl1xp.selenium3',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/wajv55x1.selenium2',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/xxy6gx94.selenium',
-                '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0']
-    
-    
     _LOCK = Lock()
 
     
@@ -74,50 +63,20 @@ class ThatGVideoIE(InfoExtractor):
  
      
     
-    def wait_until(self, driver, time, method):
-        try:
-            el = WebDriverWait(driver, time).until(method)
-        except Exception as e:
-            el = None
-            
-        return el     
+  
 
     def _real_extract(self, url):
 
         
         self.report_extraction(url)
         
-        with ThatGVideoIE._LOCK: 
-
-            prof = self._FF_PROF.pop()
-            self._FF_PROF.insert(0, prof)
-       
-        
-                
-        opts = Options()
-        opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-application-cache")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--profile")
-        opts.add_argument(prof)
-        opts.set_preference("network.proxy.type", 0)                        
-        
-                                       
-                                
-        driver = Firefox(options=opts)
+        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
  
-        self.to_screen(f"ffprof[{prof}]")
-            
         try:
             
-            
-            driver.maximize_window()
-            
-            self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
-           
-            driver.get(url)      
+  
+            with ThatGVideoIE._LOCK: 
+                driver.get(url)      
 
             el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
             video_url = el_video.get_attribute('src') if el_video else ""
@@ -145,18 +104,22 @@ class ThatGVideoIE(InfoExtractor):
                     'formats' : [_format_video],
                     'ext': "mp4"
                 }
+                
+                return _entry_video
                     
         except ExtractorError as e:
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e)) from e
         finally:
-            driver.quit()
+            try:
+                self.rm_driver(driver, tempdir)
+            except Exception:
+                pass
     
-        if _entry_video:
-            return _entry_video
+
             
 
               

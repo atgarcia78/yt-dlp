@@ -15,12 +15,6 @@ from concurrent.futures import (
 )
 
 
-
-
-
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
@@ -130,7 +124,10 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
         finally:
             if not _keep: 
-                self.rm_driver(driver, tempdir)
+                try:
+                    self.rm_driver(driver, tempdir)
+                except Exception:
+                    pass
             
             
         
@@ -229,7 +226,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
         finally:
             try:
                 self.rm_driver(driver, tempdir)
-            except:
+            except Exception:
                 pass
 
 class GayBeegIE(GayBeegBaseIE):
