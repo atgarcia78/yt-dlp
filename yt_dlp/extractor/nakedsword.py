@@ -307,7 +307,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             
             stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
             
-            with ThreadPoolExecutor(max_workers=2) as ex:
+            with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=2) as ex:
                 futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
                        ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
                 
@@ -381,7 +381,7 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
 
         entries = []
 
-        with ThreadPoolExecutor(max_workers=5) as ex:
+        with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=5) as ex:
             
             futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, 6)]
         
