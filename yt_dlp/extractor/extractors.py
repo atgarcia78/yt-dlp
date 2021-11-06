@@ -1928,7 +1928,6 @@ from .sketchysex import (
 )
 from .thatgvideo import ThatGVideoIE
 from .rawfuck import RawFuckIE
-from .filmin import FilminIE
 from .harlemsex import HarlemSexIE
 from .gaybeeg import (
     GayBeegIE,
@@ -1942,7 +1941,6 @@ from .gayforfans import (
 from .jalifstudio import JalifStudioIE
 from .hardkinks import HardKinksIE
 from .darkcruising import DarkCruisingIE
-from .tetatita import TetatitaIE
 from .cumlouder import CumlouderIE
 from .ericvideos import EricVideosIE
 from .streamtape import StreamtapeIE

@@ -2,7 +2,6 @@ from __future__ import unicode_literals
 
 
 import re
-from tarfile import ExtractError
 
 from .common import InfoExtractor
 from ..utils import (

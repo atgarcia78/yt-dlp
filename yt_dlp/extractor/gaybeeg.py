@@ -195,7 +195,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
 
                 _num_workers = min(4, len(list_urls_pages))
                 
-                with ThreadPoolExecutor(max_workers=_num_workers) as ex:
+                with ThreadPoolExecutor(thread_name_prefix="gaybeeg", max_workers=_num_workers) as ex:
                     futures = [ex.submit(self._get_entries, _url) for _url in list_urls_pages] 
             
                 
