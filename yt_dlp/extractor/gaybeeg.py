@@ -9,9 +9,7 @@ from ..utils import ExtractorError
 from .seleniuminfoextractor import SeleniumInfoExtractor
 
 from concurrent.futures import (
-    ThreadPoolExecutor,
-    wait,
-    ALL_COMPLETED
+    ThreadPoolExecutor   
 )
 
 
@@ -64,7 +62,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
             _info_video = NetDNAIE.get_video_info(_item.get('text'))
             _info_date = datetime. strptime(_item.get('date'), '%B %d, %Y')
-            entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+            entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
         
                                     
         return entries
@@ -87,7 +85,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         
             if not driver:
                 _keep = False
-                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+                driver = self.get_driver()
             else:
                 _keep = True
                         
@@ -111,11 +109,10 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                     break
                 last_height = new_height
         
-            # el_list = self.wait_until(driver, 120, ec.presence_of_all_elements_located((By.CLASS_NAME, "henry-large")))
-            # if el_list:
+            
             
             el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))
-            #el_date_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, 'date')))
+            
             if el_a_list:
                 
                 entries = GayBeegBaseIE._get_entries_netdna(el_a_list)
@@ -125,7 +122,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         finally:
             if not _keep: 
                 try:
-                    self.rm_driver(driver, tempdir)
+                    self.rm_driver(driver)
                 except Exception:
                     pass
             
@@ -175,7 +172,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                                    
             self.report_extraction(url)
             
-            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+            driver = self.get_driver()
             driver.get(url)
             
             
@@ -191,7 +188,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 
                 self.to_screen(list_urls_pages)
                 
-                self.rm_driver(driver, tempdir)
+                self.rm_driver(driver)
 
                 _num_workers = min(4, len(list_urls_pages))
                 
@@ -225,7 +222,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
 
         finally:
             try:
-                self.rm_driver(driver, tempdir)
+                self.rm_driver(driver)
             except Exception:
                 pass
 

@@ -116,7 +116,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             
             try:
 
-                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+                driver = self.get_driver()
                     
                 driver.get(self._SITE_URL)
                 el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
@@ -144,7 +144,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 raise ExtractorError(f"Login error: {repr(e)}") from e
             finally:
                 try:
-                    self.rm_driver(driver, tempdir)
+                    self.rm_driver(driver)
                 except Exception:
                     pass
                            
@@ -218,7 +218,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             raise ExtractorError(repr(e)) from e
         finally:
             try:
-                self.rm_driver(driver, tempdir)
+                self.rm_driver(driver)
             except Exception:
                 pass
            
@@ -307,7 +307,7 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
 
         try:
             
-            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+            driver = self.get_driver()
                 
             driver.get(self._SITE_URL)
             
@@ -350,7 +350,7 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             else: raise ExtractorError(str(e))            
         finally:
             try:
-                self.rm_dir(driver, tempdir)
+                self.rm_driver(driver)
             except Exception:
                 pass
 

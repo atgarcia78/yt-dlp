@@ -21,6 +21,7 @@ from ..utils import (
     update_url_query,
     url_or_none,
     xpath_text,
+    sanitize_filename
 )
 
 from .periscope import (
@@ -463,7 +464,7 @@ class TwitterIE(TwitterBaseIE):
 
         info = {
             'id': twid,
-            'title': title,
+            'title': sanitize_filename(title, restricted=True),
             'description': description,
             'uploader': uploader,
             'timestamp': unified_timestamp(status.get('created_at')),

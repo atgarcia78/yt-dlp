@@ -1997,3 +1997,4 @@ from .youporngay import YouPornGayIE
 from .gaymentubexxx import GayMenTubexxxIE
 from .gaythebest import GayTheBestIE
 from .youdbox import YoudBoxIE
+from .gaymaletubes import GayMaleTubesIE
