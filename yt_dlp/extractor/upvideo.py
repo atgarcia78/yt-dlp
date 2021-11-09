@@ -69,7 +69,7 @@ class UpVideoIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
 
-        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+        driver = self.get_driver()
 
         try:                            
 

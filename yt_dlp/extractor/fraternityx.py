@@ -7,25 +7,24 @@ import re
 
 from ..utils import (
     ExtractorError,
-    sanitize_filename
+    sanitize_filename,
+    std_headers
 )
 
 
 import threading
 import traceback
 import sys
-import os
-
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-from queue import Queue
-import html
+
 import demjson
 
 from .seleniuminfoextractor import SeleniumInfoExtractor
 
+import httpx
 
 class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fraternityx.com/sign-in"
@@ -38,22 +37,15 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
 
     _NETRC_MACHINE = 'fraternityx'
 
-
     _LOCK = threading.Lock()
     
-    _QUEUE = Queue()   
     
-    _DRIVER = 0
-    
-    _COOKIES = None 
+    _COOKIES = None
 
 
     def _login(self, _driver):
         
-        
-
         _driver.get(self._SITE_URL)
-        #self.wait_until(_driver, 60, ec.url_changes(_current_url))
         _title = _driver.title.upper()
         #self.to_screen(_title)
         if "WARNING" in _title:
@@ -61,12 +53,10 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
             if not el_enter: raise ExtractorError("couldnt find adult consent button")
             _current_url = _driver.current_url
-            #self.to_screen(_current_url)
             el_enter.click()
             self.wait_until(_driver, 60, ec.url_changes(_current_url))
         
         el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul.inline-list")))
-        #self.to_screen(el_top.get_attribute('innerText').upper())
         if "MEMBERS" in el_top.get_attribute('innerText').upper():
             self.report_login()
             username, password = self._get_login_info()
@@ -80,9 +70,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             
             _driver.get(self._LOGIN_URL)
             el_username = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username")))
-            
-            el_password = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password")))   
-            
+            el_password = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password")))
             el_login = _driver.find_element(by=By.CSS_SELECTOR, value="button")
             if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
             el_username.send_keys(username)
@@ -127,38 +115,30 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             if count == 0: raise ExtractorError("couldnt log in")
         
         self.to_screen("Login OK")    
-           
             
     def _logout(self, _driver):
         _driver.get(self._LOGOUT_URL)
 
-    def _extract_from_page(self, _driver, url):
+    def _extract_from_page(self, cl, url):
   
-        _driver.get(url)
+        res = cl.get(url)
         _title = None
-        el_title = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "h1")))
-        if el_title:
-            _title = el_title.text
-        else: 
-            mobj = re.findall(r'(.*) ::', _driver.title)
-            if mobj: _title = mobj[0]             
-        if not _title:
-            el_title = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "title")))
-            if el_title:
-                mobj = re.findall(r'(.*) ::', el_title.get_attribute('innerText'))
-                if mobj: _title = mobj[0]
+        mobj = re.findall(r'<h1>([^\<]+)<', res.text)        
+        if mobj:
+            _title = mobj[0]
         
         if not _title: _title = url.split('/')[-1].replace("-","_").upper() 
         #self.to_screen(_title)
-        el_iframe = _driver.find_elements(by=By.TAG_NAME, value="iframe")
-        if not el_iframe: raise ExtractorError("no iframe")
-        embedurl = el_iframe[0].get_attribute('src')
-        #self.to_screen(f"embedurl:{embedurl}")
-        if not embedurl: raise ExtractorError("not embed url")
-        res = self.wait_until(_driver, 30, ec.frame_to_be_available_and_switch_to_it((By.TAG_NAME,"iframe")))
-        mobj = []
-        if res:      
-            mobj = re.findall(f'globalSettings\s+\=\s+([^;]*);',html.unescape(_driver.page_source))
+        mobj = re.findall(r'<iframe src=\"([^\"]+)\"', res.text)
+        if mobj:
+            embedurl = mobj[0]
+        else: raise ExtractorError("not embed url")
+        
+        try:
+            res2 = cl.get(embedurl)
+            mobj = re.findall(r'globalSettings\s+\=\s+([^;]*);',res2.text)
+        except Exception:
+            mobj = None
         if not mobj: raise ExtractorError("no token")
         _data_dict = demjson.decode(mobj[0])
         tokenid = _data_dict.get('token')
@@ -171,8 +151,12 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             "Referer" : embedurl,
             "Accept" : "*/*",
             "X-Requested-With" : "XMLHttpRequest"})
-        info = self._download_json(videourl, None, headers=headers)
-        #self.to_screen(info)
+        
+        try:
+            res3 = cl.get(videourl, headers=headers)
+            info = res3.json()
+        except Exception:
+            info = None
         if not info: raise ExtractorError("Can't find any JSON info")
 
         #print(info)
@@ -216,7 +200,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             if not el_listmedia: raise ExtractorError("no info")
             for media in el_listmedia:
                 el_tag = media.find_element(by=By.TAG_NAME, value="a")
-                el_title = el_tag.find_element(by=By.CLASS_NAME, value="episode-tile") #class name weird but it is what its been used in site page
+                el_title = el_tag.find_element(by=By.CLASS_NAME, value="episode-tile") #class name weird 
                 _title = el_title.get_attribute('innerText').replace(" ", "_")
                 _title = sanitize_filename(_title, restricted=True)
                 entries.append(self.url_result(el_tag.get_attribute("href"), ie=FraternityXIE.ie_key(), video_title=_title))      
@@ -243,38 +227,24 @@ class FraternityXIE(FraternityXBaseIE):
     def _real_initialize(self):
         
         with FraternityXIE._LOCK:
-            if FraternityXIE._DRIVER == (self._downloader.params.get('winit', 5)):
-                return  
-            
- 
-            
-            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
-            
-            
-            
-            
-            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
-            
             if FraternityXIE._COOKIES:
-            
-                driver.get(self._SITE_URL)
-                driver.delete_all_cookies()
-                for cookie in FraternityXIE._COOKIES:
-                    driver.add_cookie(cookie)
-                        
-                
-                #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))               
+                return  
+
+            driver = self.get_driver()
+
             
             try:
                 
-                self._login(driver)
+                self._login(driver)                
+                
                 FraternityXIE._COOKIES = driver.get_cookies()
-                FraternityXIE._DRIVER += 1
-                FraternityXIE._QUEUE.put_nowait(driver)
+             
             
             except Exception as e:
                 self.to_screen("error when login")
                 raise
+            finally:
+                self.rm_driver(driver)
             
 
     def _real_extract(self, url):
@@ -283,8 +253,11 @@ class FraternityXIE(FraternityXBaseIE):
         data = None
         try:
         
-            driver = FraternityXIE._QUEUE.get(block=True, timeout=120) 
-            data = self._extract_from_page(driver, url)
+            cl = httpx.Client(headers=std_headers, timeout=httpx.Timeout(15, connect=30), limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+            for cookie in FraternityXIE._COOKIES:
+                cl.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                
+            data = self._extract_from_page(cl, url)
                  
             
         except Exception as e:
@@ -293,8 +266,8 @@ class FraternityXIE(FraternityXBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            FraternityXIE._QUEUE.put_nowait(driver)
-            
+            cl.close()
+
         if not data:
             raise ExtractorError("Not any video format found")
         elif "error" in data['id']:
@@ -316,44 +289,18 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
         
         try:              
                         
-            # with FraternityXOnePagePlaylistIE._LOCK:
-            #     prof = FraternityXOnePagePlaylistIE._FF_PROF.pop()
-            #     FraternityXOnePagePlaylistIE._FF_PROF.insert(0, prof)
+            driver = self.get_driver()
             
-            # opts = Options()
-            # opts.add_argument("--headless")
-            # opts.add_argument("--no-sandbox")
-            # opts.add_argument("--disable-application-cache")
-            # opts.add_argument("--disable-gpu")
-            # opts.add_argument("--disable-dev-shm-usage")
-            # opts.add_argument("--profile")
-            # opts.add_argument(prof)  
-            # opts.set_preference("network.proxy.type", 0)
-            # opts.set_preference("dom.webdriver.enabled", False)
-            # opts.set_preference("useAutomationExtension", False)                                
-            
-                                           
-                                
-            # driver = Firefox(options=opts)
- 
-            # self.to_screen(f"ffprof[{prof}]")
-            
-            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
-            
-            # driver.set_window_size(1920,575)
-            #driver.maximize_window()
-            
-            #self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+
             
             driver.get(self._SITE_URL)
-            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
                 if el_enter: el_enter.click()
-            #self.wait_until(driver, 60, ec.title_contains("Episodes"))
+            
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
         except ExtractorError:
@@ -363,7 +310,7 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.rm_driver(driver, tempdir)
+            self.rm_driver(driver)
             
         if not entries: raise ExtractorError("no video list") 
         
@@ -380,23 +327,16 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
         entries = None
         
         try:              
-                        
 
-            driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
-            # driver.maximize_window()
-            
-            # self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+
+            driver = self.get_driver()
             
             driver.get(self._SITE_URL)
-            #self.wait_until(driver, 30, ec.url_changes(self._SITE_URL))
-            
-            _title = driver.title.lower()
-            
+            _title = driver.title.lower()            
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
                 if el_enter: el_enter.click()
-            #self.wait_until(driver, 60, ec.title_contains("Episodes"))       
-        
+                
             entries = self._extract_list(driver, 1, nextpages=True)  
         
         except Exception as e:
@@ -405,13 +345,8 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            #driver.quit()
-            self.rm_driver(driver, tempdir)
+            self.rm_driver(driver)
             
         if not entries: raise ExtractorError("no video list") 
         
         return self.playlist_result(entries, f"fraternityx:AllPages", f"fraternityx:AllPages")
-
-
-        
-
