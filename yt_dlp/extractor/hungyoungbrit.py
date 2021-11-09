@@ -120,7 +120,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                     
                     
                     
-                    driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0', noheadless=True)
+                    driver = self.get_driver(noheadless=True)
 
                                 
                     
@@ -161,7 +161,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                                         
                     #self.to_screen("login OK")
                     HungYoungBritBaseIE._COOKIES = driver.get_cookies()
-                    self.rm_driver(driver, tempdir)
+                    self.rm_driver(driver)
                                 
                     with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
                         json.dump(HungYoungBritBaseIE._COOKIES, f)

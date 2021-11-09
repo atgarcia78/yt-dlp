@@ -175,14 +175,12 @@ class NetDNAIE(SeleniumInfoExtractor):
         self.report_extraction(f"[{info_video.get('id')}][{info_video.get('title')}]")        
 
         
-        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+        driver = self.get_driver()
               
         
         try:
             
-            # driver.maximize_window()
-            
-            # self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+
             
             count = 0
             
@@ -293,7 +291,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                     if (count == 3):  raise ExtractorError(str(e))  
         finally:
             try:
-                self.rm_driver(driver, tempdir)
+                self.rm_driver(driver)
             except Exception:
                 pass 
                        

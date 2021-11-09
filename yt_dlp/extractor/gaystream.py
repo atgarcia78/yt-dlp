@@ -87,7 +87,7 @@ class GayStreamIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
  
-        driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')            
+        driver = self.get_driver()            
    
                             
         try: 
@@ -152,7 +152,7 @@ class GayStreamIE(SeleniumInfoExtractor):
             raise ExtractorError(str(e)) from e
         finally:
             try:
-                self.rm_driver(driver, tempdir)
+                self.rm_driver(driver)
             except Exception:
                 pass
         
