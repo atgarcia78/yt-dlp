@@ -104,7 +104,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
             
         else:
             try:
-                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0')
+                driver = self.get_driver()
                 with YourPornGodIE._LOCK:
                     driver.get(url)
                 el_frames = self.wait_until(driver, 60, ec.presence_of_all_elements_located(((By.TAG_NAME, "iframe"))))
@@ -135,7 +135,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
                 raise
             finally:
                 try:
-                    self.rm_driver(driver, tempdir)
+                    self.rm_driver(driver)
                 except Exception:
                     pass
         

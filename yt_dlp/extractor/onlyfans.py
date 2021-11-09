@@ -24,7 +24,7 @@ import html
 import sys
 import traceback
 import threading
-from queue import Queue
+
 
 from datetime import datetime 
 
@@ -108,14 +108,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _NETRC_MACHINE = 'twitter2'
 
     _LOCK = threading.Lock()
+     
+    _COUNT = 0
     
-    _SERVER = None
-    
-    _QUEUE = Queue() 
-    
-    _DRIVER = 0
-
- 
+    _COOKIES = None 
 
     def scan_for_request(self, _har, _ref, _link):
                           
@@ -362,33 +358,21 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
              
         with OnlyFansBaseIE._LOCK: 
         
-            try:  
+              
 
-                if OnlyFansBaseIE._DRIVER == self._downloader.params.get('winit', 5):
-                    return  
-                
+                            
+            if OnlyFansBaseIE._COOKIES:
+                return           
 
-                
-                if not OnlyFansBaseIE._SERVER:
-                              
-                    OnlyFansBaseIE._SERVER = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': 18080})
-                    OnlyFansBaseIE._SERVER.start()
-                
-                
-                _port = 18081 + OnlyFansBaseIE._DRIVER
-                
-                _host = 'localhost'
-                
-                _mitmproxy = OnlyFansBaseIE._SERVER.create_proxy({'port' : _port})
-                
 
-                driver, tempdir = self.get_driver(prof='/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0', host=_host, port=_port)
+            driver = self.get_driver()
 
-                self._login(driver) 
+            try:
+                self._login(driver)
                 
-                OnlyFansBaseIE._DRIVER += 1
+                OnlyFansBaseIE._COOKIES = driver.get_cookies()
                 
-                OnlyFansBaseIE._QUEUE.put_nowait((driver, _mitmproxy))
+                
                 
             except ExtractorError as e:                 
                 raise 
@@ -396,6 +380,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
                 raise ExtractorError(str(e)) from e
+            finally:
+                self.rm_driver(driver)
                                             
 
 
@@ -406,10 +392,22 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 
                 
     def _real_extract(self, url):
- 
-        try:
+
+        try:            
             
-            driver, _mitmproxy = OnlyFansPostIE._QUEUE.get(block=True, timeout=120)
+            with OnlyFansPostIE._LOCK:
+                _server_port = 18080 + 100*OnlyFansPostIE._COUNT
+                OnlyFansPostIE._COUNT += 1
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start()
+                _host = 'localhost'
+                _port = _server_port + 1                
+                _mitmproxy = _server.create_proxy({'port' : _port})
+
+            driver  = self.get_driver(host=_host, port=_port)
+            driver.get(self._SITE_URL)
+            for cookie in OnlyFansPostIE._COOKIES:
+                driver.add_cookie(cookie)
             
             self.report_extraction(url)                  
 
@@ -453,7 +451,11 @@ class OnlyFansPostIE(OnlyFansBaseIE):
  
             
         finally:
-            OnlyFansPostIE._QUEUE.put_nowait((driver, _mitmproxy)) 
+            _mitmproxy.close()
+            _server.stop()
+            self.rm_driver(driver)
+            
+            
 
         
                                                        
@@ -472,7 +474,19 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         try:
             self.report_extraction(url)
             
-            driver, _mitmproxy = OnlyFansPlaylistIE._QUEUE.get(block=True, timeout=120)
+            with OnlyFansPlaylistIE._LOCK:
+                _server_port = 18080 + 100*OnlyFansPlaylistIE._COUNT
+                OnlyFansPlaylistIE._COUNT += 1            
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start()
+                _host = 'localhost' 
+                _port = _server_port + 1               
+                _mitmproxy = _server.create_proxy({'port' : _port})
+
+            driver  = self.get_driver(host=_host, port=_port)
+            driver.get(self._SITE_URL)
+            for cookie in OnlyFansPlaylistIE._COOKIES:
+                driver.add_cookie(cookie)
             
             account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
             if not mode:
@@ -490,7 +504,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
-                self.to_screen(f"URL: {_url}")
+                #self.to_screen(f"URL: {_url}")
                 
                 driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
                             
@@ -626,11 +640,9 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             raise ExtractorError(str(e)) from e
         
         finally:
-            OnlyFansPlaylistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-
-           
-            
-        
+            _mitmproxy.close()
+            _server.stop()
+            self.rm_driver(driver)
             
             
 class OnlyFansPaidlistIE(OnlyFansBaseIE):
@@ -638,8 +650,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
     IE_DESC = 'onlyfanspaidlist:playlist'
     _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/paidlist"
     _PAID_URL = "https://onlyfans.com/purchased"
-    
-    
+
 
     def _real_extract(self, url):
  
@@ -648,7 +659,20 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
             self.report_extraction(url)
             
-            driver, _mitmproxy = OnlyFansPaidlistIE._QUEUE.get(block=True, timeout=120)
+            with OnlyFansPaidlistIE._LOCK:
+                _server_port = 18080 + 100*OnlyFansPaidlistIE._COUNT
+                OnlyFansPaidlistIE._COUNT += 1            
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start()
+                _host = 'localhost' 
+                _port = _server_port + 1   
+                _host = 'localhost'                
+                _mitmproxy = _server.create_proxy({'port' : _port})
+        
+            driver  = self.get_driver(host=_host, port=_port)
+            driver.get(self._SITE_URL)
+            for cookie in OnlyFansPaidlistIE._COOKIES:
+                driver.add_cookie(cookie)
             
             _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
             driver.get(self._SITE_URL)
@@ -732,9 +756,6 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
             
         finally:
-            OnlyFansPaidlistIE._QUEUE.put_nowait((driver, _mitmproxy)) 
-
-        
-        
-        
-            
+            _mitmproxy.close()
+            _server.stop()
+            self.rm_driver(driver)
