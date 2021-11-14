@@ -1,10 +1,14 @@
 from __future__ import unicode_literals
 
+<<<<<<< HEAD
 from .common import (
     InfoExtractor,
     ExtractorError
 )
 
+=======
+from .common import InfoExtractor, ExtractorError
+>>>>>>> e55ad714f (upt)
 
 import sys
 import traceback
@@ -19,6 +23,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
+<<<<<<< HEAD
 import httpx
 
 from ..utils import (
@@ -27,11 +32,16 @@ from ..utils import (
 )
 
 
+=======
+>>>>>>> e55ad714f (upt)
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'   
     
+<<<<<<< HEAD
     
+=======
+>>>>>>> e55ad714f (upt)
     def rm_driver(self, driver, tempdir=None):
         
         if not tempdir:
@@ -65,6 +75,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         opts.add_argument("--profile")
         opts.add_argument(tempdir)
         
+<<<<<<< HEAD
         if not host and not port:
             if self._downloader:
                 if (proxy:=self._downloader.params.get('proxy')):
@@ -72,6 +83,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     host = proxy.split(":")[0]
                     port = proxy.split(":")[1]
                 
+=======
+>>>>>>> e55ad714f (upt)
         if host and port:
             opts.set_preference("network.proxy.type", 1)
             opts.set_preference("network.proxy.http",host)
@@ -127,6 +140,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         return el
     
+<<<<<<< HEAD
 
     def get_info_for_format(self, url, client=None, headers=None, fatal=False):
         
@@ -178,3 +192,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             
     
         
+=======
+     
+>>>>>>> e55ad714f (upt)
