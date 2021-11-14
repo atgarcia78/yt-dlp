@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 
 import re
 
-import threading
 
 from .common import InfoExtractor
 from ..utils import (
@@ -15,16 +14,10 @@ from ..utils import (
     
 )
 
-from httpx import (
-    Client,
-    Timeout,
-    Limits,
-)
-import html
-import time
+import httpx
 import sys
 import traceback
-import threading
+
 
 from ratelimit import limits, sleep_and_retry
 
@@ -35,9 +28,6 @@ class StreamtapeIE(InfoExtractor):
     _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:$|/)'
     
     
-    _LOCK = threading.Lock()
-    
-    
     @staticmethod
     def _extract_url(webpage):
         mobj = re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage)
@@ -45,18 +35,18 @@ class StreamtapeIE(InfoExtractor):
             return mobj.group('url')
 
     
-    def _get_infovideo(self, url, client):
+    def _get_infovideo(self, url, url_ref, client):
         
         count = 0
         try:
             
-            _res = None
+          
             while (count<3):
                 
                 try:
                     
                     #res = self._send_request(client, url, 'HEAD')
-                    res = client.head(url)
+                    res = client.head(url, follow_redirects=True, headers={'referer': url_ref})
                     if res.status_code >= 400:
                         
                         count += 1
@@ -96,9 +86,9 @@ class StreamtapeIE(InfoExtractor):
         
         try:
         
-            _timeout = Timeout(30, connect=30)        
-            _limits = Limits(max_keepalive_connections=None, max_connections=None)
-            client = Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
+            _timeout = httpx.Timeout(30, connect=30)        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
             
             _url = re.search(r'(?P<url>https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+))', url.replace('/e/', '/v/')).group('url')
             if url == _url:
@@ -138,7 +128,8 @@ class StreamtapeIE(InfoExtractor):
                         _params = mobj[0].split('token')[0] + mobj2[0]
                         
                         video_url = f"https://streamtape.com/get_video?{_params}"
-                        _info_video = self._get_infovideo(video_url, client)
+                        _info_video = self._get_infovideo(video_url, _url, client)
+                        if _info_video.get('error'): raise ExtractorError("error info video max retries")
                         title = re.sub('\.mp4| at Streamtape\.com|amp;', '', re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage).group('title'))
                         
                         videoid = self._match_id(url)

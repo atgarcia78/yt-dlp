@@ -124,7 +124,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         count = 0
         try:
             
-            _res = None
+           
             while (count<3):
                 
                 try:
