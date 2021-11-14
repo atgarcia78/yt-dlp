@@ -1820,7 +1820,7 @@ from .ximalaya import (
 from .xminus import XMinusIE
 from .xnxx import XNXXIE
 from .xstream import XstreamIE
-#from .xtube import XTubeUserIE, XTubeIE
+from .xtube import XTubeUserIE, XTubeIE
 from .xuite import XuiteIE
 from .xvideos import XVideosIE
 from .xxxymovies import XXXYMoviesIE
@@ -1911,90 +1911,3 @@ from .zingmp3 import (
 )
 from .zoom import ZoomIE
 from .zype import ZypeIE
-
-from .myvidster import MyVidsterChannelPlaylistIE
-from .machofactory import MachoFactoryIE
-from .citebeur import CitebeurIE
-from .cazzofilm import CazzoFilmIE
-from .yourporngod import (
-    YourPornGodIE,
-    YourPornGodPlayListIE,
-)
-from .timfuck import TimFuckIE
-from .sketchysex import (
-    SketchySexIE,
-    SketchySexOnePagePlaylistIE,
-    SketchySexAllPagesPlaylistIE,
-)
-from .thatgvideo import ThatGVideoIE
-from .rawfuck import RawFuckIE
-from .harlemsex import HarlemSexIE
-from .gaybeeg import (
-    GayBeegIE,
-    GayBeegPlaylistIE,
-    GayBeegPlaylistPageIE,
-)
-from .gayforfans import (
-    GayForFansIE,
-    GayForFansPlayListIE,
-)
-from .jalifstudio import JalifStudioIE
-from .hardkinks import HardKinksIE
-from .darkcruising import DarkCruisingIE
-from .cumlouder import CumlouderIE
-from .ericvideos import EricVideosIE
-from .streamtape import StreamtapeIE
-from .userload import UserLoadIE
-from .britfuckers import BritFuckersIE
-from .gayqt import GayQTIE
-from .slamrush import (
-    SlamRushIE,
-    SlamRushPlaylistIE,    
-)
-from .sketboy import SketBoyIE
-from .daftsex import DaftSexIE
-from .mat6tube import Mat6TubeIE
-from .hungyoungbrit import (
-    HungYoungBritIE,
-    HungYoungBritPlaylistIE,
-)
-from .nakedsword import (
-    NakedSwordSceneIE,
-    NakedSwordMovieIE,
-    NakedSwordMostWatchedIE,
-    NakedSwordStarsIE,
-    NakedSwordPlaylistIE
-)
-from .monstercockinfo import MonsterCockInfoIE
-from .onlyfans import (
-    OnlyFansPostIE,
-    OnlyFansPlaylistIE,    
-    OnlyFansPaidlistIE,
-)
-from .netdna import NetDNAIE
-from .fraternityx import (
-    FraternityXIE,    
-    FraternityXOnePagePlaylistIE,
-    FraternityXAllPagesPlaylistIE,    
-)
-from .youngbastards import YoungBastardsIE
-from .boyfriendtv import (
-    BoyFriendTVIE,
-    BoyFriendTVEmbedIE,
-    BoyFriendTVPlayListIE,
-)
-from .gayforiteu import GayForITEUIE
-from .manpornxxx import ManPornXXXIE
-from .upvideo import UpVideoIE
-from .vidoza import VidozaIE
-from .xvids import XVidsIE
-from .highload import HighloadIE
-from .evoload import EvoloadIE
-from .gaystream import GayStreamIE
-from .gay0day import Gay0DayIE
-from .gaydelicious import GayDeliciousIE
-from .youporngay import YouPornGayIE
-from .gaymentubexxx import GayMenTubexxxIE
-from .gaythebest import GayTheBestIE
-from .youdbox import YoudBoxIE
-from .gaymaletubes import GayMaleTubesIE
