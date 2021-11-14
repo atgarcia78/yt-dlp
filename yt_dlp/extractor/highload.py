@@ -80,8 +80,12 @@ class HighloadIE(SeleniumInfoExtractor):
             res = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "faststream_html5_api")))
             
             if not res: raise ExtractorError("no info")
-            if el: 
-                el.click()            
+            if el:
+                try:
+                    el.click()
+                    self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+                except Exception:
+                    pass
             video_url = res.get_attribute("src")
             if not video_url: raise ExtractorError("no video url") 
             
