@@ -22,7 +22,7 @@ import sys
 import hashlib
 import threading
 import json
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 
 import os
 

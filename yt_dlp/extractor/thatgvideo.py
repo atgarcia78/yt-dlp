@@ -1,7 +1,7 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     std_headers,
