@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 import re
 
-from .common import InfoExtractor
+from .seleniuminfoextractor import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     sanitize_filename,
@@ -15,13 +15,16 @@ from threading import Lock
 import traceback
 import sys
 
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.common.by import By
+
 import httpx
-import time
+
 
 from collections import OrderedDict
 
 from concurrent.futures import ThreadPoolExecutor
-class NakedSwordBaseIE(InfoExtractor):
+class NakedSwordBaseIE(SeleniumInfoExtractor):
     IE_NAME = 'nakedsword'
     IE_DESC = 'nakedsword'
     
@@ -51,7 +54,7 @@ class NakedSwordBaseIE(InfoExtractor):
         )
         return ("/signout" in page)
     
-    def _login(self, client:httpx.Client):
+    def _login(self):
         
         self.report_login()
         username, password = self._get_login_info()
@@ -60,53 +63,35 @@ class NakedSwordBaseIE(InfoExtractor):
                 'A valid %s account is needed to access this media.'
                 % self._NETRC_MACHINE)            
 
-        login_form = {
-            "SignIn_login": username,
-            "SignIn_password": password,
-            "SignIn_returnUrl": "/",
-            "SignIn_isPostBack": "true",
-        }
-        
-        
-        
-        _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})         
-        _aux = dict()
-        _aux.update({"Referer": self._LOGIN_URL,"Origin": "https://nakedsword.com","Content-Type": "application/x-www-form-urlencoded", "Upgrade-Insecure-Requests": "1"})
-        _headers_post = self._headers_ordered(_aux)
-        
-        count = 0
-        while (count < 5):
-        
-            try:
-                page = client.get(self._LOGIN_URL, headers=_headers)
-                mobj = re.findall(r"\'SignIn_returnUrl\'value=\'([^\']+)\'", page.text.replace(" ",""))
-                if mobj: login_form.update({"SignIn_returnUrl": mobj[0]})
-                #self.to_screen(f"Count login: [{count}]")
-                #self.to_screen(f"{page.request} - {page} - {page.request.headers} - {mobj}")
-                time.sleep(2)            
-                res = client.post(
-                    self._LOGIN_URL,               
-                    data=login_form,
-                    headers=_headers_post,
-                    timeout=60
-                )
-                #self.to_screen(f"{res.request} - {res} - {res.request.headers}")
-                #self.to_screen("URL login: " + str(res.url))
+        driver = self.get_driver()
+        try:
+            driver.get(self._SITE_URL)
+            driver.get(self._LOGIN_URL)
+            
+            el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
+            el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_password.SignInFormInput.SignInFormPassword")))
+            el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.button.expanded.SignInBtnSubmit")))
+            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+            el_username.send_keys(username)
+            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+            el_psswd.send_keys(password)
+            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+            el_submit.submit()
+            self.wait_until(driver, 60, ec.url_changes(self._LOGIN_URL))
+            if driver.current_url == "https://nakedsword.com/members":
+                self.to_screen("Login OK")
+                return driver.get_cookies()
+            else: raise ExtractorError("login nok")
+        except Exception as e:
+            self.to_screen(repr(e))
+            raise ExtractorError(f"login nok: {repr(e)}")
+        finally:
+            self.rm_driver(driver)
+                    
 
-                if str(res.url) != self._SITE_URL + "members":
-                    count += 1
-                else: break
-            except Exception as e:
-                self.to_screen(f"{type(e)}:{str(e)}")
-                count += 1
-                
-        if count == 5:
-            raise ExtractorError("unable to login")
-
-    def _logout(self,client):
         
-        _headers = self._headers_ordered()
-        res = client.get(self._LOGOUT_URL, headers=_headers, timeout=120)
+   
+         
         
     def get_entries_scenes(self, url):
         
@@ -195,23 +180,6 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                 count += 1
         return(_res if count < 3 else None)
     
-    
-    def _real_initialize(self):
-        with NakedSwordSceneIE._LOCK:
-            #self.to_screen(f"Init of NSwordScene extractor: {NakedSwordSceneIE._COOKIES}")
-            if not NakedSwordSceneIE._COOKIES:
-                try:
-                                        
-                    client = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
-                    self._login(client)
-                    NakedSwordSceneIE._COOKIES = client.cookies
-                    
-                except Exception as e:
-                    raise
-                finally:
-                    client.close()
-                
-            
     def _get_formats(self, client, url, stream_url, _type):
         
         _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json",
@@ -236,7 +204,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         mpd_url = info_json.get("StreamUrl") 
         if not mpd_url: raise ExtractorError("Can't find url mpd")    
         #self.to_screen(mpd_url) 
-        NakedSwordSceneIE._COOKIES = client.cookies      
+        #NakedSwordSceneIE._COOKIES = client.cookies      
         
         try:
             res = self._get_url(client, mpd_url, _headers_mpd)
@@ -265,37 +233,28 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         
         return formats               
                 
-
-
-    
     def _real_extract(self, url):
 
         try:
             
             _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
             client = httpx.Client(timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
+            client.cookies.set("ns_pfm", "True", "nakedsword.com")
         
             with NakedSwordSceneIE._LOCK:
                 if not NakedSwordSceneIE._COOKIES:
                     try:
-                        self._login(client)
-                        NakedSwordSceneIE._COOKIES = client.cookies
-                        client.cookies.set("ns_pfm", "True", "nakedsword.com")
+                        
+                        NakedSwordSceneIE._COOKIES = self._login()
+                        
                     except Exception as e:
-                        self.to_screen(f"{type(e)}: {str(e)}")
+                        self.to_screen(f"{repr(e)}")
                         raise
-                else:
-                    client.get(self._SITE_URL, headers=_headers)
-                    auth = NakedSwordSceneIE._COOKIES.get("ns_auth")
-                    if auth:
-                        #self.to_screen(f"Load Cookie: [ns_auth] {auth}")
-                        client.cookies.set("ns_auth", auth, "nakedsword.com")
-                    client.cookies.set("ns_pfm", "True", "nakedsword.com")
-                    
-                    pk = NakedSwordSceneIE._COOKIES.get("ns_pk")
-                    if pk:
-                        #self.to_screen(f"Load Cookie: [ns_pk] {pk}")
-                        self._set_cookie("nakedsword.com","ns_pk", pk)
+                
+                for cookie in NakedSwordSceneIE._COOKIES:
+                    if cookie['name'] in ("ns_auth", "ns_pk"):
+                        client.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                
         
         
             res = self._get_url(client, url, _headers)
@@ -308,32 +267,35 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
             
             with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=2) as ex:
-                futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
-                       ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
+                # futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
+                #        ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
+                futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8")]
                 
             formats = []
             for _fut in futs:
                 try:
                     formats += _fut.result()
                 except Exception as e:
-                    self.to_screen(f"{type(e)} - {str(e)}")
+                    self.to_screen(f"{repr(e)}")
                    
             
             self._sort_formats(formats) 
+            
+            return {
+                "id": scene_id,
+                "title": info_video.get('title'),
+                "formats": formats,
+                "ext": "mp4"
+            }
  
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
             client.close()
 
-        return {
-            "id": scene_id,
-            "title": info_video.get('title'),
-            "formats": formats,
-            "ext": "mp4"
-        }
+        
 
 class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'

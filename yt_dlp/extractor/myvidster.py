@@ -90,7 +90,7 @@ class MyVidsterBaseIE(InfoExtractor):
         
         return _headers
 
-    def _log_in(self, client):
+    def _login(self):
         
         username, password = self._get_login_info()
         
@@ -116,23 +116,45 @@ class MyVidsterBaseIE(InfoExtractor):
         _aux = {
                 "Referer": self._LOGIN_URL,
                 "Origin": self._SITE_URL,
-                #"Content-Type": "application/x-www-form-urlencoded"
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Upgrade-Insecure-Requests": "1"
         }
         _headers_post = self._headers_ordered(_aux)
         
-        client.get(self._LOGIN_URL, headers=_headers)
+        _timeout = httpx.Timeout(30, connect=60)        
+        _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+        client = httpx.Client(timeout=_timeout, limits=_limits, verify=(not self._downloader.params.get('nocheckcertificate')))
         
-        res = client.post(
-                    self._LOGIN_URL,               
-                    data=data,
-                    headers=_headers_post,
-                    timeout=60
-                )
+        try:
+            
+            client.get(self._LOGIN_URL, headers=_headers)
+            client.cookies.set(name="auto_refresh", value="0", domain="www.myvidster.com")
+            
+            res = client.post(
+                        self._LOGIN_URL,               
+                        data=data,
+                        headers=_headers_post,
+                        timeout=60
+                    )
+            
+            if res.status_code == 302 and "www.myvidster.com/user/home.php" in res.headers.get("location", ""):
+                self.to_screen("LOGIN OK")
+                return client.cookies
+                
+            else:
+                raise ExtractorError(f"Login failed: {res} : {res.url}")
 
-        if not "https://www.myvidster.com/user/home.php" in str(res.url):
-            raise ExtractorError(f"Login failed: {res} : {res.url}")
-
-        else: self.to_screen("LOGIN OK")
+           
+        except ExtractorError:
+            raise
+        except Exception as e:
+            self.to_screen(repr(e))
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+            
 
     def islogged(self, client):
         
@@ -169,18 +191,14 @@ class MyVidsterIE(MyVidsterBaseIE):
     def _real_initialize(self):
         with MyVidsterIE._LOCK:
             if not MyVidsterIE._COOKIES:
-                
-                client = httpx.Client(timeout=60)   
                        
                 try:
-                    self._log_in(client)
-                    MyVidsterIE._COOKIES = client.cookies                    
+                    MyVidsterIE._COOKIES  = self._login()                                        
         
                 except Exception as e:
-                    self.to_screen(e)
+                    self.to_screen(repr(e))
                     raise
-                finally:
-                    client.close()
+                
                 
                 
 
