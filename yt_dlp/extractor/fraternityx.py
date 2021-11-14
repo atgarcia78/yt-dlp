@@ -22,7 +22,7 @@ from selenium.webdriver.common.by import By
 
 import demjson
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 
 import httpx
 

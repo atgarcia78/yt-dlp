@@ -27,7 +27,7 @@ from urllib.parse import unquote
 
 from threading import Lock
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 class YourPornGodIE(SeleniumInfoExtractor):
     
     IE_NAME = 'yourporngod'

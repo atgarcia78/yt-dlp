@@ -6,7 +6,7 @@ import re
 
 from ..utils import ExtractorError
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 
 from concurrent.futures import (
     ThreadPoolExecutor   

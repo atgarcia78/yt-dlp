@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 import re
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     sanitize_filename,

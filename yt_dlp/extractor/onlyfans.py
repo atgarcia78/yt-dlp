@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import json
 
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     int_or_none   

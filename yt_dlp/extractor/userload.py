@@ -10,7 +10,7 @@ from ..utils import (
 )
 import httpx
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 
 
 from selenium.webdriver.support import expected_conditions as ec

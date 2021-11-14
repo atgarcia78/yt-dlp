@@ -21,7 +21,7 @@ import httpx
 
 from threading import Lock
 
-from .seleniuminfoextractor import SeleniumInfoExtractor
+from .webdriver import SeleniumInfoExtractor
 
 from ratelimit import (
     sleep_and_retry,
