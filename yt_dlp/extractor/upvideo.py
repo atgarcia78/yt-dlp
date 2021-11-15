@@ -35,36 +35,6 @@ class UpVideoIE(SeleniumInfoExtractor):
     _LOCK = Lock()
 
 
-
-    
-    def _get_filesize(self, url):
-        
-        count = 0
-        try:
-            
-            _res = None
-            while (count<3):
-                
-                try:
-                    
-                    res = httpx.head(url, headers=std_headers)
-                    if res.status_code > 400:
-                        time.sleep(1)
-                        count += 1
-                    else: 
-                        _res = int_or_none(res.headers.get('content-length')) 
-                        break
-            
-                except Exception as e:
-                    count += 1
-        except Exception as e:
-            pass
-
-        
-        return _res
-
-
-
     def _real_extract(self, url):
         
         self.report_extraction(url)
@@ -78,22 +48,26 @@ class UpVideoIE(SeleniumInfoExtractor):
                 driver.get(url)
             
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"overlay")))
-            if el: el.click()
+            if el: 
+                try:
+                    el.click()
+                except Exception:
+                    pass
             
             res = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "vplayer_html5_api")))
             if not res: raise ExtractorError("no info")
-            video_url = res[0].get_attribute("src")
+            video_url = res.get_attribute("src")
             if not video_url: raise ExtractorError("no video url") 
             
             title = driver.title.replace(" | upvideo","").replace(".mp4","")
             videoid = self._match_id(url)
-            
-           
+            info_video = self.get_info_for_format(video_url)
+            if (error_msg:=info_video.get('error')): raise ExtractorError(f"cant get info video - {error_msg}")
             
             _format = {
                     'format_id': 'http-mp4',
-                    'url': video_url,
-                    'filesize': self._get_filesize(video_url),
+                    'url': info_video.get('url', video_url),
+                    'filesize': info_video.get('filesize'),
                     'ext': 'mp4'
             }
             
@@ -113,7 +87,7 @@ class UpVideoIE(SeleniumInfoExtractor):
             else: raise ExtractorError(repr(e))
         finally:
             try:
-                self.rm_drive(driver, tempdir)
+                self.rm_drive(driver)
             except Exception:
                 pass 
         
