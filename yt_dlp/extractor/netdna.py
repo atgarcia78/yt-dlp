@@ -179,9 +179,7 @@ class NetDNAIE(SeleniumInfoExtractor):
               
         
         try:
-            
 
-            
             count = 0
             
             while count < 3:        
@@ -191,29 +189,8 @@ class NetDNAIE(SeleniumInfoExtractor):
                     entry = None
                     driver.get(url) #using firefox extension universal bypass to get video straight forward
                     
-                    _reswait = self.wait_until(driver, 120, ec.url_contains("netdna-storage.com/download/"))
-                    
-                    if not _reswait:
-                        
-                        _title = driver.title.lower()        
-                        if any(_ in _title for _ in  ["file not found", "error"]):
-                            self.write_debug(f"{info_video.get('title')} Page not found - {url}")
-                            raise ExtractorError(f"404 - Page not found - {url}")
+                    _reswait = self.wait_until(driver, 30, ec.url_contains("netdna-storage.com/download/"))
 
-                        self.write_debug(f"{url} - Bypass stopped at: {driver.current_url}")
-                        _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
-                        if _reswait:
-                            
-                            _reswait.submit()
-                            #self.wait_until(driver, 10, ec.title_is("DUMMYFORWAIT"))
-                            _reswait = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "x-token")))
-                            if _reswait:
-                                
-                                _reswait.submit()
-                                #self.wait_until(driver, 1, ec.title_is("DUMMYFORWAIT"))
-                                _reswait = self.wait_until(driver, 30, ec.url_contains("download"))
-                                
-                    
                     
                     if not "netdna-storage.com/download/" in (_curl:=driver.current_url): 
                         self.write_debug(f"{info_video.get('title')} Bypass stopped at: {_curl}")
@@ -244,7 +221,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                                     'ext' : info_video.get('ext')
                                 }
                                     
-                                return entry
+                                
                             
                             else:
                                 el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
@@ -259,8 +236,10 @@ class NetDNAIE(SeleniumInfoExtractor):
                                         'formats': _formats,
                                         'ext' : info_video.get('ext')
                                     } 
-                                    return entry  
-                                    
+                                      
+                            if not entry: raise ExtractorError("no video info")
+                            else:
+                                return entry       
                                     
                             
                         
@@ -273,22 +252,15 @@ class NetDNAIE(SeleniumInfoExtractor):
                         
                 
                 except ExtractorError as e:
-                    self.to_screen(f"{repr(e)}")
+                    self.write_debug(f"{repr(e)}")
                     count += 1
                     self.write_debug(f"[count] {count}")
-                    if count == 3: raise
-                except WebDriverException as e:
-                    self.write_debug(f"{repr(e)}")
-                    raise ExtractorError(str(e))
-                    
-                except Exception as e:  
-                            
+                    if count == 3: raise ExtractorError("max attempts to get info")
+                except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.write_debug(f"{repr(e)}, will retry \n{'!!'.join(lines)}")
-                    count += 1
-                    self.write_debug(f"[count] {count}")
-                    
-                    if (count == 3):  raise ExtractorError(str(e))  
+                    raise ExtractorError(repr(e)) from e 
+                      
         finally:
             try:
                 self.rm_driver(driver)
