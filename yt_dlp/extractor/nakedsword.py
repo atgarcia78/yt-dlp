@@ -47,12 +47,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
         return _headers
     
-    def islogged(self):
-        page, urlh = self._download_webpage_handle(
-            self._SITE_URL,
-            None
-        )
-        return ("/signout" in page)
+
     
     def _login(self):
         
@@ -66,6 +61,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         driver = self.get_driver()
         try:
             driver.get(self._SITE_URL)
+            if driver.current_url == "https://nakedsword.com/members":
+                self.to_screen("Login OK")
+                return driver.get_cookies()
+                
             driver.get(self._LOGIN_URL)
             
             el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
@@ -89,9 +88,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.rm_driver(driver)
                     
 
-        
-   
-         
+
         
     def get_entries_scenes(self, url):
         
