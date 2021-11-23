@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-404: Not Found
-=======
-# coding: utf-8
 from __future__ import unicode_literals
 
 import re
@@ -328,8 +324,3 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
                 self.rm_driver(driver)
             except Exception:
                 pass
-
-                
-
-        
->>>>>>> d86a6474f (upt)
