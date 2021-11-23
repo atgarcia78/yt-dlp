@@ -25,7 +25,7 @@ from ratelimit import limits, sleep_and_retry
 class StreamtapeIE(InfoExtractor):
 
     IE_NAME = 'streamtape'
-    _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)(?:$|/)'
+    _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?((?P<title>.+)\.mp4)?'
     
     
     @staticmethod
@@ -80,41 +80,23 @@ class StreamtapeIE(InfoExtractor):
         
     
     def _real_extract(self, url):
-        
-   
-        
-        
+
         try:
         
-            _timeout = httpx.Timeout(30, connect=30)        
+            _timeout = httpx.Timeout(15, connect=15)        
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
-            
-            _url = re.search(r'(?P<url>https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+))', url.replace('/e/', '/v/')).group('url')
-            if url == _url:
-                self.report_extraction(url)
-                
-            else:
-                self.report_extraction(f'{_url} from {url}')
-            
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
+
             count = 0
             while(count < 3):
                 
                 try:
                 
-                    # with StreamtapeIE._LOCK:
-                        
-                    #     try:                            
-                            
-                    #         res = self._send_request(client, _url, 'GET')            
-                    #         if res.status_code >= 400:
-                    #             raise ExtractorError(f"Error {res.status_code} - Page not found")                                                       
-                    #     except Exception as e:
-                    #         raise  
+
                     
                     try:                            
                         
-                        res = self._send_request(client, _url, 'GET')            
+                        res = self._send_request(client, url, 'GET')            
                         if res.status_code >= 400:
                             raise ExtractorError(f"Error {res.status_code} - Page not found")                                                       
                     except Exception as e:
@@ -122,15 +104,20 @@ class StreamtapeIE(InfoExtractor):
                             
                     
                     webpage = re.sub('[\n\t]', '', res.text)
-                    mobj = re.findall(r'id=\"norobotlink\" style\=\"display\:none;\"\>/streamtape\.(?:com|net)/get_video\?([^\<]+)\<', webpage)
-                    mobj2 = re.findall(r"getElementById\(\'norobotlink\'\).+(token=[^\"\']+)[\'\"]", webpage)
+                    mobj = re.findall(r'id=\"(?:norobotlink|robotlink)\" style\=\"display\:none;\"\>/streamtape\.(?:com|net)/get_video\?([^\<]+)\<', webpage)
+                    mobj2 = re.findall(r"getElementById\(\'(?:norobotlink|robotlink)\'\).+(token=[^\"\']+)[\'\"]", webpage)
                     if mobj and mobj2:
                         _params = mobj[0].split('token')[0] + mobj2[0]
                         
                         video_url = f"https://streamtape.com/get_video?{_params}"
-                        _info_video = self._get_infovideo(video_url, _url, client)
+                        _info_video = self._get_infovideo(video_url, url, client)
                         if _info_video.get('error'): raise ExtractorError("error info video max retries")
-                        title = re.sub('\.mp4| at Streamtape\.com|amp;', '', re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage).group('title'))
+                        mobj = re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage) or re.search(self._VALID_URL, url)
+                        if mobj:
+                            title = mobj.group('title')
+                            if title: title = re.sub('\.mp4| at Streamtape\.com|amp;', '', title, re.IGNORECASE)
+                            else: title = "streamtape_video"
+                        
                         
                         videoid = self._match_id(url)
                     
@@ -160,7 +147,7 @@ class StreamtapeIE(InfoExtractor):
                     if count == 3: 
                         raise
                     else: 
-                        self.to_screen(f"count[{count}] {_url}")
+                        self.to_screen(f"count[{count}] {url}")
                         continue
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())

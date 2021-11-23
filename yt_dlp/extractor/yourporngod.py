@@ -6,15 +6,14 @@ import re
 from ..utils import (
     ExtractorError,   
     std_headers,
-    sanitize_filename,
-    int_or_none
+    sanitize_filename
 
 )
 
 import httpx
 import html
-import demjson
-import time
+
+
 
 from concurrent.futures import ThreadPoolExecutor
 from .common import InfoExtractor
@@ -22,105 +21,85 @@ from .common import InfoExtractor
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-import os
-from urllib.parse import unquote
 
-from threading import Lock
 
 from .webdriver import SeleniumInfoExtractor
+
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
+class get_videourl():
+    
+    def __call__(self, driver):
+        
+        el_player = driver.find_elements(by=By.ID, value="kt_player")
+        if not el_player: return False
+        else:
+            try:
+                el_player[0].click()
+                el_fp = driver.find_elements(by=By.CSS_SELECTOR, value="video.fp-engine")
+                if not el_fp: return False
+                else:            
+                    video_url = el_fp[0].get_attribute('src')
+                    if video_url: return video_url
+                    else: return False
+            except Exception:
+                return False
+                    
+                
+            
+
+        
+        
 class YourPornGodIE(SeleniumInfoExtractor):
     
     IE_NAME = 'yourporngod'
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
     
-    _LOCK = Lock()
+    @sleep_and_retry
+    @limits(calls=1, period=10)
+    def _get_video_info(self, url):
+        
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)       
+        
+
+    
+    @sleep_and_retry
+    @limits(calls=1, period=10)
+    def _send_request(self, driver, url):
+
+        
+        self.logger_info(f"[send_request] {url}")   
+        driver.get(url)
         
    
     def _real_extract(self, url):
-        video_id = self._match_id(url)
+        
               
         self.report_extraction(url)
-        _timeout = httpx.Timeout(15, connect=15)        
-        _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-        client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
+        
+        driver = self.get_driver()
         try:
+                    
+            self._send_request(driver, url)
             
-            with YourPornGodIE._LOCK:
-                res = client.get(url)
-            
-            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
-            
-            mobj = re.findall(r"<title>([^<]+)<", webpage)
-            title = mobj[0] if mobj else re.search(self._VALID_URL, url).group('title')
-            
-            mobj = re.findall(r'var\s+flashvars\s*=\s*([^;]+);',webpage)
-            data = demjson.decode(mobj[0]) if mobj else None
-            if data: 
-            
-                formats = []
+            video_url = self.wait_until(driver, 30, get_videourl())                
                 
-                if (_target:=data.get("video_url")):
-                    
-                    _url = re.findall(r'(https.*)', _target)[0]
-                    if (_rnd:=data.get('rnd')): _url = _url +"?rnd=" + _rnd
-                    _desc = data.get("video_url_text", "")
-                    info_video = self.get_info_for_format(_url, client)
-                    if (error_msg:=info_video.get('error')): raise InfoExtractor(f"error video info - {error_msg}")
-                    formats.append({'format_id': 'http' + _desc, 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4', 'resolution': _desc, 'height' : int_or_none(_desc[:-1] if _desc else None)})
-                    
-                if (_urlalt:=data.get("video_alt_url")):
-                    
-                    _desc = data.get("video_alt_url_text", "")
-                    info_video = self.get_info_for_format(_urlalt, client)
-                    if (error_msg:=info_video.get('error')): raise InfoExtractor(f"error video info - {error_msg}")
-                    formats.append({'format_id': 'http' + _desc, 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4', 'resolution': _desc, 'height' : int_or_none(_desc[:-1] if _desc else None)})
-                    
-                #if not formats: raise ExtractorError("No formats found")
-                
-                
-                
-            else:
-                try:
-                    driver = self.get_driver()
-                    with YourPornGodIE._LOCK:
-                        driver.get(url)
-                    el_frames = self.wait_until(driver, 60, ec.presence_of_all_elements_located(((By.TAG_NAME, "iframe"))))
-                    for i,el in enumerate(el_frames):
-                        if "embed" in el.get_attribute('src'):
-                            driver.switch_to.frame(el)
-                            break
-                    
-                    el_settings = self.wait_until(driver, 60, ec.presence_of_all_elements_located(((By.CSS_SELECTOR, "a.fp-settings"))))
-                    _url = None
-                    for el in el_settings:
-                        el_tag = el.find_elements(by=By.TAG_NAME, value='a')
-                        for tag in el_tag:
-                            if "download" in tag.get_attribute('innerHTML').lower():
-                                _url = tag.get_attribute('href')
-                                break
-                        if _url: break
-                        
-                    driver.get(_url)
-                    el_video = self.wait_until(driver, 60, ec.presence_of_element_located(((By.CSS_SELECTOR, "video.fp-engine"))))
-                    video_url = el_video.get_attribute('src') if el_video else None
-                    if not video_url: raise ExtractorError("No video url")
-                    info_video = self.get_info_for_format(video_url, client)
-                    if (error_msg:=info_video.get('error')): raise InfoExtractor(f"error video info - {error_msg}")
-                    
-                    formats = [{'format_id': 'http', 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4'}]
-                
-                except Exception as e:
-                    self.to_screen(e)
-                    raise
-                finally:
-                    try:
-                        self.rm_driver(driver)
-                    except Exception:
-                        pass
+            if not video_url: raise ExtractorError("No video url")
             
+            info_video = self._get_video_info(video_url)
+            
+            if (error_msg:=info_video.get('error')): raise InfoExtractor(f"error video info - {error_msg}")
+            
+            formats = [{'format_id': 'http', 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4'}]
             if not formats: raise ExtractorError("No formats found")
             else:
-                self._sort_formats(formats)        
+                self._sort_formats(formats)
+                video_id = self._match_id(url)
+                title = driver.title        
                 entry = {
                         'id' : video_id,
                         'title' : sanitize_filename(title, restricted=True),
@@ -128,11 +107,18 @@ class YourPornGodIE(SeleniumInfoExtractor):
                         'ext': 'mp4'
                     }            
                 return entry
+        
+        
+        except Exception as e:
+            self.to_screen(e)
+            raise
         finally:
             try:
-                client.close()
+                self.rm_driver(driver)
             except Exception:
                 pass
+            
+        
 class YourPornGodPlayListIE(InfoExtractor):
     
     IE_NAME = 'yourporngod:playlist'

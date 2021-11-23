@@ -36,7 +36,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         _title_search =  _info_video.get('title').replace("_",",")
         _id = _info_video.get('id')
         if not ytdl:
-            if any((_ytdl:=el._downloader) for el in  cls.__mro__):
+            if any((_ytdl:=getattr(el, "_downloader", None)) for el in  cls.__mro__):
                 ytdl = _ytdl
         #para poder obtener la release date hay que buscar el post asociado en gaybeeg
         _info = ytdl.extract_info(f"https://gaybeeg.info/?s={_title_search}", download=False)
@@ -58,9 +58,9 @@ class NetDNAIE(SeleniumInfoExtractor):
             title = None
             _num = None
             _unit = None
-            _timeout = httpx.Timeout(30, connect=30)        
+            _timeout = httpx.Timeout(15, connect=15)        
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers)
+            client = httpx.Client(timeout=_timeout, limits=_limits, follow_redirects=True, headers=std_headers)
             
             try:
                 
@@ -155,19 +155,31 @@ class NetDNAIE(SeleniumInfoExtractor):
 
     def get_format(self, client, text, url):
         
-        count = 0
-        while (count < 3):
-            try:
-                res = client.get(url)
-                break
-            except Exception as e:
-                count +=1
-        
-        if count == 3: raise ExtractorError('Couldn get format')    
-        _video_url = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text).group('file')
-        _info = self._get_info_format(_video_url, client)
-        return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
-  
+        try:
+            count = 0
+            while (count < 3):
+                try:
+                    res = client.get(url)
+                    res.raise_for_status()
+                    if "Internal Server Error" in res.text:
+                        raise Exception("error")
+                    break
+                except Exception as e:
+                    count +=1
+            
+            if count == 3: raise ExtractorError('Couldn get format')    
+            mobj = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text)
+            if not mobj:
+                self.to_screen(f"ERROR:{url}\n{res.text}")
+                raise ExtractorError('cant find video url')
+               
+            else:
+                _video_url = mobj.group('file')            
+                _info = self._get_info_format(_video_url, client)
+                return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
+        except Exception as e:
+            self.to_screen(repr(e))
+    
     
     def _real_extract(self, url):        
         
@@ -201,9 +213,9 @@ class NetDNAIE(SeleniumInfoExtractor):
                         
                         try:
                         
-                            _timeout = httpx.Timeout(30, connect=30)        
+                            _timeout = httpx.Timeout(15, connect=15)        
                             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
+                            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
                             
                             
                             el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
@@ -266,5 +278,4 @@ class NetDNAIE(SeleniumInfoExtractor):
                 self.rm_driver(driver)
             except Exception:
                 pass 
-                       
    

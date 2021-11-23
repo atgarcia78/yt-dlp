@@ -1,17 +1,14 @@
 from __future__ import unicode_literals
 
-import threading
 
 from .webdriver import SeleniumInfoExtractor
 
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    int_or_none,
-    std_headers
 
 )
-import httpx
+
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
@@ -20,50 +17,34 @@ from selenium.webdriver.common.by import By
 import traceback
 import sys
 
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
 class YoudBoxIE(SeleniumInfoExtractor):
 
     IE_NAME = 'youdbox'
-    _VALID_URL = r'https?://(?:www\.)?youdbox\.net/(embed-)?(?P<id>[^\.]+).html'
+    _VALID_URL = r'https?://(?:www\.)?youdbox\.(?:net|org|com)/(embed-)?(?P<id>[^\./]+)[\./]'
     
 
- 
-    _LOCK = threading.Lock()
-
-
-
-    
-    def _get_info(self, url):
+    @sleep_and_retry
+    @limits(calls=1, period=10)
+    def _get_video_info(self, url):
         
-        count = 0
-        try:
-            
-            _res = None
-            while (count<3):
-                
-                try:
-                    
-                    #res = self._send_request(client, url, 'HEAD')
-                    res = httpx.head(url, headers=std_headers)
-                    if res.status_code >= 400:
-                        
-                        count += 1
-                    else: 
-                        _filesize = int_or_none(res.headers.get('content-length'))
-                        _url = str(res.url)
-                        if _filesize and _url:
-                            break
-                        else:
-                            count += 1
-                        
-            
-                except Exception as e:
-                    count += 1
-        except Exception as e:
-            pass
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)       
+        
 
-        if count < 3: return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': 'max retries'})  
     
+    @sleep_and_retry
+    @limits(calls=1, period=10)
+    def _send_request(self, driver, url):
+
+
+        self.logger_info(f"[send_request] {url}")   
+        driver.get(url)
+
     def _real_extract(self, url):
         
    
@@ -71,29 +52,31 @@ class YoudBoxIE(SeleniumInfoExtractor):
        
         driver = self.get_driver() 
         
-        
-
         try:
             
-            with YoudBoxIE._LOCK:
+            _url = url.replace("embed-", "")
 
-                driver.get(url.replace("embed-", ""))
+            self._send_request(driver, _url)
+            
             
             el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "vjsplayer_html5_api"))) 
 
             if not el_video: raise ExtractorError("no info")           
             video_url = el_video.get_attribute('src')
-              
+            if not video_url: raise ExtractorError("no video url")            
+            title = driver.title.replace("mp4", "").replace("Download", "").replace("download", "").strip()
+            videoid = self._match_id(url)            
             
-            title = driver.title.replace("mp4", "")
-            videoid = self._match_id(url)
+            _videoinfo = self._get_video_info(video_url)
             
-            info_video = self._get_info(video_url)
+            
+            if _videoinfo.get('error'): raise ExtractorError("error video info")
+            
             
             _format = {
                     'format_id': 'http-mp4',
-                    'url': info_video['url'],
-                    'filesize': info_video['filesize'],
+                    'url': _videoinfo['url'],
+                    'filesize': _videoinfo['filesize'],
                     'ext': 'mp4'
             }
             
@@ -113,8 +96,8 @@ class YoudBoxIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
             try:
                 self.rm_driver(driver)

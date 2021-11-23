@@ -40,35 +40,6 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     
     _COOKIES = {}
     
-    def _get_info_video(self, url, client):
-       
-        count = 0
-        while (count<5):
-                
-            try:
-                
-                res = client.head(url)
-                if res.status_code > 400:
-                    
-                    count += 1
-                else: 
-                    
-                    _filesize = int_or_none(res.headers.get('content-length')) 
-                    _url = str(res.url)
-                    #self.to_screen(f"{url}:{_url}:{_res}")
-                    if _filesize and _url: 
-                        break
-                    else:
-                        count += 1
-        
-            except Exception as e:
-                count += 1
-                
-            time.sleep(1)
-                
-        if count < 5: return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': 'max retries'})  
-
     def _login(self, driver):
         
         
@@ -141,15 +112,13 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-                raise ExtractorError(f"Login error: {repr(e)}") from e
-            finally:
                 try:
                     self.rm_driver(driver)
                 except Exception:
                     pass
-                           
-                
+                raise ExtractorError(f"Login error: {repr(e)}") from e
             
+
         self.report_extraction(url) 
         
         
@@ -171,12 +140,14 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 
                 try:
                         
-                    client = httpx.Client(timeout=10, headers={'User-Agent': std_headers['User-Agent']}, verify=(not self._downloader.params.get('nocheckcertificate')))
+                    _timeout = httpx.Timeout(15, connect=15)        
+                    _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+                    client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
                     info_sources = demjson.decode(mobj[0])
                     _formats = []
                     for _src in info_sources.get('mp4'):
                         _url = unquote(_src.get('src'))
-                        _info_video = self._get_info_video(_url, client)
+                        _info_video = self.get_info_for_format(_url, client)
                             
                         if (_error:=_info_video.get('error')): 
                             self.to_screen(_error)
@@ -240,8 +211,9 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 _url = f"https://{_url_embed.host}/embed/{_params_dict.get('m')}/{_params_dict.get('h')}"
             else: _url = url
             
-            
-            client = httpx.Client(timeout=10, headers={'User-Agent': std_headers['User-Agent']}, verify=(not self._downloader.params.get('nocheckcertificate')))
+            _timeout = httpx.Timeout(15, connect=15)        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
             
             res = client.get(_url)            
                 
@@ -258,7 +230,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 _formats = []
                 for _src in info_sources.get('mp4'):
                     _url = unquote(_src.get('src'))
-                    _info_video = self._get_info_video(_url, client) 
+                    _info_video = self.get_info_for_format(_url, client) 
                     _formats.append({
                         'url': _info_video.get('url'),
                         'ext': 'mp4',

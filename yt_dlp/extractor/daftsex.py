@@ -159,9 +159,6 @@ import hashlib
 import json
 import demjson
 
-logger = logging.getLogger("daftsex")
-
-
 class DaftSexIE(InfoExtractor):
     IE_NAME = 'daftsex'
     _VALID_URL = r'https?://(www.)?daftsex\.com/watch/(?P<id>[a-zA-Z0-9_-]+)(?:$|/)'
@@ -205,8 +202,9 @@ class DaftSexIE(InfoExtractor):
         try:
         
             
-            client = httpx.Client(headers=std_headers, timeout=httpx.Timeout(10, connect=30), limits=httpx.Limits(max_keepalive_connections=None, max_connections=None)) 
-            
+            _timeout = httpx.Timeout(15, connect=15)        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))            
             
             self.report_extraction(url)
             

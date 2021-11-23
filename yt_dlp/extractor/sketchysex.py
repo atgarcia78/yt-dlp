@@ -164,21 +164,28 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         manifestid = str(info.get('xdo',{}).get('video', {}).get('manifest_id', {}))
         manifesturl = "https://videostreamingsolutions.net/api:ov-embed/manifest/" + manifestid + "/manifest.m3u8"
         
-        formats_m3u8 = self._extract_m3u8_formats(
-            manifesturl, videoid, m3u8_id="hls", ext="mp4", entry_protocol='m3u8_native', fatal=False
-        )
+        try:
+            res = cl.get(manifesturl)
+            res.raise_for_status()
+            if not res or not res.content: raise ExtractorError("Cant get m3u8 doc")
+            m3u8_doc = (res.content).decode('utf-8', 'replace')        
+            formats_m3u8, subtitles = self._parse_m3u8_formats_and_subtitles(
+                m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
-        if not formats_m3u8:
-            raise ExtractorError("Can't find any M3U8 format")
+            if not formats_m3u8:
+                raise ExtractorError("Can't find any M3U8 format")
 
-        self._sort_formats(formats_m3u8)
+            self._sort_formats(formats_m3u8)
     
                     
-        return ({
-            "id": videoid,
-            "title": _title,
-            "formats": formats_m3u8
-        })
+            return ({
+                "id": videoid,
+                "title": _title,
+                "formats": formats_m3u8
+            })
+        except Exception as e:
+            raise ExtractorError(f"Can't get M3U8 details: {repr(e)}")
+            
         
         
        
@@ -252,8 +259,14 @@ class SketchySexIE(SketchySexBaseIE):
         
         data = None
         try:
-        
-            cl = httpx.Client(headers=std_headers, timeout=httpx.Timeout(15, connect=30), limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+            
+            url_proxy = self._downloader.params.get('proxy', "")            
+            if url_proxy:
+                if not url_proxy.startswith("http://"): url_proxy = f"http://{url_proxy}"
+                proxies = {'http://': url_proxy, 'https://': url_proxy}                
+            else:
+                proxies = None                
+            cl = httpx.Client(trust_env=False, verify=False, proxies=proxies, headers=std_headers, timeout=httpx.Timeout(15, connect=30), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
             for cookie in SketchySexIE._COOKIES:
                 cl.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                 
