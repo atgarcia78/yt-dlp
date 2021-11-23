@@ -4,12 +4,10 @@ from __future__ import unicode_literals
 from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
-    sanitize_filename,
-    int_or_none    
+    sanitize_filename
 )
 
 
-import time
 import traceback
 import sys
 
@@ -17,11 +15,11 @@ import sys
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
 
-import time
-import httpx
-
-from threading import Lock
 
 class HighloadIE(SeleniumInfoExtractor):
     
@@ -30,36 +28,23 @@ class HighloadIE(SeleniumInfoExtractor):
     IE_NAME = 'highload'
     _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
 
-    
-
-    _LOCK = Lock()
-
-    
-    def _get_filesize(self, url):
+    @sleep_and_retry
+    @limits(calls=1, period=10)
+    def _get_video_info(self, url):
         
-        count = 0
-        try:
-            
-            _res = None
-            while (count<3):
-                
-                try:
-                    
-                    res = httpx.head(url)
-                    if res.status_code > 400:
-                        time.sleep(1)
-                        count += 1
-                    else: 
-                        _res = int_or_none(res.headers.get('content-length')) 
-                        break
-            
-                except Exception as e:
-                    count += 1
-        except Exception as e:
-            pass
-
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)       
         
-        return _res
+
+    
+    @sleep_and_retry
+    @limits(calls=1, period=10)
+    def _send_request(self, driver, url):
+
+
+        self.logger_info(f"[send_request] {url}")   
+        driver.get(url)
+
 
 
 
@@ -73,8 +58,8 @@ class HighloadIE(SeleniumInfoExtractor):
         try:                            
 
             _url = url.replace('/e/', '/f/')
-            with HighloadIE._LOCK:
-                driver.get(_url)
+            
+            self._send_request(driver, _url)
             
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videerlay")))
             res = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "faststream_html5_api")))
@@ -92,12 +77,13 @@ class HighloadIE(SeleniumInfoExtractor):
             title = driver.title.replace(" - Highload.to","").replace(".mp4","").strip()
             videoid = self._match_id(url)
             
-            _entry_video = None
+                       
+            _videoinfo = self._get_video_info(video_url)
             
             _format = {
                     'format_id': 'http-mp4',
-                    'url': video_url,
-                    'filesize': self._get_filesize(video_url),
+                    'url': _videoinfo['url'],
+                    'filesize': _videoinfo['filesize'],
                     'ext': 'mp4'
             }
             
@@ -110,11 +96,12 @@ class HighloadIE(SeleniumInfoExtractor):
             
             return _entry_video  
             
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            if "ExtractorError" in str(e.__class__): raise
-            else: raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
             try:
                 self.rm_driver(driver)

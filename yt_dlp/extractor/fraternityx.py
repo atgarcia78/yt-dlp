@@ -253,7 +253,7 @@ class FraternityXIE(FraternityXBaseIE):
         data = None
         try:
         
-            cl = httpx.Client(headers=std_headers, timeout=httpx.Timeout(15, connect=30), limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+            cl = httpx.Client(headers=std_headers, timeout=httpx.Timeout(15, connect=15), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
             for cookie in FraternityXIE._COOKIES:
                 cl.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                 

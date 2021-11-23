@@ -1,6 +1,10 @@
 from __future__ import unicode_literals
 
-from .common import InfoExtractor, ExtractorError
+from .common import (
+    InfoExtractor,
+    ExtractorError
+)
+
 
 import sys
 import traceback
@@ -22,9 +26,11 @@ from ..utils import (
     int_or_none
 )
 
+
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'   
+    
     
     def rm_driver(self, driver, tempdir=None):
         
@@ -59,6 +65,13 @@ class SeleniumInfoExtractor(InfoExtractor):
         opts.add_argument("--profile")
         opts.add_argument(tempdir)
         
+        if not host and not port:
+            if self._downloader:
+                if (proxy:=self._downloader.params.get('proxy')):
+                    proxy = proxy.replace('https://', '').replace('http://', '')
+                    host = proxy.split(":")[0]
+                    port = proxy.split(":")[1]
+                
         if host and port:
             opts.set_preference("network.proxy.type", 1)
             opts.set_preference("network.proxy.http",host)
@@ -114,7 +127,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         return el
     
-    def get_info_for_format(self, url, client=None, headers=None):
+
+    def get_info_for_format(self, url, client=None, headers=None, fatal=False):
         
         count = 0
         if not client:
@@ -152,6 +166,15 @@ class SeleniumInfoExtractor(InfoExtractor):
                     pass
 
         if count < 3: return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': f'max retries - {repr(_error)}'}) 
+        else: 
+            if not fatal: return ({'error': f'max retries - {repr(_error)}'})
+            else: raise ExtractorError(f'info for format - max retries - {repr(_error)}')
     
-     
+    def logger_info(self, msg):
+        if (_logger:=self._downloader.params.get('logger')):
+            _logger.info(f"[{self.IE_NAME}]{msg}")
+        else:
+            self.to_screen(msg)
+            
+    
+        

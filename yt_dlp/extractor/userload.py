@@ -1,14 +1,13 @@
 from __future__ import unicode_literals
-import threading
+
 
 
 from ..utils import (
     ExtractorError,
-    sanitize_filename,
-    int_or_none
+    sanitize_filename
 
 )
-import httpx
+
 
 from .webdriver import SeleniumInfoExtractor
 
@@ -25,7 +24,6 @@ from ratelimit import (
     limits
 )
 
-import time
 
 class get_video_url():
     
@@ -49,60 +47,23 @@ class UserLoadIE(SeleniumInfoExtractor):
 
     IE_NAME = 'userload'
     _VALID_URL = r'https?://(?:www\.)?userload\.co/(?:embed|e|f)/(?P<id>[^\/$]+)(?:\/|$)'
-    
- 
-    _LOCK = threading.Lock()
 
+    
     @sleep_and_retry
     @limits(calls=1, period=10)
     def _get_video_info(self, url):
         
-        count = 0
-        try:
-            
-            while (count<5):
-                
-                try:
-                    
-                    res = self._req_head(url)
-                    
-                    if res.status_code >= 400:
-                        self.to_screen(f"{res.status_code}:{url}")
-                        count += 1
-                    else: 
-                        _filesize = int_or_none(res.headers.get('content-length'))
-                        _url = str(res.url)
-                        if _filesize and _url:
-                            break
-                        else:
-                            count += 1
-                        
-            
-                except Exception as e:
-                    self.to_screen(repr(e))
-                    count += 1
-            
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)       
         
-            
-        except Exception as e:
-            self.to_screen(repr(e))
-            pass
 
-        if count < 5: 
-            return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': 'max retries'}) 
-
-    @sleep_and_retry
-    @limits(calls=1, period=10)
-    def _req_head(self, url):
-        self.to_screen(f"[req_head] {url}")
-        return httpx.head(url)
     
     @sleep_and_retry
     @limits(calls=1, period=10)
     def _send_request(self, driver, url):
 
-        self.to_screen(f"[send_request] {url}")
+
+        self.logger_info(f"[send_request] {url}")   
         driver.get(url)
         
     
@@ -127,7 +88,7 @@ class UserLoadIE(SeleniumInfoExtractor):
                 
             _videoinfo = self._get_video_info(video_url)
             
-            self.to_screen(f"info video: {_videoinfo}")
+            #self.to_screen(f"info video: {_videoinfo}")
             
             if _videoinfo.get('error'):
                 raise ExtractorError("error video info")
@@ -156,8 +117,8 @@ class UserLoadIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
             try:
                 self.rm_driver(driver)

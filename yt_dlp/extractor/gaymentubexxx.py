@@ -62,7 +62,9 @@ class GayMenTubexxxIE(InfoExtractor):
         
         try:
         
-            client = httpx.Client(timeout=60, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
+            _timeout = httpx.Timeout(15, connect=15)        
+            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
                       
             res = client.get(url)
             if res.status_code >= 400: raise ExtractorError("Page not found")
