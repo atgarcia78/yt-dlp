@@ -25,7 +25,6 @@ import sys
 
 from datetime import datetime
 
-logger = logging.getLogger("gaybeeg")
 
 class GayBeegBaseIE(SeleniumInfoExtractor):
     
@@ -157,8 +156,7 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
         except ExtractorError as e:
             raise
         except Exception as e:
-            self.to_screen(str(e))
-            logger.error(str(e), exc_info=True)
+            self.to_screen(repr(e))            
             raise 
 
 class GayBeegPlaylistIE(GayBeegBaseIE):
