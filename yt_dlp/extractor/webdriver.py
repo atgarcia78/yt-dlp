@@ -15,6 +15,7 @@ import shutil
 
 from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
@@ -95,9 +96,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.to_screen(f"ffprof[{prof}]")
         self.to_screen(f"tempffprof[{tempdir}]")
         
+        serv = Service(executable_path="geckodriver", log_path="/dev/null")
+        
         try:
         
-            driver = Firefox(options=opts)
+            driver = Firefox(service=serv, options=opts)
         
             driver.maximize_window()
         
