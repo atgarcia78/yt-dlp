@@ -70,9 +70,9 @@ class succ_or_twlogin():
             return ("loginok", el[0])       
         else:
             
-            el_username = driver.find_elements(by=By.CSS_SELECTOR, value="input#username_or_email")
-            el_password =  driver.find_elements(by=By.CSS_SELECTOR, value="input#password") 
-            el_login = driver.find_elements(by=By.CSS_SELECTOR, value="input#allow.submit")
+            el_username = driver.find_elements(by=By.CSS_SELECTOR, value="input#username_or_email.text")
+            el_password =  driver.find_elements(by=By.CSS_SELECTOR, value="input#password.text") 
+            el_login = driver.find_elements(by=By.CSS_SELECTOR, value="input#allow.submit.button.selected")
                         
             if el_username and el_password and el_login:
                 return ("twlogin", el_username[0], el_password[0], el_login[0])

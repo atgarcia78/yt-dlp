@@ -58,8 +58,8 @@ class BBCCoUkIE(InfoExtractor):
         # Provides HQ HLS streams with even better quality that pc mediaset but fails
         # with geolocation in some cases when it's even not geo restricted at all (e.g.
         # http://www.bbc.co.uk/programmes/b06bp7lf). Also may fail with selectionunavailable.
-        'iptv-all',
         'pc',
+        'iptv-all'
     ]
     
     _LOCK = Lock()
