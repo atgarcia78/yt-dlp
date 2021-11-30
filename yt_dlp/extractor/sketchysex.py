@@ -26,6 +26,13 @@ from .webdriver import SeleniumInfoExtractor
 
 import httpx
 
+import html
+
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
 class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
     _SITE_URL = "https://sketchysex.com"
@@ -40,7 +47,14 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOCK = threading.Lock()
     
     
-    _COOKIES = None 
+    _COOKIES = None
+    
+    @sleep_and_retry
+    @limits(calls=1, period=2)
+    def _send_request(self, client, url):
+        
+        res = client.get(url)
+        return res
 
 
     def _login(self, _driver):
@@ -116,14 +130,13 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
         self.to_screen("Login OK")    
             
-    def _logout(self, _driver):
-        _driver.get(self._LOGOUT_URL)
+
 
     def _extract_from_page(self, cl, url):
   
-        res = cl.get(url)
+        res = self._send_request(cl, url)
         _title = None
-        mobj = re.findall(r'<h1>([^\<]+)<', res.text)        
+        mobj = re.findall(r'<h1>([^\<]+)<', html.unescape(res.text))        
         if mobj:
             _title = mobj[0]
         
@@ -180,16 +193,12 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     
             return ({
                 "id": videoid,
-                "title": _title,
+                "title": sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper(),
                 "formats": formats_m3u8
             })
         except Exception as e:
             raise ExtractorError(f"Can't get M3U8 details: {repr(e)}")
-            
-        
-        
-       
-  
+
     def _extract_list(self, _driver, playlistid, nextpages):
         
         entries = []
@@ -201,16 +210,17 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             url_pl = f"{self._BASE_URL_PL}{int(playlistid) + i}"
 
             #self.to_screen(url_pl)
-            
-            _driver.get(url_pl)
+            with SketchySexBaseIE._LOCK:
+                _driver.get(url_pl)
             el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "content")))
             if not el_listmedia: raise ExtractorError("no info")
             for media in el_listmedia:
                 el_tag = media.find_element(by=By.TAG_NAME, value="a")
                 
-                _title = el_tag.get_attribute("innerText").replace(" ","_")
-                _title = sanitize_filename(_title, restricted=True)
-                entries.append(self.url_result(el_tag.get_attribute("href"), ie=SketchySexIE.ie_key(), video_title=_title))      
+                _title = el_tag.get_attribute("innerText")
+                _title = sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper()
+                _url = el_tag.get_attribute("href").replace("/index.php", "")
+                entries.append(self.url_result(_url, ie=SketchySexIE.ie_key(), video_title=_title))      
 
             
             
@@ -267,6 +277,7 @@ class SketchySexIE(SketchySexBaseIE):
             else:
                 proxies = None                
             cl = httpx.Client(trust_env=False, verify=False, proxies=proxies, headers=std_headers, timeout=httpx.Timeout(15, connect=30), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+            
             for cookie in SketchySexIE._COOKIES:
                 cl.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                 
@@ -304,15 +315,15 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
                         
             driver = self.get_driver()
             
-
-            
-            driver.get(self._SITE_URL)
+            with SketchySexOnePagePlaylistIE._LOCK:
+                driver.get(self._SITE_URL)
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "enter-btn")))
                 if el_enter: el_enter.click()
+                self.wait_until(driver, 60, ec.url_contains("episodes"))
             
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
@@ -339,16 +350,16 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
         
         entries = None
         
-        try:              
-
-
+        try:  
             driver = self.get_driver()
             
-            driver.get(self._SITE_URL)
+            with SketchySexAllPagesPlaylistIE._LOCK:
+                driver.get(self._SITE_URL)
             _title = driver.title.lower()            
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "enter-btn")))
                 if el_enter: el_enter.click()
+                self.wait_until(driver, 60, ec.url_contains("episodes"))
                 
             entries = self._extract_list(driver, 1, nextpages=True)  
         
