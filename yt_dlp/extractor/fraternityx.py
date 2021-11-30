@@ -25,6 +25,13 @@ from .webdriver import SeleniumInfoExtractor
 
 import httpx
 
+import html
+
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
 class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fraternityx.com/sign-in"
     _SITE_URL = "https://fraternityx.com"
@@ -41,6 +48,14 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
     
     _COOKIES = None
 
+    @sleep_and_retry
+    @limits(calls=1, period=2)
+    def _send_request(self, client, url):
+        
+        res = client.get(url)
+        return res
+        
+        
 
     def _login(self, _driver):
         
@@ -115,14 +130,13 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         
         self.to_screen("Login OK")    
             
-    def _logout(self, _driver):
-        _driver.get(self._LOGOUT_URL)
+
 
     def _extract_from_page(self, cl, url):
   
-        res = cl.get(url)
+        res = self._send_request(cl, url)
         _title = None
-        mobj = re.findall(r'<h1>([^\<]+)<', res.text)        
+        mobj = re.findall(r'<h1>([^\<]+)<', html.unescape(res.text))        
         if mobj:
             _title = mobj[0]
         
@@ -163,25 +177,28 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         manifestid = str(info.get('xdo',{}).get('video', {}).get('manifest_id', {}))
         manifesturl = "https://videostreamingsolutions.net/api:ov-embed/manifest/" + manifestid + "/manifest.m3u8"
         
-        formats_m3u8 = self._extract_m3u8_formats(
-            manifesturl, videoid, m3u8_id="hls", ext="mp4", entry_protocol='m3u8_native', fatal=False
-        )
+        try:
+            res = cl.get(manifesturl)
+            res.raise_for_status()
+            if not res or not res.content: raise ExtractorError("Cant get m3u8 doc")
+            m3u8_doc = (res.content).decode('utf-8', 'replace')        
+            formats_m3u8, subtitles = self._parse_m3u8_formats_and_subtitles(
+                m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
-        if not formats_m3u8:
-            raise ExtractorError("Can't find any M3U8 format")
+            if not formats_m3u8:
+                raise ExtractorError("Can't find any M3U8 format")
 
-        self._sort_formats(formats_m3u8)
+            self._sort_formats(formats_m3u8)
     
                     
-        return ({
-            "id": videoid,
-            "title": _title,
-            "formats": formats_m3u8
-        })
-        
-        
-       
-  
+            return ({
+                "id": videoid,
+                "title": sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper(),
+                "formats": formats_m3u8
+            })
+        except Exception as e:
+            raise ExtractorError(f"Can't get M3U8 details: {repr(e)}")
+
     def _extract_list(self, _driver, playlistid, nextpages):
         
         entries = []
@@ -193,16 +210,17 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             url_pl = f"{self._BASE_URL_PL}{int(playlistid) + i}"
 
             #self.to_screen(url_pl)
-            
-            _driver.get(url_pl)
+            with FraternityXBaseIE._LOCK:
+                _driver.get(url_pl)
             el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
             if not el_listmedia: raise ExtractorError("no info")
             for media in el_listmedia:
                 el_tag = media.find_element(by=By.TAG_NAME, value="a")
                 el_title = el_tag.find_element(by=By.CLASS_NAME, value="episode-tile") #class name weird 
-                _title = el_title.get_attribute('innerText').replace(" ", "_")
-                _title = sanitize_filename(_title, restricted=True)
-                entries.append(self.url_result(el_tag.get_attribute("href"), ie=FraternityXIE.ie_key(), video_title=_title))      
+                _title = el_title.get_attribute('innerText')
+                _title = sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper()
+                _url = el_tag.get_attribute("href").replace("/index.php", "")
+                entries.append(self.url_result(_url, ie=FraternityXIE.ie_key(), video_title=_title))      
 
             
             
@@ -251,8 +269,15 @@ class FraternityXIE(FraternityXBaseIE):
         
         data = None
         try:
-        
-            cl = httpx.Client(headers=std_headers, timeout=httpx.Timeout(15, connect=15), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+            
+            url_proxy = self._downloader.params.get('proxy', "")            
+            if url_proxy:
+                if not url_proxy.startswith("http://"): url_proxy = f"http://{url_proxy}"
+                proxies = {'http://': url_proxy, 'https://': url_proxy}                
+            else:
+                proxies = None                
+            cl = httpx.Client(trust_env=False, verify=False, proxies=proxies, headers=std_headers, timeout=httpx.Timeout(15, connect=30), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+            
             for cookie in FraternityXIE._COOKIES:
                 cl.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                 
@@ -287,18 +312,20 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
         entries = None
         
         try:              
-                        
+            
+            
             driver = self.get_driver()
             
 
-            
-            driver.get(self._SITE_URL)
+            with FraternityXOnePagePlaylistIE._LOCK:            
+                driver.get(self._SITE_URL)
             
             _title = driver.title.lower()
             
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
                 if el_enter: el_enter.click()
+                self.wait_until(driver, 60, ec.url_contains("episodes"))
             
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
@@ -330,11 +357,14 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
 
             driver = self.get_driver()
             
-            driver.get(self._SITE_URL)
+            with FraternityXAllPagesPlaylistIE._LOCK:
+                driver.get(self._SITE_URL)
+            
             _title = driver.title.lower()            
             if "warning" in _title:
                 el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
                 if el_enter: el_enter.click()
+                self.wait_until(driver, 60, ec.url_contains("episodes"))
                 
             entries = self._extract_list(driver, 1, nextpages=True)  
         
