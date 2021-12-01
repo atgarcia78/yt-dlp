@@ -333,9 +333,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     if _formats: 
                     
                         if orig_width > orig_height:
-                            self._sort_formats(_formats, field_preference=('height', 'width', 'format_id'))
+                            self._sort_formats(_formats, field_preference=('height', 'width'))
                         else:
-                            self._sort_formats(_formats, field_preference=('width', 'height', 'format_id'))
+                            self._sort_formats(_formats, field_preference=('width', 'height'))
                             
                         _entries.append({
                                 "id" :  str(videoid),
@@ -357,13 +357,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         
              
         with OnlyFansBaseIE._LOCK: 
-        
-              
-
-                            
+            
             if OnlyFansBaseIE._COOKIES:
                 return           
-
 
             driver = self.get_driver()
 
