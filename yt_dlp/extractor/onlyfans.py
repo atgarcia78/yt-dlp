@@ -6,7 +6,8 @@ import json
 from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
-    int_or_none   
+    int_or_none,
+    block_exceptions   
 )
 
 
@@ -27,6 +28,9 @@ import threading
 
 
 from datetime import datetime 
+
+from backoff import on_exception, constant
+from ratelimit import limits, sleep_and_retry
 
 
 class error404_or_found():
@@ -111,7 +115,25 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
      
     _COUNT = 0
     
-    _COOKIES = None 
+    _COOKIES = None
+    
+    
+    @block_exceptions
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    def _get_filesize(_vurl):
+
+        _fsize = int_or_none(httpx.head(_vurl).headers['content-length'])
+        if _fsize: return(_fsize)
+        else: raise ExtractorError("no video info")
+        
+    @block_exceptions
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=0.1)    
+    def send_request(self, driver, url):
+                
+        driver.execute_script("window.stop();")
+        driver.get(url)
 
     def scan_for_request(self, _har, _ref, _link):
                           
@@ -186,7 +208,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         try:
 
              
-            driver.get(self._SITE_URL)
+            self.send_request(driver, self._SITE_URL)
             self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))        
 
             
@@ -197,7 +219,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 return
             else: 
                 #el_init[1].click()
-                driver.get(el_init[1].get_attribute('href'))
+                self.send_request(driver, el_init[1].get_attribute('href'))
             
             el = self.wait_until(driver, 60, succ_or_twlogin())            
 
@@ -246,27 +268,12 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
  
     def _extract_from_json(self, data_post, users_dict={}, user_profile=None):
 
-        
         try:
-            self.write_debug(f"[extract_from_json][input] {data_post}")
-            
+            self.write_debug(f"[extract_from_json][input] {data_post}")            
             
             account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
             date_timestamp = int(datetime.fromisoformat((_datevideo:=data_post.get('createdAt','') or data_post.get('postedAt',''))).timestamp())
-            
-            def _get_filesize(_vurl):
-                _fsize = None 
-                _count = 0
-                while True:
-                    try:
-                        _fsize = int_or_none(httpx.head(_vurl).headers['content-length'])
-                        break
-                    except Exception as e:
-                        _count += 1
-                        if _count == 3: break
-                return _fsize
-                
-            
+
             _entries = []
             
             for _media in data_post['media']:
@@ -278,8 +285,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     orig_width = orig_height = None
                     
                     if _url:=_media.get('source',{}).get('source'):
-                        _filesize = _get_filesize(_url)
-                                
+                        _filesize = self._get_filesize(_url)
+                         
                         _formats.append({
                             'url': _url,
                             'width': (orig_width := _media.get('info',{}).get('source', {}).get('width')),
@@ -291,7 +298,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         })
                         
                     if _url2:=_media.get('videoSources',{}).get('720'):
-                            _filesize2 = _get_filesize(_url2)
+                            _filesize2 = self._get_filesize(_url2)
                             
                             if orig_width and orig_height and (orig_width > orig_height):
                                 height = 720
@@ -311,7 +318,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             })
 
                     if _url3:=_media.get('videoSources',{}).get('240'):
-                            _filesize3 = _get_filesize(_url3)
+                            _filesize3 = self._get_filesize(_url3)
                             
                             if orig_width and orig_height and (orig_width > orig_height):
                                 height = 240
@@ -354,8 +361,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             self.to_screen(f'[extract_from_json][output] {type(e)} \n{"!!".join(lines)}')
 
     def _real_initialize(self):
-        
-             
+
         with OnlyFansBaseIE._LOCK: 
             
             if OnlyFansBaseIE._COOKIES:
@@ -367,8 +373,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 self._login(driver)
                 
                 OnlyFansBaseIE._COOKIES = driver.get_cookies()
-                
-                
                 
             except ExtractorError as e:                 
                 raise 
@@ -401,23 +405,20 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 _mitmproxy = _server.create_proxy({'port' : _port})
 
             driver  = self.get_driver(host=_host, port=_port)
-            driver.get(self._SITE_URL)
+            self.send_request(driver, self._SITE_URL)
             for cookie in OnlyFansPostIE._COOKIES:
                 driver.add_cookie(cookie)
             
             self.report_extraction(url)                  
 
             post, account = re.search(self._VALID_URL, url).group("post", "account")
-            
 
             self.to_screen("post:" + post + ":" + "account:" + account)
-        
-
-            entries = {}            
-        
+            
+            entries = {} 
             
             _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
-            driver.get(url) 
+            self.send_request(driver, url) 
             res = self.wait_until(driver, 30, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("Post doesnt exists")
             har = _mitmproxy.har            
@@ -480,7 +481,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 _mitmproxy = _server.create_proxy({'port' : _port})
 
             driver  = self.get_driver(host=_host, port=_port)
-            driver.get(self._SITE_URL)
+            self.send_request(driver, self._SITE_URL)
             for cookie in OnlyFansPlaylistIE._COOKIES:
                 driver.add_cookie(cookie)
             
@@ -490,23 +491,19 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             entries = {}
             
-            driver.get(f"{self._SITE_URL}/{account}")
+            self.send_request(driver, f"{self._SITE_URL}/{account}")
             res = self.wait_until(driver, 30, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
-            
-            
             
             if mode in ("all", "latest", "favorites","tips"):
                 
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
-                #self.to_screen(f"URL: {_url}")
-                
                 driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
                             
                 _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
-                driver.get(_url)
+                self.send_request(driver, _url)
                 self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "js-posts-container")))
                 
                 if mode in ("latest"):
@@ -540,7 +537,6 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                         # Wait to load page
                         self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
                         #time.sleep(SCROLL_PAUSE_TIME)                    
-                        
 
                         # Calculate new scroll height and compare with last scroll height
                         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -572,7 +568,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             elif mode in ("chat"):
                 
                 _url =  f"{self._SITE_URL}/{account}"
-                driver.get(_url)
+                self.send_request(driver, _url)
                 el = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "g-btn.m-rounded.m-border.m-icon.m-icon-only.m-colored.has-tooltip")))
                 for _el in el:
                     if (link:=_el.get_attribute('href')): break
@@ -581,11 +577,10 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 userid = link.split("/")[-1]
                 
-                driver.get(f'{link}/gallery')
+                self.send_request(driver, f'{link}/gallery')
                 
                 SCROLL_PAUSE_TIME = 2
-
-
+                
                 last_height = driver.execute_script("return document.body.scrollHeight")
 
                 while True:
@@ -666,12 +661,12 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 _mitmproxy = _server.create_proxy({'port' : _port})
         
             driver  = self.get_driver(host=_host, port=_port)
-            driver.get(self._SITE_URL)
+            self.send_request(driver, self._SITE_URL)
             for cookie in OnlyFansPaidlistIE._COOKIES:
                 driver.add_cookie(cookie)
             
             _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
-            driver.get(self._SITE_URL)
+            self.send_request(driver, self._SITE_URL)
             list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
                 (By.CLASS_NAME, "b-tabs__nav__item") ))
             for el in list_el:
