@@ -70,7 +70,7 @@ class YoudBoxIE(SeleniumInfoExtractor):
             _videoinfo = self._get_video_info(video_url)
             
             
-            if _videoinfo.get('error'): raise ExtractorError("error video info")
+            if not _videoinfo: raise Exception(f"error video info")
             
             
             _format = {

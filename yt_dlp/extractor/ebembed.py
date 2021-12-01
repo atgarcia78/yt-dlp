@@ -88,7 +88,7 @@ class EbembedIE(InfoExtractor):
                         if (_rnd:=data.get('rnd')): _url = _url +"?rnd=" + _rnd
                         _desc = data.get("video_url_text", "")
                         info_video = self.get_info_for_format(_url, client)
-                        if (error_msg:=info_video.get('error')): raise Exception(f"error video info - {error_msg}")
+                        if not info_video: raise Exception(f"error video info")
                         formats.append({'format_id': 'http' + _desc, 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4', 'resolution': _desc, 'height' : int_or_none(_desc[:-1] if _desc else None)})
                         
                     if (_urlalt:=data.get("video_alt_url")):

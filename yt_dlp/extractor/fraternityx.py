@@ -32,6 +32,8 @@ from ratelimit import (
     limits
 )
 
+from backoff import on_exception, constant
+
 class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fraternityx.com/sign-in"
     _SITE_URL = "https://fraternityx.com"
@@ -48,11 +50,13 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
     
     _COOKIES = None
 
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
     def _send_request(self, cl, url):
         
         res = cl.get(url)
+        res.raise_for_status()
         return res
         
         
@@ -143,11 +147,6 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                     self._login(driver)                
                     
                     FraternityXBaseIE._COOKIES = driver.get_cookies()
-                    
-                    for cookie in FraternityXBaseIE._COOKIES:
-                        if (_name:=cookie['name']) != 'pp-accepted':
-                            driver.delete_cookie(_name)
-                
                 
                 except Exception as e:
                     self.to_screen("error when login")
@@ -158,7 +157,11 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                  driver.get(self._SITE_URL)
                  driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fraternityx.com'})
 
-        if ret_driver: return driver
+        if ret_driver: 
+            for cookie in FraternityXBaseIE._COOKIES:
+                        if (_name:=cookie['name']) != 'pp-accepted':
+                            driver.delete_cookie(_name)            
+            return driver
         else: self.rm_driver(driver)
                     
                     
