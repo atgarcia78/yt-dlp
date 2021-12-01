@@ -22,15 +22,14 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 import httpx
+from urllib.parse import unquote
 
 from ..utils import (
     std_headers,
     int_or_none
 )
 
-
-
-
+from backoff import on_exception, constant
 
 class SeleniumInfoExtractor(InfoExtractor):
     
@@ -138,48 +137,34 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         return el
     
+ 
 
-    def get_info_for_format(self, url, client=None, headers=None, fatal=False):
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    def get_info_for_format(self, url, client=None, headers=None):
         
-        count = 0
         if not client:
             _timeout = httpx.Timeout(15, connect=15)        
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
             close_client=True
-        else: close_client=False
-            
+        else: close_client=False           
+               
         try:
-            
-           
-            while (count<3):
-                
-                try:
-                    
-                    #res = self._send_request(client, url, 'HEAD')
-                    res = client.head(url, follow_redirects=True, headers=headers)
-                    res.raise_for_status()
-                    _filesize = int_or_none(res.headers.get('content-length'))
-                    _url = str(res.url)
-                    break
-                        
-            
-                except Exception as e:
-                    _error = e
-                    count += 1
+            res = client.head(url, follow_redirects=True, headers=headers)
+            res.raise_for_status()
+            _filesize = int_or_none(res.headers.get('content-length'))
+            _url = unquote(str(res.url))
+            return ({'url': _url, 'filesize': _filesize})
+        
         except Exception as e:
-            pass
+            raise        
         finally:
             if close_client:
                 try:
                     client.close()
                 except Exception:
                     pass
-
-        if count < 3: return ({'url': _url, 'filesize': _filesize}) 
-        else: 
-            if not fatal: return ({'error': f'max retries - {repr(_error)}'})
-            else: raise ExtractorError(f'info for format - max retries - {repr(_error)}')
+            
     
     def logger_info(self, msg):
         if (_logger:=self._downloader.params.get('logger')):

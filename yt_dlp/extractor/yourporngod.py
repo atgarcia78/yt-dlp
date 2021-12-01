@@ -92,7 +92,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
             
             info_video = self._get_video_info(video_url)
             
-            if (error_msg:=info_video.get('error')): raise InfoExtractor(f"error video info - {error_msg}")
+            if not info_video: raise Exception(f"error video info")
             
             formats = [{'format_id': 'http', 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4'}]
             if not formats: raise ExtractorError("No formats found")

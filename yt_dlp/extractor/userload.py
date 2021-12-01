@@ -90,7 +90,7 @@ class UserLoadIE(SeleniumInfoExtractor):
             
             #self.to_screen(f"info video: {_videoinfo}")
             
-            if _videoinfo.get('error'):
+            if not _videoinfo:
                 raise ExtractorError("error video info")
             
             _format = {
