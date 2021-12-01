@@ -8,6 +8,7 @@ from ..utils import (
     int_or_none,
     std_headers,
     sanitize_filename,
+    block_exceptions
     
     
 )
@@ -38,7 +39,7 @@ class StreamtapeIE(InfoExtractor):
 
     
    
-    
+    @block_exceptions
     @on_exception(constant, Exception, max_tries=5, interval=1)
     def _get_infovideo(self, client, url, headers):
         
