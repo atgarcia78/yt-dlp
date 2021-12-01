@@ -1,5 +1,5 @@
 from __future__ import unicode_literals
-
+from concurrent.futures import ThreadPoolExecutor
 
 import re
 
@@ -49,10 +49,10 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
     _COOKIES = None
 
     @sleep_and_retry
-    @limits(calls=1, period=2)
-    def _send_request(self, client, url):
+    @limits(calls=1, period=0.1)
+    def _send_request(self, cl, url):
         
-        res = client.get(url)
+        res = cl.get(url)
         return res
         
         
@@ -131,73 +131,130 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         self.to_screen("Login OK")    
             
 
-
-    def _extract_from_page(self, cl, url):
-  
-        res = self._send_request(cl, url)
-        _title = None
-        mobj = re.findall(r'<h1>([^\<]+)<', html.unescape(res.text))        
-        if mobj:
-            _title = mobj[0]
+    def _init(self, ret_driver=True):
         
-        if not _title: _title = url.split('/')[-1].replace("-","_").upper() 
-        #self.to_screen(_title)
-        mobj = re.findall(r'<iframe src=\"([^\"]+)\"', res.text)
-        if mobj:
-            embedurl = mobj[0]
-        else: raise ExtractorError("not embed url")
-        
-        try:
-            res2 = cl.get(embedurl)
-            mobj = re.findall(r'globalSettings\s+\=\s+([^;]*);',res2.text)
-        except Exception:
-            mobj = None
-        if not mobj: raise ExtractorError("no token")
-        _data_dict = demjson.decode(mobj[0])
-        tokenid = _data_dict.get('token')
-        if not tokenid: raise ExtractorError("no token")            
-        #self.to_screen(f"tokenid:{tokenid}") 
-        videourl = "https://videostreamingsolutions.net/api:ov-embed/parseToken?token=" + tokenid
-        #self.to_screen(videourl)
-        headers = dict()
-        headers.update({
-            "Referer" : embedurl,
-            "Accept" : "*/*",
-            "X-Requested-With" : "XMLHttpRequest"})
-        
-        try:
-            res3 = cl.get(videourl, headers=headers)
-            info = res3.json()
-        except Exception:
-            info = None
-        if not info: raise ExtractorError("Can't find any JSON info")
-
-        #print(info)
-        videoid = str(info.get('xdo',{}).get('video', {}).get('id', {}))
-        manifestid = str(info.get('xdo',{}).get('video', {}).get('manifest_id', {}))
-        manifesturl = "https://videostreamingsolutions.net/api:ov-embed/manifest/" + manifestid + "/manifest.m3u8"
-        
-        try:
-            res = cl.get(manifesturl)
-            res.raise_for_status()
-            if not res or not res.content: raise ExtractorError("Cant get m3u8 doc")
-            m3u8_doc = (res.content).decode('utf-8', 'replace')        
-            formats_m3u8, subtitles = self._parse_m3u8_formats_and_subtitles(
-                m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-
-            if not formats_m3u8:
-                raise ExtractorError("Can't find any M3U8 format")
-
-            self._sort_formats(formats_m3u8)
-    
+        with FraternityXBaseIE._LOCK:
+            
+            driver = self.get_driver()
+            if not FraternityXBaseIE._COOKIES:
+                
+                try:
                     
-            return ({
-                "id": videoid,
-                "title": sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper(),
-                "formats": formats_m3u8
-            })
+                    self._login(driver)                
+                    
+                    FraternityXBaseIE._COOKIES = driver.get_cookies()
+                    
+                    for cookie in FraternityXBaseIE._COOKIES:
+                        if (_name:=cookie['name']) != 'pp-accepted':
+                            driver.delete_cookie(_name)
+                
+                
+                except Exception as e:
+                    self.to_screen("error when login")
+                    self.rm_driver(driver)
+                    raise
+                
+            else:
+                 driver.get(self._SITE_URL)
+                 driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fraternityx.com'})
+
+        if ret_driver: return driver
+        else: self.rm_driver(driver)
+                    
+                    
+    def _get_client(self):
+                    
+        url_proxy = self._downloader.params.get('proxy', "")            
+        if url_proxy:
+            if not url_proxy.startswith("http://"): url_proxy = f"http://{url_proxy}"
+            proxies = {'http://': url_proxy, 'https://': url_proxy}                
+        else:
+            proxies = None                
+        
+        client = httpx.Client(trust_env=False, verify=False, proxies=proxies, headers=std_headers, timeout=httpx.Timeout(30, connect=30), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
+        
+        for cookie in FraternityXBaseIE._COOKIES:
+            client.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+            
+        return client
+    
+    
+    def _extract_from_page(self, url):        
+        
+        cl = self._get_client()
+        
+        try:
+            
+            res = self._send_request(cl, url)
+            _title = None
+            mobj = re.findall(r'<h1>([^\<]+)<', html.unescape(res.text))        
+            if mobj:
+                _title = mobj[0]
+            
+            if not _title: _title = url.split('/')[-1].replace("-","_").upper() 
+            #self.to_screen(_title)
+            mobj = re.findall(r'<iframe src=\"([^\"]+)\"', res.text)
+            if mobj:
+                embedurl = mobj[0]
+            else: raise ExtractorError("not embed url")
+            
+            try:
+                res2 = cl.get(embedurl)
+                mobj = re.findall(r'globalSettings\s+\=\s+([^;]*);',res2.text)
+            except Exception:
+                mobj = None
+            if not mobj: raise ExtractorError("no token")
+            _data_dict = demjson.decode(mobj[0])
+            tokenid = _data_dict.get('token')
+            if not tokenid: raise ExtractorError("no token")            
+            #self.to_screen(f"tokenid:{tokenid}") 
+            videourl = "https://videostreamingsolutions.net/api:ov-embed/parseToken?token=" + tokenid
+            #self.to_screen(videourl)
+            headers = dict()
+            headers.update({
+                "Referer" : embedurl,
+                "Accept" : "*/*",
+                "X-Requested-With" : "XMLHttpRequest"})
+            
+            try:
+                res3 = cl.get(videourl, headers=headers)
+                info = res3.json()
+            except Exception:
+                info = None
+            if not info: raise ExtractorError("Can't find any JSON info")
+
+            #print(info)
+            videoid = str(info.get('xdo',{}).get('video', {}).get('id', {}))
+            manifestid = str(info.get('xdo',{}).get('video', {}).get('manifest_id', {}))
+            manifesturl = "https://videostreamingsolutions.net/api:ov-embed/manifest/" + manifestid + "/manifest.m3u8"
+            
+            try:
+                res = cl.get(manifesturl)
+                res.raise_for_status()
+                if not res or not res.content: raise ExtractorError("Cant get m3u8 doc")
+                m3u8_doc = (res.content).decode('utf-8', 'replace')        
+                formats_m3u8, subtitles = self._parse_m3u8_formats_and_subtitles(
+                    m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+
+                if not formats_m3u8:
+                    raise ExtractorError("Can't find any M3U8 format")
+
+                self._sort_formats(formats_m3u8)
+        
+                        
+                return ({
+                    "id": videoid,
+                    "title": sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper(),
+                    "original_url": url,
+                    "formats": formats_m3u8
+                })
+            except Exception as e:
+                raise ExtractorError(f"Can't get M3U8 details: {repr(e)}")
+        
         except Exception as e:
-            raise ExtractorError(f"Can't get M3U8 details: {repr(e)}")
+            raise
+        finally:
+            cl.close()
 
     def _extract_list(self, _driver, playlistid, nextpages):
         
@@ -214,14 +271,21 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                 _driver.get(url_pl)
             el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
             if not el_listmedia: raise ExtractorError("no info")
-            for media in el_listmedia:
-                el_tag = media.find_element(by=By.TAG_NAME, value="a")
-                el_title = el_tag.find_element(by=By.CLASS_NAME, value="episode-tile") #class name weird 
-                _title = el_title.get_attribute('innerText')
-                _title = sanitize_filename(re.sub(r'([^_ -])-', r'\1_', _title.replace("'","").replace("&","AND")), restricted=True).upper()
-                _url = el_tag.get_attribute("href").replace("/index.php", "")
-                entries.append(self.url_result(_url, ie=FraternityXIE.ie_key(), video_title=_title))      
+            futures = []
+            with ThreadPoolExecutor(max_workers=5) as ex:
+                for media in el_listmedia:
+                    el_tag = media.find_element(by=By.TAG_NAME, value="a")
+                    _url = el_tag.get_attribute("href").replace("/index.php", "")
+                    futures.append(ex.submit(self._extract_from_page, _url))
 
+            
+            for d in futures:
+                try:
+                    entries.append(d.result())
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+                    raise ExtractorError(str(e)) from e        
             
             
             if not nextpages: break
@@ -241,47 +305,13 @@ class FraternityXIE(FraternityXBaseIE):
     IE_DESC = 'fraternityx'
     _VALID_URL = r'https?://(?:www\.)?fraternityx.com/episode/.*'
 
-    def _real_initialize(self):
-        
-        with FraternityXIE._LOCK:
-            if FraternityXIE._COOKIES:
-                return  
-
-            driver = self.get_driver()
-
-            
-            try:
-                
-                self._login(driver)                
-                
-                FraternityXIE._COOKIES = driver.get_cookies()
-             
-            
-            except Exception as e:
-                self.to_screen("error when login")
-                raise
-            finally:
-                self.rm_driver(driver)
-            
-
     def _real_extract(self, url):
         
-        
         data = None
-        try:
+        try:            
             
-            url_proxy = self._downloader.params.get('proxy', "")            
-            if url_proxy:
-                if not url_proxy.startswith("http://"): url_proxy = f"http://{url_proxy}"
-                proxies = {'http://': url_proxy, 'https://': url_proxy}                
-            else:
-                proxies = None                
-            cl = httpx.Client(trust_env=False, verify=False, proxies=proxies, headers=std_headers, timeout=httpx.Timeout(15, connect=30), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
-            
-            for cookie in FraternityXIE._COOKIES:
-                cl.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                
-            data = self._extract_from_page(cl, url)
+            self._init(ret_driver=False)
+            data = self._extract_from_page(url)
                  
             
         except Exception as e:
@@ -289,8 +319,7 @@ class FraternityXIE(FraternityXBaseIE):
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
-        finally:
-            cl.close()
+
 
         if not data:
             raise ExtractorError("Not any video format found")
@@ -314,18 +343,10 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
         try:              
             
             
-            driver = self.get_driver()
+            driver = self._init()
             
 
-            with FraternityXOnePagePlaylistIE._LOCK:            
-                driver.get(self._SITE_URL)
-            
-            _title = driver.title.lower()
-            
-            if "warning" in _title:
-                el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
-                if el_enter: el_enter.click()
-                self.wait_until(driver, 60, ec.url_contains("episodes"))
+ 
             
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
@@ -355,17 +376,8 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
         try:              
 
 
-            driver = self.get_driver()
+            driver = self._init()
             
-            with FraternityXAllPagesPlaylistIE._LOCK:
-                driver.get(self._SITE_URL)
-            
-            _title = driver.title.lower()            
-            if "warning" in _title:
-                el_enter = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
-                if el_enter: el_enter.click()
-                self.wait_until(driver, 60, ec.url_contains("episodes"))
-                
             entries = self._extract_list(driver, 1, nextpages=True)  
         
         except Exception as e:
