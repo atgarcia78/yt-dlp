@@ -30,7 +30,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install pytest
-      run: pip install pytest
+      run: pip install pytest httpx ratelimit backoff browsermob-proxy selenium demjson
     - name: Run tests
       continue-on-error: False
       run: |
