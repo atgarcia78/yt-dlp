@@ -26,7 +26,8 @@ from urllib.parse import unquote
 
 from ..utils import (
     std_headers,
-    int_or_none
+    int_or_none,
+    block_exceptions
 )
 
 from backoff import on_exception, constant
@@ -138,25 +139,31 @@ class SeleniumInfoExtractor(InfoExtractor):
         return el
     
  
-
+    @block_exceptions
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    def get_info_for_format(self, url, client=None, headers=None):
+    def get_info_for_format(self, url, client=None, headers=None, verify=True):
         
-        if not client:
-            _timeout = httpx.Timeout(15, connect=15)        
+        if not client:                
+            _timeout = httpx.Timeout(30, connect=30)        
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
+            if not verify:
+                _verify = False
+            else:
+                _verify = not self._downloader.params.get('nocheckcertificate')
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=_verify)
             close_client=True
         else: close_client=False           
                
         try:
             res = client.head(url, follow_redirects=True, headers=headers)
+            
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             return ({'url': _url, 'filesize': _filesize})
         
         except Exception as e:
+            self.to_screen(f"{repr(e)}")
             raise        
         finally:
             if close_client:
