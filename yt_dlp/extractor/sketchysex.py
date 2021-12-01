@@ -33,7 +33,7 @@ from ratelimit import (
     limits
 )
 
-from retry import retry
+from backoff import on_exception, constant
 
 class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
@@ -51,7 +51,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
     _COOKIES = None
     
 
-    @retry(tries=3)
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
     def _send_request(self, cl, url):
@@ -149,9 +149,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     
                     SketchySexBaseIE._COOKIES = driver.get_cookies()
                     
-                    for cookie in SketchySexBaseIE._COOKIES:
-                        if (_name:=cookie['name']) != 'pp-accepted':
-                            driver.delete_cookie(_name)
+                    
                    
                 
                 
@@ -163,7 +161,13 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                  driver.get(self._SITE_URL)
                  driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'})
         
-        if ret_driver: return driver
+        if ret_driver: 
+            for cookie in SketchySexBaseIE._COOKIES:
+                        if (_name:=cookie['name']) != 'pp-accepted':
+                            driver.delete_cookie(_name)
+                            
+            return driver
+        
         else: self.rm_driver(driver)
                     
                     

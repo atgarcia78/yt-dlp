@@ -148,8 +148,8 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                         _url = unquote(_src.get('src'))
                         _info_video = self.get_info_for_format(_url, client)
                             
-                        if (_error:=_info_video.get('error')): 
-                            self.to_screen(_error)
+                        if not _info_video:
+                            self.to_screen("no info video")
                             raise ExtractorError('Error 404')
                         
                         _formats.append({

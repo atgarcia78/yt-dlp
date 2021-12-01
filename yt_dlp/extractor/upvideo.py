@@ -72,7 +72,7 @@ class UpVideoIE(SeleniumInfoExtractor):
             
             info_video = self._get_video_info(video_url)
             
-            if (error_msg:=info_video.get('error')): raise ExtractorError(f"cant get info video - {error_msg}")
+            if not info_video: raise Exception(f"error video info")            
             
             _format = {
                     'format_id': 'http-mp4',

@@ -79,6 +79,8 @@ class HighloadIE(SeleniumInfoExtractor):
                        
             _videoinfo = self._get_video_info(video_url)
             
+            if not _videoinfo: raise Exception(f"error video info")
+            
             _format = {
                     'format_id': 'http-mp4',
                     'url': _videoinfo['url'],

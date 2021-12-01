@@ -19,9 +19,9 @@ import traceback
 from .common import InfoExtractor
 from ratelimit import limits, sleep_and_retry
 
-from retry import retry_call
+from backoff import on_exception, constant
 
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 
 class StreamtapeIE(InfoExtractor):
@@ -39,44 +39,26 @@ class StreamtapeIE(InfoExtractor):
     
    
     
-    def _get_infovideo(self, url, url_ref, client):
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    def _get_infovideo(self, client, url, headers):
         
-        def __aux():
-            
-            res = client.head(url, headers={'referer': quote(url_ref)})        
-            res.raise_for_status()
-            _filesize = int_or_none(res.headers.get('content-length'))
-            _url = str(res.url)       
-            if _url and _filesize: return ({'url': _url, 'filesize': _filesize})
-            else: raise ExtractorError("info video nok")            
-        
-        
-        try:
-            res = retry_call(__aux, tries=5)
-        except Exception as e:
-            res = {'error': 'no info video'}
-            
-        return res
+       
+        res = client.head(url, headers=headers)        
+        res.raise_for_status()
+        _filesize = int_or_none(res.headers.get('content-length'))
+        _url = unquote(str(res.url))
+        if _url and _filesize: return ({'url': _url, 'filesize': _filesize})
     
 
     
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=5)
     def _send_request(self, client, url, _type):
         
-        def __aux():
-            if _type == 'GET': 
-                res = retry_call(client.get, fargs=[url], tries=5)
-            elif _type == 'HEAD':
-                res = retry_call(client.head, fargs=[url], tries=5)       
-            res.raise_for_status()
-            return res
-            
-        res = retry_call(__aux, tries=5)
+        res = client.request(_type, url)
+        res.raise_for_status()
         return res
-
-        
-        
         
     
     def _real_extract(self, url):
@@ -97,8 +79,9 @@ class StreamtapeIE(InfoExtractor):
                 _params = mobj[0].split('token')[0] + mobj2[0]
                 
                 video_url = f"https://streamtape.com/get_video?{_params}"
-                _info_video = self._get_infovideo(video_url, url, client)
-                if _info_video.get('error'): raise ExtractorError("error info video max retries")
+                _headers = {'referer': quote(url)}
+                _info_video = self._get_infovideo(client, video_url, _headers)
+                if not _info_video.get: raise ExtractorError("error info video max retries")
                 mobj = re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage) or re.search(self._VALID_URL, url)
                 if mobj:
                     title = mobj.group('title')
