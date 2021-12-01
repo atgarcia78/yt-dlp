@@ -181,7 +181,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 self.to_screen(f"Pages to check: {num_pages}")
                 el_page = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "page")))
                 _href = el_page.get_attribute('href')
-                list_urls_pages = [re.sub('page/\d+/', f'page/{i}/', _href) for i in range(1, num_pages+1)]
+                list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(1, num_pages+1)]
                 
                 self.to_screen(list_urls_pages)
                 
