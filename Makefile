@@ -149,7 +149,7 @@ yt-dlp.tar.gz: all
 		devscripts test
 
 AUTHORS: .mailmap
-	git shortlog -s -n | cut -f2 | sort > AUTHORS
+	giexa -lt shortlog -s -n | cut -f2 | sort > AUTHORS
 
 .mailmap:
 	git shortlog -s -e -n | awk '!(out[$$NF]++) { $$1="";sub(/^[ \t]+/,""); print}' > .mailmap
