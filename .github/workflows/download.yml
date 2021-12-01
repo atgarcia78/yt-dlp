@@ -45,7 +45,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install pytest
-      run: pip install pytest httpx ratelimit backoff browsermob-proxy selenium demjson
+      run: pip install pytest
     - name: Run tests
       continue-on-error: true
       run: ./devscripts/run_tests.${{ matrix.run-tests-ext }} download
