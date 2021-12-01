@@ -85,7 +85,7 @@ class StreamtapeIE(InfoExtractor):
                 mobj = re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage) or re.search(self._VALID_URL, url)
                 if mobj:
                     title = mobj.group('title')
-                    if title: title = re.sub('\.mp4| at Streamtape\.com|amp;', '', title, re.IGNORECASE)
+                    if title: title = re.sub(r'\.mp4| at Streamtape\.com|amp;', '', title, re.IGNORECASE)
                     else: title = "streamtape_video"
                 
                 
