@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+import threading
 
 from .common import (
     InfoExtractor,
@@ -28,9 +29,14 @@ from ..utils import (
 )
 
 
+
+
+
 class SeleniumInfoExtractor(InfoExtractor):
     
-    _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'   
+    _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
+    
+    _MASTER_LOCK = threading.Lock()   
     
     
     def rm_driver(self, driver, tempdir=None):
@@ -45,14 +51,16 @@ class SeleniumInfoExtractor(InfoExtractor):
             pass
     
 
-    def get_driver(self, prof=None, noheadless=False, host=None, port=None):
+    def get_driver(self, noheadless=False, host=None, port=None):
         
-        if not prof:
-            prof = self. _FF_PROF
+        prof = self._FF_PROF
             
         tempdir = tempfile.mkdtemp(prefix='asyncall-')
         
-        shutil.copytree(prof, tempdir, dirs_exist_ok=True)
+        res = shutil.copytree(prof, tempdir, dirs_exist_ok=True)
+        
+        if res != tempdir:
+            raise ExtractorError("error when creating profile folder")
         
         opts = Options()
         
@@ -96,7 +104,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.to_screen(f"ffprof[{prof}]")
         self.to_screen(f"tempffprof[{tempdir}]")
         
-        serv = Service(executable_path="geckodriver", log_path="/dev/null")
+        serv = Service(log_path="/dev/null")
         
         try:
         
@@ -178,3 +186,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             _logger.info(f"[{self.IE_NAME}]{msg}")
         else:
             self.to_screen(msg)
+            
+    def logger_debug(self, msg):
+        if (_logger:=self._downloader.params.get('logger')):
+            _logger.debug(f"[{self.IE_NAME}]{msg}")
+        else:
+            self.to_screen(msg)
+            
+
+    
+    
