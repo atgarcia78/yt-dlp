@@ -35,13 +35,13 @@ from ratelimit import (
 from backoff import on_exception, constant
 
 class FraternityXBaseIE(SeleniumInfoExtractor):
-    _LOGIN_URL = "https://fraternityx.com/sign-in"
-    _SITE_URL = "https://fraternityx.com"
-    _LOGOUT_URL = "https://fraternityx.com/sign-out"
-    _MULT_URL = "https://fraternityx.com/multiple-sessions"
-    _ABORT_URL = "https://fraternityx.com/multiple-sessions/abort"
-    _AUTH_URL = "https://fraternityx.com/authorize2"
-    _BASE_URL_PL = "https://fraternityx.com/episodes/"
+    _LOGIN_URL = "https://fratx.com/sign-in"
+    _SITE_URL = "https://fratx.com"
+    #_LOGOUT_URL = "https://fraternityx.com/sign-out"
+    #_MULT_URL = "https://fraternityx.com/multiple-sessions"
+    #_ABORT_URL = "https://fraternityx.com/multiple-sessions/abort"
+    #_AUTH_URL = "https://fraternityx.com/authorize2"
+    _BASE_URL_PL = "https://fratx.com/episodes/"
 
     _NETRC_MACHINE = 'fraternityx'
 
@@ -50,6 +50,8 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
     
     _COOKIES = None
 
+    _MAX_PAGE = None
+    
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
@@ -154,13 +156,22 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                     raise
                 
             else:
-                 driver.get(self._SITE_URL)
-                 driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fraternityx.com'})
+                driver.get(self._SITE_URL)
+                #driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fraternityx.com'})
+                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fratx.com'})
 
         if ret_driver: 
             for cookie in FraternityXBaseIE._COOKIES:
-                        if (_name:=cookie['name']) != 'pp-accepted':
-                            driver.delete_cookie(_name)            
+                if (_name:=cookie['name']) != 'pp-accepted':
+                    driver.delete_cookie(_name)
+            
+            if not FraternityXBaseIE._MAX_PAGE:                
+                driver.get("https://fratx.com/episodes/1")
+                pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
+                if pag:
+                    elnext = pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")                    
+                    totalpages = pag.find_elements(By.TAG_NAME, "a")                    
+                    FraternityXBaseIE._MAX_PAGE = len(totalpages) - len(elnext) 
             return driver
         else: self.rm_driver(driver)
                     
@@ -306,7 +317,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
 class FraternityXIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx'
     IE_DESC = 'fraternityx'
-    _VALID_URL = r'https?://(?:www\.)?fraternityx.com/episode/.*'
+    _VALID_URL = r'https?://(?:www\.)?(?:fraternityx|fratx)\.com/episode/.*'
 
     def _real_extract(self, url):
         
@@ -334,7 +345,7 @@ class FraternityXIE(FraternityXBaseIE):
 class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx:onepage:playlist'
     IE_DESC = 'fraternityx:onepage:playlist'
-    _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/(?P<id>\d+)"
+    _VALID_URL = r"https?://(?:www\.)?(?:fraternityx|fratx)\.com/episodes/(?P<id>\d+)"
 
 
     def _real_extract(self, url):
@@ -347,10 +358,8 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
             
             
             driver = self._init()
-            
-
- 
-            
+            if int(playlistid) > FraternityXOnePagePlaylistIE._MAX_PAGE:
+                raise ExtractorError("episodes page not found 404")
             entries = self._extract_list(driver, playlistid, nextpages=False)  
        
         except ExtractorError:
@@ -369,7 +378,7 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
 class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
     IE_NAME = 'fraternityx:allpagesplaylist'
     IE_DESC = 'fraternityx:allpagesplaylist'
-    _VALID_URL = r"https?://(?:www\.)?fraternityx\.com/episodes/?$"
+    _VALID_URL = r"https?://(?:www\.)?(?:fraternityx|fratx)\.com/episodes/?$"
    
  
     def _real_extract(self, url):
