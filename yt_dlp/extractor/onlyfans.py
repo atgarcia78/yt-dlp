@@ -525,8 +525,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 else:            
                     
                     
-                    SCROLL_PAUSE_TIME = 2
-
+                    SCROLL_PAUSE_TIME = 2 
 
                     last_height = driver.execute_script("return document.body.scrollHeight")
 
