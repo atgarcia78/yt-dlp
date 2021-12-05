@@ -38,10 +38,10 @@ from backoff import on_exception, constant
 class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
     _SITE_URL = "https://sketchysex.com"
-    _LOGOUT_URL = "https://sketchysex.com/sign-out"
-    _MULT_URL = "https://sketchysex.com/multiple-sessions"
-    _ABORT_URL = "https://sketchysex.com/multiple-sessions/abort"
-    _AUTH_URL = "https://sketchysex.com/authorize2"
+    #_LOGOUT_URL = "https://sketchysex.com/sign-out"
+    #_MULT_URL = "https://sketchysex.com/multiple-sessions"
+    #_ABORT_URL = "https://sketchysex.com/multiple-sessions/abort"
+    #_AUTH_URL = "https://sketchysex.com/authorize2"
     _BASE_URL_PL = "https://sketchysex.com/episodes/"
 
     _NETRC_MACHINE = 'sketchysex'
@@ -50,7 +50,8 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
     _COOKIES = None
     
-
+    _MAX_PAGE = None
+    
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
@@ -68,7 +69,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         #self.to_screen(_title)
         if "WARNING" in _title:
             self.to_screen("Adult consent")
-            el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "enter-btn")))
+            el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
             if not el_enter: raise ExtractorError("couldnt find adult consent button")
             _current_url = _driver.current_url
             el_enter.click()
@@ -135,7 +136,6 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         self.to_screen("Login OK")    
             
 
-    
     def _init(self, ret_driver=True):
         
         with SketchySexBaseIE._LOCK:
@@ -148,10 +148,6 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     self._login(driver)                
                     
                     SketchySexBaseIE._COOKIES = driver.get_cookies()
-                    
-                    
-                   
-                
                 
                 except Exception as e:
                     self.to_screen("error when login")
@@ -160,11 +156,22 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             else:
                  driver.get(self._SITE_URL)
                  driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'})
+            
+            
+                
         
         if ret_driver: 
             for cookie in SketchySexBaseIE._COOKIES:
-                        if (_name:=cookie['name']) != 'pp-accepted':
-                            driver.delete_cookie(_name)
+                if (_name:=cookie['name']) != 'pp-accepted':
+                    driver.delete_cookie(_name)
+            
+            if not SketchySexBaseIE._MAX_PAGE:                
+                driver.get("https://sketchysex.com/episodes/1")
+                pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
+                if pag:
+                    elnext = pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
+                    totalpages = pag.find_elements(By.TAG_NAME, "a")
+                    SketchySexBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
                             
             return driver
         
@@ -312,7 +319,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
 class SketchySexIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex'
     IE_DESC = 'sketchysex'
-    _VALID_URL = r'https?://(?:www\.)?sketchysex.com/episode/.*'
+    _VALID_URL = r'https?://(?:www\.)?sketchysex\.com/episode/.*'
 
     def _real_extract(self, url):
         
@@ -350,6 +357,8 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
         try:              
                         
             driver = self._init()
+            if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
+                raise ExtractorError("episodes page not found 404")
 
             
             entries = self._extract_list(driver, playlistid, nextpages=False)  

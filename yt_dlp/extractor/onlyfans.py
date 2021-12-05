@@ -122,7 +122,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     @on_exception(constant, Exception, max_tries=5, interval=1)
     def _get_filesize(_vurl):
 
-        _fsize = int_or_none(httpx.head(_vurl).headers['content-length'])
+        res = httpx.head(_vurl, follow_redirects=True)
+        res.raise_for_status()
+        _fsize = int_or_none(res.headers.get('content-length'))
         if _fsize: return(_fsize)
         else: raise ExtractorError("no video info")
         
