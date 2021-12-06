@@ -36,9 +36,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
     
-    _MASTER_LOCK = threading.Lock()   
-    
-    
     def rm_driver(self, driver, tempdir=None):
         
         if not tempdir:
@@ -151,8 +148,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 _verify = not self._downloader.params.get('nocheckcertificate')
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=_verify)
-            close_client=True
-        else: close_client=False           
+            close_client = True
+        else: close_client = False           
                
         try:
             res = client.head(url, follow_redirects=True, headers=headers)

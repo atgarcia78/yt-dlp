@@ -404,7 +404,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost'
                 _port = _server_port + 1                
-                _mitmproxy = _server.create_proxy({'port' : _port})
+                _harproxy = _server.create_proxy({'port' : _port})
 
             driver  = self.get_driver(host=_host, port=_port)
             self.send_request(driver, self._SITE_URL)
@@ -419,11 +419,11 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             
             entries = {} 
             
-            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
+            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
             self.send_request(driver, url) 
             res = self.wait_until(driver, 30, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("Post doesnt exists")
-            har = _mitmproxy.har            
+            har = _harproxy.har            
             data_json = self.scan_for_request(har, f"har_{post}", f"/api2/v2/posts/{post}")
             if data_json:
                 self.write_debug(data_json)                
@@ -450,7 +450,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
  
             
         finally:
-            _mitmproxy.close()
+            _harproxy.close()
             _server.stop()
             self.rm_driver(driver)
             
@@ -480,7 +480,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost' 
                 _port = _server_port + 1               
-                _mitmproxy = _server.create_proxy({'port' : _port})
+                _harproxy = _server.create_proxy({'port' : _port})
 
             driver  = self.get_driver(host=_host, port=_port)
             self.send_request(driver, self._SITE_URL)
@@ -503,13 +503,13 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
                             
-                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
+                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
                 self.send_request(driver, _url)
                 self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "js-posts-container")))
                 
                 if mode in ("latest"):
-                    har = _mitmproxy.har
+                    har = _harproxy.har
                     data_json = self.scan_for_request(har, f"har_{account}_{mode}", "posts/videos?")
                     if data_json:
                         self.write_debug(data_json)
@@ -545,7 +545,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                             break
                         last_height = new_height
                         
-                    har = _mitmproxy.har
+                    har = _harproxy.har
                     _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
                     data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
                     if data_json:
@@ -574,7 +574,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 for _el in el:
                     if (link:=_el.get_attribute('href')): break
                     
-                _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
+                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
                 userid = link.split("/")[-1]
                 
@@ -599,7 +599,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                         break
                     last_height = new_height
                 
-                har = _mitmproxy.har
+                har = _harproxy.har
                 _reg_str = r'/api2/v2/chats/\d+/media\?'
                 data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
                 if data_json:
@@ -632,7 +632,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             raise ExtractorError(str(e)) from e
         
         finally:
-            _mitmproxy.close()
+            _harproxy.close()
             _server.stop()
             self.rm_driver(driver)
             
@@ -659,14 +659,14 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 _host = 'localhost' 
                 _port = _server_port + 1   
                 _host = 'localhost'                
-                _mitmproxy = _server.create_proxy({'port' : _port})
+                _harproxy = _server.create_proxy({'port' : _port})
         
             driver  = self.get_driver(host=_host, port=_port)
             self.send_request(driver, self._SITE_URL)
             for cookie in OnlyFansPaidlistIE._COOKIES:
                 driver.add_cookie(cookie)
             
-            _mitmproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
+            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
             self.send_request(driver, self._SITE_URL)
             list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
                 (By.CLASS_NAME, "b-tabs__nav__item") ))
@@ -697,7 +697,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 last_height = new_height
                 
             
-            har = _mitmproxy.har           
+            har = _harproxy.har           
             users_json = self.scan_for_all_requests(har, "har_paid", r'/api2/v2/users/list')
             if users_json:
                 self.to_screen("users list attempt success")                    
@@ -748,6 +748,6 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             
             
         finally:
-            _mitmproxy.close()
+            _harproxy.close()
             _server.stop()
             self.rm_driver(driver)
