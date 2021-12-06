@@ -400,8 +400,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             with OnlyFansPostIE._LOCK:
                 _server_port = 18080 + 100*OnlyFansPostIE._COUNT
                 OnlyFansPostIE._COUNT += 1
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start()
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost'
                 _port = _server_port + 1                
                 _mitmproxy = _server.create_proxy({'port' : _port})
@@ -476,8 +476,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             with OnlyFansPlaylistIE._LOCK:
                 _server_port = 18080 + 100*OnlyFansPlaylistIE._COUNT
                 OnlyFansPlaylistIE._COUNT += 1            
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start()
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost' 
                 _port = _server_port + 1               
                 _mitmproxy = _server.create_proxy({'port' : _port})
@@ -654,8 +654,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             with OnlyFansPaidlistIE._LOCK:
                 _server_port = 18080 + 100*OnlyFansPaidlistIE._COUNT
                 OnlyFansPaidlistIE._COUNT += 1            
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/venv/lib/python3.9/site-packages/browsermobproxy/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start()
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost' 
                 _port = _server_port + 1   
                 _host = 'localhost'                
