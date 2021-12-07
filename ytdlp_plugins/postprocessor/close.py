@@ -11,13 +11,15 @@ class ClosePluginPP(PostProcessor):
         # Also, "downloader", "when" and "key" are reserved names
         super().__init__(downloader)
         self._kwargs = kwargs
+        
 
     # ℹ️ See docstring of yt_dlp.postprocessor.common.PostProcessor.run
     def run(self, info):
         
+        
         ie = self._downloader._ies_instances.get('NetDNA')
         if ie:
-            self.to_screen(f'Postprocessor: Closing NetDNA client')
+            self.to_screen(f'Closing NetDNA client')
             ie.close()
                 
-        return [], info  # return list_of_files_to_delete, info_dict
+        return [], info

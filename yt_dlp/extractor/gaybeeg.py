@@ -59,8 +59,8 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         for _url, _item in _list_urls_netdna.items():
             
             _info_video = NetDNAIE.get_video_info(_item.get('text'))
-            _info_date = datetime. strptime(_item.get('date'), '%B %d, %Y')
-            entries.append({'_type' : 'url', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+            _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
+            entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
         
                                     
         return entries
