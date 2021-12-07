@@ -3,14 +3,14 @@ from __future__ import unicode_literals
 import re
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError,
     int_or_none,
-    sanitize_filename
+    sanitize_filename,
+    js_to_json
 )
 
 import httpx
 import time
-import demjson
+import json
 
 
 
@@ -59,7 +59,7 @@ class ManPornXXXIE(InfoExtractor):
             
             if mobj:
                 for _el in mobj:
-                    _info = demjson.decode(_el)
+                    _info = json.loads(js_to_json(_el))
                     if _info.get('@type') == 'VideoObject': 
                         _url_video = _info.get('contentUrl')
                         _title = _info.get('name').replace(" - manporn.xxx", "")

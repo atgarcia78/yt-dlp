@@ -8,13 +8,14 @@ from ..utils import (
     std_headers,
     sanitize_filename,
     int_or_none,
+    js_to_json
 
 )
 
 import httpx
 import traceback
 import sys
-import demjson
+import json
 import time
 
 
@@ -71,7 +72,7 @@ class Gay0DayIE(InfoExtractor):
             flashvars = re.findall(r'(?ms)<script.*?>.*?var\s+flashvars\s*=\s*(\{.*?\});.*?</script>', webpage)
             _entry_video = {}
             if flashvars:
-                info_video = demjson.decode(flashvars[0])
+                info_video = json.loads(js_to_json(flashvars[0]))
                 if info_video: 
             
                     _url = info_video.get("video_url")

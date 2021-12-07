@@ -8,7 +8,8 @@ import re
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    std_headers
+    std_headers,
+    js_to_json
 )
 
 
@@ -20,7 +21,7 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 
-import demjson
+import json
 
 from .webdriver import SeleniumInfoExtractor
 
@@ -220,7 +221,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             except Exception:
                 mobj = None
             if not mobj: raise ExtractorError("no token")
-            _data_dict = demjson.decode(mobj[0])
+            _data_dict = json.loads(js_to_json(mobj[0]))
             tokenid = _data_dict.get('token')
             if not tokenid: raise ExtractorError("no token")            
             #self.to_screen(f"tokenid:{tokenid}") 

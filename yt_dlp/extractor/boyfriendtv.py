@@ -5,16 +5,16 @@ import re
 from .webdriver import SeleniumInfoExtractor
 
 from ..utils import (
-    ExtractorError,  
-    urljoin,
+    ExtractorError,
+    std_headers,
+    js_to_json,
     int_or_none,
     sanitize_filename,
-    std_headers
+    urljoin   
 
 )
 
 import html
-import time
 import threading
 
 
@@ -25,7 +25,7 @@ import traceback
 import sys
 
 import httpx
-import demjson
+import json
 from urllib.parse import unquote
 
 
@@ -142,7 +142,9 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                     _timeout = httpx.Timeout(15, connect=15)        
                     _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
                     client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
-                    info_sources = demjson.decode(mobj[0])
+                    
+                    info_sources = json.loads(js_to_json(mobj[0]))
+                    
                     _formats = []
                     for _src in info_sources.get('mp4'):
                         _url = unquote(_src.get('src'))
@@ -225,7 +227,9 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             _title_video = mobj2[0].strip() if mobj2 else "boyfriendtv_video"
  
             if mobj:
-                info_sources = demjson.decode(mobj[0])
+                
+                info_sources = json.loads(js_to_json(mobj[0]))
+                
                 _formats = []
                 for _src in info_sources.get('mp4'):
                     _url = unquote(_src.get('src'))
