@@ -6,12 +6,13 @@ from ..utils import (
     ExtractorError,
     int_or_none,
     sanitize_filename,
-    std_headers
+    std_headers,
+    js_to_json
 )
 
 import httpx
 import time
-import demjson
+import json
 
 
 
@@ -58,7 +59,7 @@ class VidozaIE(InfoExtractor):
             res = httpx.get(url)
             mobj = re.findall(r'sourcesCode: (\[\{.*\}\])\,', res.text.replace('\n',''))
             if mobj:
-                info_sources = demjson.decode(mobj[0])
+                info_sources = json.loads(js_to_json(mobj[0]))
                 _formats = []
                 for source in info_sources:
                     _url_video = source.get('src')

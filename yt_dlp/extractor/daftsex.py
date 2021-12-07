@@ -155,18 +155,18 @@ from .common import InfoExtractor
 from ..utils import (
     ExtractorError, int_or_none, 
     std_headers,
-    sanitize_filename
+    sanitize_filename,
+    js_to_json
 )
 
 
 import httpx
 import time
 from urllib.parse import unquote
-import logging
 import base64
 import hashlib
 import json
-import demjson
+
 
 class DaftSexIE(InfoExtractor):
     IE_NAME = 'daftsex'
@@ -238,12 +238,8 @@ class DaftSexIE(InfoExtractor):
             mobj = re.findall(r'window.globParams = ({[^\;]+);',webpage2)
             if not mobj: raise ExtractorError("no video info")
             #_data2 = dict(mobj)
-            _data2 = demjson.decode(mobj[0])
+            _data2 = json.loads(js_to_json(mobj[0]))
             #self.to_screen(_data2)
-            
-            # mobj = re.findall(r'(cdn_files):(\{[^\}]+\})',webpage2.replace(" ",""))
-            # if mobj:
-            #     _data4 = {mobj[0][0]: json.loads(mobj[0][1])}
             
             _host = base64.b64decode(_data2['server'][::-1]).decode('utf-8')
             _videoid = str(int(hashlib.sha256(_data2['video']['id'].encode('utf-8')).hexdigest(),16) % 10**8)

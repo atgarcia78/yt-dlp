@@ -8,11 +8,12 @@ from ..utils import (
     std_headers,
     sanitize_filename,
     int_or_none,
+    js_to_json
 
 )
 
 import httpx
-import demjson
+import json
 
 class EbembedIE(InfoExtractor):
     
@@ -78,7 +79,7 @@ class EbembedIE(InfoExtractor):
             flashvars = re.findall(r'(?ms)<script.*?>.*?var\s+flashvars\s*=\s*(\{.*?\});.*?</script>', webpage)
             entry = None
             if flashvars:
-                data = demjson.decode(flashvars[0])
+                data = json.loads(js_to_json(flashvars[0]))
                 if data:             
                     formats = []
 
