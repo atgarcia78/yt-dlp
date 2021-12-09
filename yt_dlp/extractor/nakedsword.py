@@ -19,6 +19,8 @@ from selenium.webdriver.common.by import By
 
 import httpx
 
+import json
+from urllib.parse import quote, unquote
 
 from collections import OrderedDict
 
@@ -394,7 +396,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
         
 class NakedSwordPlaylistIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:playlist"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<id>.+)$'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<id>[^?&]+)$'
     
     
     def _real_extract(self, url):      
@@ -790,12 +792,13 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         'Self-Torture': '32154',
         'Wrestling': '32100',
         'Fishhooking': '32101'}
-        
-        
     
-
+    _SORTBY = ['Newest', 'Popularity', 'Trending']
     
-
+    _CONTENTS = ['movies', 'scenes']    
+    
+    _PARAMS = ['content', 'studioFilters', 'settingFilters', 'starFilters', 'tagFilters', 'sexActFilters', 'sort']
+    
     def get_starid(self, driver, starname):
          
         query = starname.replace(' ', '+')
@@ -808,9 +811,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             ela = get_value_list_or_none(elstar.find_elements(By.TAG_NAME, "a"))
             if ela:
                 starid = get_value_list_or_none(re.findall(r'starId=(\d+)', ela.get_attribute('href')))
-        
-        
-    
+
 
     def get_scenes_ns(self, driver, urls):
         list_scenes_urls = []
@@ -863,3 +864,43 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
 
         return (list_movies_urls)
 
+    def _real_extract(self, url):
+        
+        query = re.search(self._VALID_URL, url).group('query')
+        
+        params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+        
+        
+        criteria = {'sort': params['sort']}
+        if params.get('tag'): criteria.update({'tagFilters': [int(self._CATEGORIES[el]) for el in params['tag'].split(',')]})
+        if params.get('setting'): criteria.update({'settingFilters': [int(self._SETTINGS[el]) for el in params['setting'].split(',')]})
+        
+        content = params['content']
+        criteria_str = json.dumps(criteria).replace(" ", "")        
+        
+        url_query = f'https://vod.nakedsword.com/gay/search/{content}/page/1?criteria={quote(criteria_str)}&viewMode=List'
+        
+        self.to_screen(f"url query: {unquote(url_query)} {url_query}")
+        
+        driver = self.get_driver()
+        
+        entries = []
+        if content == 'scenes':
+            list_res = self.get_scenes_ns(driver, [url_query])
+            if list_res: entries = [self.url_result(_url, ie=NakedSwordSceneIE.ie_key()) for _url in list_res]
+        elif content == 'movies':
+            list_res = self.get_movies_ns(driver, [url_query])
+            if list_res: entries = [self.url_result(_url, ie=NakedSwordMovieIE.ie_key()) for _url in list_res]
+            
+        if entries:
+            return {
+                '_type': 'playlist',
+                'id': "NakedSword_Search_Playlist",
+                'title': "NakedSword_Search_Playlist",
+                'entries': entries,
+            }
+        
+        else: raise ExtractorError("No entries")
+            
+            
+            
