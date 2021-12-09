@@ -141,6 +141,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
         with SketchySexBaseIE._LOCK:
             
+            
             driver = self.get_driver()
             if not SketchySexBaseIE._COOKIES:
                 
@@ -149,6 +150,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     self._login(driver)                
                     
                     SketchySexBaseIE._COOKIES = driver.get_cookies()
+                    
                 
                 except Exception as e:
                     self.to_screen("error when login")
