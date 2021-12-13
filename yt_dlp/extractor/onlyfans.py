@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from concurrent.futures import ThreadPoolExecutor
 
 import json
 
@@ -373,20 +374,22 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
             try:
                 self._login(driver)
-                
+                driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
                 OnlyFansBaseIE._COOKIES = driver.get_cookies()
                 
             except ExtractorError as e:                 
                 raise 
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-                raise ExtractorError(str(e)) from e
+                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+                raise ExtractorError(repr(e)) from e
             finally:
                 self.rm_driver(driver)
                                             
 
 
+        
+        
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'
     IE_DESC = 'onlyfans:post:playlist'
@@ -494,20 +497,19 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             entries = {}
             
             self.send_request(driver, f"{self._SITE_URL}/{account}")
-            res = self.wait_until(driver, 30, error404_or_found())
+            res = self.wait_until(driver, 60, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
             
             if mode in ("all", "latest", "favorites","tips"):
                 
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
-                driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
+                #driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
                             
                 _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
                 self.send_request(driver, _url)
-                self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "js-posts-container")))
-                
+                self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
                 if mode in ("latest"):
                     har = _harproxy.har
                     data_json = self.scan_for_request(har, f"har_{account}_{mode}", "posts/videos?")
@@ -640,7 +642,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
 class OnlyFansPaidlistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfanspaidlist:playlist'
     IE_DESC = 'onlyfanspaidlist:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/paidlist"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/paid"
     _PAID_URL = "https://onlyfans.com/purchased"
 
 
@@ -750,4 +752,115 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
         finally:
             _harproxy.close()
             _server.stop()
+            self.rm_driver(driver)
+            
+class OnlyFansActSubslistIE(OnlyFansBaseIE):
+    IE_NAME = 'onlyfansactsubslist:playlist'
+    IE_DESC = 'onlyfansactsubslist:playlist'
+    _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/actsubs"
+    _ACT_SUBS_URL = "https://onlyfans.com/my/subscriptions/active"
+
+    def _get_videos_from_subs(self, url):
+        try:
+            
+            _url_videos = f"{url}/videos"
+            self.report_extraction(_url_videos)
+            with OnlyFansActSubslistIE._LOCK:
+                _server_port = 18080 + 100*OnlyFansActSubslistIE._COUNT
+                OnlyFansActSubslistIE._COUNT += 1            
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                _server.start({'log_path': '/dev', 'log_file': 'null'})
+                _host = 'localhost' 
+                _port = _server_port + 1   
+                _host = 'localhost'                
+                _harproxy = _server.create_proxy({'port' : _port})
+            
+            driver = self.get_driver(host=_host, port=_port, msg=f'[{_url_videos}]')
+            self.send_request(driver, self._SITE_URL)
+            for cookie in OnlyFansActSubslistIE._COOKIES:
+                driver.add_cookie(cookie)
+            
+            self.send_request(driver, url)
+            res = self.wait_until(driver, 60, error404_or_found())
+            if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")
+            #driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})            
+            account = url.split("/")[-1]
+            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_actsubs_{account}", title=f"har_actsubs_{account}")            
+            self.send_request(driver, _url_videos)
+            self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
+            
+            har = _harproxy.har
+            data_json = self.scan_for_request(har, f"har_actsubs_{account}", "posts/videos?")
+            entries = {}
+            if data_json:
+                self.write_debug(data_json)
+                list_json = data_json.get('list')
+                if list_json:                            
+                    for info_json in list_json:                                                  
+                        _entry = self._extract_from_json(info_json, user_profile=account)
+                        if _entry: 
+                            for _video in _entry:
+                                if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                                else:
+                                    if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                        entries[_video['id']] = _video
+            
+            if not entries: raise ExtractorError(f"[{_url_videos}] no entries")                
+            return list(entries.values())
+        except ExtractorError as e:
+            raise 
+        except Exception as e:            
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'[{_url_videos}] {repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(f'[{_url_videos}] {repr(e)}')
+        
+        finally:
+            _harproxy.close()
+            _server.stop()
+            self.rm_driver(driver)
+            
+        
+
+    def _real_extract(self, url):
+ 
+        try:
+            
+            
+            self.report_extraction(url)            
+            
+        
+            driver  = self.get_driver()
+            self.send_request(driver, self._SITE_URL)
+            for cookie in OnlyFansActSubslistIE._COOKIES:
+                driver.add_cookie(cookie)
+            
+            
+            self.send_request(driver, self._ACT_SUBS_URL)
+            el_subs = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-users__item__inner")))
+            
+            act_subs_urls = [el.find_element(By.TAG_NAME, "a").get_attribute('href') for el in el_subs]
+            entries = []
+            if act_subs_urls:
+                self.to_screen(f"act_subs_urls:\n{act_subs_urls}")
+                with ThreadPoolExecutor(thread_name_prefix='OFPlaylist', max_workers=len(act_subs_urls)) as ex:
+                    futures = [ex.submit(self._get_videos_from_subs, _url) for _url in act_subs_urls]
+                for fut in futures:
+                    try:
+                        entries = entries + fut.result()
+                    except Exception as e:
+                        self.to_screen(repr(e))
+                        
+
+            if entries:
+                return self.playlist_result(entries, "Onlyfans:subs", "Onlyfans:subs")
+            else:
+                raise ExtractorError("no entries") 
+        except ExtractorError as e:
+            raise 
+        except Exception as e:            
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(str(e)) from e
+        
+        finally:
             self.rm_driver(driver)
