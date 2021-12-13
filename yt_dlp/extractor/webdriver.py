@@ -48,7 +48,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             pass
     
 
-    def get_driver(self, noheadless=False, host=None, port=None):
+    def get_driver(self, noheadless=False, host=None, port=None, msg=None):
+        
+        if msg: pre = f'{msg} '
+        else: pre = ''
         
         prof = self._FF_PROF
             
@@ -98,8 +101,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         opts.set_preference("dom.webdriver.enabled", False)
         opts.set_preference("useAutomationExtension", False)
         
-        self.to_screen(f"ffprof[{prof}]")
-        self.to_screen(f"tempffprof[{tempdir}]")
+        self.to_screen(f"{pre}ffprof[{prof}]")
+        #self.to_screen(f"tempffprof[{tempdir}]")
         
         serv = Service(log_path="/dev/null")
         
@@ -113,9 +116,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
+            self.to_screen(f'{pre}{repr(e)} \n{"!!".join(lines)}')
             shutil.rmtree(tempdir, ignore_errors=True)  
-            raise ExtractorError(str(e)) from e
+            raise ExtractorError(repr(e)) from e
         
         return driver
     
