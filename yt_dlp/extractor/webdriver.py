@@ -139,8 +139,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         return el
     
             
-    @block_exceptions
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    
     def get_info_for_format(self, url, client=None, headers=None, verify=True):
         
         if not client:                

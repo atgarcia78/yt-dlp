@@ -2,7 +2,8 @@ from __future__ import unicode_literals
 
 from ..utils import (
     ExtractorError,
-    sanitize_filename
+    sanitize_filename,
+    get_domain
 )
 
 import traceback
@@ -19,6 +20,9 @@ from ratelimit import (
     limits
 )
 
+
+from backoff import constant, on_exception
+
 class get_videourl():
     def __call__(self, driver):
         elvideo = driver.find_elements(By.ID, "video_player_html5_api")
@@ -30,14 +34,19 @@ class get_videourl():
 
 class DoodIE(SeleniumInfoExtractor):
     
-    _SITE_URL = "https://dood.ws/"
-    
+        
     IE_NAME = 'dood'
-    _VALID_URL = r'https?://(?:www\.)?dood.ws/(?P<type>(?:e|d))/(?P<id>[^\/$]+)(?:\/|$)'
+    _VALID_URL = r'https?://(?:www\.)?dood\.[a-z]+/(?P<type>[ed])/(?P<id>[^\/$]+)(?:\/|$)'
 
 
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
-    @limits(calls=1, period=0.1)
+    @limits(calls=1, period=5)    
+    def get_info_for_format(self, *args, **kwargs):
+        return super().get_info_for_format(*args, **kwargs)
+    
+    @sleep_and_retry
+    @limits(calls=1, period=1)
     def _send_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
@@ -47,6 +56,8 @@ class DoodIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
+        
+        _site_url = f"https://{get_domain(url)}"
 
         driver = self.get_driver()
  
@@ -57,7 +68,7 @@ class DoodIE(SeleniumInfoExtractor):
             if _type != 'e': self.wait_until(driver, 30, ec.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe")))
             video_url = self.wait_until(driver, 60, get_videourl())
             if video_url:
-                _videoinfo = self.get_info_for_format(video_url, headers={'Referer': self._SITE_URL})
+                _videoinfo = self.get_info_for_format(video_url, headers={'Referer': _site_url})
                 if not _videoinfo: raise ExtractorError("no video info")            
                 _videoid = self._match_id(url)
                 _title = driver.title.replace(" - DoodStream", "").strip()           
@@ -66,7 +77,7 @@ class DoodIE(SeleniumInfoExtractor):
                     'format_id': 'http-mp4',
                     'url': _videoinfo['url'],
                     'filesize': _videoinfo['filesize'],
-                    'http_headers': {'Referer': self._SITE_URL},
+                    'http_headers': {'Referer': _site_url},
                     'ext': 'mp4'
                     
                 }
