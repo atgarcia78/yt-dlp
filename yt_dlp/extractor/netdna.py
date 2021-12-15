@@ -25,6 +25,26 @@ import traceback
 
 from ratelimit import limits, sleep_and_retry
 from backoff import constant, on_exception
+
+class fast_forward():     
+    def __call__(self, driver):
+        _curl = driver.current_url
+        if "netdna-storage.com/download/" in _curl: return "OK"
+        elif any(_ in _curl for _ in ["gestyy.com", "sh.st"]):
+            el_button = driver.find_elements(By.CSS_SELECTOR, "span#skip_button.skip-btn.show")
+            if el_button:
+                try:
+                    el_button[0].click()
+                    
+                except Exception as e:
+                    self.to_screen(repr(e))
+            return False
+        else:
+            if 'error' in driver.title.lower(): return "NOK"
+            else: 
+                driver.refresh()
+                return False
+
 class NetDNAIE(SeleniumInfoExtractor):
     IE_NAME = "netdna"
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*'
@@ -46,6 +66,20 @@ class NetDNAIE(SeleniumInfoExtractor):
         return res
     
     
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=5)    
+    def url_request(self, driver, url):
+                
+        driver.execute_script("window.stop();")
+        driver.get(url)
+        
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=5)    
+    def get_info_for_format(self, *args, **kwargs):
+        return super().get_info_for_format(*args, **kwargs)
+        
     def get_entry(self, url, ytdl=None):
         
         _info_video = NetDNAIE.get_video_info(url)
@@ -147,11 +181,9 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         info_video = NetDNAIE.get_video_info(url)
         self.report_extraction(f"[{info_video.get('id')}][{info_video.get('title')}]")        
-
         
         driver = self.get_driver()
-              
-        
+                
         try:
 
             count = 0
@@ -161,14 +193,18 @@ class NetDNAIE(SeleniumInfoExtractor):
                 try:
 
                     entry = None
-                    driver.get(url) #using firefox extension universal bypass to get video straight forward
+                    self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
                     
-                    self.wait_until(driver, 30, ec.url_contains("netdna-storage.com/download/"))
-
+                    #self.wait_until(driver, 30, ec.url_contains("netdna-storage.com/download/"))
                     
-                    if not "netdna-storage.com/download/" in (_curl:=driver.current_url): 
-                        self.write_debug(f"{info_video.get('title')} Bypass stopped at: {_curl}")
-                        raise ExtractorError(f"{url} - Bypass stopped at: {_curl}") 
+                    el_res = self.wait_until(driver, 60, fast_forward())
+                                        
+                    if el_res != "OK":
+                        msg_error = f"[{url}] - Bypass stopped at: {driver.current_url}"
+                        self.to_screen(msg_error) 
+                        raise ExtractorError(msg_error)
+                    
+ 
                     else:
                         
                         #self.to_screen(_curl)

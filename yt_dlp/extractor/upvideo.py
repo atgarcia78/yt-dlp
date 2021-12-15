@@ -3,7 +3,8 @@ from __future__ import unicode_literals
 from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
-    sanitize_filename 
+    sanitize_filename,
+    block_exceptions 
 )
 
 
@@ -19,6 +20,8 @@ from ratelimit import (
     limits
 )
 
+from backoff import constant, on_exception
+
 class UpVideoIE(SeleniumInfoExtractor):
     
     _SITE_URL = "https://upvideo.to"
@@ -26,22 +29,26 @@ class UpVideoIE(SeleniumInfoExtractor):
     IE_NAME = 'upvideo'
     _VALID_URL = r'https?://(?:www\.)?upvideo.to/v/(?P<id>[^\/$]+)(?:\/|$)'
 
-    @sleep_and_retry
-    @limits(calls=1, period=10)
-    def _get_video_info(self, url):
-        
+
+    def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
         
 
-    
-    @sleep_and_retry
-    @limits(calls=1, period=10)
     def _send_request(self, driver, url):
-
-
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
+    
+    @block_exceptions
+    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @sleep_and_retry
+    @limits(calls=1, period=15)
+    def request_to_host(self, _type, *args):
+    
+        if _type == "video_info":
+            return self._get_video_info(*args)
+        elif _type == "url_request":
+            self._send_request(*args)
 
 
     def _real_extract(self, url):
@@ -53,7 +60,8 @@ class UpVideoIE(SeleniumInfoExtractor):
         try:                            
 
             
-            self._send_request(driver, url)
+            #self._send_request(driver, url)
+            self.request_to_host("url_request", driver, url)
             
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"overlay")))
             if el: 
@@ -70,7 +78,9 @@ class UpVideoIE(SeleniumInfoExtractor):
             title = driver.title.replace(" | upvideo","").replace(".mp4","")
             videoid = self._match_id(url)
             
-            info_video = self._get_video_info(video_url)
+            #info_video = self._get_video_info(video_url)
+            
+            info_video = self.request_to_host("video_info", video_url)
             
             if not info_video: raise Exception(f"error video info")            
             
@@ -97,6 +107,6 @@ class UpVideoIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         finally:
             try:
-                self.rm_drive(driver)
+                self.rm_driver(driver)
             except Exception:
                 pass 

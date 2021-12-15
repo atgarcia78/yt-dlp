@@ -28,6 +28,12 @@ class GayForITEUIE(SeleniumInfoExtractor):
         webpage = self._download_webpage(url, videoid, "Downloading video webpage", fatal=True)
         if not webpage: raise ExtractorError("no video page info")
         else: return webpage
+        
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=5)    
+    def get_info_for_format(self, *args, **kwargs):
+        return super().get_info_for_format(*args, **kwargs)
     
     
     def _real_extract(self, url):
