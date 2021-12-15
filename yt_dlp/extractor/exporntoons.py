@@ -19,6 +19,8 @@ from ratelimit import (
     limits
 )
 
+from backoff import constant, on_exception
+
 class get_videourl():
     def __call__(self, driver):
         elvideo = driver.find_elements(By.CSS_SELECTOR, "video.jw-video.jw-reset")
@@ -35,13 +37,19 @@ class ExPornToonsIE(SeleniumInfoExtractor):
     IE_NAME = 'exporntoons'
     _VALID_URL = r'https?://(hot\.)?exporntoons\.net/watch/-(?P<id>\d+_\d+)'
 
-
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
     def _send_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
+        
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=5)    
+    def get_info_for_format(self, *args, **kwargs):
+        return super().get_info_for_format(*args, **kwargs)
          
 
     def _real_extract(self, url):

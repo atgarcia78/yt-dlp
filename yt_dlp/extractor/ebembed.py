@@ -15,50 +15,23 @@ from ..utils import (
 import httpx
 import json
 
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
+from backoff import constant, on_exception
+
 class EbembedIE(InfoExtractor):
     
     IE_NAME = 'ebembed'
     _VALID_URL = r'https?://(www\.)?ebembed\.com/(?:videos|embed)/(?P<id>\d+)/?(?P<title>[^\$]*)$'
     
-    def get_info_for_format(self, url, client=None, headers=None):
-        
-        count = 0
-        if not client:
-            _timeout = httpx.Timeout(15, connect=15)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=(not self._downloader.params.get('nocheckcertificate')))
-            close_client=True
-        else: close_client=False
-            
-        try:
-            
-            
-            while (count<3):
-                
-                try:
-                    
-                    #res = self._send_request(client, url, 'HEAD')
-                    res = client.head(url, follow_redirects=True, headers=headers)
-                    res.raise_for_status()
-                    _filesize = int_or_none(res.headers.get('content-length'))
-                    _url = str(res.url)
-                    break
-                        
-            
-                except Exception as e:
-                    _error = e
-                    count += 1
-        except Exception as e:
-            pass
-        finally:
-            if close_client:
-                try:
-                    client.close()
-                except Exception:
-                    pass
-
-        if count < 3: return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': f'max retries - {repr(_error)}'})  
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=5)    
+    def get_info_for_format(self, *args, **kwargs):
+        return super().get_info_for_format(*args, **kwargs)
     
 
     def _real_extract(self, url):

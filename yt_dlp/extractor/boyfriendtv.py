@@ -28,6 +28,12 @@ import httpx
 import json
 from urllib.parse import unquote
 
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
+from backoff import constant, on_exception
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = 'https://www.boyfriendtv.com/login/'
@@ -38,6 +44,12 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _LOCK = threading.Lock()
     
     _COOKIES = {}
+    
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=5)    
+    def get_info_for_format(self, *args, **kwargs):
+        return super().get_info_for_format(*args, **kwargs)
     
     def _login(self, driver):
         

@@ -44,18 +44,18 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
             
             eliframe = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
             videourl = eliframe.get_attribute('src')
+            if not videourl: raise ExtractorError("no video url")
             post_time = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "post-timestamp")))
             if post_time:
                 _info_date = datetime.strptime(post_time.text, '%B %d, %Y')
                 
-            if 'dood.ws' in videourl:             
-                return {
-                    '_type': 'url_transparent',
-                    'url': videourl,
-                    'ie': 'Dood',
-                    'release_date': _info_date.strftime('%Y%m%d'),
-                    'release_timestamp': int(_info_date.timestamp())}    
-            
+                         
+            return {
+                '_type': 'url_transparent',
+                'url': videourl,
+                'release_date': _info_date.strftime('%Y%m%d'),
+                'release_timestamp': int(_info_date.timestamp())}    
+        
         except ExtractorError as e:                 
             raise 
         except Exception as e:

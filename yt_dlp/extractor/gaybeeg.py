@@ -18,12 +18,14 @@ from selenium.webdriver.common.by import By
 
 from .netdna import NetDNAIE
 
-import logging
+
 import traceback
 import sys
 
 from datetime import datetime
 
+from backoff import on_exception, constant
+from ratelimit import limits, sleep_and_retry
 
 class GayBeegBaseIE(SeleniumInfoExtractor):
     
@@ -88,7 +90,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 _keep = True
                         
             
-            driver.get(url)
+            self.send_request(driver, url)
             
             SCROLL_PAUSE_TIME = 2
 
@@ -125,8 +127,13 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                     pass
             
             
-        
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=1)    
+    def send_request(self, driver, url):
                 
+        driver.execute_script("window.stop();")
+        driver.get(url)
 
 
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
@@ -170,7 +177,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             self.report_extraction(url)
             
             driver = self.get_driver()
-            driver.get(url)
+            self.send_request(driver, url)
             
             
             el_pages = self.wait_until(driver, 15, ec.presence_of_all_elements_located((By.CLASS_NAME, "pages")))
