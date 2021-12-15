@@ -1063,7 +1063,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         criteria_list_str = [json.dumps(criteria).replace(" ", "") for criteria in criteria_list]        
         
         
-        maxpages = params.get('pages', 5)
+        maxpages = int(params.get('pages', 5))
         url_query = [(f'https://vod.nakedsword.com/gay/search/{content}/page/{page+1}?criteria={quote(criteria_str)}&viewMode=List', criteria['sort'], page+1) for criteria_str, criteria in zip(criteria_list_str, criteria_list) for page in range(maxpages)]
         self.to_screen(f"url query list[{len(url_query)}]: \n{url_query}")
         url_query_str = '\n'.join([f'{unquote(_el[0])}, {_el[0].split("?")[-1]}' for _el in url_query])

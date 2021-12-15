@@ -112,9 +112,7 @@ class NetDNAIE(SeleniumInfoExtractor):
             title = None
             _num = None
             _unit = None
-            # _timeout = httpx.Timeout(15, connect=15)        
-            # _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            # client = httpx.Client(timeout=_timeout, limits=_limits, follow_redirects=True, headers=std_headers)
+
             
             try:
                 
