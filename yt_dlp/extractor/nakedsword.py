@@ -8,7 +8,7 @@ from ..utils import (
     ExtractorError,
     sanitize_filename,
     std_headers,
-    get_value_list_or_none
+    try_get
 )
 
 from threading import Lock
@@ -309,11 +309,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
     def _real_extract(self, url):
 
-        mobj = re.match(self._VALID_URL, url)
+        playlist_id, title = self._match_valid_url(url).group('id', 'title')
         
-        playlist_id = mobj.group('id')
-        title = mobj.group('title')
-
         webpage = self._download_webpage(url, playlist_id, "Downloading web page playlist")
 
         pl_title = self._html_search_regex(r'(?s)<title>(?P<title>.*?)<', webpage, 'title', group='title').split(" | ")[1]
@@ -358,13 +355,14 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
                 raise ExtractorError(repr(e)) from e
-
-        return {
-            '_type': 'playlist',
-            'id': "NakedSWord mostwatched",
-            'title': "NakedSword mostwatched",
-            'entries': entries,
-        }
+        
+        if entries:
+            return {
+                '_type': 'playlist',
+                'id': "NakedSWord mostwatched",
+                'title': "NakedSword mostwatched",
+                'entries': entries,
+            }
 
 
 class NakedSwordStarsIE(NakedSwordBaseIE):
@@ -810,9 +808,9 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
         elstar = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStar")))
         if elstar:
-            ela = get_value_list_or_none(elstar.find_elements(By.TAG_NAME, "a"))
+            ela = try_get(elstar.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
             if ela:
-                starid = get_value_list_or_none(re.findall(r'starId=(\d+)', ela.get_attribute('href')))
+                starid = try_get(re.findall(r'starId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
                 if starid: 
                     NakedSwordSearchIE._STARS[starname.lower().replace(' ', '').replace("/", "-")] = starid
                     NakedSwordSearchIE._STARS = {_key: NakedSwordSearchIE._STARS[_key] for _key in sorted(NakedSwordSearchIE._STARS)}
@@ -830,9 +828,9 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
         elstudio = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStudio")))
         if elstudio:
-            ela = get_value_list_or_none(elstudio.find_elements(By.TAG_NAME, "a"))
+            ela = try_get(elstudio.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
             if ela:
-                studioid = get_value_list_or_none(re.findall(r'studioId=(\d+)', ela.get_attribute('href')))
+                studioid = try_get(re.findall(r'studioId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
                 if studioid: 
                     NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace("/", "-")] = studioid
                     NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
@@ -870,10 +868,10 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                         _list_scenes_urls = []
                         for el in elscenes:
 
-                            elinfo = get_value_list_or_none(el.find_elements(By.TAG_NAME, "a"))
+                            elinfo = try_get(el.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
                             if not elinfo: continue
                             num_scene = elinfo.text.split(" ")[-1]
-                            movie = get_value_list_or_none(re.findall(r'gay/movies/(.+)#', elinfo.get_attribute('href')))
+                            movie = try_get(re.findall(r'gay/movies/(.+)#', elinfo.get_attribute('href')), lambda x: x[0])
                             if movie and num_scene:
                                 _urlscene = f"https://nakedsword.com/movies/{movie}/scene/{num_scene}" 
                                 _list_scenes_urls.append((_urlscene, _uq[1], _uq[2]))
@@ -960,9 +958,9 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                         _list_movies_urls = []
                         for el in elmovies:
 
-                            elinfo = get_value_list_or_none(el.find_elements(By.TAG_NAME, "a"))
+                            elinfo = try_get(el.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
                             if not elinfo: continue
-                            movie = get_value_list_or_none(re.findall(r'gay/movies/(.+)', elinfo.get_attribute('href')))
+                            movie = try_get(re.findall(r'gay/movies/(.+)', elinfo.get_attribute('href')), lambda x: x[0])
                             if movie:
                                 _urlmovie = f"https://nakedsword.com/movies/{movie}"
                                  

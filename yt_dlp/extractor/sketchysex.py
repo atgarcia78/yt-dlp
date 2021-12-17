@@ -291,7 +291,8 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "content")))
             if not el_listmedia: raise ExtractorError("no info")
             futures = []
-            with ThreadPoolExecutor(max_workers=5) as ex:
+            _num_workers = min(self._downloader.params.get('winit', 5), len(el_listmedia))
+            with ThreadPoolExecutor(max_workers=_num_workers) as ex:
                 for media in el_listmedia:
                     el_tag = media.find_element(by=By.TAG_NAME, value="a")
                     _url = el_tag.get_attribute("href").replace("/index.php", "")
