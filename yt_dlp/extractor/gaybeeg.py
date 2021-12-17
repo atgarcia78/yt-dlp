@@ -84,10 +84,10 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         try:
         
             if not driver:
-                _keep = False
-                driver = self.get_driver()
+                _putqueue = True
+                driver = self.get_driver(usequeue=True)
             else:
-                _keep = True
+                _putqueue = False
                         
             
             self.send_request(driver, url)
@@ -109,8 +109,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                     break
                 last_height = new_height
         
-            
-            
+
             el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))
             
             if el_a_list:
@@ -120,13 +119,8 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 return entries
             
         finally:
-            if not _keep: 
-                try:
-                    self.rm_driver(driver)
-                except Exception:
-                    pass
-            
-            
+            if _putqueue: SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=1)    
@@ -134,7 +128,6 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 
         driver.execute_script("window.stop();")
         driver.get(url)
-
 
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepage:playlist"
@@ -176,31 +169,42 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                                    
             self.report_extraction(url)
             
-            driver = self.get_driver()
-            self.send_request(driver, url)
+            driver = self.get_driver(usequeue=True)
             
+            entries = []
             
-            el_pages = self.wait_until(driver, 15, ec.presence_of_all_elements_located((By.CLASS_NAME, "pages")))
-            
-            if el_pages:
+            try:
+                self.send_request(driver, url)            
                 
-                num_pages = int(el_pages[0].get_attribute('innerHTML').split(' ')[-1])
-                self.to_screen(f"Pages to check: {num_pages}")
+                el_pages = self.wait_until(driver, 15, ec.presence_of_all_elements_located((By.CLASS_NAME, "pages")))
+                if el_pages:
+                    num_pages = int(el_pages[0].get_attribute('innerHTML').split(' ')[-1])
+                else: num_pages = 1
+                
+                self.to_screen(f"Pages to check: {num_pages}")                
+                    
+                
+                entries += self._get_entries(url, driver)
+            
+            finally:
+                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                
+            if num_pages > 1:
+                
+
                 el_page = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "page")))
                 _href = el_page.get_attribute('href')
-                list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(1, num_pages+1)]
+                list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(2, num_pages+1)]
                 
                 self.to_screen(list_urls_pages)
                 
-                self.rm_driver(driver)
-
-                _num_workers = min(4, len(list_urls_pages))
+                _num_workers = min(self._downloader.params.get('winit', 5), len(list_urls_pages))
                 
                 with ThreadPoolExecutor(thread_name_prefix="gaybeeg", max_workers=_num_workers) as ex:
                     futures = [ex.submit(self._get_entries, _url) for _url in list_urls_pages] 
             
                 
-                entries = []
+                
                 for d in futures:
                     try:
                         entries += d.result()
@@ -209,9 +213,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                         self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
                         raise ExtractorError(str(e)) from e
                         
-            else: #single page
-                self.to_screen("Single page, lets get entries")
-                entries = self._get_entries(url, driver)
+
                                        
             if entries:
                 return self.playlist_result(entries, "gaybeegplaylist", "gaybeegplaylist")
@@ -224,11 +226,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(str(e)) from e
 
-        finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass
+
 
 class GayBeegIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:post:playlist"

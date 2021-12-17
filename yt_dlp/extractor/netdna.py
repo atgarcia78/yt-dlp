@@ -2,12 +2,10 @@
 from __future__ import unicode_literals
 
 import re
-import threading
 
 from .webdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError, 
-    int_or_none,
     sanitize_filename,
     std_headers
 )
@@ -52,7 +50,8 @@ class NetDNAIE(SeleniumInfoExtractor):
                             
     @classmethod
     def close(cls):
-        NetDNAIE._CLIENT.close()            
+        NetDNAIE._CLIENT.close()
+        super().close()            
                            
     @classmethod
     @on_exception(constant, Exception, max_tries=5, interval=1)
@@ -180,7 +179,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         info_video = NetDNAIE.get_video_info(url)
         self.report_extraction(f"[{info_video.get('id')}][{info_video.get('title')}]")        
         
-        driver = self.get_driver()
+        driver = self.get_driver(usequeue=True)
                 
         try:
 
@@ -269,8 +268,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                     raise ExtractorError(repr(e)) from e 
                       
         finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass 
+            SeleniumInfoExtractor._QUEUE.put(driver)
+            
+             
    
