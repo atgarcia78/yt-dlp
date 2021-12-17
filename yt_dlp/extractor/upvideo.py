@@ -27,7 +27,7 @@ class UpVideoIE(SeleniumInfoExtractor):
     _SITE_URL = "https://upvideo.to"
     
     IE_NAME = 'upvideo'
-    _VALID_URL = r'https?://(?:www\.)?upvideo.to/v/(?P<id>[^\/$]+)(?:\/|$)'
+    _VALID_URL = r'https?://(?:www\.)?upvideo.to/[ev]/(?P<id>[^\/$]+)(?:\/|$)'
 
 
     def _get_video_info(self, url):        
