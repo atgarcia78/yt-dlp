@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     int_or_none,
