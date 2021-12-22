@@ -90,11 +90,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         def _get_driver(_noheadless, _host, _port, _msg):
             if _msg: pre = f'{_msg} '
             else: pre = ''        
-            prof = self._FF_PROF
+            
                 
             tempdir = tempfile.mkdtemp(prefix='asyncall-')
             
-            res = shutil.copytree(prof, tempdir, dirs_exist_ok=True)
+            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)
             
             if res != tempdir:
                 raise ExtractorError("error when creating profile folder")
@@ -112,8 +112,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             opts.add_argument(tempdir)
             
             if not _host and not _port:
-                if self._downloader:
-                    if (proxy:=self._downloader.params.get('proxy')):
+                if SeleniumInfoExtractor._YTDL:
+                    if (proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy')):
                         proxy = proxy.replace('https://', '').replace('http://', '')
                         _host = proxy.split(":")[0]
                         _port = proxy.split(":")[1]
@@ -138,7 +138,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             opts.set_preference("dom.webdriver.enabled", False)
             opts.set_preference("useAutomationExtension", False)
             
-            self.to_screen(f"{pre}ffprof[{prof}]")
+            self.to_screen(f"{pre}ffprof[{SeleniumInfoExtractor._FF_PROF}]")
             #self.to_screen(f"tempffprof[{tempdir}]")
             
             serv = Service(log_path="/dev/null")
@@ -161,7 +161,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     
         if usequeue:
             with SeleniumInfoExtractor._MASTER_LOCK:
-                if SeleniumInfoExtractor._COUNT < self._downloader.params.get('winit', 5):
+                if SeleniumInfoExtractor._COUNT < SeleniumInfoExtractor._YTDL.params.get('winit', 5):
                     driver = _get_driver(noheadless, host, port, msg)
                     SeleniumInfoExtractor._COUNT += 1                    
                 else:
@@ -196,7 +196,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if not verify:
                 _verify = False
             else:
-                _verify = not self._downloader.params.get('nocheckcertificate')
+                _verify = not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate')
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=_verify)
             close_client = True
         else: close_client = False           

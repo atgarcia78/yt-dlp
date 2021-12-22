@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import threading
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     sanitize_filename,

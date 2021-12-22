@@ -5,7 +5,7 @@ from selenium.webdriver.common.by import By
 import re
 import json
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 
 from ..utils import (
     ExtractorError,

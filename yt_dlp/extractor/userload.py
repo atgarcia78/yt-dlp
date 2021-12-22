@@ -10,7 +10,7 @@ from ..utils import (
 )
 
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 
 
 from selenium.webdriver.support import expected_conditions as ec

@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 
 from ..utils import (
     ExtractorError,
