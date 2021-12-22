@@ -14,7 +14,7 @@ import sys
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 
 from ratelimit import (
     sleep_and_retry,

@@ -19,7 +19,7 @@ from selenium.webdriver.common.by import By
 
 from threading import Lock
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 
 from ratelimit import (
     sleep_and_retry,

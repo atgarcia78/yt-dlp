@@ -6,7 +6,7 @@ from datetime import datetime
 
 from ..utils import ExtractorError
 
-from .webdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor
 
 
 
