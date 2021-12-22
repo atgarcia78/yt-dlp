@@ -62,14 +62,14 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
             _info_video = NetDNAIE.get_video_info(_item.get('text'))
             _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
-            entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+            entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
         
                                     
         return entries
     
     @staticmethod
     def _get_entries_gaybeeg(el_list):
-        entries = [{'_type' : 'url', 'url' : _url, 'ie' : 'GayBeeg'}
+        entries = [{'_type' : 'url', 'url' : _url, 'ie_key' : 'GayBeeg'}
                         for el in el_list
                                     for el_tagh2 in el.find_elements(by=By.TAG_NAME, value="h2")
                                         for el_taga in el_tagh2.find_elements(by=By.TAG_NAME, value="a")
