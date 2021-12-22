@@ -28,6 +28,13 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
 from queue import Queue
+
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
+from backoff import on_exception, constant
 class NakedSwordBaseIE(SeleniumInfoExtractor):
     IE_NAME = 'nakedsword'
     IE_DESC = 'nakedsword'
@@ -36,6 +43,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://nakedsword.com/signin"
     _LOGOUT_URL = "https://nakedsword.com/signout"
     _NETRC_MACHINE = 'nakedsword'
+    
+    _LOCK = Lock()
+    _COOKIES = {}
+    _CLIENT = None
+    
+    @classmethod
+    def close(cls):
+        NakedSwordBaseIE._CLIENT.close()
 
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
@@ -51,7 +66,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
         return _headers
     
-
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=0.1)
+    def _send_request(self, client, url, _type="GET", data=None, headers=None):
+        
+        res = client.request(_type, url, data=data, headers=headers)
+        res.raise_for_status()
+        return res
     
     def _login(self):
         
@@ -93,7 +115,35 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     
 
 
+    def _init(self):
         
+        
+        with NakedSwordBaseIE._LOCK:
+            if not NakedSwordBaseIE._CLIENT:
+                    
+                _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
+                _timeout = httpx.Timeout(60, connect=60)        
+                _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+                _verify = not self._downloader.params.get('nocheckcertificate')
+                NakedSwordBaseIE._CLIENT = httpx.Client(timeout=_timeout, follow_redirects=True, limits=_limits, headers=_headers, verify=_verify)
+                NakedSwordBaseIE._CLIENT.cookies.set("ns_pfm", "True", "nakedsword.com")
+                
+                if not NakedSwordBaseIE._COOKIES:
+                    try:
+                        
+                        NakedSwordBaseIE._COOKIES = self._login()
+                        
+                    except Exception as e:
+                        self.to_screen(f"{repr(e)}")
+                        raise
+                
+                for cookie in NakedSwordBaseIE._COOKIES:
+                    if cookie['name'] in ("ns_auth", "ns_pk"):
+                        NakedSwordBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    
+        if NakedSwordBaseIE._CLIENT:
+            return True
+    
     def get_entries_scenes(self, url):
         
         entries = []
@@ -140,17 +190,15 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:scene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
 
-    _LOCK = Lock()
-    _COOKIES = {}
-    
+       
     @staticmethod
-    def _get_info(url, _res=None):       
+    def _get_info(anystr):       
         
-        if not _res:
+        if anystr.startswith('https://'):
             count = 0
             while count < 3:
                 try:
-                    _res = httpx.get(url)
+                    _res = httpx.get(anystr)
                     if _res.status_code < 400:         
                         res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", _res.text)
                         res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", _res.text.replace(" ",""))
@@ -162,24 +210,14 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                     count += 1 
         else:
             
-            res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", _res.text)
-            res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", _res.text.replace(" ",""))
+            res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", anystr)
+            res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", anystr.replace(" ",""))
             if res and res2: count = 0
             else: count = 3
                            
         
         return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if count < 3 else None)
     
-    def _get_url(self, client, url, headers):
-        count = 0
-        while count < 3:
-            try:
-                _res = client.get(url, headers=headers)
-                if _res.status_code < 400: break
-                else: count += 1
-            except Exception as e:
-                count += 1
-        return(_res if count < 3 else None)
     
     def _get_formats(self, client, url, stream_url, _type):
         
@@ -189,7 +227,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         
         try:
                     
-            res = self._get_url(client, stream_url, _headers_json)
+            res = self._send_request(client, stream_url, headers=_headers_json)
             if not res or not res.content: raise ExtractorError("Cant get stream url info")
             #self.to_screen(f"{res.request} - {res} - {res.request.headers} - {res.headers} - {res.content}")
             info_json = res.json()
@@ -208,7 +246,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         #NakedSwordSceneIE._COOKIES = client.cookies      
         
         try:
-            res = self._get_url(client, mpd_url, _headers_mpd)
+            res = self._send_request(client, mpd_url, headers=_headers_mpd)
             #self.to_screen(f"{res.request} - {res} - {res.headers} - {res.request.headers} - {res.content}")
             if not res or not res.content: raise ExtractorError("Cant get mpd info")
             
@@ -236,33 +274,15 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                 
     def _real_extract(self, url):
 
-        try:
+        try:            
+
             
-            _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
-            _timeout = httpx.Timeout(60, connect=60)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            _verify = not self._downloader.params.get('nocheckcertificate')
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=_headers, verify=_verify)
-            client.cookies.set("ns_pfm", "True", "nakedsword.com")
-        
-            with NakedSwordSceneIE._LOCK:
-                if not NakedSwordSceneIE._COOKIES:
-                    try:
-                        
-                        NakedSwordSceneIE._COOKIES = self._login()
-                        
-                    except Exception as e:
-                        self.to_screen(f"{repr(e)}")
-                        raise
-                
-                for cookie in NakedSwordSceneIE._COOKIES:
-                    if cookie['name'] in ("ns_auth", "ns_pk"):
-                        client.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                
-        
-        
-            res = self._get_url(client, url, _headers)
-            info_video = self._get_info(url, res)
+            if not self._init(): raise ExtractorError("init error")
+            
+            info_video = {}
+            res = self._send_request(NakedSwordSceneIE._CLIENT, url)
+            if res: info_video = self._get_info(res.text)
+            
             if not info_video: raise ExtractorError("Can't find sceneid")
                           
             scene_id = info_video.get('id')
@@ -270,18 +290,18 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             
             stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
             
-            with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=2) as ex:
-                # futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
-                #        ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
-                futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8")]
+            # with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=2) as ex:
+            #     # futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
+            #     #        ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
+            #     futs = [ex.submit(self._get_formats, NakedSwordSceneIE._CLIENT, url, "/".join([stream_url, "HLS"]), "m3u8")]
                 
-            formats = []
-            for _fut in futs:
-                try:
-                    formats += _fut.result()
-                except Exception as e:
-                    self.to_screen(f"{repr(e)}")
-                   
+            # formats = []
+            # for _fut in futs:
+            #     try:
+            #         formats += _fut.result()
+            #     except Exception as e:
+            #         self.to_screen(f"{repr(e)}")
+            formats = self._get_formats(NakedSwordSceneIE._CLIENT, url, "/".join([stream_url, "HLS"]), "m3u8")       
             
             self._sort_formats(formats) 
             
@@ -296,8 +316,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
-        finally:
-            client.close()
+        
 
         
 
@@ -974,7 +993,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                                 self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv}')
                                 res = client.get(_urlmv[0])
                                 res.raise_for_status()
-                                if 'NakedSword.com | Untitled Page' in res.text: self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))
+                                if not 'NakedSword.com | Untitled Page' in res.text: self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))
                         
                             except Exception as e:
                                 self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] error {repr(e)}')
@@ -1033,8 +1052,13 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
         content = params.get('content', 'scenes')
         
-        if params.get('sort'):
-            criteria_list = [{'sort': params['sort']}]
+        if (_sortby:=params.get('sort')):
+            _sortby = _sortby.replace(' ','').lower()
+            if _sortby == 'mostwatched':
+                if content == 'scenes': _sby = 'Popularity'
+                else: _sby = 'MostWatched'
+            else: _sby = _sortby.capitalize() 
+            criteria_list = [{'sort': _sby}]
         else:
             criteria_list = [{'sort': _sort} for _sort in self._SORTBY[content]]
             
