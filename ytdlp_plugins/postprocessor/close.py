@@ -17,7 +17,7 @@ class ClosePluginPP(PostProcessor):
     def run(self, info):
         
         
-        ies_to_close = ['NakedSwordScene', 'NetDNA', 'GayBeeg', 'GayBeegPlaylist', 'GayBeegPlaylistPage']
+        ies_to_close = ['NakedSwordScene', 'NetDNA', 'GayBeeg', 'GayBeegPlaylist', 'GayBeegPlaylistPage', 'BoyFriendTVEmbed', 'BoyFriendTV']
         ies = self._downloader._ies_instances
         for ie in ies_to_close:
             if (_ie:=ies.get(ie)):

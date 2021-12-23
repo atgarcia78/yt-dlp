@@ -268,7 +268,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                     raise ExtractorError(repr(e)) from e 
                       
         finally:
-            SeleniumInfoExtractor._QUEUE.put(driver)
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
             
              
    
