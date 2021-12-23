@@ -10,7 +10,8 @@ from ..utils import (
     js_to_json,
     int_or_none,
     sanitize_filename,
-    urljoin   
+    urljoin,
+    try_get 
 
 )
 
@@ -34,6 +35,8 @@ from ratelimit import (
 )
 
 from backoff import constant, on_exception
+
+from concurrent.futures import ThreadPoolExecutor
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = 'https://www.boyfriendtv.com/login/'
@@ -85,53 +88,55 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                 self.to_screen("Login OK")
 
 
- 
-class BoyFriendTVIE(BoyFriendTVBaseIE):
-    IE_NAME = 'boyfriendtv'
-    _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/videos/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
-
-
-    def _real_extract(self, url):
+    def _init(self):
         
-                
-        with BoyFriendTVIE._LOCK:
-            
-            try:
+        
+        try:
 
-                driver = self.get_driver()
+            driver = self.get_driver(usequeue=True)
+                
+            driver.get(self._SITE_URL)
+            el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+            if not el_menu:
+                
+                with BoyFriendTVBaseIE._LOCK:
                     
-                driver.get(self._SITE_URL)
-                el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
-                if not el_menu:
-                    if BoyFriendTVIE._COOKIES:
-                        for _cookie in BoyFriendTVIE._COOKIE: driver.add_cookie(_cookie)
+                    if BoyFriendTVBaseIE._COOKIES:
+                        for _cookie in BoyFriendTVBaseIE._COOKIES: driver.add_cookie(_cookie)
                         driver.get(self._SITE_URL)
                         el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
                         if el_menu:
                             self.to_screen(f"Login already")
                             
-                        else:
+                        else:                            
                             self._login(driver)
+                            
                     else:
                         driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'sameSite': 'Lax', 'secure': True, 'domain': '.boyfriendtv.com'})                
                         self._login(driver)
-                else:
-                    self.to_screen("Login already")
-                    
-                BoyFriendTVIE._COOKIES = driver.get_cookies()
-                
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-                try:
-                    self.rm_driver(driver)
-                except Exception:
-                    pass
-                raise ExtractorError(f"Login error: {repr(e)}") from e
+                        
+                    BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
+                        
+            else:
+                self.to_screen("Login already")                
             
-
-        self.report_extraction(url) 
+            return driver
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            try:
+                self.rm_driver(driver)
+            except Exception:
+                pass
+            raise ExtractorError(f"Login error: {repr(e)}") from e
         
+        
+    def get_video_entry(self, url):
+        
+        self.report_extraction(url)
+        
+        driver = self._init()        
         
         try:
         
@@ -150,17 +155,13 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             if mobj:
                 
                 try:
-                        
-                    _timeout = httpx.Timeout(15, connect=15)        
-                    _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                    client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
-                    
+
                     info_sources = json.loads(js_to_json(mobj[0]))
                     
                     _formats = []
                     for _src in info_sources.get('mp4'):
                         _url = unquote(_src.get('src'))
-                        _info_video = self.get_info_for_format(_url, client)
+                        _info_video = self.get_info_for_format(_url)
                             
                         if not _info_video:
                             self.to_screen("no info video")
@@ -178,10 +179,11 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                     self._sort_formats(_formats)
                     
                     return({
-                        'id': self._match_id(url),
+                        'id': re.search(BoyFriendTVIE._VALID_URL, url).group('id'),
                         'title': sanitize_filename(_title_video, restricted=True),
                         'formats': _formats,
-                        'ext': 'mp4'
+                        'ext': 'mp4',
+                        'original_url': url
                 
                     })
                   
@@ -190,33 +192,59 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
                     raise ExtractorError(repr(e)) from e
-                finally:
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
+                
         
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e)) from e
         finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass
-           
-       
- 
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+        
+        
+class BoyFriendTVIE(BoyFriendTVBaseIE):
+    IE_NAME = 'boyfriendtv'
+    _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/videos/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
+
+
+    def _real_extract(self, url):        
+
+                
+        return (self.get_video_entry(url)) 
 
 class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
-    IE_NAME = 'boyfriendtv:embed'
+    IE_NAME = 'boyfriendtv:embed:playlist'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/embed/(?:((?P<id>[0-9]+)/)|embed.php\?)'
     
-   
+    def get_formats_single_video(self, webpage):
+                
+        info_sources = json.loads(js_to_json(jsonstr)) if (jsonstr:=try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster', webpage), lambda x: x[0])) else None
+        
+        if info_sources:
+            
+            _formats = []
+            
+            for _src in info_sources.get('mp4'):
+                _url = unquote(_src.get('src'))
+                _info_video = self.get_info_for_format(_url) 
+                _formats.append({
+                    'url': _info_video.get('url'),
+                    'ext': 'mp4',
+                    'format_id': f"http-{_src.get('desc')}",
+                    'resolution': _src.get('desc'),
+                    'height': int_or_none(_src.get('desc').lower().replace('p','')),
+                    'filesize': _info_video.get('filesize')
+                })
+                
+            if _formats:
+                self._sort_formats(_formats)
+                return _formats
+            
+
     def _real_extract(self, url):
         
         self.report_extraction(url)
+        
         try:
             if not self._match_id(url):
                 _url_embed = httpx.URL(url)
@@ -224,7 +252,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 _url = f"https://{_url_embed.host}/embed/{_params_dict.get('m')}/{_params_dict.get('h')}"
             else: _url = url
             
-            _timeout = httpx.Timeout(15, connect=15)        
+            _timeout = httpx.Timeout(30, connect=30)        
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
             
@@ -232,41 +260,45 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 
             webpage = re.sub('[\t\n]','', html.unescape(res.text))
             
-            #self.to_screen(webpage)
-            mobj = re.findall(r'sources:\s+(\{.*\})\,\s+poster', webpage)
-            mobj2 = re.findall(r'title:\s+\"([^-\"]*)[-\"]', webpage)        
-            
-            _title_video = mobj2[0].strip() if mobj2 else "boyfriendtv_video"
- 
-            if mobj:
+            if 'class="video-container"' in webpage:
                 
-                info_sources = json.loads(js_to_json(mobj[0]))
-                
-                _formats = []
-                for _src in info_sources.get('mp4'):
-                    _url = unquote(_src.get('src'))
-                    _info_video = self.get_info_for_format(_url, client) 
-                    _formats.append({
-                        'url': _info_video.get('url'),
-                        'ext': 'mp4',
-                        'format_id': f"http-{_src.get('desc')}",
-                        'resolution': _src.get('desc'),
-                        'height': int_or_none(_src.get('desc').lower().replace('p','')),
-                        'filesize': _info_video.get('filesize')
-                    })
+                _formats = self.get_formats_single_video(webpage)
+                if _formats:
+                    _title_video = _title.strip() if (_title:=try_get(re.findall(r'title:\s+\"([^-\"]*)[-\"]', webpage), lambda x: x[0])) else None
                     
-                self._sort_formats(_formats)
-                
-                return({
-                    'id': self._match_id(str(res.url)),
-                    'title': sanitize_filename(_title_video, restricted=True),
-                    'formats': _formats,
-                    'ext': 'mp4'
+                    _res = {
+                        'id': self._match_id(str(res.url)),                        
+                        'formats': _formats,
+                        'ext': 'mp4'}
+                    
+                    if _title_video: _res['title'] = sanitize_filename(_title_video, restricted=True),
+                                
+                    return _res
             
-                })
+            elif 'class="grid"' in webpage:
                 
-            else: raise ExtractorError("Video not found")
-                
+                info_videos = json.loads(js_to_json(jsonstr)) if  (jsonstr:=try_get(re.findall(r'"videos":(\[[^\]]+\])', webpage), lambda x: x[0])) else None
+                if info_videos:
+                    with ThreadPoolExecutor(thread_name_prefix='BoyFriendTV', max_workers=min(len(info_videos), self._downloader.params.get('winit', 5))) as ex:
+                        futures = [ex.submit(self.get_video_entry, urljoin(self._SITE_URL, link)) for el in info_videos if (link:=el.get('videoLink'))]           
+                    
+                    _entries = []
+                    for fut in futures:
+                        try:
+                            _entries.append(fut.result())
+                        except Exception as e:
+                            self.to_screen(repr(e))                        
+                    
+                    #_entries = [self.url_result(urljoin(self._SITE_URL, link), ie=BoyFriendTVIE.ie_key(), title=title) for el in info_videos if (link:=el.get('videoLink')) and (title:=el.get('videoName'))]
+                   
+                    if _entries:
+                    
+                        return {
+                            '_type': 'playlist',
+                            'id': self._match_id(str(res.url)),                        
+                            'entries': _entries}
+                    
+
         except ExtractorError as e:
             raise     
         except Exception as e:
@@ -294,14 +326,7 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
 
         try:
             
-            driver = self.get_driver()
-                
-            driver.get(self._SITE_URL)
-            
-            el = self.wait_until(driver, 15, ec.presence_of_element_located((By.CLASS_NAME, "swal2-container")))
-            if el:
-                driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'sameSite': 'Lax', 'secure': True, 'domain': '.boyfriendtv.com'})      
-                
+            driver = self._init()
         
             entries = []
             driver.get(url)
@@ -336,7 +361,4 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))            
         finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
