@@ -175,12 +175,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             el = WebDriverWait(driver, time).until(method)
         except Exception as e:
             el = None
-            
+                        
         return el 
     
-    def wait_until_not(self, _driver, time, method):
+    def wait_until_not(self, driver, time, method):
         try:
-            el = WebDriverWait(_driver, time).until_not(method)
+            el = WebDriverWait(driver, time).until_not(method)
         except Exception as e:
             el = None
             
@@ -197,12 +197,15 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _verify = False
             else:
                 _verify = not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate')
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, verify=_verify)
+            
+            client = httpx.Client(timeout=_timeout, follow_redirects=True, limits=_limits, headers=std_headers, verify=_verify)
+            
             close_client = True
-        else: close_client = False           
+        else: 
+            close_client = False           
                
         try:
-            res = client.head(url, follow_redirects=True, headers=headers)
+            res = client.head(url, headers=headers)
             
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
