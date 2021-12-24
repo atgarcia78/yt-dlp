@@ -17,14 +17,16 @@ class ClosePluginPP(PostProcessor):
     def run(self, info):
         
         
-        ies_to_close = ['NakedSwordScene', 'NetDNA', 'GayBeeg', 'GayBeegPlaylist', 'GayBeegPlaylistPage', 'BoyFriendTVEmbed', 'BoyFriendTV']
+        #ies_to_close = ['NakedSwordScene', 'NetDNA', 'GayBeeg', 'GayBeegPlaylist', 'GayBeegPlaylistPage', 'BoyFriendTVEmbed', 'BoyFriendTV']
         ies = self._downloader._ies_instances
-        for ie in ies_to_close:
-            if (_ie:=ies.get(ie)):
+        
+        for ie, ins in ies.items():
+            
+            if (close:=getattr(ins, 'close', None)):
                 try:
-                    self.to_screen(f"Closing {ie}")
-                    _ie.close()
-                except Exception:
-                    pass
+                    close()
+                    self.to_screen(f"[{ie}] Close OK")
+                except Exception as e:
+                    self.to_screen(f"[{ie}] {repr(e)}")
                 
         return [], info
