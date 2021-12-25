@@ -139,11 +139,13 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
 
     def _init(self, ret_driver=True):
         
-        with SketchySexBaseIE._LOCK:
-            
-            
-            driver = self.get_driver()
+        driver = None
+        
+        with SketchySexBaseIE._LOCK:            
+                        
             if not SketchySexBaseIE._COOKIES:
+                
+                driver = self.get_driver()
                 
                 try:
                     
@@ -151,23 +153,24 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     
                     SketchySexBaseIE._COOKIES = driver.get_cookies()
                     
+                    for cookie in SketchySexBaseIE._COOKIES:
+                        if (_name:=cookie['name']) != 'pp-accepted':
+                            driver.delete_cookie(_name)
+                    
                 
                 except Exception as e:
                     self.to_screen("error when login")
                     self.rm_driver(driver)
                     raise
-            else:
-                 driver.get(self._SITE_URL)
-                 driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'})
-            
-            
-                
         
-        if ret_driver: 
-            for cookie in SketchySexBaseIE._COOKIES:
-                if (_name:=cookie['name']) != 'pp-accepted':
-                    driver.delete_cookie(_name)
+        if ret_driver:
             
+            if not driver:
+                                    
+                driver = self.get_driver()    
+                driver.get(self._SITE_URL)
+                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'})
+                
             if not SketchySexBaseIE._MAX_PAGE:                
                 driver.get("https://sketchysex.com/episodes/1")
                 pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
@@ -175,10 +178,13 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     elnext = pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
                     totalpages = pag.find_elements(By.TAG_NAME, "a")
                     SketchySexBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
-                            
+            
             return driver
         
-        else: self.rm_driver(driver)
+        else:
+            if driver: self.rm_driver(driver)
+            
+
                     
                     
     def _get_client(self):
@@ -327,6 +333,7 @@ class SketchySexIE(SketchySexBaseIE):
 
     def _real_extract(self, url):
         
+        self.report_extraction(url)
         data = None
         try: 
             self._init(ret_driver=False)
@@ -354,8 +361,8 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
 
     def _real_extract(self, url):
 
+        self.report_extraction(url)
         playlistid = re.search(self._VALID_URL, url).group("id")
-        
         entries = None
         
         try:              
