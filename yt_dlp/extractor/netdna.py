@@ -37,11 +37,14 @@ class fast_forward():
                 except Exception as e:
                     self.to_screen(repr(e))
             return False
-        else:
-            if 'error' in driver.title.lower(): return "NOK"
-            else: 
+        elif "moz-extension" in _curl: return False
+        elif "netdna-storage" in _curl:
+            if 'file not found' in (_title:=driver.title.lower()): return "Error 404"
+            elif 'error' in _title:
                 driver.refresh()
                 return False
+            else: return False
+        else: return False
 
 class NetDNAIE(SeleniumInfoExtractor):
     IE_NAME = "netdna"
@@ -83,7 +86,8 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         _info_video = NetDNAIE.get_video_info(url)
         #entry =  {'_type' : 'url', 'url' : _info_video.get('url'), 'ie' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'filesize': _info_video.get('filesize')}
-        _title_search =  _info_video.get('title').replace("_",",")
+        if (_error:=_info_video.get('error')): raise ExtractorError(_error) 
+        _title_search =  _info_video.get('title', '').replace("_",",")
         _id = _info_video.get('id')
         if not ytdl:
             ytdl = self._downloader 
@@ -115,7 +119,7 @@ class NetDNAIE(SeleniumInfoExtractor):
             
             try:
                 
-                res = NetDNAIE._send_request(item)    
+                res = NetDNAIE._send_request(item)                
 
                 _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<',res.text)
                 if _num_list:
@@ -128,8 +132,9 @@ class NetDNAIE(SeleniumInfoExtractor):
                 if _title_list:
                     title = _title_list[0][0].upper().replace("-","_")
                     ext = _title_list[0][1].lower()
+            
             except Exception as e:
-                pass                                
+                return({'error': str(e)})                                
             
 
                 
@@ -176,8 +181,9 @@ class NetDNAIE(SeleniumInfoExtractor):
     
     def _real_extract(self, url):        
         
+        self.report_extraction(url)
         info_video = NetDNAIE.get_video_info(url)
-        self.report_extraction(f"[{info_video.get('id')}][{info_video.get('title')}]")        
+        if (_error:=info_video.get('error')): raise ExtractorError(_error)
         
         driver = self.get_driver(usequeue=True)
                 
@@ -192,26 +198,22 @@ class NetDNAIE(SeleniumInfoExtractor):
                     entry = None
                     self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
                     
-                    #self.wait_until(driver, 30, ec.url_contains("netdna-storage.com/download/"))
-                    
                     el_res = self.wait_until(driver, 60, fast_forward())
-                                        
-                    if el_res != "OK":
-                        msg_error = f"[{url}] - Bypass stopped at: {driver.current_url}"
-                        self.to_screen(msg_error) 
-                        raise ExtractorError(msg_error)
+                    
+                    if el_res == "Error 404": raise ExtractorError(el_res)
+                    elif el_res != "OK":
+                        msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
+                        self.to_screen(msg_error)
+                        count += 1
+                        if count == 3: raise ExtractorError("max attempts to get info")
+                        else: continue
                     
  
                     else:
                         
-                        #self.to_screen(_curl)
                         
                         try:
                         
-                            # _timeout = httpx.Timeout(15, connect=15)        
-                            # _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                            # client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
-                            
                             
                             el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
                             
@@ -257,15 +259,12 @@ class NetDNAIE(SeleniumInfoExtractor):
                         
                         
                 
-                except ExtractorError as e:
-                    self.write_debug(f"{repr(e)}")
-                    count += 1
-                    self.write_debug(f"[count] {count}")
-                    if count == 3: raise ExtractorError("max attempts to get info")
+                except ExtractorError:
+                    raise
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.write_debug(f"{repr(e)}, will retry \n{'!!'.join(lines)}")
-                    raise ExtractorError(repr(e)) from e 
+                    raise ExtractorError(repr(e))
                       
         finally:
             SeleniumInfoExtractor._QUEUE.put_nowait(driver)

@@ -140,41 +140,50 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
 
     def _init(self, ret_driver=True):
         
-        with FraternityXBaseIE._LOCK:
-            
-            driver = self.get_driver()
+        driver = None
+        
+        with FraternityXBaseIE._LOCK:            
+                        
             if not FraternityXBaseIE._COOKIES:
+                
+                driver = self.get_driver()
                 
                 try:
                     
                     self._login(driver)                
                     
                     FraternityXBaseIE._COOKIES = driver.get_cookies()
+                    
+                    for cookie in FraternityXBaseIE._COOKIES:
+                        if (_name:=cookie['name']) != 'pp-accepted':
+                            driver.delete_cookie(_name)
+                    
                 
                 except Exception as e:
                     self.to_screen("error when login")
                     self.rm_driver(driver)
                     raise
-                
-            else:
-                driver.get(self._SITE_URL)
-                #driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fraternityx.com'})
-                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fratx.com'})
-
-        if ret_driver: 
-            for cookie in FraternityXBaseIE._COOKIES:
-                if (_name:=cookie['name']) != 'pp-accepted':
-                    driver.delete_cookie(_name)
+        
+        if ret_driver:
             
+            if not driver:
+                                    
+                driver = self.get_driver()    
+                driver.get(self._SITE_URL)
+                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'})
+                
             if not FraternityXBaseIE._MAX_PAGE:                
                 driver.get("https://fratx.com/episodes/1")
                 pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
                 if pag:
-                    elnext = pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")                    
-                    totalpages = pag.find_elements(By.TAG_NAME, "a")                    
-                    FraternityXBaseIE._MAX_PAGE = len(totalpages) - len(elnext) 
+                    elnext = pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
+                    totalpages = pag.find_elements(By.TAG_NAME, "a")
+                    FraternityXBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
+            
             return driver
-        else: self.rm_driver(driver)
+        
+        else:
+            if driver: self.rm_driver(driver)
                     
                     
     def _get_client(self):
@@ -323,6 +332,7 @@ class FraternityXIE(FraternityXBaseIE):
 
     def _real_extract(self, url):
         
+        self.report_extraction(url)
         data = None
         try:            
             
@@ -352,8 +362,8 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
 
     def _real_extract(self, url):
 
+        self.report_extraction(url)
         playlistid = re.search(self._VALID_URL, url).group("id")
-        
         entries = None
         
         try:              

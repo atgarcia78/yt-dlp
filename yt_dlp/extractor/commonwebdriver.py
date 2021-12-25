@@ -143,20 +143,28 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             serv = Service(log_path="/dev/null")
             
-            try:
+            n = 0
             
-                driver = Firefox(service=serv, options=opts)
+            while n < 3:
             
-                driver.maximize_window()
-            
-                self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+                try:
                 
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{pre}{repr(e)} \n{"!!".join(lines)}')
-                shutil.rmtree(tempdir, ignore_errors=True)  
-                raise ExtractorError(repr(e)) from e
-            
+                    driver = Firefox(service=serv, options=opts)
+                
+                    driver.maximize_window()
+                
+                    self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    
+                    break
+                    
+                except Exception as e:
+                    n += 1
+                    if n == 3:
+                        lines = traceback.format_exception(*sys.exc_info())
+                        self.to_screen(f'{pre}{repr(e)} \n{"!!".join(lines)}')
+                        shutil.rmtree(tempdir, ignore_errors=True)  
+                        raise ExtractorError(repr(e)) from e
+                
             return driver
     
         if usequeue:
@@ -190,22 +198,18 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def get_info_for_format(self, url, client=None, headers=None, verify=True):
         
-        if not client:                
-            _timeout = httpx.Timeout(30, connect=30)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+
+        try:
+            
             if not verify:
                 _verify = False
             else:
                 _verify = not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate')
             
-            client = httpx.Client(timeout=_timeout, follow_redirects=True, limits=_limits, headers=std_headers, verify=_verify)
-            
-            close_client = True
-        else: 
-            close_client = False           
-               
-        try:
-            res = client.head(url, headers=headers)
+            if client:
+                res = client.head(url, headers=headers, verify=_verify)
+            else:                
+                res = httpx.head(url, follow_redirects=True, headers=headers, verify=_verify)
             
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
@@ -215,12 +219,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception as e:
             self.to_screen(f"{repr(e)}")
             raise        
-        finally:
-            if close_client:
-                try:
-                    client.close()
-                except Exception:
-                    pass
+
             
     
     
