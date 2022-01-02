@@ -4,109 +4,100 @@ from __future__ import unicode_literals
 from .commonwebdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
-    std_headers,
     sanitize_filename,
-    int_or_none
 )
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-import httpx
-import time
+
 
 
 import traceback
 import sys
-from threading import Lock
-import os
 
 
+from ratelimit import (
+    sleep_and_retry,
+    limits
+)
+
+from backoff import constant, on_exception
+
+class get_videourl():
+    def __call__(self, driver):
+        elvideo = driver.find_elements(By.TAG_NAME, "video")
+        if not elvideo: return False
+        videourl = elvideo[0].get_attribute('src')
+        if not videourl: return False
+        else: return videourl
+        
 
 class ThatGVideoIE(SeleniumInfoExtractor):
     IE_NAME = 'thatgvideo'
     _VALID_URL = r'https?://thatgvideo\.com/videos/(?P<id>\d+).*'
 
-    _LOCK = Lock()
-
-    
-    def _get_infovideo(self, url):
+    def _get_video_info(self, url):        
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)       
         
-        count = 0
-        try:
-            
-            _res = None
-            while (count<5):
-                
-                try:
-                    
-                    res = httpx.head(url)
-                    if res.status_code > 400:
-                        time.sleep(1)
-                        count += 1
-                    else: 
-                        _filesize = int_or_none(res.headers.get('content-length'))
-                        _url = str(res.url)
-                        if _filesize and _url:
-                            break
-                        else:
-                            count += 1
-                        
-            
-                except Exception as e:
-                    count += 1
-        except Exception as e:
-            pass
 
-        if count < 5: return ({'url': _url, 'filesize': _filesize}) 
-        else: return ({'error': 'max retries'})  
- 
-     
+    def _send_request(self, driver, url):
+        self.logger_info(f"[send_request] {url}")   
+        driver.get(url)
     
-  
+    
+    @on_exception(constant, Exception, max_tries=5, interval=1)    
+    @sleep_and_retry
+    @limits(calls=1, period=1)
+    def request_to_host(self, _type, *args):
+    
+        if _type == "video_info":
+            return self._get_video_info(*args)
+        elif _type == "url_request":
+            self._send_request(*args)     
+    
+    def _real_initialize(self):
+        super()._real_initialize()
 
     def _real_extract(self, url):
 
         
         self.report_extraction(url)
         
-        driver = self.get_driver()
+        driver = self.get_driver(usequeue=True)
  
         try:
             
   
-            with ThatGVideoIE._LOCK: 
-                driver.get(url)      
+            self.request_to_host("url_request", driver, url) 
 
-            el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-            video_url = el_video.get_attribute('src') if el_video else ""
-            _format_video = {}
-            
-            _entry_video = {}
-            
+            video_url = self.wait_until(driver, 30, get_videourl())
+
             if video_url:
                 self.to_screen(video_url)
-                std_headers['Referer'] = url
-                std_headers['Accept'] = "*/*" 
-                _info = self._get_infovideo(video_url)
+                _info = self.request_to_host("video_info", video_url)
+                
+                if _info:
 
-
-                _format_video = {
-                        'format_id' : "http-mp4",
-                        'url' : _info.get('url'),
-                        'filesize' : _info.get('filesize'),
+                    _format_video = {
+                            'format_id' : "http-mp4",
+                            'url' : _info.get('url'),
+                            'filesize' : _info.get('filesize'),
+                            'http_headers': SeleniumInfoExtractor._CLIENT_CONFIG['headers'],
+                            'ext': "mp4"
+                        }
+                    
+                    _entry_video = {
+                        'id' : self._match_id(url),
+                        'title' : sanitize_filename(driver.title,restricted=True),
+                        'formats' : [_format_video],
                         'ext': "mp4"
                     }
                 
-                _entry_video = {
-                    'id' : self._match_id(url),
-                    'title' : sanitize_filename(driver.title,restricted=True),
-                    'formats' : [_format_video],
-                    'ext': "mp4"
-                }
-                
-                return _entry_video
-                    
+                    return _entry_video
+                else: raise ExtractorError("couldnt get video info")
+            else: raise ExtractorError("no video url found")    
         except ExtractorError as e:
             raise
         except Exception as e:
@@ -115,6 +106,6 @@ class ThatGVideoIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e)) from e
         finally:
             try:
-                self.rm_driver(driver)
+                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
             except Exception:
                 pass

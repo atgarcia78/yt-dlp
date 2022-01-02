@@ -170,7 +170,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                                     
                 driver = self.get_driver()    
                 driver.get(self._SITE_URL)
-                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'})
+                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fratx.com'})
                 
             if not FraternityXBaseIE._MAX_PAGE:                
                 driver.get("https://fratx.com/episodes/1")
