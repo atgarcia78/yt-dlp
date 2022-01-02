@@ -60,7 +60,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         
         for _url, _item in _list_urls_netdna.items():
             
-            _info_video = NetDNAIE.get_video_info(_item.get('text'))
+            _info_video = NetDNAIE.get_video_info_str(_item.get('text'))
             _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
             entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
         
@@ -123,7 +123,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
-    @limits(calls=1, period=1)    
+    @limits(calls=1, period=0.1)    
     def send_request(self, driver, url):
                 
         driver.execute_script("window.stop();")

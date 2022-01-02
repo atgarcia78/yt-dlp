@@ -34,10 +34,8 @@ from backoff import on_exception, constant
 from ratelimit import limits, sleep_and_retry
 
 
-class error404_or_found():
-    
-    def __call__(self, driver):
-        
+class error404_or_found():    
+    def __call__(self, driver):        
         el = driver.find_elements(by=By.CLASS_NAME, value="b-404")        
         if el:            
             return ("error404", el[0])       
@@ -51,10 +49,8 @@ class error404_or_found():
                 return False
     
 
-class alreadylogin_or_reqtw():
-    
-    def __call__(self, driver):
-        
+class alreadylogin_or_reqtw():    
+    def __call__(self, driver):        
         el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
             return ("loginok", el[0])       
@@ -66,10 +62,8 @@ class alreadylogin_or_reqtw():
             else: return False
             
 
-class succ_or_twlogin():
-    
-    def __call__(self, driver):
-        
+class succ_or_twlogin():    
+    def __call__(self, driver):        
         el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
             return ("loginok", el[0])       
@@ -86,10 +80,8 @@ class succ_or_twlogin():
                 return False
     
     
-class succ_or_twrelogin():
-    
-    def __call__(self, driver):
-        
+class succ_or_twrelogin():    
+    def __call__(self, driver):        
         el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
             return ("loginok", el[0])       
@@ -109,13 +101,9 @@ class succ_or_twrelogin():
 class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://onlyfans.com"
-    #log in via twitter
     _NETRC_MACHINE = 'twitter2'
-
-    _LOCK = threading.Lock()
-     
-    _COUNT = 0
-    
+    _LOCK = threading.Lock()     
+    _NUM = 0    
     _COOKIES = None
     
     
@@ -403,8 +391,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
         try:            
             
             with OnlyFansPostIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansPostIE._COUNT
-                OnlyFansPostIE._COUNT += 1
+                _server_port = 18080 + 100*OnlyFansPostIE._NUM
+                OnlyFansPostIE._NUM += 1
                 _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
                 _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost'
@@ -479,8 +467,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             self.report_extraction(url)
             
             with OnlyFansPlaylistIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansPlaylistIE._COUNT
-                OnlyFansPlaylistIE._COUNT += 1            
+                _server_port = 18080 + 100*OnlyFansPlaylistIE._NUM
+                OnlyFansPlaylistIE._NUM += 1            
                 _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
                 _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost' 
@@ -656,8 +644,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             self.report_extraction(url)
             
             with OnlyFansPaidlistIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansPaidlistIE._COUNT
-                OnlyFansPaidlistIE._COUNT += 1            
+                _server_port = 18080 + 100*OnlyFansPaidlistIE._NUM
+                OnlyFansPaidlistIE._NUM += 1            
                 _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
                 _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost' 
@@ -768,8 +756,8 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             _url_videos = f"{url}/videos"
             self.report_extraction(_url_videos)
             with OnlyFansActSubslistIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansActSubslistIE._COUNT
-                OnlyFansActSubslistIE._COUNT += 1            
+                _server_port = 18080 + 100*OnlyFansActSubslistIE._NUM
+                OnlyFansActSubslistIE._NUM += 1            
                 _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
                 _server.start({'log_path': '/dev', 'log_file': 'null'})
                 _host = 'localhost' 
