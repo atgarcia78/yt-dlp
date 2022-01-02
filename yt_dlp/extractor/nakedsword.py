@@ -1,13 +1,12 @@
 from __future__ import unicode_literals
 
 import re
-import threading
+
 
 from .commonwebdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    std_headers,
     try_get
 )
 
@@ -46,11 +45,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     
     _LOCK = Lock()
     _COOKIES = {}
-    _CLIENT = None
+    _NSINIT = False
     
-    @classmethod
-    def close(cls):
-        NakedSwordBaseIE._CLIENT.close()
 
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
@@ -59,7 +55,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
         for key in ["User-Agent", "Accept", "Accept-Language", "Accept-Encoding", "Content-Type", "X-Requested-With", "Origin", "Connection", "Referer", "Upgrade-Insecure-Requests"]:
         
-            value = extra.get(key) if extra.get(key) else std_headers.get(key)
+            value = extra.get(key) if extra.get(key) else NakedSwordBaseIE._CLIENT_CONFIG['headers'].get(key.lower())
             if value:
                 _headers[key.lower()] = value
       
@@ -69,11 +65,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
-    def _send_request(self, client, url, _type="GET", data=None, headers=None):
+    def _send_request(self, url, _type="GET", data=None, headers=None):
         
-        res = client.request(_type, url, data=data, headers=headers)
+        res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
         res.raise_for_status()
         return res
+    
+    def get_driver_NS(self):
+        driver = self.get_driver(usequeue=True)
+        driver.get(self._SITE_URL)
+        for cookie in NakedSwordBaseIE._COOKIES:
+            driver.add_cookie(cookie)
+        return driver
+        
     
     def _login(self):
         
@@ -84,7 +88,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'A valid %s account is needed to access this media.'
                 % self._NETRC_MACHINE)            
 
-        driver = self.get_driver()
+        driver = self.get_driver(usequeue=True)
         try:
             driver.get(self._SITE_URL)
             if driver.current_url == "https://nakedsword.com/members":
@@ -111,26 +115,18 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.to_screen(repr(e))
             raise ExtractorError(f"login nok: {repr(e)}")
         finally:
-            self.rm_driver(driver)
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                     
-
-
     def _init(self):
         
+        super()._init()
         
-        with NakedSwordBaseIE._LOCK:
-            if not NakedSwordBaseIE._CLIENT:
-                    
-                _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
-                _timeout = httpx.Timeout(60, connect=60)        
-                _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                _verify = not self._downloader.params.get('nocheckcertificate')
-                NakedSwordBaseIE._CLIENT = httpx.Client(timeout=_timeout, follow_redirects=True, limits=_limits, headers=_headers, verify=_verify)
+        with NakedSwordBaseIE._LOCK:           
+            if not NakedSwordBaseIE._NSINIT:
                 NakedSwordBaseIE._CLIENT.cookies.set("ns_pfm", "True", "nakedsword.com")
                 
                 if not NakedSwordBaseIE._COOKIES:
-                    try:
-                        
+                    try:                        
                         NakedSwordBaseIE._COOKIES = self._login()
                         
                     except Exception as e:
@@ -141,8 +137,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     if cookie['name'] in ("ns_auth", "ns_pk"):
                         NakedSwordBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                     
-        if NakedSwordBaseIE._CLIENT:
-            return True
+                NakedSwordBaseIE._NSINIT = True
+            
+    def _real_initialize(self):
+    
+        self._init()
+        return
+  
     
     def get_entries_scenes(self, url):
         
@@ -219,7 +220,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if count < 3 else None)
     
     
-    def _get_formats(self, client, url, stream_url, _type):
+    def _get_formats(self, url, stream_url, _type):
         
         _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json",
                                                 "Accept": "application/json, text/javascript, */*; q=0.01"})
@@ -227,37 +228,32 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         
         try:
                     
-            res = self._send_request(client, stream_url, headers=_headers_json)
+            res = self._send_request(stream_url, headers=_headers_json)
             if not res or not res.content: raise ExtractorError("Cant get stream url info")
-            #self.to_screen(f"{res.request} - {res} - {res.request.headers} - {res.headers} - {res.content}")
             info_json = res.json()
             if not info_json: raise ExtractorError("Can't get json")                                                     
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f"Cant get json info - {str(e)}")
-            
-        
-                
-        #self.to_screen(info_json)
+
         mpd_url = info_json.get("StreamUrl") 
         if not mpd_url: raise ExtractorError("Can't find url mpd")    
-        #self.to_screen(mpd_url) 
-        #NakedSwordSceneIE._COOKIES = client.cookies      
+    
         
         try:
-            res = self._send_request(client, mpd_url, headers=_headers_mpd)
-            #self.to_screen(f"{res.request} - {res} - {res.headers} - {res.request.headers} - {res.content}")
+            res = self._send_request(mpd_url, headers=_headers_mpd)
+
             if not res or not res.content: raise ExtractorError("Cant get mpd info")
             
             mpd_doc = (res.content).decode('utf-8', 'replace')
             if _type == "dash":
                 mpd_doc = self._parse_xml(mpd_doc, None)
-            #self.to_screen(mpd_doc)
+
             if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
                 
             if _type == "m3u8":
-                formats, subtitles = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
+                formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
             elif _type == "dash":
                 formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
                 
@@ -267,21 +263,19 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f"Cant get formats {_type} - {str(e)}") 
-            
-               
-        
+
         return formats               
                 
+    
+    
     def _real_extract(self, url):
 
         try:            
 
-            
-            if not self._init(): raise ExtractorError("init error")
-            
             info_video = {}
-            res = self._send_request(NakedSwordSceneIE._CLIENT, url)
-            if res: info_video = self._get_info(res.text)
+            res = self._send_request(url)
+            if res:
+                info_video = self._get_info(res.text)
             
             if not info_video: raise ExtractorError("Can't find sceneid")
                           
@@ -290,18 +284,8 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             
             stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
             
-            # with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=2) as ex:
-            #     # futs = [ex.submit(self._get_formats, client, url, "/".join([stream_url, "HLS"]), "m3u8"), 
-            #     #        ex.submit(self._get_formats, client, url, "/".join([stream_url, "DASH"]), "dash")]
-            #     futs = [ex.submit(self._get_formats, NakedSwordSceneIE._CLIENT, url, "/".join([stream_url, "HLS"]), "m3u8")]
-                
-            # formats = []
-            # for _fut in futs:
-            #     try:
-            #         formats += _fut.result()
-            #     except Exception as e:
-            #         self.to_screen(f"{repr(e)}")
-            formats = self._get_formats(NakedSwordSceneIE._CLIENT, url, "/".join([stream_url, "HLS"]), "m3u8")       
+
+            formats = self._get_formats(url, "/".join([stream_url, "HLS"]), "m3u8")       
             
             self._sort_formats(formats) 
             
@@ -818,59 +802,65 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
     
     
-    def get_starid(self, driver, starname):
+    def get_starid(self, starname):
          
         query = starname.replace(' ', '+')
         url = f"https://vod-classic.nakedsword.com/dispatcher/fts?targetSearchMode=basic&isAdvancedSearch=false&isFlushAdvancedSearchCriteria=false&userQuery={query}d&sortType=Relevance&theaterId=22299&genreId=102&locale=en"
         
-        driver.get(url)
+        driver = self.get_driver(usequeue=True)
         
-        elstar = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStar")))
-        if elstar:
-            ela = try_get(elstar.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
-            if ela:
-                starid = try_get(re.findall(r'starId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
-                if starid: 
-                    NakedSwordSearchIE._STARS[starname.lower().replace(' ', '').replace("/", "-")] = starid
-                    NakedSwordSearchIE._STARS = {_key: NakedSwordSearchIE._STARS[_key] for _key in sorted(NakedSwordSearchIE._STARS)}
-                    self.to_screen(NakedSwordSearchIE._STARS)
-                    NakedSwordSearchIE.upt_info_conf()
-                    return starid
-                
+        try:
+            
+            driver.get(url)
+            
+            elstar = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStar")))
+            if elstar:
+                ela = try_get(elstar.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
+                if ela:
+                    starid = try_get(re.findall(r'starId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
+                    if starid: 
+                        NakedSwordSearchIE._STARS[starname.lower().replace(' ', '').replace("/", "-")] = starid
+                        NakedSwordSearchIE._STARS = {_key: NakedSwordSearchIE._STARS[_key] for _key in sorted(NakedSwordSearchIE._STARS)}
+                        self.to_screen(NakedSwordSearchIE._STARS)
+                        NakedSwordSearchIE.upt_info_conf()
+                        return starid
+        except Exception as e:
+            self.to_screen(repr(e))
+        finally:
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)        
     
-    def get_studioid(self, driver, studioname):
+    def get_studioid(self, studioname):
          
         query = studioname.replace(' ', '+')
         url = f"https://vod-classic.nakedsword.com/dispatcher/fts?targetSearchMode=basic&isAdvancedSearch=false&isFlushAdvancedSearchCriteria=false&userQuery={query}&sortType=Relevance&theaterId=22299&genreId=102&locale=en"
         
-        driver.get(url)
+        driver = self.get_driver(usequeue=True)
         
-        elstudio = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStudio")))
-        if elstudio:
-            ela = try_get(elstudio.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
-            if ela:
-                studioid = try_get(re.findall(r'studioId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
-                if studioid: 
-                    NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace("/", "-")] = studioid
-                    NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
-                    self.to_screen(NakedSwordSearchIE._STUDIOS)
-                    NakedSwordSearchIE.upt_info_conf()
-                    return studioid
-
+        try:
+            
+            driver.get(url)
+            
+            elstudio = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStudio")))
+            if elstudio:
+                ela = try_get(elstudio.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
+                if ela:
+                    studioid = try_get(re.findall(r'studioId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
+                    if studioid: 
+                        NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace("/", "-")] = studioid
+                        NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
+                        self.to_screen(NakedSwordSearchIE._STUDIOS)
+                        NakedSwordSearchIE.upt_info_conf()
+                        return studioid
+        except Exception as e:
+            self.to_screen(repr(e))
+        finally:
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
 
     def get_scenes_ns(self, urls):
         
-                    
-        _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
-        _timeout = httpx.Timeout(60, connect=60)        
-        _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-        _verify = not self._downloader.params.get('nocheckcertificate')
-        client = httpx.Client(timeout=_timeout, follow_redirects=True, limits=_limits, headers=_headers, verify=_verify)
-        client.cookies.set("ns_pfm", "True", "nakedsword.com")
-        
 
         def _get_scenes_url(j):
-            _driver = self.get_driver()
+            _driver = self.get_driver(usequeue=True)
                         
             try:                
                 while True:
@@ -901,7 +891,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                         def _check_url(_urlsc, _n):
                             try:
                                 self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc}')
-                                res = client.get(_urlsc[0])
+                                res = NakedSwordSearchIE._CLIENT.get(_urlsc[0])
                                 res.raise_for_status()
                                 if res.text:  self._urlscenesqueue.put_nowait((_urlsc[0], _urlsc[1], _urlsc[2], _n))
                                
@@ -922,7 +912,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f"[get_scenes][{j}] {repr(e)}\n{'!!'.join(lines)}")
             finally:
-                self.rm_driver(_driver)
+                SeleniumInfoExtractor._QUEUE.put_nowait(_driver)
                 self.to_screen(f'[get_scenes][{j}] bye') 
 
         try:
@@ -945,22 +935,15 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
             raise ExtractorError(f"{repr(e)}")
-        finally:
-            client.close()
+
     
     
     def get_movies_ns(self, urls):
         
-                    
-        _headers = self._headers_ordered({"Upgrade-Insecure-Requests": "1"})
-        _timeout = httpx.Timeout(60, connect=60)        
-        _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-        _verify = not self._downloader.params.get('nocheckcertificate')
-        client = httpx.Client(timeout=_timeout, follow_redirects=True, limits=_limits, headers=_headers, verify=_verify)
-        client.cookies.set("ns_pfm", "True", "nakedsword.com")
+
 
         def _get_movies_url(j):
-            _driver = self.get_driver()
+            _driver = self.get_driver(usequeue=True)
                         
             try:                
                 while True:
@@ -991,7 +974,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                         def _check_url(_urlmv, _n):
                             try:
                                 self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv}')
-                                res = client.get(_urlmv[0])
+                                res = NakedSwordSearchIE._CLIENT.get(_urlmv[0])
                                 res.raise_for_status()
                                 if not 'NakedSword.com | Untitled Page' in res.text: self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))
                         
@@ -1010,7 +993,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f"[get_movies][{j}] {repr(e)}\n{'!!'.join(lines)}")
             finally:
-                self.rm_driver(_driver)
+                SeleniumInfoExtractor._QUEUE.put_nowait(_driver)
                 self.to_screen(f'[get_movies][{j}] bye') 
 
         try:
@@ -1033,18 +1016,17 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
             raise ExtractorError(f"{repr(e)}")
-        finally:
-            client.close()
     
        
     def _real_initialize(self):
+        super()._real_initialize()
         conf = NakedSwordSearchIE.get_info_conf()
         NakedSwordSearchIE._STUDIOS = conf['studios']
         NakedSwordSearchIE._STARS = conf['stars']
     
     def _real_extract(self, url):
         
-        driver = self.get_driver()
+        
         
         query = re.search(self._VALID_URL, url).group('query')
         
@@ -1064,10 +1046,10 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             
         if (_studio:=params.get('studio')):
             if not (_studioid:=NakedSwordSearchIE._STUDIOS.get(_studio.lower().replace(' ', '').replace('/', '-'))):
-                _studioid = self.get_studioid(driver, _studio)
+                _studioid = self.get_studioid(_studio)
         if (_star:=params.get('star')):
             if not (_starid:=NakedSwordSearchIE._STAR.get(_star.lower().replace(' ', '').replace('/', '-'))):
-                _starid = self.get_starid(driver, _star)
+                _starid = self.get_starid(_star)
         if (_tag:=params.get('tag')):
             _tagid = [int(_id) for el in _tag.split(',') if (_id:=NakedSwordSearchIE._CATEGORIES.get(el))]
         if (_setting:=params.get('setting')):
@@ -1134,9 +1116,4 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
             raise ExtractorError(f"{repr(e)}")
-        finally:
-            self.rm_driver(driver)
-    
-            
-            
-            
+
