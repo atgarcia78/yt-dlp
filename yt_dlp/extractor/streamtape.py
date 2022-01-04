@@ -71,7 +71,8 @@ class StreamtapeIE(InfoExtractor):
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
 
 
-            res = self._send_request(client, url, 'GET')            
+            res = self._send_request(client, url, 'GET')
+                     
                                         
             webpage = re.sub('[\n\t]', '', res.text)            
             mobj = re.findall(r'id=\"(?:norobotlink|robotlink)\" style\=\"display\:none;\"\>/streamtape\.(?:com|net)/get_video\?([^\<]+)\<', webpage)
