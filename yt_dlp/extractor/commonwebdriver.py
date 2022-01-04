@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from concurrent.futures import ThreadPoolExecutor
 import threading
 
 from .common import (
@@ -36,12 +37,12 @@ class SeleniumInfoExtractor(InfoExtractor):
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
     _MASTER_LOCK = threading.Lock()
     _QUEUE = Queue()
-    _COUNT = 0
+    _MASTER_COUNT = 0
     _YTDL = None
     _USER_AGENT = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
-    _INIT = False
+    _MASTER_INIT = False
     
     @classmethod
     def logger_info(cls, msg):
@@ -91,21 +92,25 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def _init(self):
         with SeleniumInfoExtractor._MASTER_LOCK:
-            if not SeleniumInfoExtractor._INIT:
+            if not SeleniumInfoExtractor._MASTER_INIT:
                 
                 SeleniumInfoExtractor._YTDL = self._downloader
-                driver = None
+                init_drivers = []
                 try:
-                    driver = self.get_driver()
-                    SeleniumInfoExtractor._USER_AGENT = driver.execute_script("return navigator.userAgent")
+                    with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=5) as ex:
+                        futures = [ex.submit(self.get_driver) for _ in range(5)]
+                    
+                    init_drivers = [fut.result() for fut in futures]
+                    SeleniumInfoExtractor._USER_AGENT = init_drivers[0].execute_script("return navigator.userAgent")
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
                     #raise ExtractorError(str(e)) from e
                 finally:
-                    if driver:
-                        SeleniumInfoExtractor._QUEUE.put_nowait(driver)
-                        SeleniumInfoExtractor._COUNT += 1
+                    if init_drivers:
+                        for driver in init_drivers:
+                            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                            SeleniumInfoExtractor._MASTER_COUNT += 1
                 
                 _headers = dict(httpx.Headers(std_headers.copy()))
                 _headers.pop('referer', None)
@@ -113,11 +118,11 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _headers.update({'user-agent': SeleniumInfoExtractor._USER_AGENT})
                 
                 SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': 60, 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
-                self.to_screen(SeleniumInfoExtractor._CLIENT_CONFIG)
+                self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
                 
                 _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
                 SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
-                SeleniumInfoExtractor._INIT = True
+                SeleniumInfoExtractor._MASTER_INIT = True
         
     
     def _real_initialize(self):
@@ -125,18 +130,17 @@ class SeleniumInfoExtractor(InfoExtractor):
         self._init()
 
     def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
- 
-    
+
         if usequeue:
             
             with SeleniumInfoExtractor._MASTER_LOCK:
-                self.to_screen(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
+                self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
                 if SeleniumInfoExtractor._QUEUE._qsize() > 0:
                     driver = SeleniumInfoExtractor._QUEUE.get(block=False)
                 else:    
-                    if SeleniumInfoExtractor._COUNT < SeleniumInfoExtractor._YTDL.params.get('winit', 5):
+                    if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._YTDL.params.get('winit', 5):
                         driver = self._get_driver(noheadless, host, port, msg)
-                        SeleniumInfoExtractor._COUNT += 1                    
+                        SeleniumInfoExtractor._MASTER_COUNT += 1                    
                     else:
                         driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=120)            
         
@@ -209,11 +213,11 @@ class SeleniumInfoExtractor(InfoExtractor):
             
                 driver.maximize_window()
             
-                self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+                self.wait_until(driver, 0.5, ec.title_is("DUMMYFORWAIT"))
                 
                 self.to_screen(f"{pre}New firefox webdriver")
                 
-                break
+                return driver
                 
             except Exception as e:
                 n += 1
@@ -224,7 +228,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     shutil.rmtree(tempdir, ignore_errors=True)  
                     raise ExtractorError(repr(e)) from e
             
-        return driver
+        
         
     def wait_until(self, driver, time, method):
         try:
@@ -257,12 +261,13 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if verify != _config['verify']:
 
                         if headers: _config['headers'].update(headers)
-                        res = httpx.head(url, verify=verify, timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
+                        res = httpx.head(url, verify=verify, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
                 else:    
                     res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
             
             res.raise_for_status()
             self.write_debug(f"{res.request} \n{res.request.headers}")
+            #self.to_screen(f"{res.request} \n{res.request.headers}")
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             return ({'url': _url, 'filesize': _filesize})
