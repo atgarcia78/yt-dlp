@@ -7,7 +7,6 @@ import re
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    std_headers,
     js_to_json
 )
 
@@ -24,7 +23,6 @@ import json
 
 from .commonwebdriver import SeleniumInfoExtractor
 
-import httpx
 
 import html
 
@@ -56,9 +54,9 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)
-    def _send_request(self, cl, url):
+    def _send_request(self, url, headers=None):
         
-        res = cl.get(url)
+        res = self._CLIENT.get(url, headers=headers)
         res.raise_for_status()
         return res
         
@@ -166,7 +164,10 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                     #self.rm_driver(driver)
                     SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                     raise
-        
+                
+            for cookie in FraternityXBaseIE._COOKIES:
+                self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                
         if ret_driver:
             
             if not driver:
@@ -189,32 +190,13 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             if driver: 
                 #self.rm_driver(driver)
                 SeleniumInfoExtractor._QUEUE.put_nowait(driver)
-                    
-                    
-    def _get_client(self):
-                    
-        url_proxy = self._downloader.params.get('proxy', "")            
-        if url_proxy:
-            if not url_proxy.startswith("http://"): url_proxy = f"http://{url_proxy}"
-            proxies = {'http://': url_proxy, 'https://': url_proxy}                
-        else:
-            proxies = None                
-        
-        client = httpx.Client(trust_env=False, verify=False, proxies=proxies, headers=std_headers, timeout=httpx.Timeout(30, connect=30), follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=None, max_connections=None))
-        
-        for cookie in FraternityXBaseIE._COOKIES:
-            client.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-            
-        return client
-    
-    
+
     def _extract_from_page(self, url):        
         
-        cl = self._get_client()
-        
+ 
         try:
             
-            res = self._send_request(cl, url)
+            res = self._send_request(url)
             _title = None
             mobj = re.findall(r'<h1>([^\<]+)<', html.unescape(res.text))        
             if mobj:
@@ -228,7 +210,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             else: raise ExtractorError("not embed url")
             
             try:
-                res2 = cl.get(embedurl)
+                res2 = self._send_request(embedurl)
                 mobj = re.findall(r'globalSettings\s+\=\s+([^;]*);',res2.text)
             except Exception:
                 mobj = None
@@ -246,7 +228,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                 "X-Requested-With" : "XMLHttpRequest"})
             
             try:
-                res3 = cl.get(videourl, headers=headers)
+                res3 = self._send_request(videourl, headers=headers)
                 info = res3.json()
             except Exception:
                 info = None
@@ -258,11 +240,10 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             manifesturl = "https://videostreamingsolutions.net/api:ov-embed/manifest/" + manifestid + "/manifest.m3u8"
             
             try:
-                res = cl.get(manifesturl)
-                res.raise_for_status()
-                if not res or not res.content: raise ExtractorError("Cant get m3u8 doc")
-                m3u8_doc = (res.content).decode('utf-8', 'replace')        
-                formats_m3u8, subtitles = self._parse_m3u8_formats_and_subtitles(
+                res4 = self._send_request(manifesturl)
+                if not res4 or not res4.content: raise ExtractorError("Cant get m3u8 doc")
+                m3u8_doc = (res4.content).decode('utf-8', 'replace')        
+                formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
                     m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
                 if not formats_m3u8:
@@ -282,8 +263,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         
         except Exception as e:
             raise
-        finally:
-            cl.close()
+
 
     def _extract_list(self, _driver, playlistid, nextpages):
         

@@ -6,7 +6,6 @@ from .commonwebdriver import SeleniumInfoExtractor
 
 from ..utils import (
     ExtractorError,
-    std_headers,
     js_to_json,
     int_or_none,
     sanitize_filename,
@@ -259,11 +258,8 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 _url = f"https://{_url_embed.host}/embed/{_params_dict.get('m')}/{_params_dict.get('h')}"
             else: _url = url
             
-            _timeout = httpx.Timeout(30, connect=30)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
-            
-            res = client.get(_url)            
+                        
+            res = self._CLIENT.get(_url)            
                 
             webpage = re.sub('[\t\n]','', html.unescape(res.text))
             
@@ -312,11 +308,8 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e)) from e
-        finally:
-            try:
-                client.close()
-            except Exception:
-                pass
+
+
         
 
 
