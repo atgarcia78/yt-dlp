@@ -59,7 +59,7 @@ class DoodIE(SeleniumInfoExtractor):
         
         _site_url = f"https://{get_domain(url)}"
 
-        driver = self.get_driver()
+        driver = self.get_driver(usequeue=True)
  
             
         try: 
@@ -101,7 +101,4 @@ class DoodIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")            
             raise ExtractorError(repr(e))
         finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)

@@ -108,7 +108,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     
     
     @block_exceptions
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @on_exception(constant, Exception, max_tries=5, interval=0.1)
     @sleep_and_retry
     @limits(calls=1, period=0.1) 
     def _get_filesize(self, _vurl):
@@ -120,7 +120,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         
         
     @block_exceptions
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @on_exception(constant, Exception, max_tries=5, interval=0.1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)    
     def send_request(self, driver, url):
@@ -254,9 +254,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
              
 
         except Exception as e:            
-            self.to_screen(f'{type(e)}')
+            self.to_screen(f'{repr(e)}')
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise           
  
     def _extract_from_json(self, data_post, users_dict={}, user_profile=None):
@@ -351,16 +351,18 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'[extract_from_json][output] {type(e)} \n{"!!".join(lines)}')
+            self.to_screen(f'[extract_from_json][output] {repr(e)} \n{"!!".join(lines)}')
 
     def _real_initialize(self):
 
+        super()._real_initialize()
+        
         with OnlyFansBaseIE._LOCK: 
             
             if OnlyFansBaseIE._COOKIES:
                 return           
 
-            driver = self.get_driver()
+            driver = self.get_driver(usequeue=True)
 
             try:
                 self._login(driver)
@@ -374,12 +376,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
                 raise ExtractorError(repr(e)) from e
             finally:
-                self.rm_driver(driver)
+                #self.rm_driver(driver)
+                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                                             
 
 
-        
-        
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'
     IE_DESC = 'onlyfans:post:playlist'
@@ -438,7 +439,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             raise
         except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise                
  
             
@@ -620,14 +621,13 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(repr(e)) from e
         
         finally:
             _harproxy.close()
             _server.stop()
             self.rm_driver(driver)
-            
             
 class OnlyFansPaidlistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfanspaidlist:playlist'
@@ -735,8 +735,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(repr(e)) from e
             
             
         finally:
@@ -819,7 +819,7 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             self.report_extraction(url)            
             
         
-            driver  = self.get_driver()
+            driver  = self.get_driver(usequeue=True)
             self.send_request(driver, self._SITE_URL)
             for cookie in OnlyFansActSubslistIE._COOKIES:
                 driver.add_cookie(cookie)
@@ -849,8 +849,9 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(repr(e)) from e
         
         finally:
-            self.rm_driver(driver)
+            #self.rm_driver(driver)
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
