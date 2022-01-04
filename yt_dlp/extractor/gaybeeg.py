@@ -16,9 +16,6 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 
-from .netdna import NetDNAIE
-
-
 import traceback
 import sys
 
@@ -30,8 +27,8 @@ from ratelimit import limits, sleep_and_retry
 class GayBeegBaseIE(SeleniumInfoExtractor):
     
     
-    @staticmethod
-    def _get_entries_netdna(el_list):
+    
+    def _get_entries_netdna(self, el_list):
         
         _list_urls_netdna = {}
         _next = None
@@ -58,9 +55,26 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         
         entries = []
         
+        
+        ie_netdna = self._downloader.get_info_extractor('NetDNA')
+        with ThreadPoolExecutor(thread_name_prefix="ent_netdna", max_workers=10) as ex:
+            futures = [ex.submit(ie_netdna.get_video_info_url, _url) for _url in list(_list_urls_netdna.keys())]
+        
+        for fut in futures:
+            try:
+                res = fut.result()
+                if not res.get('error'):
+                    _list_urls_netdna[res.get('url')].update({'info_video': res})
+                                
+            except Exception as e:
+                self.to_screen(f'{repr(e)}') 
+                
         for _url, _item in _list_urls_netdna.items():
             
-            _info_video = NetDNAIE.get_video_info_str(_item.get('text'))
+            #_info_video = NetDNAIE.get_video_info_str(_item.get('text'))
+            
+            #_info_video = (self._downloader.get_info_extractor('NetDNA')).get_video_info_url(_url)            
+            _info_video = _item.get('info_video')
             _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
             entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
         
@@ -114,16 +128,16 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
             if el_a_list:
                 
-                entries = GayBeegBaseIE._get_entries_netdna(el_a_list)
+                entries = self._get_entries_netdna(el_a_list)
             
                 return entries
             
         finally:
             if _putqueue: SeleniumInfoExtractor._QUEUE.put_nowait(driver)
 
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @on_exception(constant, Exception, max_tries=5, interval=0.01)
     @sleep_and_retry
-    @limits(calls=1, period=0.1)    
+    @limits(calls=1, period=0.01)    
     def send_request(self, driver, url):
                 
         driver.execute_script("window.stop();")
@@ -210,8 +224,8 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                         entries += d.result()
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-                        raise ExtractorError(str(e)) from e
+                        self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+                        raise ExtractorError(repr(e)) from e
                         
 
                                        
@@ -223,8 +237,8 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             raise 
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(repr(e)) from e
 
 
 
@@ -255,5 +269,5 @@ class GayBeegIE(GayBeegBaseIE):
             raise 
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e)) from e
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            raise ExtractorError(repr(e)) from e

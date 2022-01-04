@@ -140,13 +140,15 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
 
     def _init(self, ret_driver=True):
         
+        super()._init()
+        
         driver = None
         
         with FraternityXBaseIE._LOCK:            
                         
             if not FraternityXBaseIE._COOKIES:
                 
-                driver = self.get_driver()
+                driver = self.get_driver(usequeue=True)
                 
                 try:
                     
@@ -161,14 +163,15 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                 
                 except Exception as e:
                     self.to_screen("error when login")
-                    self.rm_driver(driver)
+                    #self.rm_driver(driver)
+                    SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                     raise
         
         if ret_driver:
             
             if not driver:
                                     
-                driver = self.get_driver()    
+                driver = self.get_driver(usequeue=True)    
                 driver.get(self._SITE_URL)
                 driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fratx.com'})
                 
@@ -183,7 +186,9 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             return driver
         
         else:
-            if driver: self.rm_driver(driver)
+            if driver: 
+                #self.rm_driver(driver)
+                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                     
                     
     def _get_client(self):
@@ -381,7 +386,8 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.rm_driver(driver)
+            #self.rm_driver(driver)
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
             
         if not entries: raise ExtractorError("no video list") 
         
@@ -410,7 +416,8 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))
         finally:
-            self.rm_driver(driver)
+            #self.rm_driver(driver)
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
             
         if not entries: raise ExtractorError("no video list") 
         

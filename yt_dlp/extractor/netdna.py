@@ -62,6 +62,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
         return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
     
+    
     def get_video_info_url(self, url):
         title = None
         _num = None
@@ -69,6 +70,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         try:
             
+                        
             res = self._send_request(url) 
 
             _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<',res.text)
@@ -94,9 +96,9 @@ class NetDNAIE(SeleniumInfoExtractor):
         except Exception as e:
             return({'error': repr(e)}) 
     
-    @on_exception(constant, ExtractorError, max_tries=5, interval=0.2)
+    @on_exception(constant, ExtractorError, max_tries=5, interval=0.01)
     @sleep_and_retry
-    @limits(calls=1, period=0.2)
+    @limits(calls=1, period=0.005)
     def _send_request(self, url, _type=None):
         
         if not _type:
@@ -111,7 +113,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         elif _type == "GET_INFO":
             return self.get_info_for_format(url, client=NetDNAIE._CLIENT, headers={'referer': 'https://netdna-storage.com/'})
             
-    @on_exception(constant, Exception, max_tries=5, interval=0.2)
+    @on_exception(constant, ExtractorError, max_tries=5, interval=0.1)
     def get_format(self, text, url):
         
         try:
@@ -229,8 +231,17 @@ class NetDNAIE(SeleniumInfoExtractor):
                             else:
                                 el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
                                 if el_download:
-                                    _video_url = el_download.get_attribute('href')
-                                    _info = self._send_request(_video_url, "GET_INFO")
+                                    try:
+                                        _video_url = el_download.get_attribute('href')
+                                        _info = self._send_request(_video_url, "GET_INFO")
+                                    
+                                    except Exception as e:
+                                        msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats"
+                                        self.to_screen(msg_error)
+                                        count += 1
+                                        if count == 3: raise ExtractorError("max attempts to get info")
+                                        else: continue
+                                        
                                     _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
                                                                     
                                     entry = {
