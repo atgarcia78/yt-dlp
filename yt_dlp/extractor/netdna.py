@@ -62,15 +62,59 @@ class NetDNAIE(SeleniumInfoExtractor):
         videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
         return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
     
-    
+
+    @on_exception(constant, ExtractorError, max_tries=5, interval=0.01)
+    @sleep_and_retry
+    @limits(calls=1, period=0.005)
+    def _send_request(self, url, _type=None):
+        
+        if not _type:
+            try:
+                res = NetDNAIE._CLIENT.get(url)
+                res.raise_for_status()
+                if "internal server error" in res.text.lower():
+                    raise Exception("internal server error")
+                return res
+            except Exception as e:
+                raise ExtractorError(repr(e))
+        elif _type == "GET_INFO":
+            return self.get_info_for_format(url, client=NetDNAIE._CLIENT, headers={'referer': 'https://netdna-storage.com/'})
+            
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @sleep_and_retry
+    @limits(calls=1, period=1)    
+    def url_request(self, driver, url):
+                
+        driver.execute_script("window.stop();")
+        driver.get(url)
+
+    @on_exception(constant, ExtractorError, max_tries=5, interval=0.1)
+    def get_format(self, text, url):
+        
+        try:
+            res = self._send_request(url)   
+            mobj = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text)
+            if not mobj:
+                self.write_debug(f"ERROR:{url}\n{res.text}")
+                raise ExtractorError('cant find video url')
+               
+            else:
+                _video_url = mobj.group('file')            
+                _info = self._send_request(_video_url, "GET_INFO")
+                if not _info: ExtractorError("no video info")
+                return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
+        except Exception as e:
+            self.write_debug(repr(e))
+            raise       
+
     def get_video_info_url(self, url):
-        title = None
-        _num = None
-        _unit = None
+        
+        title = _num = _unit = None
         
         try:
             
-                        
+            if not self._MASTER_INIT: self._init()
+                                    
             res = self._send_request(url) 
 
             _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<',res.text)
@@ -94,60 +138,12 @@ class NetDNAIE(SeleniumInfoExtractor):
                     'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
         
         except Exception as e:
-            return({'error': repr(e)}) 
-    
-    @on_exception(constant, ExtractorError, max_tries=5, interval=0.01)
-    @sleep_and_retry
-    @limits(calls=1, period=0.005)
-    def _send_request(self, url, _type=None):
-        
-        if not _type:
-            try:
-                res = NetDNAIE._CLIENT.get(url)
-                res.raise_for_status()
-                if "internal server error" in res.text.lower():
-                    raise Exception("internal server error")
-                return res
-            except Exception as e:
-                raise ExtractorError(repr(e))
-        elif _type == "GET_INFO":
-            return self.get_info_for_format(url, client=NetDNAIE._CLIENT, headers={'referer': 'https://netdna-storage.com/'})
-            
-    @on_exception(constant, ExtractorError, max_tries=5, interval=0.1)
-    def get_format(self, text, url):
-        
-        try:
-            res = self._send_request(url)   
-            mobj = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text)
-            if not mobj:
-                self.write_debug(f"ERROR:{url}\n{res.text}")
-                raise ExtractorError('cant find video url')
-               
-            else:
-                _video_url = mobj.group('file')            
-                _info = self._send_request(_video_url, "GET_INFO")
-                if not _info: ExtractorError("no video info")
-                return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
-        except Exception as e:
-            self.write_debug(repr(e))
-            raise       
-        
-    
-    @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=1)    
-    def url_request(self, driver, url):
-                
-        driver.execute_script("window.stop();")
-        driver.get(url)
-        
-        
-    
+            return({'error': repr(e)})     
         
     def get_entry(self, url, ytdl=None):        
         
         
-        self._init()
+        if not self._MASTER_INIT: self._init()
         
         _info_video = self.get_video_info_url(url)
         if (_error:=_info_video.get('error')): raise ExtractorError(_error) 
@@ -168,6 +164,8 @@ class NetDNAIE(SeleniumInfoExtractor):
                 if _entry['id'] == _id:
                     return _entry
 
+    def _real_initialize(self):
+        super()._real_initialize()
     
     def _real_extract(self, url):        
         

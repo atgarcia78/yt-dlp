@@ -137,7 +137,8 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
 
     def _init(self, ret_driver=True):
         
-        super()._init()
+        if not self._MASTER_INIT:
+            super()._init()
         
         driver = None
         
@@ -153,6 +154,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     
                     SketchySexBaseIE._COOKIES = driver.get_cookies()
                     
+                    #driver wont require cookies of login for the playlist extraction
                     for cookie in SketchySexBaseIE._COOKIES:
                         if (_name:=cookie['name']) != 'pp-accepted':
                             driver.delete_cookie(_name)
@@ -166,7 +168,8 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
             for cookie in SketchySexBaseIE._COOKIES:
                 self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-        if ret_driver:
+        
+        if ret_driver: #driver wont require cookies of login for the playlist extraction
             
             if not driver:
                                     
