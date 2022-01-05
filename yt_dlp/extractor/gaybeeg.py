@@ -73,10 +73,14 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
             #_info_video = NetDNAIE.get_video_info_str(_item.get('text'))
             
-            #_info_video = (self._downloader.get_info_extractor('NetDNA')).get_video_info_url(_url)            
-            _info_video = _item.get('info_video')
-            _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
-            entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+            #_info_video = (self._downloader.get_info_extractor('NetDNA')).get_video_info_url(_url)
+            try:            
+                
+                _info_video = _item.get('info_video')
+                _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
+                entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+            except Exception as e:
+                self.to_screen(f'{_url}: {repr(e)}')                
         
                                     
         return entries
@@ -90,9 +94,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                                             if "//gaybeeg.info" in (_url:=el_taga.get_attribute('href'))]    
         return entries
     
- 
-    
-    
+
     def _get_entries(self, url, driver=None):
         
         try:
@@ -102,8 +104,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 driver = self.get_driver(usequeue=True)
             else:
                 _putqueue = False
-                        
-            
+
             self.send_request(driver, url)
             
             SCROLL_PAUSE_TIME = 2
@@ -124,8 +125,9 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 last_height = new_height
         
 
-            el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))
-            
+            el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))            
+
+
             if el_a_list:
                 
                 entries = self._get_entries_netdna(el_a_list)
@@ -143,11 +145,16 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         driver.execute_script("window.stop();")
         driver.get(url)
 
+
+    def _real_initialize(self):
+        super()._real_initialize()
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepage:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info.*/page/.*'
     
-
+    def _real_initialize(self):
+        super()._real_initialize()
+        
     def _real_extract(self, url):        
         
         try:
@@ -176,7 +183,9 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:allpages:playlist"    
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/(?:((?P<type>(?:site|pornstar|tag))(?:$|(/(?P<name>[^\/$\?]+)))(?:$|/$|/(?P<search1>\?(?:tag|s)=[^$]+)$))|((?P<search2>\?(?:tag|s)=[^$]+)$))'
     
-    
+    def _real_initialize(self):
+        super()._real_initialize()
+        
     def _real_extract(self, url):        
         
         try:
@@ -246,7 +255,9 @@ class GayBeegIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:post:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info/\d\d\d\d/\d\d/\d\d/.*'
     
-               
+    def _real_initialize(self):
+        super()._real_initialize()           
+    
     def _real_extract(self, url):        
         
         try:
