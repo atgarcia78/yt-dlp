@@ -38,6 +38,26 @@ class get_title():
                        
         else:       
             return False
+        
+class get_videourl():
+    def __call__(self, driver):
+        
+        
+        el_video = driver.find_elements(By.ID, "EvoVid_html5_api")
+        if not el_video:
+            return False
+        try:
+            el_video[0].click()
+            return False
+        except Exception:
+            video_url = el_video[0].get_attribute("src")
+            if not video_url: return False
+            else: return video_url
+ 
+        
+        
+        
+        
 
 class EvoloadIE(SeleniumInfoExtractor):
     
@@ -67,41 +87,30 @@ class EvoloadIE(SeleniumInfoExtractor):
         elif _type == "url_request":
             self._send_request(*args)
          
-
+    def _real_initialize(self):
+        super()._real_initialize()
+    
     def _real_extract(self, url):
         
         self.report_extraction(url)
 
-        driver = self.get_driver()
+        driver = self.get_driver(usequeue=True)
  
             
         try:            
             
             _url = url.replace('/e/', '/v/')
 
-            #self._send_request(driver, _url)
-            self.request_to_host("url_request", driver, url)
-            
-            
+            self.request_to_host("url_request", driver, _url)
+
             _title =  self.wait_until(driver, 60, get_title())
-           
+            _videoid = self._match_id(url)           
 
             el_fr = self.wait_until(driver, 60, ec.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR, "iframe#videoplayer")))
             if not el_fr: raise ExtractorError("no videoframe")
-            
-                
-            el_video = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "EvoVid_html5_api")))
-            if not el_video: raise ExtractorError("no info")
-            try:
-                el_video.click()
-                self.wait_until(driver, 3, ec.title_is("DUMMYWAIT"))
-            except Exception:
-                pass                        
-            video_url = el_video.get_attribute("src")
+            video_url = self.wait_until(driver, 60, get_videourl())
             if not video_url: raise ExtractorError("no video url") 
-            _videoid = self._match_id(url)
-            
-            #_videoinfo = self._get_video_info(video_url)
+
             _videoinfo = self.request_to_host("video_info", video_url)
             
             if not _videoinfo: raise Exception(f"error video info")
@@ -130,7 +139,5 @@ class EvoloadIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")            
             raise ExtractorError(repr(e))
         finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass
+            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            
