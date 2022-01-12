@@ -4,12 +4,14 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    scroll)
+
 from ..utils import (
     ExtractorError,
     int_or_none,
-    block_exceptions   
-)
+    block_exceptions)
 
 
 import re
@@ -32,6 +34,7 @@ from datetime import datetime
 
 from backoff import on_exception, constant
 from ratelimit import limits, sleep_and_retry
+
 
 
 class error404_or_found():    
@@ -520,23 +523,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 else:            
                     
                     
-                    SCROLL_PAUSE_TIME = 2 
-
-                    last_height = driver.execute_script("return document.body.scrollHeight")
-
-                    while True:
-                        # Scroll down to bottom
-                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-                        # Wait to load page
-                        self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
-                        #time.sleep(SCROLL_PAUSE_TIME)                    
-
-                        # Calculate new scroll height and compare with last scroll height
-                        new_height = driver.execute_script("return document.body.scrollHeight")
-                        if new_height == last_height:
-                            break
-                        last_height = new_height
+                    self.wait_until(driver, 240, scroll(5))
                         
                     har = _harproxy.har
                     _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
@@ -573,24 +560,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 self.send_request(driver, f'{link}/gallery')
                 
-                SCROLL_PAUSE_TIME = 2
-                
-                last_height = driver.execute_script("return document.body.scrollHeight")
-
-                while True:
-                    # Scroll down to bottom
-                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-                    # Wait to load page
-                    self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
-                    #time.sleep(SCROLL_PAUSE_TIME)                    
-                    
-
-                    # Calculate new scroll height and compare with last scroll height
-                    new_height = driver.execute_script("return document.body.scrollHeight")
-                    if new_height == last_height:
-                        break
-                    last_height = new_height
+                self.wait_until(driver, 240, scroll(5))
                 
                 har = _harproxy.har
                 _reg_str = r'/api2/v2/chats/\d+/media\?'
@@ -670,23 +640,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 (By.CLASS_NAME, "user_posts") ))
        
                 
-            SCROLL_PAUSE_TIME = 2
-
-
-            last_height = driver.execute_script("return document.body.scrollHeight")
-
-            while True:
-                # Scroll down to bottom
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-                # Wait to load page
-                self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
-
-                # Calculate new scroll height and compare with last scroll height
-                new_height = driver.execute_script("return document.body.scrollHeight")
-                if new_height == last_height:
-                    break
-                last_height = new_height
+            self.wait_until(driver, 240, scroll(5))
                 
             
             har = _harproxy.har           
