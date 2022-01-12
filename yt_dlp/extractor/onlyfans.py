@@ -11,7 +11,8 @@ from .commonwebdriver import (
 from ..utils import (
     ExtractorError,
     int_or_none,
-    block_exceptions)
+    block_exceptions,
+    try_get)
 
 
 import re
@@ -20,6 +21,8 @@ import httpx
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+
 from browsermobproxy import Server
 
 import html
@@ -451,19 +454,14 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             _server.stop()
             self.rm_driver(driver)
             
-            
 
-        
-                                                       
 
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'
     IE_DESC = 'onlyfans:playlist'
     _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/((?P<mode>(?:all|latest|chat|favorites|tips))/?)$"
     _MODE_DICT = {"favorites" : "?order=favorites_count_desc", "tips" : "?order=tips_summ_desc", "all" : "", "latest" : ""}
-    
-    
-           
+
    
     def _real_extract(self, url):
  
@@ -490,16 +488,16 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             entries = {}
             
-            self.send_request(driver, f"{self._SITE_URL}/{account}")
-            res = self.wait_until(driver, 60, error404_or_found())
-            if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
             
             if mode in ("all", "latest", "favorites","tips"):
                 
+                
+                self.send_request(driver, f"{self._SITE_URL}/{account}")
+                res = self.wait_until(driver, 60, error404_or_found())
+                if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
+                
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
-                #driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
-                            
                 _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
                 self.send_request(driver, _url)
@@ -523,7 +521,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 else:            
                     
                     
-                    self.wait_until(driver, 240, scroll(5))
+                    self.wait_until(driver, 600, scroll(10))
                         
                     har = _harproxy.har
                     _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
@@ -548,22 +546,29 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             elif mode in ("chat"):
                 
+                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 _url =  f"{self._SITE_URL}/{account}"
                 self.send_request(driver, _url)
-                el = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "g-btn.m-rounded.m-border.m-icon.m-icon-only.m-colored.has-tooltip")))
-                for _el in el:
-                    if (link:=_el.get_attribute('href')): break
-                    
-                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
-                
-                userid = link.split("/")[-1]
-                
-                self.send_request(driver, f'{link}/gallery')
-                
-                self.wait_until(driver, 240, scroll(5))
+                res = self.wait_until(driver, 60, error404_or_found())
+                if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
+                har = _harproxy.har
+                data_json = self.scan_for_request(har, f"har_{account}_{mode}", f"users/{account}")
+                #self.to_screen(data_json)                
+                userid = try_get(data_json, lambda x: x['id'])
+                if not userid: raise ExtractorError("couldnt get id user for chat room")
+                url_chat = f"https://onlyfans.com/my/chats/chat/{userid}/"
+
+                self.to_screen(url_chat)
+                self.send_request(driver, url_chat)
+                #init start of chat is to be at the end, with all the previous messages above. Lets scroll
+                # up to the start of the chat
+                el_chat_scroll = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto")))
+                self.wait_until(driver, 1, ec.title_is("DUMYYFORWAIT")) 
+                el_chat_scroll.send_keys(Keys.HOME)
+                self.wait_until(driver, 5, ec.title_is("DUMYYFORWAIT"))                
                 
                 har = _harproxy.har
-                _reg_str = r'/api2/v2/chats/\d+/media\?'
+                _reg_str = r'/api2/v2/chats/\d+/messages'
                 data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
                 if data_json:
                     self.write_debug(data_json)
@@ -640,7 +645,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 (By.CLASS_NAME, "user_posts") ))
        
                 
-            self.wait_until(driver, 240, scroll(5))
+            self.wait_until(driver, 600, scroll(10))
                 
             
             har = _harproxy.har           
@@ -652,12 +657,12 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                     for user in _users.keys():
                         users_dict.update({_users[user]['id']:_users[user]['username']})
             else:
-                    self.to_screen("User-dict loaded manually")
-                    users_dict = dict()
-                    users_dict.update({127138: 'lucasxfrost',
-                    1810078: 'sirpeeter',
-                    5442793: 'stallionfabio',
-                    7820586: 'mreyesmuriel'})
+                self.to_screen("User-dict loaded manually")
+                users_dict = dict()
+                users_dict.update({127138: 'lucasxfrost',
+                1810078: 'sirpeeter',
+                5442793: 'stallionfabio',
+                7820586: 'mreyesmuriel'})
                 
             self.to_screen(users_dict)
             
@@ -807,5 +812,4 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             raise ExtractorError(repr(e)) from e
         
         finally:
-            #self.rm_driver(driver)
             SeleniumInfoExtractor._QUEUE.put_nowait(driver)
