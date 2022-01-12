@@ -112,7 +112,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
             self.send_request(driver, url)
             
-            self.wait_until(driver, 120, scroll(2))
+            self.wait_until(driver, 120, scroll(5))
         
 
             el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))            
