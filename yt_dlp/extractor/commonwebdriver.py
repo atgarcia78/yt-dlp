@@ -32,6 +32,21 @@ from ..utils import (
 )
 
 from queue import Queue, Empty
+
+import time
+class scroll():
+    def __init__(self, time):
+        self.time = time
+    def __call__(self, driver):
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        time_start = time.monotonic()
+        while(time.monotonic() - time_start <= self.time):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height: return True
+        else: return False
+
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'

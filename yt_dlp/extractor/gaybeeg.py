@@ -5,7 +5,10 @@ import re
 
 from ..utils import ExtractorError
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    scroll
+)
 
 from concurrent.futures import (
     ThreadPoolExecutor   
@@ -23,6 +26,8 @@ from datetime import datetime
 
 from backoff import on_exception, constant
 from ratelimit import limits, sleep_and_retry
+
+
 
 class GayBeegBaseIE(SeleniumInfoExtractor):
     
@@ -107,22 +112,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
             self.send_request(driver, url)
             
-            SCROLL_PAUSE_TIME = 2
-
-            last_height = driver.execute_script("return document.body.scrollHeight")
-
-            while True:
-                # Scroll down to bottom
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-                # Wait to load page
-                self.wait_until(driver, SCROLL_PAUSE_TIME, ec.title_is("DUMMYFORWAIT"))
-               
-                # Calculate new scroll height and compare with last scroll height
-                new_height = driver.execute_script("return document.body.scrollHeight")
-                if new_height == last_height:
-                    break
-                last_height = new_height
+            self.wait_until(driver, 120, scroll(2))
         
 
             el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))            
