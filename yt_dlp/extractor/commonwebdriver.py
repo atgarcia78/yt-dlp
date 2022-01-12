@@ -35,12 +35,17 @@ from queue import Queue, Empty
 
 import time
 class scroll():
+    '''
+        To use as a predicate in the webdriver waits to scroll down to the end of the page
+        when the page has an infinite scroll where it is adding new elements dynamically
+    '''
     def __init__(self, time):
         self.time = time
+        
     def __call__(self, driver):
         last_height = driver.execute_script("return document.body.scrollHeight")
         time_start = time.monotonic()
-        while(time.monotonic() - time_start <= self.time):
+        while((time.monotonic() - time_start) <= self.time):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         
         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -242,9 +247,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     self.to_screen(f'{pre}{repr(e)} \n{"!!".join(lines)}')
                     shutil.rmtree(tempdir, ignore_errors=True)  
                     raise ExtractorError(repr(e)) from e
-            
-        
-        
+
     def wait_until(self, driver, time, method):
         try:
             el = WebDriverWait(driver, time).until(method)
@@ -261,14 +264,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         return el
     
-            
-    
     def get_info_for_format(self, url, client=None, headers=None, verify=True):
         
         try:
-            
             res = None
-            
             if client:
                 res = client.head(url, headers=headers)
             else:
@@ -282,7 +281,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             res.raise_for_status()
             self.write_debug(f"{res.request} \n{res.request.headers}")
-            #self.to_screen(f"{res.request} \n{res.request.headers}")
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             return ({'url': _url, 'filesize': _filesize})
