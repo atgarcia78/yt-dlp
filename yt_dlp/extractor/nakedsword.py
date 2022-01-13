@@ -115,7 +115,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.to_screen(repr(e))
             raise ExtractorError(f"login nok: {repr(e)}")
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
                     
     def _init(self):
         
@@ -827,7 +827,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)        
+            self.put_in_queue(driver)        
     
     def get_studioid(self, studioname):
          
@@ -854,7 +854,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
 
     def get_scenes_ns(self, urls):
         

@@ -162,7 +162,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                 except Exception as e:
                     self.to_screen("error when login")
                     #self.rm_driver(driver)
-                    SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                    self.put_in_queue(driver)
                     raise
                 
             for cookie in FraternityXBaseIE._COOKIES:
@@ -189,7 +189,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         else:
             if driver: 
                 #self.rm_driver(driver)
-                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                self.put_in_queue(driver)
 
     def _extract_from_page(self, url):        
         
@@ -367,7 +367,7 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
             raise ExtractorError(repr(e))
         finally:
             #self.rm_driver(driver)
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
             
         if not entries: raise ExtractorError("no video list") 
         
@@ -397,7 +397,7 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
             else: raise ExtractorError(str(e))
         finally:
             #self.rm_driver(driver)
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
             
         if not entries: raise ExtractorError("no video list") 
         

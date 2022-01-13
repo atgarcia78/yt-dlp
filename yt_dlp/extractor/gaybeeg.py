@@ -125,7 +125,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 return entries
             
         finally:
-            if _putqueue: SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            if _putqueue: self.put_in_queue(driver)
 
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
     @sleep_and_retry
@@ -200,7 +200,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                 entries += self._get_entries(url, driver)
             
             finally:
-                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                self.put_in_queue(driver)
                 
             if num_pages > 1:
                 

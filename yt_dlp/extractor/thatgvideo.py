@@ -106,6 +106,6 @@ class ThatGVideoIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e)) from e
         finally:
             try:
-                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                self.put_in_queue(driver)
             except Exception:
                 pass

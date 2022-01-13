@@ -49,7 +49,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
 
             webpage = self._send_request(url) 
             
-            if not webpage: raise ExtractorError("no video page info")
+            if not webpage or 'this-video-has-been-removed' in webpage: raise ExtractorError("Error 404: no video page info")
 
             title = try_get(re.findall(r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+?)</title>', webpage), lambda x: x[0]) 
             
@@ -63,6 +63,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 videoid = try_get(re.findall(r'/(\d+)_', video_url), lambda x: x[0]) or 'not_id'
             if not title:
                 webpage = self._send_request(f"https://gayforit.eu/video/{videoid}")
+                if not webpage: raise ExtractorError("Error 404: no video page info")
                 title = try_get(re.findall(r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+?)</title>', webpage), lambda x: x[0]) 
                 
                 
@@ -88,6 +89,9 @@ class GayForITEUIE(SeleniumInfoExtractor):
             if title: entry.update({'title': sanitize_filename(title.strip(), restricted=True)})
             
             return entry
+        
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}') 

@@ -383,7 +383,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 raise ExtractorError(repr(e)) from e
             finally:
                 #self.rm_driver(driver)
-                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                self.put_in_queue(driver)
                                             
 
 
@@ -812,4 +812,4 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             raise ExtractorError(repr(e)) from e
         
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)

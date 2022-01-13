@@ -139,5 +139,5 @@ class EvoloadIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")            
             raise ExtractorError(repr(e))
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
             
