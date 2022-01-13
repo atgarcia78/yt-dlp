@@ -15,8 +15,8 @@ import traceback
 import tempfile
 import shutil
 
-from selenium.webdriver import Firefox
-from selenium.webdriver.firefox.options import Options
+from selenium.webdriver import Firefox, FirefoxOptions
+#from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -129,7 +129,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 finally:
                     if init_drivers:
                         for driver in init_drivers:
-                            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                            self.put_in_queue(driver)
                             SeleniumInfoExtractor._MASTER_COUNT += 1
                 
                 _headers = dict(httpx.Headers(std_headers.copy()))
@@ -178,7 +178,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if res != tempdir:
             raise ExtractorError("error when creating profile folder")
         
-        opts = Options()
+        opts = FirefoxOptions()
         
         if not _noheadless:
             opts.add_argument("--headless")
@@ -241,13 +241,22 @@ class SeleniumInfoExtractor(InfoExtractor):
                 
             except Exception as e:
                 n += 1
-                if driver: driver.quit()
+                if driver: 
+                    driver.quit()
+                    driver = None
+                if 'Status code was: 69' in repr(e):
+                    shutil.rmtree(tempdir, ignore_errors=True)
+                    self.report_warning(f'{pre}Firefox needs to be relaunched')
+                    raise ExtractorError(f'{pre}Firefox needs to be relaunched')
                 if n == 3:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f'{pre}{repr(e)} \n{"!!".join(lines)}')
                     shutil.rmtree(tempdir, ignore_errors=True)  
-                    raise ExtractorError(repr(e)) from e
+                    raise ExtractorError(repr(e))
 
+    def put_in_queue(self, driver):
+        self.put_in_queue(driver)
+        
     def wait_until(self, driver, time, method):
         try:
             el = WebDriverWait(driver, time).until(method)

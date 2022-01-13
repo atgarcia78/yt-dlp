@@ -163,7 +163,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                 except Exception as e:
                     self.to_screen("error when login")
                     #self.rm_driver(driver)
-                    SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                    self.put_in_queue(driver)
                     raise
         
             for cookie in SketchySexBaseIE._COOKIES:
@@ -190,7 +190,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         else:
             if driver: 
                 #self.rm_driver(driver)
-                SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                self.put_in_queue(driver)
    
     def _extract_from_page(self, url):        
         
@@ -365,7 +365,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
             raise ExtractorError(repr(e))
         finally:
             #self.rm_driver(driver)
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
             
         if not entries: raise ExtractorError("no video list") 
         
@@ -395,7 +395,7 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
             else: raise ExtractorError(str(e))
         finally:
             #self.rm_driver(driver)
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
             
         if not entries: raise ExtractorError("no video list") 
         
