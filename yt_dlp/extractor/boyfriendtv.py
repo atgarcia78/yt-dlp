@@ -210,7 +210,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e)) from e
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
         
         
 
@@ -361,4 +361,4 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             if "ExtractorError" in str(e.__class__): raise
             else: raise ExtractorError(str(e))            
         finally:
-            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+            self.put_in_queue(driver)
