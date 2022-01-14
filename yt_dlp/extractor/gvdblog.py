@@ -59,14 +59,22 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
                
     def _real_extract(self, url):        
         
+        def getter(x):
+            if len(x) > 1:
+                for el in x:
+                    if not 'dood.' in el: return el
+            else: return x[0]
+        
         self.report_extraction(url)
 
         try:
 
             res = self._send_request(url)
-            videourl = try_get(re.findall(r'<iframe.+src="([^\"\']+)"', res.text.replace(" ","")), lambda x: x[0])             
+            videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', res.text), getter)
+                       
             post_time = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", res.text.replace('\n','')), lambda x: x[0])            
             if not videourl: raise ExtractorError("no video url")
+            self.to_screen(videourl)
             if post_time:
                 _info_date = datetime.strptime(post_time, '%B %d, %Y')
             
