@@ -49,15 +49,15 @@ class TheGayIE(SeleniumInfoExtractor):
     
 
     def _get_video_info(self, url):        
-            self.logger_info(f"[get_video_info] {url}")
-            return self.get_info_for_format(url)       
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)       
             
 
     def _send_request(self, driver, url):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
     
-    @block_exceptions
+    
     @on_exception(constant, Exception, max_tries=5, interval=1)    
     @sleep_and_retry
     @limits(calls=1, period=1)
@@ -68,11 +68,12 @@ class TheGayIE(SeleniumInfoExtractor):
         elif _type == "url_request":
             self._send_request(*args)
 
-    def _real_extract(self, url):
-        
-        
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+    def _real_extract(self, url):        
         self.report_extraction(url)
-       
+               
         _type, _videoid = re.search(self._VALID_URL, url).groups()
 
         driver = self.get_driver(usequeue=True) 
@@ -84,7 +85,7 @@ class TheGayIE(SeleniumInfoExtractor):
             video_url = self.wait_until(driver, 30, get_videourl(_type)) 
 
             if not video_url: raise ExtractorError("no video url")            
-            title = driver.title.replace(" - TheGay.com", "").strip()
+            _title = driver.title.replace(" - TheGay.com", "").strip()
             _videoinfo = self.request_to_host("video_info", video_url)
             if not _videoinfo: raise Exception(f"error video info")
 
@@ -97,7 +98,7 @@ class TheGayIE(SeleniumInfoExtractor):
             
             _entry_video = {
                 'id' : _videoid,
-                'title' : sanitize_filename(title, restricted=True),
+                'title' : sanitize_filename(_title, restricted=True),
                 'formats' : [_format],
                 'ext': 'mp4'
             } 
