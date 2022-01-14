@@ -16,7 +16,6 @@ import tempfile
 import shutil
 
 from selenium.webdriver import Firefox, FirefoxOptions
-#from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -99,15 +98,14 @@ class SeleniumInfoExtractor(InfoExtractor):
             pass
     
     @classmethod
-    def rm_driver(cls, driver, tempdir=None):
+    def rm_driver(cls, driver):
         
-        if not tempdir:
-            tempdir = driver.caps.get('moz:profile')
+        tempdir = driver.caps.get('moz:profile')
         if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
         
         try:
             driver.quit()
-        except:
+        except Exception:
             pass
     
     def _init(self):
@@ -120,16 +118,22 @@ class SeleniumInfoExtractor(InfoExtractor):
                     with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=5) as ex:
                         futures = [ex.submit(self.get_driver) for _ in range(5)]
                     
-                    init_drivers = [fut.result() for fut in futures]
-                    SeleniumInfoExtractor._USER_AGENT = init_drivers[0].execute_script("return navigator.userAgent")
+                    
+                    for fut in futures:
+                        try:
+                            init_drivers.append(fut.result())
+                        except Exception:
+                            pass
+
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
                     #raise ExtractorError(str(e)) from e
                 finally:
                     if init_drivers:
+                        SeleniumInfoExtractor._USER_AGENT = init_drivers[0].execute_script("return navigator.userAgent")
                         for driver in init_drivers:
-                            self.put_in_queue(driver)
+                            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                             SeleniumInfoExtractor._MASTER_COUNT += 1
                 
                 _headers = dict(httpx.Headers(std_headers.copy()))
@@ -137,14 +141,13 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _headers.pop('origin', None)
                 _headers.update({'user-agent': SeleniumInfoExtractor._USER_AGENT})
                 
-                SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': 60, 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
+                SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(60, connect=60), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
                 self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
                 
                 _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
                 SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                 SeleniumInfoExtractor._MASTER_INIT = True
-        
-    
+
     def _real_initialize(self):
         
         self._init()
@@ -217,9 +220,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         opts.set_preference("dom.webdriver.enabled", False)
         opts.set_preference("useAutomationExtension", False)
         
-        #self.to_screen(f"{pre}ffprof[{SeleniumInfoExtractor._FF_PROF}]")
-        #self.to_screen(f"tempffprof[{tempdir}]")
-        
         serv = Service(log_path="/dev/null")
         
         n = 0
@@ -255,7 +255,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     raise ExtractorError(repr(e))
 
     def put_in_queue(self, driver):
-        self.put_in_queue(driver)
+        SeleniumInfoExtractor._QUEUE.put_nowait(driver)
         
     def wait_until(self, driver, time, method):
         try:

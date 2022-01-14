@@ -11,7 +11,6 @@ from .commonwebdriver import (
 from ..utils import (
     ExtractorError,
     int_or_none,
-    block_exceptions,
     try_get)
 
 
@@ -113,7 +112,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _COOKIES = None
     
     
-    @block_exceptions
+
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
     @sleep_and_retry
     @limits(calls=1, period=0.1) 
@@ -125,7 +124,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         return(int_or_none(res.headers.get('content-length')))
         
         
-    @block_exceptions
+
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
     @sleep_and_retry
     @limits(calls=1, period=0.1)    
@@ -382,7 +381,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
                 raise ExtractorError(repr(e)) from e
             finally:
-                #self.rm_driver(driver)
                 self.put_in_queue(driver)
                                             
 
@@ -392,6 +390,9 @@ class OnlyFansPostIE(OnlyFansBaseIE):
     IE_DESC = 'onlyfans:post:playlist'
     _VALID_URL =  r"https?://(?:www\.)?onlyfans.com/(?P<post>[\d]+)/(?P<account>[\da-zA-Z]+)"
 
+    
+    def _real_initialize(self):
+        super()._real_initialize()
                 
     def _real_extract(self, url):
 
@@ -422,7 +423,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
             self.send_request(driver, url) 
             res = self.wait_until(driver, 30, error404_or_found())
-            if not res or res[0] == "error404": raise ExtractorError("Post doesnt exists")
+            if not res or res[0] == "error404": raise ExtractorError("Error 404: Post doesnt exists")
             har = _harproxy.har            
             data_json = self.scan_for_request(har, f"har_{post}", f"/api2/v2/posts/{post}")
             if data_json:
@@ -446,9 +447,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
         except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-            raise                
- 
-            
+            raise ExtractorError(repr(e))
         finally:
             _harproxy.close()
             _server.stop()
@@ -488,13 +487,11 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             entries = {}
             
-            
             if mode in ("all", "latest", "favorites","tips"):
-                
-                
+
                 self.send_request(driver, f"{self._SITE_URL}/{account}")
                 res = self.wait_until(driver, 60, error404_or_found())
-                if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
+                if not res or res[0] == "error404": raise ExtractorError("Error 404: User profile doesnt exists")
                 
                 _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                 
@@ -519,8 +516,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                                                 entries[_video['id']] = _video
 
                 else:            
-                    
-                    
+
+                    #lets scroll down in the videos pages till the end
                     self.wait_until(driver, 600, scroll(10))
                         
                     har = _harproxy.har
@@ -539,8 +536,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                             if _entry: 
                                 for _video in _entry:
                                     if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                                    else:
-                                        
+                                    else:                                        
                                         if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                             entries[_video['id']] = _video
             
@@ -597,8 +593,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e
-        
+            raise ExtractorError(repr(e)) from e        
         finally:
             _harproxy.close()
             _server.stop()
@@ -614,8 +609,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
     def _real_extract(self, url):
  
         try:
-            
-            
+
             self.report_extraction(url)
             
             with OnlyFansPaidlistIE._LOCK:
@@ -629,11 +623,12 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 _harproxy = _server.create_proxy({'port' : _port})
         
             driver  = self.get_driver(host=_host, port=_port)
+            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
             self.send_request(driver, self._SITE_URL)
             for cookie in OnlyFansPaidlistIE._COOKIES:
                 driver.add_cookie(cookie)
             
-            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
+            
             self.send_request(driver, self._SITE_URL)
             list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
                 (By.CLASS_NAME, "b-tabs__nav__item") ))
@@ -644,10 +639,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             self.wait_until(driver, 60, ec.presence_of_element_located(
                 (By.CLASS_NAME, "user_posts") ))
        
-                
             self.wait_until(driver, 600, scroll(10))
                 
-            
             har = _harproxy.har           
             users_json = self.scan_for_all_requests(har, "har_paid", r'/api2/v2/users/list')
             if users_json:
@@ -681,9 +674,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                         else:
                             if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                 entries[_video['id']] = _video
-                         
-                
-           
+
             if entries:
                 return self.playlist_result(list(entries.values()), "Onlyfans:paid", "Onlyfans:paid")
             else:
@@ -696,8 +687,6 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(repr(e)) from e
-            
-            
         finally:
             _harproxy.close()
             _server.stop()
@@ -731,8 +720,7 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             
             self.send_request(driver, url)
             res = self.wait_until(driver, 60, error404_or_found())
-            if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")
-            #driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})            
+            if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")        
             account = url.split("/")[-1]
             _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_actsubs_{account}", title=f"har_actsubs_{account}")            
             self.send_request(driver, _url_videos)
@@ -756,13 +744,13 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             
             if not entries: raise ExtractorError(f"[{_url_videos}] no entries")                
             return list(entries.values())
+        
         except ExtractorError as e:
             raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'[{_url_videos}] {repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(f'[{_url_videos}] {repr(e)}')
-        
+            raise ExtractorError(f'[{_url_videos}] {repr(e)}')        
         finally:
             _harproxy.close()
             _server.stop()
@@ -772,11 +760,9 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
 
     def _real_extract(self, url):
  
-        try:
-            
+        try:            
             
             self.report_extraction(url)            
-            
         
             driver  = self.get_driver(usequeue=True)
             self.send_request(driver, self._SITE_URL)
@@ -797,19 +783,18 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
                     try:
                         entries = entries + fut.result()
                     except Exception as e:
-                        self.to_screen(repr(e))
-                        
+                        self.to_screen(repr(e))                        
 
             if entries:
                 return self.playlist_result(entries, "Onlyfans:subs", "Onlyfans:subs")
             else:
                 raise ExtractorError("no entries") 
+            
         except ExtractorError as e:
             raise 
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e
-        
+            raise ExtractorError(repr(e)) from e        
         finally:
             self.put_in_queue(driver)

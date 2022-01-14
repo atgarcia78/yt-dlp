@@ -26,6 +26,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
     @limits(calls=1, period=1)
     def _send_request(self, url):
         
+        #lets use the native method of InfoExtractor to download the webpage content. HTTPX doesnt work with this site
         webpage = self._download_webpage(url, None, note=False)
         if not webpage: raise ExtractorError("no video page info")
         else: return webpage
@@ -43,13 +44,11 @@ class GayForITEUIE(SeleniumInfoExtractor):
         
         try:
         
-            mobj = re.search(self._VALID_URL, url)
-            if mobj:
-                videoid = mobj.group('id') or mobj.group('vid')
-
+            videoid = try_get(re.search(self._VALID_URL, url), lambda x: x.groups()[0] or x.groups()[1])
+            
             webpage = self._send_request(url) 
             
-            if not webpage or 'this-video-has-been-removed' in webpage: raise ExtractorError("Error 404: no video page info")
+            if not webpage or 'this-video-has-been-removed' in webpage.lower(): raise ExtractorError("Error 404: no video page info")
 
             title = try_get(re.findall(r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+?)</title>', webpage), lambda x: x[0]) 
             
@@ -63,11 +62,9 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 videoid = try_get(re.findall(r'/(\d+)_', video_url), lambda x: x[0]) or 'not_id'
             if not title:
                 webpage = self._send_request(f"https://gayforit.eu/video/{videoid}")
-                if not webpage: raise ExtractorError("Error 404: no video page info")
+                if not webpage or 'this-video-has-been-removed' in webpage.lower(): raise ExtractorError("Error 404: no video page info")
                 title = try_get(re.findall(r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+?)</title>', webpage), lambda x: x[0]) 
-                
-                
-    
+
             self.to_screen(f"[video_url] {video_url}")
             _info_video = self.get_info_for_format(video_url, headers={"Referer" : "https://gayforit.eu/"}, verify=False)
             
