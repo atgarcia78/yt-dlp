@@ -121,7 +121,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 
                 SeleniumInfoExtractor._YTDL = self._downloader
                 if num == None: 
-                    num = 10
+                    num = 5
                     SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit') or num
                 else:
                     SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = num
