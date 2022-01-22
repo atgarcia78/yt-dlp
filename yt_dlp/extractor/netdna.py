@@ -80,19 +80,19 @@ class NetDNAIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*' 
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
 
-    @classmethod
-    def get_video_info_str(cls, item):
+    # @classmethod
+    # def get_video_info_str(cls, item):
 
-        mobj = re.findall(r'(?:Download\s+)?([^\.]+)\.([^\s]+)\s+\[([^\[]+)\]', item)
-        _num, _unit = mobj[0][2].split(' ')
-        _num = _num.replace(',', '.')
-        if _num.count('.') == 2:  _num = _num.replace('.','', 1)
-        _num = f"{float(_num):.2f}"
-        title = mobj[0][0].replace('-', '_').upper()
-        ext = mobj[0][1]
-        str_id = f"{title}{_num}"
-        videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
-        return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
+    #     mobj = re.findall(r'(?:Download\s+)?([^\.]+)\.([^\s]+)\s+\[([^\[]+)\]', item)
+    #     _num, _unit = mobj[0][2].split(' ')
+    #     _num = _num.replace(',', '.')
+    #     if _num.count('.') == 2:  _num = _num.replace('.','', 1)
+    #     _num = f"{float(_num):.2f}"
+    #     title = mobj[0][0].replace('-', '_').upper()
+    #     ext = mobj[0][1]
+    #     str_id = f"{title}{_num}"
+    #     videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
+    #     return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
     
 
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
