@@ -182,8 +182,6 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         else: _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', res.text), lambda x: unquote(x[0]))
         return num_pages, _href
         
-
-
     def _real_initialize(self):
         super()._real_initialize()
         
@@ -228,17 +226,12 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                                    
             self.report_extraction(url)
 
-            entries = []
+            
 
             num_pages, _href = self.get_info_pages(url) 
 
             self.to_screen(f"Pages to check: {num_pages}")                    
                 
-            #entries += self._get_entries(url) or []
-
-                
-            #if num_pages > 1:
-
             list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(1, num_pages+1)]
             
             self.to_screen(list_urls_pages)
@@ -248,7 +241,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             with ThreadPoolExecutor(thread_name_prefix="gybgpages", max_workers=_num_workers) as ex:
                 futures = {ex.submit(self._get_entries, _url): _url for _url in list_urls_pages}
                 
-
+            entries = []
             for fut in futures:
                 try:
                     res = fut.result()
