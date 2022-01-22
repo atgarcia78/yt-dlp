@@ -72,7 +72,7 @@ class fast_forward():
                 except Exception as e:
                     self.to_screen(repr(e))
             return False
-        elif "moz-extension" in _curl: return False        
+                
         else: return False
 
 class NetDNAIE(SeleniumInfoExtractor):
