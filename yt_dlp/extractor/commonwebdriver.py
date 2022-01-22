@@ -4,31 +4,30 @@ import threading
 
 from .common import (
     InfoExtractor,
-    ExtractorError
-)
-
+    ExtractorError)
 
 import sys
 import traceback
 
-
 import tempfile
 import shutil
 
-from selenium.webdriver import Firefox, FirefoxOptions
+from selenium.webdriver import (
+    Firefox,
+    FirefoxOptions)
+
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
+
 import httpx
 from urllib.parse import unquote
 
-from ..utils import (
-    
+from ..utils import (    
     int_or_none,
-    std_headers
-)
+    std_headers)
 
 from queue import Queue, Empty
 
@@ -38,18 +37,20 @@ class scroll():
         To use as a predicate in the webdriver waits to scroll down to the end of the page
         when the page has an infinite scroll where it is adding new elements dynamically
     '''
-    def __init__(self, time):
-        self.time = time
+    def __init__(self, wait_time):
+        self.wait_time = wait_time
         
     def __call__(self, driver):
         last_height = driver.execute_script("return document.body.scrollHeight")
         time_start = time.monotonic()
-        while((time.monotonic() - time_start) <= self.time):
+        while((time.monotonic() - time_start) <= self.wait_time):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height: return True
         else: return False
+        
+
 
 class SeleniumInfoExtractor(InfoExtractor):
     
@@ -62,6 +63,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CLIENT_CONFIG = {}
     _CLIENT = None
     _MASTER_INIT = False
+    _MAX_NUM_WEBDRIVERS = 0
     
     @classmethod
     def logger_info(cls, msg):
@@ -92,13 +94,14 @@ class SeleniumInfoExtractor(InfoExtractor):
                 break
             except Exception:
                 pass
+        
         try:
             SeleniumInfoExtractor._CLIENT.close()
         except Exception:
             pass
-    
+        
     @classmethod
-    def rm_driver(cls, driver):
+    def rm_driver(cls, driver, usequeue=None):
         
         tempdir = driver.caps.get('moz:profile')
         if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
@@ -107,28 +110,39 @@ class SeleniumInfoExtractor(InfoExtractor):
             driver.quit()
         except Exception:
             pass
+        
+        if usequeue:
+            with SeleniumInfoExtractor._MASTER_LOCK:
+                SeleniumInfoExtractor._MASTER_COUNT -= 1
     
-    def _init(self):
+    def _init(self, num=None):
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not SeleniumInfoExtractor._MASTER_INIT:
                 
                 SeleniumInfoExtractor._YTDL = self._downloader
+                if num == None: 
+                    num = 10
+                    SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit') or num
+                else:
+                    SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = num
+                    
                 init_drivers = []
                 try:
-                    with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=5) as ex:
-                        futures = [ex.submit(self.get_driver) for _ in range(5)]
+                    with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS) as ex:
+                        futures = {ex.submit(self.get_driver): i for i in range(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS)}
                     
                     
                     for fut in futures:
                         try:
                             init_drivers.append(fut.result())
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            lines = traceback.format_exception(*sys.exc_info())
+                            self.to_screen(f'[init_drivers][{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
 
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-                    #raise ExtractorError(str(e)) from e
+                    
                 finally:
                     if init_drivers:
                         SeleniumInfoExtractor._USER_AGENT = init_drivers[0].execute_script("return navigator.userAgent")
@@ -148,9 +162,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                 SeleniumInfoExtractor._MASTER_INIT = True
 
-    def _real_initialize(self):
-        
-        self._init()
+    def _real_initialize(self, num=None):        
+        self._init(num)
 
     def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 
@@ -159,13 +172,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             with SeleniumInfoExtractor._MASTER_LOCK:
                 self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
                 if SeleniumInfoExtractor._QUEUE._qsize() > 0:
-                    driver = SeleniumInfoExtractor._QUEUE.get(block=False)
+                    driver = SeleniumInfoExtractor._QUEUE.get()
                 else:    
-                    if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._YTDL.params.get('winit', 5):
+                    if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
                         driver = self._get_driver(noheadless, host, port, msg)
                         SeleniumInfoExtractor._MASTER_COUNT += 1                    
                     else:
-                        driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=120)            
+                        driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=600)            
         
         else: driver = self._get_driver(noheadless, host, port, msg)
         
@@ -233,7 +246,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
                 driver.maximize_window()
             
-                self.wait_until(driver, 0.5, ec.title_is("DUMMYFORWAIT"))
+                self.wait_until(driver, 0.5)
                 
                 self.to_screen(f"{pre}New firefox webdriver")
                 
@@ -257,17 +270,17 @@ class SeleniumInfoExtractor(InfoExtractor):
     def put_in_queue(self, driver):
         SeleniumInfoExtractor._QUEUE.put_nowait(driver)
         
-    def wait_until(self, driver, time, method):
+    def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
         try:
-            el = WebDriverWait(driver, time).until(method)
+            el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(method)
         except Exception as e:
             el = None
                         
         return el 
     
-    def wait_until_not(self, driver, time, method):
+    def wait_until_not(self, driver, timeout, method, poll_freq=0.5):
         try:
-            el = WebDriverWait(driver, time).until_not(method)
+            el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until_not(method)
         except Exception as e:
             el = None
             
@@ -307,6 +320,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             raise ExtractorError(repr(e))      
 
             
+    
+    
     
     
 

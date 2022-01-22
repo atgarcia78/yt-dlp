@@ -91,7 +91,7 @@ class EbembedIE(InfoExtractor):
             raise
         except Exception as e:
             self.to_screen(repr(e))
-            raise ExtractorError(repr(e)) from e    
+            raise ExtractorError(repr(e))   
         finally:
             try:
                 client.close()

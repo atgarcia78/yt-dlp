@@ -172,105 +172,101 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         info_video = self.get_video_info_url(url)
         if (_error:=info_video.get('error')): raise ExtractorError(_error)
+
+        count = 0
         
-        driver = self.get_driver(usequeue=True)
+        while count < 3:        
+        
+            try:
+                driver = self.get_driver(usequeue=True)
+                entry = None
+                self.report_extraction(f"[{url}] attempt[{count+1}/3]")
+                self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
                 
-        try:
+                el_res = self.wait_until(driver, 60, fast_forward())
+                
+                if el_res == "Error 404": raise ExtractorError(el_res)
+                elif el_res != "OK":
+                    msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
+                    self.to_screen(msg_error)
+                    count += 1
+                    if count == 3: raise ExtractorError("max attempts to get info")
+                    
+                
 
-            count = 0
-            
-            while count < 3:        
-            
-                try:
-
-                    entry = None
-                    self.report_extraction(f"[{url}] attempt[{count+1}/3]")
-                    self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
+                else:                        
                     
-                    el_res = self.wait_until(driver, 60, fast_forward())
-                    
-                    if el_res == "Error 404": raise ExtractorError(el_res)
-                    elif el_res != "OK":
-                        msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
-                        self.to_screen(msg_error)
-                        count += 1
-                        if count == 3: raise ExtractorError("max attempts to get info")
-                        else: continue
-                    
- 
-                    else:                        
+                    try:                        
                         
-                        try:                        
+                        el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
+                        
+                        if el_formats:
                             
-                            el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
+                            try:
                             
-                            if el_formats:
+                                _formats = [self.get_format(_el.text, _el.get_attribute('href')) for _el in el_formats]
                                 
+                            except Exception as e:
+                                msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats"
+                                self.to_screen(msg_error)
+                                count += 1
+                                if count == 3: raise ExtractorError("max attempts to get info")
+                                else: continue
+                            
+                            self._sort_formats(_formats)
+                            
+                            entry = {
+                                'id' : info_video.get('id'),
+                                'title': sanitize_filename(info_video.get('title'),restricted=True),
+                                'formats': _formats,
+                                'ext' : info_video.get('ext')
+                            }
+                            
+                        else:
+                            el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
+                            if el_download:
                                 try:
+                                    _video_url = el_download.get_attribute('href')
+                                    _info = self._send_request(_video_url, "GET_INFO")
                                 
-                                    _formats = [self.get_format(_el.text, _el.get_attribute('href')) for _el in el_formats]
-                                    
                                 except Exception as e:
                                     msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats"
                                     self.to_screen(msg_error)
                                     count += 1
                                     if count == 3: raise ExtractorError("max attempts to get info")
                                     else: continue
-                                
-                                self._sort_formats(_formats)
-                                
+                                    
+                                _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
+                                                                
                                 entry = {
                                     'id' : info_video.get('id'),
                                     'title': sanitize_filename(info_video.get('title'),restricted=True),
                                     'formats': _formats,
                                     'ext' : info_video.get('ext')
-                                }
+                                } 
+                                    
+                        if not entry: raise ExtractorError("no video info")
+                        else:
+                            return entry       
                                 
-                            else:
-                                el_download = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME,"btn.btn--xLarge")))
-                                if el_download:
-                                    try:
-                                        _video_url = el_download.get_attribute('href')
-                                        _info = self._send_request(_video_url, "GET_INFO")
-                                    
-                                    except Exception as e:
-                                        msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats"
-                                        self.to_screen(msg_error)
-                                        count += 1
-                                        if count == 3: raise ExtractorError("max attempts to get info")
-                                        else: continue
-                                        
-                                    _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
-                                                                    
-                                    entry = {
-                                        'id' : info_video.get('id'),
-                                        'title': sanitize_filename(info_video.get('title'),restricted=True),
-                                        'formats': _formats,
-                                        'ext' : info_video.get('ext')
-                                    } 
-                                      
-                            if not entry: raise ExtractorError("no video info")
-                            else:
-                                return entry       
-                                    
-                            
                         
-                        except Exception as e:
-                            lines = traceback.format_exception(*sys.exc_info())
-                            self.write_debug(f"{repr(e)}, \n{'!!'.join(lines)}")
-                            raise
-                        
-                        
-                
-                except ExtractorError:
-                    raise
-                except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.write_debug(f"{repr(e)}\n{'!!'.join(lines)}")
-                    raise ExtractorError(repr(e))
-                      
-        finally:
-            self.put_in_queue(driver)
+                    
+                    except Exception as e:
+                        lines = traceback.format_exception(*sys.exc_info())
+                        self.write_debug(f"{repr(e)}, \n{'!!'.join(lines)}")
+                        raise
+                    
+                    
+            
+            except ExtractorError:
+                raise
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.write_debug(f"{repr(e)}\n{'!!'.join(lines)}")
+                raise ExtractorError(repr(e))
+                    
+            finally:
+                self.put_in_queue(driver)
             
              
    

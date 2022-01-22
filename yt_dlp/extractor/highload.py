@@ -72,7 +72,7 @@ class HighloadIE(SeleniumInfoExtractor):
             if el:
                 try:
                     el.click()
-                    self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    self.wait_until(driver, 3)
                 except Exception:
                     pass
             video_url = res.get_attribute("src")

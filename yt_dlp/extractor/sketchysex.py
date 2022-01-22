@@ -38,18 +38,14 @@ from backoff import on_exception, constant
 class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
     _SITE_URL = "https://sketchysex.com"
-    #_LOGOUT_URL = "https://sketchysex.com/sign-out"
-    #_MULT_URL = "https://sketchysex.com/multiple-sessions"
-    #_ABORT_URL = "https://sketchysex.com/multiple-sessions/abort"
-    #_AUTH_URL = "https://sketchysex.com/authorize2"
     _BASE_URL_PL = "https://sketchysex.com/episodes/"
 
     _NETRC_MACHINE = 'sketchysex'
 
     _LOCK = threading.Lock()
-        
+
     _COOKIES = None
-    
+
     _MAX_PAGE = None
     
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
@@ -93,13 +89,17 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
         self._send_request(self._SITE_URL, driver=_driver)
         _title = _driver.title.upper()
-        #self.to_screen(_title)
         if "WARNING" in _title:
             self.to_screen("Adult consent")
             el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
             if not el_enter: raise ExtractorError("couldnt find adult consent button")
             _current_url = _driver.current_url
             el_enter.click()
+            self.wait_until(_driver, 5)
+            try:
+                el_enter.click() #por ublock 
+            except Exception:
+                pass
             self.wait_until(_driver, 60, ec.url_changes(_current_url))
         
         el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul.inline-list.top-navbar")))
@@ -118,12 +118,10 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             el_login = _driver.find_element(by=By.CSS_SELECTOR, value="input#submit1.submit1")
             if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
             el_username.send_keys(username)
-            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+            self.wait_until(_driver, 1)
             el_password.send_keys(password)
-            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
-            #_title = _driver.title
+            self.wait_until(_driver, 1)
             _current_url = _driver.current_url
-            #self.to_screen(f"{_title}#{driver.current_url}")
             el_login.click()
             self.wait_until(_driver, 60, ec.url_changes(_current_url))
             count = 3
@@ -140,9 +138,9 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     el_enter = _driver.find_element(by=By.CSS_SELECTOR, value="button")
                     if not el_email or not el_lastname or not el_enter: raise ExtractorError("couldnt find text elements")
                     el_email.send_keys("a.tgarc@gmail.com")
-                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    self.wait_until(_driver, 1)
                     el_lastname.send_keys("Torres")
-                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))                
+                    self.wait_until(_driver, 1)                
                     _current_url = _driver.current_url
                     el_enter.click()
                     self.wait_until(_driver, 60, ec.url_changes(_current_url))
@@ -186,10 +184,10 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                             driver.delete_cookie(_name)
                     
                     self._send_request("https://sketchysex.com/episodes/1", driver=driver)
-                    pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
-                    if pag:
-                        elnext = pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
-                        totalpages = pag.find_elements(By.TAG_NAME, "a")
+                    el_pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
+                    if el_pag:
+                        elnext = el_pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
+                        totalpages = el_pag.find_elements(By.TAG_NAME, "a")
                         SketchySexBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
                     else: 
                         SketchySexBaseIE._MAX_PAGE = 50
@@ -218,7 +216,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             if driver: 
                 self.put_in_queue(driver)
 
-    def _extract_from_page(self, url, playlistid=None):        
+    def _extract_from_video_page(self, url, playlistid=None):        
         
         pre = f"[page_{playlistid}]" if playlistid else ""
         try:
@@ -232,8 +230,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             embedurl = try_get(re.findall(r'<iframe src=\"([^\"]+)\"', res.text), lambda x: x[0])
             if not embedurl:
                 raise ExtractorError(f"{pre}[{url}] not embed url")
-            
-            
+
             res2 = self._send_request(embedurl)
             if not res2: raise ExtractorError(f"{pre}[{url}] no res2")
             
@@ -242,12 +239,11 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             if not tokenid: raise ExtractorError(f"{pre}[{url}] no token")
 
             videourl = "https://videostreamingsolutions.net/api:ov-embed/parseToken?token=" + tokenid
-            #self.to_screen(videourl)
-            headers = dict()
-            headers.update({
+            
+            headers = {
                 "Referer" : embedurl,
                 "Accept" : "*/*",
-                "X-Requested-With" : "XMLHttpRequest"})
+                "X-Requested-With" : "XMLHttpRequest"}
 
             res3 = self._send_request_vs(videourl, headers=headers)
             if not res3: raise ExtractorError(f"{pre}[{url}] no res3")
@@ -284,8 +280,27 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             raise
 
+    def _extract_all_list(self):
+        
+        entries = []
+        
+        with ThreadPoolExecutor(thread_name_prefix="ExtrListAll", max_workers=10) as ex:
+            futures = {ex.submit(self._extract_list, i, True): i for i in range(1, SketchySexAllPagesPlaylistIE._MAX_PAGE+1)}             
+        
+        for fut in futures:
+            #self.to_screen(f'[page_{futures[fut]}] results')
+            try:
+                res = fut.result()                
+                entries += res        
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.report_warning(f'[all_pages][page_{futures[fut]}] {repr(e)} \n{"!!".join(lines)}') 
+                
+        if not entries: raise ExtractorError(f"[all_pages] no videos found")
+        
+        return entries
 
-    def _extract_list(self, plid):
+    def _extract_list(self, plid, allpages=False):
  
         url_pl = f"{self._BASE_URL_PL}{plid}"
         
@@ -308,22 +323,27 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             self.put_in_queue(_driver)                    
         
         if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
+        
+        self.to_screen(f'[page_{plid}] num videos {len(url_list)}')
        
-        with ThreadPoolExecutor(max_workers=5) as ex:
-            futures = [ex.submit(self._extract_from_page, _url, plid) for _url in url_list]
-
+        offset = (int(plid) - 1)*9 if allpages else 0
+        with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
+            futures = {ex.submit(self._extract_from_video_page, _url, plid): (i, _url) for i, _url in enumerate(url_list)}
+            
+        
         for fut in futures:
+            #self.to_screen(f'[page_{plid}] ({offset + futures[fut][0]}, {futures[fut][1]}')
             try:
-                entries.append(fut.result())
+                res = fut.result()
+                res.update({'webpage_url': f"{self._BASE_URL_PL}{plid}"})
+                entries.append(res)
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.report_warning(f'[page_{plid}] {repr(e)} \n{"!!".join(lines)}')  
-                #raise ExtractorError(f'[page_{_plid}] {repr(e)}')        
-            
-
-        if not entries: raise ExtractorError("no videos found")
-
+        
+        if not entries: raise ExtractorError(f"[page_{plid}] no videos found")
         return entries
+
 
 
 class SketchySexIE(SketchySexBaseIE):
@@ -340,7 +360,7 @@ class SketchySexIE(SketchySexBaseIE):
         data = None
         try: 
 
-            data = self._extract_from_page(url)
+            data = self._extract_from_video_page(url)
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
@@ -374,7 +394,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
 
             if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid, nextpages=False)  
+            entries = self._extract_list(playlistid)  
        
         except ExtractorError:
             raise
@@ -398,21 +418,21 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
     
     def _real_extract(self, url):
         
-        entries = []
+        self.report_extraction(url)
         
-        with ThreadPoolExecutor(max_workers=5) as ex:
-            futures = [ex.submit(self.extract_list, i) for i in range(1, SketchySexAllPagesPlaylistIE._MAX_PAGE+1)]              
+        entries = None
         
-        for fut in futures:
-            try:
-                entries += fut.result()
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-                if "ExtractorError" in str(e.__class__): raise
-                else: raise ExtractorError(str(e))
+        try: 
+            entries = self._extract_all_list()  
+       
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
 
-
-        if not entries: raise ExtractorError("no video list") 
+            
+        if not entries: raise ExtractorError("no video list")         
         
         return self.playlist_result(entries, f"sketchysex:AllPages", f"sketchysex:AllPages")

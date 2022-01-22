@@ -37,17 +37,12 @@ from backoff import on_exception, constant
 class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fratx.com/sign-in"
     _SITE_URL = "https://fratx.com"
-    #_LOGOUT_URL = "https://fraternityx.com/sign-out"
-    #_MULT_URL = "https://fraternityx.com/multiple-sessions"
-    #_ABORT_URL = "https://fraternityx.com/multiple-sessions/abort"
-    #_AUTH_URL = "https://fraternityx.com/authorize2"
     _BASE_URL_PL = "https://fratx.com/episodes/"
 
     _NETRC_MACHINE = 'fraternityx'
 
     _LOCK = threading.Lock()
-    
-    
+
     _COOKIES = None
 
     _MAX_PAGE = None
@@ -66,7 +61,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             self.report_warning(f"[{url}] {repr(e)}")
             raise
-        
+    
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
     @sleep_and_retry
     @limits(calls=1, period=0.01)
@@ -88,17 +83,18 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             self.report_warning(f"[{url}] {repr(e)}")
             raise
+        
     def _login(self, _driver):
         
         self._send_request(self._SITE_URL, driver=_driver)
         _title = _driver.title.upper()
-        #self.to_screen(_title)
         if "WARNING" in _title:
             self.to_screen("Adult consent")
             el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.enter-btn")))
             if not el_enter: raise ExtractorError("couldnt find adult consent button")
             _current_url = _driver.current_url
             el_enter.click()
+            #el_enter.click() 
             self.wait_until(_driver, 60, ec.url_changes(_current_url))
         
         el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul.inline-list")))
@@ -119,9 +115,9 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             el_login = _driver.find_element(by=By.CSS_SELECTOR, value="button")
             if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
             el_username.send_keys(username)
-            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+            self.wait_until(_driver, 1)
             el_password.send_keys(password)
-            self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+            self.wait_until(_driver, 1)
             #_title = _driver.title
             _current_url = _driver.current_url
             #self.to_screen(f"{_title}#{driver.current_url}")
@@ -141,9 +137,9 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                     el_enter = _driver.find_element(by=By.CSS_SELECTOR, value="button")
                     if not el_email or not el_lastname or not el_enter: raise ExtractorError("couldnt find text elements")
                     el_email.send_keys("a.tgarc@gmail.com")
-                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    self.wait_until(_driver, 1)
                     el_lastname.send_keys("Torres")
-                    self.wait_until(_driver, 3, ec.title_is("DUMMYFORWAIT"))                
+                    self.wait_until(_driver, 1)                
                     _current_url = _driver.current_url
                     el_enter.click()
                     self.wait_until(_driver, 60, ec.url_changes(_current_url))
@@ -218,7 +214,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             if driver: 
                 self.put_in_queue(driver)
 
-    def _extract_from_page(self, url, playlistid=None):        
+    def _extract_from_video_page(self, url, playlistid=None):        
         
         pre = f"[page_{playlistid}]" if playlistid else ""
         try:
@@ -232,8 +228,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             embedurl = try_get(re.findall(r'<iframe src=\"([^\"]+)\"', res.text), lambda x: x[0])
             if not embedurl:
                 raise ExtractorError(f"{pre}[{url}] not embed url")
-            
-            
+
             res2 = self._send_request(embedurl)
             if not res2: raise ExtractorError(f"{pre}[{url}] no res2")
             
@@ -242,12 +237,11 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             if not tokenid: raise ExtractorError(f"{pre}[{url}] no token")
 
             videourl = "https://videostreamingsolutions.net/api:ov-embed/parseToken?token=" + tokenid
-            #self.to_screen(videourl)
-            headers = dict()
-            headers.update({
+            
+            headers = {
                 "Referer" : embedurl,
                 "Accept" : "*/*",
-                "X-Requested-With" : "XMLHttpRequest"})
+                "X-Requested-With" : "XMLHttpRequest"}
 
             res3 = self._send_request_vs(videourl, headers=headers)
             if not res3: raise ExtractorError(f"{pre}[{url}] no res3")
@@ -284,56 +278,68 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             raise
 
-
-    def _extract_list(self, playlistid, nextpages):
+    def _extract_all_list(self):
         
         entries = []
-
-        i = 0
-
-        while True:
-
-            _plid = int(playlistid) + i 
-            url_pl = f"{self._BASE_URL_PL}{_plid}"
-
-            _driver = self._init()
-            url_list = []
+        
+        with ThreadPoolExecutor(thread_name_prefix="ExtrAllList", max_workers=10) as ex:
+            futures = {ex.submit(self._extract_list, i, True): i for i in range(1, FraternityXAllPagesPlaylistIE._MAX_PAGE+1)}             
+        
+        for fut in futures:
+            #self.to_screen(f'[page_{futures[fut]}] results')
             try:
-                self._send_request(url_pl, driver=_driver)
-                el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
-                if not el_listmedia: raise ExtractorError("no info")
-                
-                for media in el_listmedia:
-                    el_tag = media.find_element(by=By.TAG_NAME, value="a")
-                    url_list.append(el_tag.get_attribute("href").replace("/index.php", ""))
+                res = fut.result()                
+                entries += res        
             except Exception as e:
-                self.to_screen(f'[page_{_plid}] {repr(e)}')
-            finally:
-                self.put_in_queue(_driver)                    
-            
-            if not url_list: raise ExtractorError(f'[page_{_plid}] no videos for playlist')
-            _num_workers = min(self._downloader.params.get('winit', 5), len(url_list))
-            with ThreadPoolExecutor(max_workers=_num_workers) as ex:
-                futures = [ex.submit(self._extract_from_page, _url, _plid) for _url in url_list]
+                lines = traceback.format_exception(*sys.exc_info())
+                self.report_warning(f'[all_pages][page_{futures[fut]}] {repr(e)} \n{"!!".join(lines)}') 
+                
+        if not entries: raise ExtractorError(f"[all_pages] no videos found")
+        
+        return entries
 
-            for fut in futures:
-                try:
-                    entries.append(fut.result())
-                except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.report_warning(f'[page_{_plid}] {repr(e)} \n{"!!".join(lines)}')  
-                    #raise ExtractorError(f'[page_{_plid}] {repr(e)}')        
-            
-            
-            if not nextpages: break
-            
-            if "NEXT" in _driver.page_source:
-                i += 1
-            else:
-                break
+    def _extract_list(self, plid, allpages=False):
+ 
+        url_pl = f"{self._BASE_URL_PL}{plid}"
+        
+        self.report_extraction(url_pl)
 
-        if not entries: raise ExtractorError("no videos found")
-
+        _driver = self._init()
+        url_list = []
+        entries = []
+        try:
+            self._send_request(url_pl, driver=_driver)
+            el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
+            if not el_listmedia: raise ExtractorError("no info")
+            
+            for media in el_listmedia:
+                el_tag = media.find_element(by=By.TAG_NAME, value="a")
+                url_list.append(el_tag.get_attribute("href").replace("/index.php", ""))
+        except Exception as e:
+            self.to_screen(f'[page_{plid}] {repr(e)}')
+        finally:
+            self.put_in_queue(_driver)                    
+        
+        if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
+        
+        self.to_screen(f'[page_{plid}] num videos {len(url_list)}')
+       
+        offset = (int(plid) - 1)*9 if allpages else 0
+        with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
+            futures = {ex.submit(self._extract_from_video_page, _url, plid): (i, _url) for i, _url in enumerate(url_list)}
+            
+        
+        for fut in futures:
+            #self.to_screen(f'[page_{plid}] ({offset + futures[fut][0]}, {futures[fut][1]}')
+            try:
+                res = fut.result()
+                res.update({'webpage_url': f"{self._BASE_URL_PL}{plid}"})
+                entries.append(res)
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.report_warning(f'[page_{plid}] {repr(e)} \n{"!!".join(lines)}')  
+        
+        if not entries: raise ExtractorError(f"[page_{plid}] no videos found")
         return entries
 
 
@@ -350,8 +356,8 @@ class FraternityXIE(FraternityXBaseIE):
         self.report_extraction(url)
         data = None
         try: 
-            
-            data = self._extract_from_page(url)
+
+            data = self._extract_from_video_page(url)
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
@@ -385,7 +391,7 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
 
             if int(playlistid) > FraternityXOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid, nextpages=False)  
+            entries = self._extract_list(playlistid)  
        
         except ExtractorError:
             raise
@@ -409,16 +415,21 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
     
     def _real_extract(self, url):
         
+        self.report_extraction(url)
+        
         entries = None
         
-        try:              
-            entries = self._extract_list(1, nextpages=True)
+        try: 
+            entries = self._extract_all_list()  
+       
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            if "ExtractorError" in str(e.__class__): raise
-            else: raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
 
-        if not entries: raise ExtractorError("no video list") 
+            
+        if not entries: raise ExtractorError("no video list")         
         
         return self.playlist_result(entries, f"fraternityx:AllPages", f"fraternityx:AllPages")

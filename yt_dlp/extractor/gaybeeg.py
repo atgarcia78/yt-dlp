@@ -2,18 +2,15 @@ from __future__ import unicode_literals
 
 import re
 
-from ..utils import ExtractorError
+from ..utils import (
+    ExtractorError,
+    try_get)
 
 from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    scroll
-)
+    SeleniumInfoExtractor)
 
-from concurrent.futures import (
-    ThreadPoolExecutor   
-)
+from concurrent.futures import ThreadPoolExecutor  
 
-from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 import traceback
@@ -23,6 +20,40 @@ from datetime import datetime
 
 from backoff import on_exception, constant
 from ratelimit import limits, sleep_and_retry
+
+from urllib.parse import unquote
+
+
+
+class visible():
+    def __init__(self, logger):
+        self.old_len = -1
+        self.logger = logger
+        
+    def __call__(self, driver):
+        el_footer = driver.find_element(By.ID, "footer")        
+        driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer.location)
+       
+        try:
+            el_button_list = [el for el in driver.find_elements(By.CLASS_NAME, "button") if not el.get_attribute('type')]
+            if (not el_button_list or (new_len := len(el_button_list)) == 0): return False
+
+            if new_len != self.old_len:
+                self.old_len = new_len
+                return False
+            else:
+                for el in el_button_list:
+                    if (not (_link:=el.get_attribute("href")) or "javascript:void" in _link):
+                        self.logger(f"[get_entries][{driver.current_url}] ERROR {el.get_attribute('outerHTML')}")                        
+                        return -1
+                        
+                    
+                return el_button_list
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.logger(f'[get_entries][{driver.current_url}] ERROR {repr(e)}\n{"!!".join(lines)}')
+            raise
+            
 
 class GayBeegBaseIE(SeleniumInfoExtractor):
 
@@ -48,14 +79,11 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                     _date = _el_date[0].text
                     _list_urls_netdna[_url].update({'date': _date})
                     
-                        
-         
-        
+
         entries = []
-        
-        
         ie_netdna = self._downloader.get_info_extractor('NetDNA')
-        with ThreadPoolExecutor(thread_name_prefix="ent_netdna", max_workers=10) as ex:
+        _num_workers = min(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS, len(_list_urls_netdna))
+        with ThreadPoolExecutor(thread_name_prefix="ent_netdna", max_workers=_num_workers) as ex:
             futures = [ex.submit(ie_netdna.get_video_info_url, _url) for _url in list(_list_urls_netdna.keys())]
         
         for fut in futures:
@@ -69,11 +97,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 
         for _url, _item in _list_urls_netdna.items():
             
-            #_info_video = NetDNAIE.get_video_info_str(_item.get('text'))
-            
-            #_info_video = (self._downloader.get_info_extractor('NetDNA')).get_video_info_url(_url)
-            try:            
-                
+            try: 
                 _info_video = _item.get('info_video')
                 _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
                 entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
@@ -83,40 +107,62 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                                     
         return entries
     
-
-    def _get_entries(self, url, driver=None):
+    @on_exception(constant, Exception, max_tries=5, jitter=None, interval=15)
+    @sleep_and_retry
+    @limits(calls=1, period=1) 
+    def _get_entries(self, url):
         
         try:
         
-            if not driver:
-                _putqueue = True
-                driver = self.get_driver(usequeue=True)
-            else:
-                _putqueue = False
+            _driver = self.get_driver(usequeue=True)
 
-            self.send_request(driver, url)
-            
-            self.wait_until(driver, 120, scroll(5))        
+            self.to_screen(f'[get_entries] {url}')
 
-            el_a_list = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')))            
+            self.send_request(_driver, url)
 
-            if el_a_list:
+            el_a_list = self.wait_until(_driver, timeout=60, method=visible(self.to_screen))
+                        
+            if el_a_list == -1:
+                raise Exception("void link found")
+            elif not el_a_list: 
+                raise Exception("not netdna links found")
+            else:            
+                self.to_screen(f"[{url}] list links: {len(el_a_list)}")
                 return(self._get_entries_netdna(el_a_list))
             
+        except Exception as e:
+            self.to_screen(f'[get_entries][{url}] {repr(e)}')
+            raise
         finally:
-            if _putqueue: self.put_in_queue(driver)
+            self.put_in_queue(_driver)
+           
 
-    @on_exception(constant, Exception, max_tries=5, interval=0.01)
     @sleep_and_retry
-    @limits(calls=1, period=0.01)    
+    @limits(calls=1, period=1)  
     def send_request(self, driver, url):
-                
-        driver.execute_script("window.stop();")
+        
+        try:        
+            driver.execute_script("window.stop();")
+        except Exception:
+            pass
         driver.get(url)
+        
+        
+    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @sleep_and_retry
+    @limits(calls=1, period=1)    
+    def get_info_pages(self, url):
+        res = self._CLIENT.get(url)
+        res.raise_for_status()
+        num_pages = try_get(re.findall(r'class="pages">Page 1 of ([\d\,]+)', res.text), lambda x: int(x[0].replace(',',''))) or 1
+        _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', res.text), lambda x: unquote(x[0]))
+        return num_pages, _href
+        
 
 
     def _real_initialize(self):
         super()._real_initialize()
+        
 class GayBeegPlaylistPageIE(GayBeegBaseIE):
     IE_NAME = "gaybeeg:onepage:playlist"
     _VALID_URL = r'https?://(www\.)?gaybeeg\.info.*/page/.*'
@@ -134,12 +180,8 @@ class GayBeegPlaylistPageIE(GayBeegBaseIE):
             
             if not entries: raise ExtractorError("No entries")  
                       
-            return {
-                '_type': "playlist",
-                'id': "gaybeeg",
-                'title': "gaybeeg",
-                'entries': entries
-            }          
+            return self.playlist_result(entries, "gaybeeg", "gaybeeg")
+            
    
             
         except ExtractorError as e:
@@ -155,52 +197,42 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
     def _real_initialize(self):
         super()._real_initialize()
         
+        
     def _real_extract(self, url):        
         
         try:
                                    
             self.report_extraction(url)
-            
-            driver = self.get_driver(usequeue=True)
-            
+
             entries = []
+
+            num_pages, _href = self.get_info_pages(url) 
+
+            self.to_screen(f"Pages to check: {num_pages}")                    
+                
+            #entries += self._get_entries(url) or []
+
+                
+            #if num_pages > 1:
+
+            list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(1, num_pages+1)]
             
-            try:
-                self.send_request(driver, url)            
-                
-                el_pages = self.wait_until(driver, 15, ec.presence_of_all_elements_located((By.CLASS_NAME, "pages")))
-                if el_pages:
-                    num_pages = int(el_pages[0].get_attribute('innerHTML').split(' ')[-1])
-                else: num_pages = 1
-                
-                self.to_screen(f"Pages to check: {num_pages}")                    
-                
-                entries += self._get_entries(url, driver)
+            self.to_screen(list_urls_pages)
             
-            finally:
-                self.put_in_queue(driver)
-                
-            if num_pages > 1:
+            _num_workers = min(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS, len(list_urls_pages))
+            
+            with ThreadPoolExecutor(thread_name_prefix="gybgpages", max_workers=_num_workers) as ex:
+                futures = {ex.submit(self._get_entries, _url): _url for _url in list_urls_pages}
                 
 
-                el_page = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "page")))
-                _href = el_page.get_attribute('href')
-                list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(2, num_pages+1)]
-                
-                self.to_screen(list_urls_pages)
-                
-                _num_workers = min(self._downloader.params.get('winit', 5), len(list_urls_pages))
-                
-                with ThreadPoolExecutor(thread_name_prefix="gaybeeg", max_workers=_num_workers) as ex:
-                    futures = [ex.submit(self._get_entries, _url) for _url in list_urls_pages] 
-
-                for d in futures:
-                    try:
-                        entries += d.result()
-                    except Exception as e:
-                        lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-                        raise ExtractorError(repr(e)) from e
+            for fut in futures:
+                try:
+                    res = fut.result()
+                    entries += res
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f'[{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')  
+                    #raise ExtractorError(repr(e))
 
             if entries:
                 return self.playlist_result(entries, "gaybeegplaylist", "gaybeegplaylist")
@@ -211,7 +243,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e
+            raise ExtractorError(repr(e))
 
 
 
@@ -233,16 +265,11 @@ class GayBeegIE(GayBeegBaseIE):
             if not entries:
                 raise ExtractorError("No video entries")
             else:
-                return{
-                    '_type': "playlist",
-                    'id': "gaybeegpost",
-                    'title': "gaybeegpost",
-                    'entries': entries
-                }      
+                return self.playlist_result(entries, "gaybeegpost", "gaybeegpost")  
             
         except ExtractorError as e:                 
             raise 
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e
+            raise ExtractorError(repr(e))
