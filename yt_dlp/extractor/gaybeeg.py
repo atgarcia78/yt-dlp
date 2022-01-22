@@ -12,6 +12,7 @@ from .commonwebdriver import (
 from concurrent.futures import ThreadPoolExecutor  
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
 
 import traceback
 import sys
@@ -35,20 +36,24 @@ class visible():
         driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer.location)
        
         try:
-            el_button_list = [el for el in driver.find_elements(By.CLASS_NAME, "button") if not el.get_attribute('type')]
-            if (not el_button_list or (new_len := len(el_button_list)) == 0): return False
-
-            if new_len != self.old_len:
+            el_iter = driver.find_elements(By.CLASS_NAME, "button")            
+            el_button_list = [el for el in el_iter if (not el.get_attribute('type') and "//netdna-storage.com" in el.get_attribute('href'))] if el_iter else []
+            el_a_list = driver.find_elements(By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')
+            el_list = list(set(el_button_list + el_a_list))
+            if (new_len:=len(el_list)) != self.old_len:
                 self.old_len = new_len
                 return False
             else:
-                for el in el_button_list:
+                if not el_list: return -2
+                
+                for el in el_list:
                     if (not (_link:=el.get_attribute("href")) or "javascript:void" in _link):
                         self.logger(f"[get_entries][{driver.current_url}] ERROR {el.get_attribute('outerHTML')}")                        
                         return -1
-                        
                     
-                return el_button_list
+               
+                #el_a_netdna_list = driver.find_elements(By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')
+                return el_list
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.logger(f'[get_entries][{driver.current_url}] ERROR {repr(e)}\n{"!!".join(lines)}')
@@ -84,33 +89,49 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         ie_netdna = self._downloader.get_info_extractor('NetDNA')
         _num_workers = min(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS, len(_list_urls_netdna))
         with ThreadPoolExecutor(thread_name_prefix="ent_netdna", max_workers=_num_workers) as ex:
-            futures = [ex.submit(ie_netdna.get_video_info_url, _url) for _url in list(_list_urls_netdna.keys())]
+            futures = {ex.submit(ie_netdna.get_video_info_url, _url): _url for _url in list(_list_urls_netdna.keys())}
         
         for fut in futures:
             try:
                 res = fut.result()
-                if not res.get('error'):
-                    _list_urls_netdna[res.get('url')].update({'info_video': res})
+                if not res:
+                    self.to_screen(f'[get_entries_netdna][{futures[fut]}] no entries')
+                    _list_urls_netdna[futures[fut]].update({'info_video': {}})
+                elif (_errormsg:=res.get('error')):
+                    self.to_screen(f'[get_entries_netdna][{futures[fut]}] ERROR {_errormsg}')
+                    _list_urls_netdna[futures[fut]].update({'info_video': {}})
+                    
+                else:
+                    _list_urls_netdna[futures[fut]].update({'info_video': res})
                                 
             except Exception as e:
-                self.to_screen(f'{repr(e)}') 
+                self.to_screen(f'[get_entries_netdna][{futures[fut]}] ERROR ] {repr(e)}') 
+                _list_urls_netdna[futures[fut]].update({'info_video': {}})
                 
         for _url, _item in _list_urls_netdna.items():
             
+            
             try: 
                 _info_video = _item.get('info_video')
-                _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y')
-                entries.append({'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize'), 'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+                if not _info_video: continue
+                _info_date = datetime.strptime(_item.get('date'), '%B %d, %Y') if _item.get('date') else None
+                _ent = {'_type' : 'url_transparent', 'url' : _url, 'ie_key' : 'NetDNA', 'title': _info_video.get('title'), 'id' : _info_video.get('id'), 'ext': _info_video.get('ext'), 'filesize': _info_video.get('filesize')}                
+                if _info_date: _ent.update({'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+                entries.append(_ent)
             except Exception as e:
                 self.to_screen(f'{_url}: {repr(e)}')                
         
                                     
         return entries
     
+      
+    
+   
     @on_exception(constant, Exception, max_tries=5, jitter=None, interval=15)
     @sleep_and_retry
     @limits(calls=1, period=1) 
     def _get_entries(self, url):
+        
         
         try:
         
@@ -120,15 +141,17 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
             self.send_request(_driver, url)
 
-            el_a_list = self.wait_until(_driver, timeout=60, method=visible(self.to_screen))
+            el_netdna_list = self.wait_until(_driver, timeout=60, method=visible(self.to_screen))
+            
                         
-            if el_a_list == -1:
+            if el_netdna_list == -1:
                 raise Exception("void link found")
-            elif not el_a_list: 
-                raise Exception("not netdna links found")
-            else:            
-                self.to_screen(f"[{url}] list links: {len(el_a_list)}")
-                return(self._get_entries_netdna(el_a_list))
+            elif el_netdna_list == -2:
+                self.to_screen(f"[{url}] no links netdna")
+                return []
+            else:
+                self.to_screen(f"[{url}] list combination links: {len(el_netdna_list)}")
+                return self._get_entries_netdna(el_netdna_list)
             
         except Exception as e:
             self.to_screen(f'[get_entries][{url}] {repr(e)}')
@@ -155,7 +178,8 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         res = self._CLIENT.get(url)
         res.raise_for_status()
         num_pages = try_get(re.findall(r'class="pages">Page 1 of ([\d\,]+)', res.text), lambda x: int(x[0].replace(',',''))) or 1
-        _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', res.text), lambda x: unquote(x[0]))
+        if num_pages == 1: _href = url
+        else: _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', res.text), lambda x: unquote(x[0]))
         return num_pages, _href
         
 
