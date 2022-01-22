@@ -46,7 +46,7 @@ class GayDeliciousIE(InfoExtractor):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            raise ExtractorError(str(e))
         finally:
             client.close()
         

@@ -100,11 +100,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
             el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_password.SignInFormInput.SignInFormPassword")))
             el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.button.expanded.SignInBtnSubmit")))
-            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+            self.wait_until(driver, 2)
             el_username.send_keys(username)
-            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+            self.wait_until(driver, 2)
             el_psswd.send_keys(password)
-            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))
+            self.wait_until(driver, 2)
             el_submit.submit()
             self.wait_until(driver, 60, ec.url_changes(self._LOGIN_URL))
             if driver.current_url == "https://nakedsword.com/members":
@@ -357,7 +357,7 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-                raise ExtractorError(repr(e)) from e
+                raise ExtractorError(repr(e))
         
         if entries:
             return {
@@ -391,7 +391,7 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-                raise ExtractorError(repr(e)) from e
+                raise ExtractorError(repr(e))
         
 
         return {

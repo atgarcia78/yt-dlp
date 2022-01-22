@@ -207,7 +207,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
              
             self.send_request(driver, self._SITE_URL)
-            self.wait_until(driver, 2, ec.title_is("DUMMYFORWAIT"))        
+            self.wait_until(driver, 2)        
 
             
             el_init = self.wait_until(driver, 60, alreadylogin_or_reqtw())
@@ -379,7 +379,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-                raise ExtractorError(repr(e)) from e
+                raise ExtractorError(repr(e))
             finally:
                 self.put_in_queue(driver)
                                             
@@ -461,7 +461,9 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
     _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/((?P<mode>(?:all|latest|chat|favorites|tips))/?)$"
     _MODE_DICT = {"favorites" : "?order=favorites_count_desc", "tips" : "?order=tips_summ_desc", "all" : "", "latest" : ""}
 
-   
+    def _real_initialize(self):
+        super()._real_initialize()
+        
     def _real_extract(self, url):
  
         try:
@@ -559,9 +561,9 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 #init start of chat is to be at the end, with all the previous messages above. Lets scroll
                 # up to the start of the chat
                 el_chat_scroll = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto")))
-                self.wait_until(driver, 1, ec.title_is("DUMYYFORWAIT")) 
+                self.wait_until(driver, 1) 
                 el_chat_scroll.send_keys(Keys.HOME)
-                self.wait_until(driver, 5, ec.title_is("DUMYYFORWAIT"))                
+                self.wait_until(driver, 5)                
                 
                 har = _harproxy.har
                 _reg_str = r'/api2/v2/chats/\d+/messages'
@@ -593,7 +595,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e        
+            raise ExtractorError(repr(e))       
         finally:
             _harproxy.close()
             _server.stop()
@@ -605,6 +607,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
     _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/paid"
     _PAID_URL = "https://onlyfans.com/purchased"
 
+    def _real_initialize(self):
+        super()._real_initialize()
 
     def _real_extract(self, url):
  
@@ -686,7 +690,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e
+            raise ExtractorError(repr(e))
         finally:
             _harproxy.close()
             _server.stop()
@@ -758,6 +762,9 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             
         
 
+    def _real_initialize(self):
+        super()._real_initialize()
+    
     def _real_extract(self, url):
  
         try:            
@@ -795,6 +802,6 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
         except Exception as e:            
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(repr(e)) from e        
+            raise ExtractorError(repr(e))        
         finally:
             self.put_in_queue(driver)

@@ -143,9 +143,9 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                         button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR,"button#btnLogin.btn.btn-primary.btn-sm.btn-block")))                    
                         username, password = self._get_login_info()
                         el_username.send_keys(username)
-                        self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
+                        self.wait_until(driver, 2)
                         el_password.send_keys(password)
-                        self.wait_until(driver, 2, ec.title_is("JUSTTOWAIT"))
+                        self.wait_until(driver, 2)
                         
                         button_login.click()
                         
@@ -181,7 +181,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                 except Exception as e:                    
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")                    
-                    raise ExtractorError(repr(e)) from e
+                    raise ExtractorError(repr(e))
               
                 
     
@@ -253,7 +253,7 @@ class HungYoungBritIE(HungYoungBritBaseIE):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            raise ExtractorError(str(e))
 
                     
        
@@ -297,4 +297,4 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            raise ExtractorError(str(e))
