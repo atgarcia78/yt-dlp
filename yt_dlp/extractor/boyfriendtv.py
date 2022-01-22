@@ -74,9 +74,9 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         el_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input.btn.btn-submit")))
         if el_username and el_password and el_login:
             el_username.send_keys(username)
-            self.wait_until(driver, 2, ec.presence_of_element_located((By.CSS_SELECTOR, "DUMMYFORWAIT")))
+            self.wait_until(driver, 2)
             el_password.send_keys(password)
-            self.wait_until(driver, 2, ec.presence_of_element_located((By.CSS_SELECTOR, "DUMMYFORWAIT")))            
+            self.wait_until(driver, 2)            
             el_login.submit()
             el_menu = self.wait_until(driver, 15, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
         #self.to_screen(driver.current_url)
@@ -134,7 +134,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             
         except Exception as e:
             self.to_screen("error when init driver")
-            self.rm_driver(driver)
+            self.rm_driver(driver, usequeue=True)
             raise            
             
 
@@ -202,13 +202,13 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-                    raise ExtractorError(repr(e)) from e
+                    raise ExtractorError(repr(e))
                 
         
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e)) from e
+            raise ExtractorError(repr(e))
         finally:
             self.put_in_queue(driver)
         
@@ -307,7 +307,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            raise ExtractorError(str(e))
 
 
         

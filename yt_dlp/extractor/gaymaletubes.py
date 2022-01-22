@@ -103,6 +103,6 @@ class GayMaleTubesIE(InfoExtractor):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e)) from e
+            raise ExtractorError(repr(e))
         finally:
             client.close()

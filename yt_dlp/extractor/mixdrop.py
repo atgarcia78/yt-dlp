@@ -80,7 +80,7 @@ class MixDropIE(SeleniumInfoExtractor):
             if el_button:
                 try:
                     el_button.click()
-                    self.wait_until(driver, 3, ec.title_is("DUMMYFORWAIT"))
+                    self.wait_until(driver, 3)
                 except Exception:
                     pass
                                

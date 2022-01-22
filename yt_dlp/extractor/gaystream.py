@@ -71,7 +71,7 @@ class GayStreamIE(SeleniumInfoExtractor):
                 self.to_screen(f'{count}:{url}:{url_post}:{res}')
                 if res.status_code > 400:
                     count += 1
-                    self.wait_until(driver, randint(10,15), ec.title_is("DUMMYFORWAIT"))                                        
+                    self.wait_until(driver, randint(10,15))                                        
                 else:
                     info_video = res.json()                    
                     return info_video
@@ -109,7 +109,7 @@ class GayStreamIE(SeleniumInfoExtractor):
                 url_post = url_ifr.replace('/v/', '/api/source/') 
                 data_post = {'r': "https://gaystream.pw/", 'd': _url_ifr.host}
                 headers_post = {'Referer': url_ifr, 'Origin': f'{_url_ifr.scheme}://{_url_ifr.host}'}
-                self.wait_until(driver, randint(3,5), ec.title_is("DUMMYFORWAIT"))
+                self.wait_until(driver, randint(3,5))
                 info_video = self.get_info_video(url, url_post, data_post, headers_post, driver)
                 self.to_screen(f'{url}:{url_post}\n{info_video}')
                 _formats = []
@@ -148,7 +148,7 @@ class GayStreamIE(SeleniumInfoExtractor):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e)) from e
+            raise ExtractorError(str(e))
         finally:
             try:
                 self.rm_driver(driver)
