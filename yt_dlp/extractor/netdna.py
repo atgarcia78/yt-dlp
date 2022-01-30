@@ -4,7 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 import re
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_0_005,
+    limiter_1
+)
+
 from ..utils import (
     ExtractorError, 
     sanitize_filename,
@@ -19,7 +24,7 @@ from selenium.webdriver.common.by import By
 
 import traceback
 
-from ratelimit import limits, sleep_and_retry
+
 from backoff import constant, on_exception
 
 from urllib.parse import unquote
@@ -96,8 +101,7 @@ class NetDNAIE(SeleniumInfoExtractor):
     
 
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @sleep_and_retry
-    @limits(calls=1, period=0.005)
+    @limiter_0_005.ratelimit("netdna1", delay=True)
     def _send_request(self, url, _type=None):
         
         if not _type:
@@ -122,8 +126,7 @@ class NetDNAIE(SeleniumInfoExtractor):
             return self.get_info_for_format(url, client=NetDNAIE._CLIENT, headers={'referer': 'https://netdna-storage.com/'})
             
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=1)    
+    @limiter_1.ratelimit("netdna2", delay=True)
     def url_request(self, driver, url):
                 
         driver.execute_script("window.stop();")
@@ -207,7 +210,9 @@ class NetDNAIE(SeleniumInfoExtractor):
             _entries = _info.get('entries')
             for _entry in _entries:
                 if _entry['id'] == _id:
-                    return _entry
+                    res = _entry #devuelve el más antiguo
+            
+            return res
 
     def _real_initialize(self):
         super()._real_initialize()

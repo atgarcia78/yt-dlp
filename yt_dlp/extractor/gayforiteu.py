@@ -3,7 +3,12 @@ from __future__ import unicode_literals
 
 import re
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_1,
+    limiter_5
+)
+
 from ..utils import (
     ExtractorError, 
     sanitize_filename,
@@ -12,7 +17,6 @@ from ..utils import (
 )
 
 from urllib.parse import unquote
-from ratelimit import limits, sleep_and_retry
 from backoff import on_exception, constant
 import sys, traceback
 
@@ -22,8 +26,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
 
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=1)
+    @limiter_1.ratelimit("gayforiteu1", delay=True)
     def _send_request(self, url):
         
         #lets use the native method of InfoExtractor to download the webpage content. HTTPX doesnt work with this site
@@ -32,8 +35,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
         else: return webpage
         
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=5)    
+    @limiter_5.ratelimit("gayforiteu2", delay=True)   
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
     

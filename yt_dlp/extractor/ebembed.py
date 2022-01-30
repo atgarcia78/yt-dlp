@@ -15,12 +15,10 @@ from ..utils import (
 import httpx
 import json
 
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
+
 
 from backoff import constant, on_exception
+from .commonwebdriver import limiter_5
 
 class EbembedIE(InfoExtractor):
     
@@ -28,8 +26,7 @@ class EbembedIE(InfoExtractor):
     _VALID_URL = r'https?://(www\.)?ebembed\.com/(?:videos|embed)/(?P<id>\d+)/?(?P<title>[^\$]*)$'
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=5)    
+    @limiter_5.ratelimit("ebembed", delay=True)    
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
     

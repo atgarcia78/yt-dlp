@@ -12,7 +12,10 @@ from ..utils import (
     try_get)
 
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_0_1
+)
 
 
 
@@ -24,7 +27,6 @@ from selenium.webdriver.common.by import By
 import traceback
 import sys
 
-from ratelimit import sleep_and_retry, limits
 from backoff import constant, on_exception
 
 
@@ -46,8 +48,7 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
         
     
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @sleep_and_retry
-    @limits(calls=1, period=0.1)
+    @limiter_0_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url):        
         
         self.logger_info(f"[send_request] {url}") 
