@@ -18,7 +18,7 @@ import sys
 import traceback
 
 from .common import InfoExtractor
-from ratelimit import limits, sleep_and_retry
+from .commonwebdriver import limiter_5
 
 from backoff import on_exception, constant
 
@@ -53,8 +53,7 @@ class StreamtapeIE(InfoExtractor):
 
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=5)
+    @limiter_5.ratelimit("streamtape", delay=True)
     def _send_request(self, client, url, _type):
         
         res = client.request(_type, url)

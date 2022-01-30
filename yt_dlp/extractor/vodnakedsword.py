@@ -1,9 +1,11 @@
 from __future__ import unicode_literals
 
-import re
 
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_0_1
+)
 
-from .commonwebdriver import SeleniumInfoExtractor
 from ..utils import (
 
     sanitize_filename,
@@ -11,24 +13,16 @@ from ..utils import (
 )
 
 from threading import Lock
-import traceback
-import sys
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-import httpx
 
 import json
-from urllib.parse import quote, unquote
 
 from collections import OrderedDict
 
 
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
 
 from backoff import on_exception, constant
 
@@ -61,8 +55,7 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
         return _headers
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=0.1)
+    @limiter_0_1.ratelimit("vodnakedsword", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):
         
         res = VODNakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)

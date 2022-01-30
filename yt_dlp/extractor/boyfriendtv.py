@@ -2,7 +2,10 @@ from __future__ import unicode_literals
 
 import re
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_5
+)
 
 from ..utils import (
     ExtractorError,
@@ -28,10 +31,6 @@ import httpx
 import json
 from urllib.parse import unquote
 
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
 
 from backoff import constant, on_exception
 
@@ -46,8 +45,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _COOKIES = {}
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=5)    
+    @limiter_5.ratelimit("boyfriendtv", delay=True)   
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
     

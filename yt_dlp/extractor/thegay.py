@@ -1,12 +1,15 @@
 from __future__ import unicode_literals
 
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_1
+)
 
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    block_exceptions
+
 
 )
 
@@ -18,10 +21,7 @@ from selenium.webdriver.common.by import By
 import traceback
 import sys
 
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
+
 
 import re
 
@@ -59,8 +59,7 @@ class TheGayIE(SeleniumInfoExtractor):
     
     
     @on_exception(constant, Exception, max_tries=5, interval=1)    
-    @sleep_and_retry
-    @limits(calls=1, period=1)
+    @limiter_1.ratelimit("thegay", delay=True)
     def request_to_host(self, _type, *args):
     
         if _type == "video_info":

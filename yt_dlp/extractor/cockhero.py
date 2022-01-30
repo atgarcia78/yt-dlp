@@ -15,12 +15,12 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 
-from .commonwebdriver import SeleniumInfoExtractor
-
-from ratelimit import (
-    sleep_and_retry,
-    limits
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_10
 )
+
+
 
 import sys
 import traceback
@@ -43,8 +43,7 @@ class CockHeroIE(SeleniumInfoExtractor):
     IE_NAME = 'cockhero'
     _VALID_URL = r'https?://(?:www\.)?cockhero\.win/(?P<title>.+)-(?P<id>\d+).html'
     
-    @sleep_and_retry
-    @limits(calls=1, period=10)
+    @limiter_10.ratelimit("cockhero1", delay=True)
     def _get_video_info(self, url):
         
         self.logger_info(f"[get_video_info] {url}")
@@ -52,8 +51,7 @@ class CockHeroIE(SeleniumInfoExtractor):
         
 
     
-    @sleep_and_retry
-    @limits(calls=1, period=10)
+    @limiter_10.ratelimit("cockhero2", delay=True)
     def _send_request(self, driver, url):
 
         

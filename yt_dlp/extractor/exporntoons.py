@@ -12,11 +12,10 @@ import re
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-from .commonwebdriver import SeleniumInfoExtractor
-
-from ratelimit import (
-    sleep_and_retry,
-    limits
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_0_1,
+    limiter_5
 )
 
 from backoff import constant, on_exception
@@ -38,16 +37,14 @@ class ExPornToonsIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(hot\.)?exporntoons\.net/watch/-(?P<id>\d+_\d+)'
 
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=0.1)
+    @limiter_0_1.ratelimit("exporntoons1", delay=True)
     def _send_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
         
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=5)    
+    @limiter_5.ratelimit("exporntoons2", delay=True)   
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
          

@@ -1,12 +1,15 @@
 from __future__ import unicode_literals
 
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_15
+)
 
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    block_exceptions
+  
 
 )
 
@@ -18,17 +21,25 @@ from selenium.webdriver.common.by import By
 import traceback
 import sys
 
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
+
 
 from backoff import constant, on_exception
+
+class getvideourl():
+    def __call__(self, driver):
+        el_video = driver.find_element(By.ID, "vjsplayer_html5_api")
+        if not (_videourl:=el_video.get_attribute('src')):
+            el_source = el_video.find_element(By.TAG_NAME, "source")
+            _videourl = el_source.get_attribute('src')
+            if not _videourl: return False
+            else: return _videourl
+        else: return _videourl
+        
 
 class YoudBoxIE(SeleniumInfoExtractor):
 
     IE_NAME = 'youdbox'
-    _VALID_URL = r'https?://(?:www\.)?youdbox\.(?:net|org|com)/(embed-)?(?P<id>[^\./]+)[\./]'
+    _VALID_URL = r'https?://(?:www\.)?you?dbox\.(?:net|org|com)/(embed-)?(?P<id>[^\./]+)[\./]'
     
 
     def _get_video_info(self, url):        
@@ -40,10 +51,9 @@ class YoudBoxIE(SeleniumInfoExtractor):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
     
-    @block_exceptions
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
-    @sleep_and_retry
-    @limits(calls=1, period=15)
+    
+    @on_exception(constant, Exception, max_tries=5, interval=1)    
+    @limiter_15.ratelimit("youdbox", delay=True)
     def request_to_host(self, _type, *args):
     
         if _type == "video_info":
@@ -51,25 +61,24 @@ class YoudBoxIE(SeleniumInfoExtractor):
         elif _type == "url_request":
             self._send_request(*args)
 
+    def _real_initialize(self):
+        super()._real_initialize()
+    
     def _real_extract(self, url):
         
    
         self.report_extraction(url)
        
-        driver = self.get_driver() 
+        driver = self.get_driver(usequeue=True) 
         
         try:
             
             _url = url.replace("embed-", "")
 
-            #self._send_request(driver, _url)
-            self.request_to_host("url_request", driver, url)
-            
-            
-            el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "vjsplayer_html5_api"))) 
+            self.request_to_host("url_request", driver, _url)
 
-            if not el_video: raise ExtractorError("no info")           
-            video_url = el_video.get_attribute('src')
+            video_url = self.wait_until(driver, 60, getvideourl()) 
+
             if not video_url: raise ExtractorError("no video url")            
             title = driver.title.replace("mp4", "").replace("Download", "").replace("download", "").strip()
             videoid = self._match_id(url)            
@@ -108,6 +117,6 @@ class YoudBoxIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         finally:
             try:
-                self.rm_driver(driver)
+                self.put_in_queue(driver)
             except Exception:
                 pass
