@@ -6,7 +6,9 @@ import json
 
 from .commonwebdriver import (
     SeleniumInfoExtractor,
-    scroll)
+    scroll,
+    limiter_0_1
+)
 
 from ..utils import (
     ExtractorError,
@@ -35,7 +37,7 @@ import threading
 from datetime import datetime 
 
 from backoff import on_exception, constant
-from ratelimit import limits, sleep_and_retry
+
 
 
 
@@ -114,8 +116,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     
 
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @sleep_and_retry
-    @limits(calls=1, period=0.1) 
+    @limiter_0_1.ratelimit("onlyfans1", delay=True) 
     def _get_filesize(self, _vurl):
 
         res = httpx.head(_vurl, follow_redirects=True)
@@ -126,8 +127,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         
 
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @sleep_and_retry
-    @limits(calls=1, period=0.1)    
+    @limiter_0_1.ratelimit("onlyfans2", delay=True)
     def send_request(self, driver, url):
                 
         driver.execute_script("window.stop();")

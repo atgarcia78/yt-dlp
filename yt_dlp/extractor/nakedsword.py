@@ -3,7 +3,11 @@ from __future__ import unicode_literals
 import re
 
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_0_1
+)
+
 from ..utils import (
     ExtractorError,
     sanitize_filename,
@@ -28,10 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from queue import Queue
 
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
+
 
 from backoff import on_exception, constant
 class NakedSwordBaseIE(SeleniumInfoExtractor):
@@ -63,8 +64,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         return _headers
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=0.1)
+    @limiter_0_1.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):
         
         res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)

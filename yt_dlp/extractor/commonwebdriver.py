@@ -32,6 +32,23 @@ from ..utils import (
 from queue import Queue, Empty
 
 import time
+
+from pyrate_limiter import (
+    Limiter,
+    RequestRate,
+    Duration
+)
+
+limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
+limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
+limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
+limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
+limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
+limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
+limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
+
+
 class scroll():
     '''
         To use as a predicate in the webdriver waits to scroll down to the end of the page

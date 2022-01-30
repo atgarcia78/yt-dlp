@@ -17,12 +17,12 @@ import re
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-from .commonwebdriver import SeleniumInfoExtractor
-
-from ratelimit import (
-    sleep_and_retry,
-    limits
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_1
 )
+
+
 
 import httpx
 
@@ -47,16 +47,14 @@ class GayBingoIE(SeleniumInfoExtractor):
 
 
     @on_exception(constant, Exception, max_tries=5, interval=1)  
-    @sleep_and_retry
-    @limits(calls=1, period=1)
+    @limiter_1.ratelimit("gaybingo1", delay=True)
     def url_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
         
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @sleep_and_retry
-    @limits(calls=1, period=1)
+    @limiter_1.ratelimit("gaybingo2", delay=True)
     def _send_request(self, url, headers=None):
         
         try:

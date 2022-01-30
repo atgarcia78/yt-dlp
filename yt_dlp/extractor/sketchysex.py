@@ -23,15 +23,14 @@ from selenium.webdriver.common.by import By
 
 import json
 
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    limiter_0_01
+)
 
 
 import html
-
-from ratelimit import (
-    sleep_and_retry,
-    limits
-)
+ 
 
 from backoff import on_exception, constant
 
@@ -49,8 +48,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
     _MAX_PAGE = None
     
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @sleep_and_retry
-    @limits(calls=1, period=0.01)
+    @limiter_0_01.ratelimit("sketchysex1", delay=True)
     def _send_request_vs(self, url, headers=None):
         
         try:
@@ -64,8 +62,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             raise
     
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @sleep_and_retry
-    @limits(calls=1, period=0.01)
+    @limiter_0_01.ratelimit("sketchysex2", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         
         try:
