@@ -311,10 +311,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                 res = client.head(url, headers=headers)
             else:
                 _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
-                if verify != _config['verify']:
+                if not verify and _config['verify']:
 
                         if headers: _config['headers'].update(headers)
-                        res = httpx.head(url, verify=verify, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
+                        res = httpx.head(url, verify=False, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
                 else:    
                     res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
             
