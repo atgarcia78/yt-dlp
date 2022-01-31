@@ -37,46 +37,40 @@ class fast_forward():
         self.logger = logger
         self.pers_error = False
         self.init = True
+
+    
     def __call__(self, driver):
         _curl = driver.current_url        
         self.logger(f"{unquote(_curl)}:{unquote(self.url_orig)}")
         if "netdna-storage.com/download/" in _curl:
-            time.sleep(0.5)
-            _curl2 = driver.current_url
-            if _curl == _curl2: 
-                return "OK"
-            else: 
-                self.url_orig = _curl2
-                return False
-            
-        if unquote(_curl) != unquote(self.url_orig):
-            
+            return "OK"
+        
+        if self.init == True:
+            self.url_orig = _curl
+            self.init == False
+            return False
+        
+        if unquote(_curl) != unquote(self.url_orig):            
             self.url_orig = _curl
             return False            
         
         elif "netdna-storage.com" in _curl:
-            if self.init:
-                self.init = False
-                return False
-            elif 'file not found' in (_title:=driver.title.lower()): return "Error 404"
+            # if self.init == True:
+            #     self.init = False
+            #     return False
+                
+            if 'file not found' in (_title:=driver.title.lower()): 
+                return "Error 404"
             elif 'error' in _title:
                 driver.refresh()
                 return False
             else:
-                if self.pers_error: return "Error addon fast forward"
+                if self.pers_error: 
+                    return "Error addon fast forward"
                 else:
                     self.pers_error = True
                     driver.refresh()
                     return False
-        elif any(_ in _curl for _ in ["gestyy.com", "sh.st"]):
-            el_button = driver.find_elements(By.CSS_SELECTOR, "span#skip_button.skip-btn.show")
-            if el_button:
-                try:
-                    el_button[0].click()
-                    
-                except Exception as e:
-                    self.to_screen(repr(e))
-            return False
                 
         else: return False
 
@@ -85,20 +79,6 @@ class NetDNAIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*' 
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
 
-    # @classmethod
-    # def get_video_info_str(cls, item):
-
-    #     mobj = re.findall(r'(?:Download\s+)?([^\.]+)\.([^\s]+)\s+\[([^\[]+)\]', item)
-    #     _num, _unit = mobj[0][2].split(' ')
-    #     _num = _num.replace(',', '.')
-    #     if _num.count('.') == 2:  _num = _num.replace('.','', 1)
-    #     _num = f"{float(_num):.2f}"
-    #     title = mobj[0][0].replace('-', '_').upper()
-    #     ext = mobj[0][1]
-    #     str_id = f"{title}{_num}"
-    #     videoid = int(hashlib.sha256(str_id.encode('utf-8')).hexdigest(),16) % 10**8
-    #     return({'id': str(videoid), 'title': title, 'ext': ext, 'name': f"{videoid}_{title}.{ext}", 'filesize': float(_num)*NetDNAIE._DICT_BYTES[_unit]})
-    
 
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
     @limiter_0_005.ratelimit("netdna1", delay=True)
@@ -229,23 +209,27 @@ class NetDNAIE(SeleniumInfoExtractor):
         
             try:
                 driver = self.get_driver(usequeue=True)
-                entry = None
+                
                 self.report_extraction(f"[{url}] attempt[{count+1}/3]")
                 self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
                 
                 el_res = self.wait_until(driver, 60, fast_forward(url, self.to_screen), poll_freq=4)
                 
-                if el_res == "Error 404": raise ExtractorError(el_res)
-                elif not el_res or el_res != "OK":
+                if not el_res:
                     msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
                     self.to_screen(msg_error)
                     count += 1
                     if count == 3: raise ExtractorError("max attempts to get info")
-                    
-                
+                elif el_res in ["Error 404" , "Error addon fast forward"]: raise ExtractorError(el_res)
+                elif el_res != "OK":
+                    msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
+                    self.to_screen(msg_error)
+                    count += 1
+                    if count == 3: raise ExtractorError("max attempts to get info")
 
                 else:                        
-                    
+ 
+                    entry = None
                     try:                        
                         
                         el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
@@ -253,7 +237,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                         if el_formats:
                             
                             
-                            with ThreadPoolExecutor(max_workers=len(el_formats)) as ex:
+                            with ThreadPoolExecutor(thread_name_prefix='fmt_netdna', max_workers=len(el_formats)) as ex:
                                 futures = [ex.submit(self.get_format,_el.text, _el.get_attribute('href')) for _el in el_formats]
                                 
                             _formats = []
