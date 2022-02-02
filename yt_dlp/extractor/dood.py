@@ -26,9 +26,8 @@ from backoff import constant, on_exception
 
 class get_videourl():
     def __call__(self, driver):
-        elvideo = driver.find_elements(By.ID, "video_player_html5_api")
-        if not elvideo: return False
-        videourl = elvideo[0].get_attribute('src')
+        elvideo = driver.find_element(By.ID, "video_player_html5_api")
+        videourl = elvideo.get_attribute('src')
         if not videourl: return False
         else: return videourl
         
