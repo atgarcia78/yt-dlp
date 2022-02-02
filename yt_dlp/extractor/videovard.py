@@ -6,7 +6,9 @@ from .commonwebdriver import (
 )
 
 from ..utils import (
-    ExtractorError)
+    ExtractorError,
+    try_get,
+    sanitize_filename)
 
 
 from selenium.webdriver.support import expected_conditions as ec
@@ -22,6 +24,7 @@ import threading
 
 
 from backoff import on_exception, constant
+
 
 
 class VideovardIE(SeleniumInfoExtractor):
@@ -47,16 +50,14 @@ class VideovardIE(SeleniumInfoExtractor):
 
     def scan_for_request(self, _har, _ref, _link):
                           
-        #self.write_debug(_har)
-        
         for entry in _har['log']['entries']:
                             
             if entry['pageref'] == _ref:
                 
                 if _link in (_url:=entry['request']['url']):
                     
-                    self.write_debug(_url)
-                    self.write_debug(entry['request']['headers'])                   
+                    #self.write_debug(_url)
+                    #self.write_debug(entry['request']['headers'])                   
                     
                     return _url            
 
@@ -69,55 +70,80 @@ class VideovardIE(SeleniumInfoExtractor):
                 
     def _real_extract(self, url):
 
-        try:            
+        try:
             
             with VideovardIE._LOCK:
-                _server_port = 18080                 
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start({'log_path': '/dev', 'log_file': 'null'})
+        
+                self.report_extraction(url) 
+                videoid = self._match_id(url)
+
+                n = 0
+                while True:
+                    _server_port = 18080 + n*100                 
+                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                    try:
+                        if _server._is_listening():
+                            n += 1
+                            if n == 25: raise Exception("mobproxy max tries")
+                        else:
+                            _server.start({"log_path": "/dev", "log_file": "null"})
+                            self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
+                            break
+                    except Exception as e:
+                        lines = traceback.format_exception(*sys.exc_info())
+                        self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
+                        if _server.process: _server.stop()                   
+                        raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
+
                 _host = 'localhost'
                 _port = _server_port + 1                
                 _harproxy = _server.create_proxy({'port' : _port})
+                driver  = self.get_driver(host=_host, port=_port)
+                            
+                try:
+                    _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
+                    self.send_request(driver, url.replace('/e/', '/v/'))
+                    title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
+                    vpl = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "vplayer")))
+                    vpl.click()
+                    self.wait_until(driver, 1)
+                    vpl.click()
+                    har = _harproxy.har            
+                    m3u8_url = self.scan_for_request(har, f"har_{videoid}", f"master.m3u8")
+                    if m3u8_url:
+                        self.write_debug(f"[{url}] m3u8 url - {m3u8_url}")
+                        res = self.send_request(None, m3u8_url)
+                        if not res: raise ExtractorError(f"[{url}] no m3u8 doc")
+                        m3u8_doc = (res.content).decode('utf-8', 'replace')
+                        self.write_debug(f"[{url}] \n{m3u8_doc}")        
+                        formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
+                            m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
-            driver  = self.get_driver(host=_host, port=_port)
+                        if not formats_m3u8:
+                            raise ExtractorError(f"[{url}] Can't find any M3U8 format")
+
+                        self._sort_formats(formats_m3u8)
                         
-            self.report_extraction(url)                  
-            
-            videoid = self._match_id(url)
-            
-            _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
-            self.send_request(driver, url) 
-            vpl = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "videoplayer")))
-            vpl.click()
-            self.wait_until(driver, 1)
-            vpl.click()
-            har = _harproxy.har            
-            m3u8_url = self.scan_for_request(har, f"har_{videoid}", f"master.m3u8")
-            if m3u8_url:
-                res = self.send_request(None, m3u8_url)
-                if not res: raise ExtractorError(f"[{url}] no m3u8 doc")
-                m3u8_doc = (res.content).decode('utf-8', 'replace')
-                self.write_debug(f"[{url}] \n{m3u8_doc}")        
-                formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-
-                if not formats_m3u8:
-                    raise ExtractorError(f"[{url}] Can't find any M3U8 format")
-
-                self._sort_formats(formats_m3u8)
+                        return ({ 
+                                "id": videoid,
+                                "title": sanitize_filename(title, restricted=True),                    
+                                "formats": formats_m3u8,
+                                "ext": "mp4"})
                 
-                return ({ 
-                        "id": videoid,                    
-                        "formats": formats_m3u8,
-                        "ext": "mp4"})
-        
-        except ExtractorError as e:
-            raise
+                except ExtractorError as e:
+                    raise
+                except Exception as e:                
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
+                    raise ExtractorError(repr(e))
+                finally:
+                    _harproxy.close()
+                    _server.stop()
+                    self.rm_driver(driver)
+                
         except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(repr(e))
-        finally:
-            _harproxy.close()
-            _server.stop()
-            self.rm_driver(driver)
+               
+                    
