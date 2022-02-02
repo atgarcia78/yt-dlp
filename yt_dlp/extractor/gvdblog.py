@@ -71,19 +71,18 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
         try:
 
             res = self._send_request(url)
-            videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', res.text), getter)
-                       
-            post_time = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", res.text.replace('\n','')), lambda x: x[0])            
+            webpage = re.sub(r'[\t\n]', '', res.text)
+            videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), getter)                       
+            postdate = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))            
             if not videourl: raise ExtractorError("no video url")
             self.to_screen(videourl)
             _entry = {
                 '_type': 'url_transparent',
                 'url': videourl}
-            if post_time:
-                _info_date = datetime.strptime(post_time, '%B %d, %Y')
+            if postdate:                
                 _entry.update({
-                    'release_date': _info_date.strftime('%Y%m%d'),
-                    'release_timestamp': int(_info_date.timestamp())})
+                    'release_date': postdate.strftime('%Y%m%d'),
+                    'release_timestamp': int(postdate.timestamp())})
             
             return _entry
                 
