@@ -13,6 +13,7 @@ from .commonwebdriver import (
 from ..utils import (
     ExtractorError, 
     sanitize_filename,
+    try_get
 )
 
 import hashlib
@@ -102,9 +103,9 @@ class NetDNAIE(SeleniumInfoExtractor):
                 return
             
         
-        elif _type == "GET_INFO":
-            return self.get_info_for_format(url, client=NetDNAIE._CLIENT, headers={'referer': 'https://netdna-storage.com/'})
-            
+        elif _type == "GET_INFO":            
+            return self.get_info_for_format(url, headers={'referer': 'https://netdna-storage.com/'})
+        
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_1.ratelimit("netdna2", delay=True)
     def url_request(self, driver, url):
@@ -113,20 +114,19 @@ class NetDNAIE(SeleniumInfoExtractor):
         driver.get(url)
 
     @on_exception(constant, ExtractorError, max_tries=5, interval=0.02)
-    def get_format(self, text, url):
+    def get_format(self, formatid, ext, url):
         
         try:
-            res = self._send_request(url)   
-            mobj = re.search(r'file: \"(?P<file>[^\"]+)\"', res.text)
-            if not mobj:
-                self.write_debug(f"ERROR:{url}\n{res.text}")
-                raise ExtractorError('cant find video url')
-               
-            else:
-                _video_url = mobj.group('file')            
-                _info = self._send_request(_video_url, "GET_INFO")
-                if not _info: ExtractorError("no video info")
-                return ({'format_id': text, 'url': _info.get('url'), 'ext': 'mp4', 'filesize': _info.get('filesize')})
+            _info = try_get(
+                self._send_request(url),
+                lambda x: try_get(
+                    re.search(r'file: \"(?P<file>[^\"]+)\"', x.text),
+                    lambda y: self._send_request(y.group('file'), "GET_INFO")
+                )
+            )
+            if not _info: raise ExtractorError('no video info')
+            return ({'format_id': formatid, 'url': _info.get('url'), 'ext': ext, 'filesize': _info.get('filesize')})
+
         except Exception as e:
             self.write_debug(repr(e))
             raise       
@@ -238,7 +238,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                             
                             
                             with ThreadPoolExecutor(thread_name_prefix='fmt_netdna', max_workers=len(el_formats)) as ex:
-                                futures = [ex.submit(self.get_format,_el.text, _el.get_attribute('href')) for _el in el_formats]
+                                futures = [ex.submit(self.get_format, _el.text, info_video.get('ext'), _el.get_attribute('href')) for _el in el_formats]
                                 
                             _formats = []
                             _reset = False
