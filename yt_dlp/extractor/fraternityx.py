@@ -33,6 +33,8 @@ import html
 
 from backoff import on_exception, constant
 
+import httpx
+
 class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fratx.com/sign-in"
     _SITE_URL = "https://fratx.com"
@@ -52,7 +54,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         
         try:
  
-            res = self._CLIENT.get(url, headers=headers)
+            res = FraternityXBaseIE._CLIENT.get(url, headers=headers)
             res.raise_for_status()
             return res
         
@@ -68,7 +70,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         
             if not driver:
                             
-                res = self._CLIENT.get(url, headers=headers)
+                res = FraternityXBaseIE._CLIENT.get(url, headers=headers)
                 res.raise_for_status()
                 return res
             
@@ -155,12 +157,9 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         self.to_screen("Login OK")    
             
 
-    def _init(self, ret_driver=True):
+    def _real_initialize(self):
+        super()._real_initialize()
         
-        if not FraternityXBaseIE._MASTER_INIT:
-            super()._init()
-        
-        driver = None
         
         with FraternityXBaseIE._LOCK:            
                         
@@ -175,6 +174,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                     FraternityXBaseIE._COOKIES = driver.get_cookies()
                     
                     for cookie in FraternityXBaseIE._COOKIES:
+                        FraternityXBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                         if (_name:=cookie['name']) != 'pp-accepted':
                             driver.delete_cookie(_name)
                     
@@ -191,25 +191,12 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                 except Exception as e:
                     self.to_screen("error when login")
                     #self.rm_driver(driver)
-                    self.put_in_queue(driver)
                     raise
-        
-            for cookie in FraternityXBaseIE._COOKIES:
-                self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                finally:
+                    self.put_in_queue(driver)
+    
 
-        if ret_driver:
-            
-            if not driver:
-                                    
-                driver = self.get_driver(usequeue=True)    
-                self._send_request(self._SITE_URL, driver=driver)
-                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'fratx.com'})
-            
-            return driver
-        
-        else:
-            if driver: 
-                self.put_in_queue(driver)
+
 
     def _extract_from_video_page(self, url, playlistid=None):        
         
@@ -279,7 +266,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         
         entries = []
         
-        with ThreadPoolExecutor(thread_name_prefix="ExtrAllList", max_workers=10) as ex:
+        with ThreadPoolExecutor(thread_name_prefix="ExtrListAll", max_workers=10) as ex:
             futures = {ex.submit(self._extract_list, i, True): i for i in range(1, FraternityXAllPagesPlaylistIE._MAX_PAGE+1)}             
         
         for fut in futures:
@@ -299,35 +286,32 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
  
         url_pl = f"{self._BASE_URL_PL}{plid}"
         
-        self.report_extraction(url_pl)
+        if allpages:
+            self.report_extraction(url_pl)
 
-        _driver = self._init()
         url_list = []
         entries = []
+        _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
+        client = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+        client.cookies.set(name="pp-accepted", value="true", domain="fratx.com")
         try:
-            self._send_request(url_pl, driver=_driver)
-            el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "description")))
-            if not el_listmedia: raise ExtractorError("no info")
-            
-            for media in el_listmedia:
-                el_tag = media.find_element(by=By.TAG_NAME, value="a")
-                url_list.append(el_tag.get_attribute("href").replace("/index.php", ""))
+            res = client.get(url_pl)
+            url_list = try_get(re.findall(r'"description"><ahref="([^"]+)"', res.text.replace("\n", "").replace(" ", "")), lambda x: ["https://fratx.com" + el for el in x])
+
         except Exception as e:
             self.to_screen(f'[page_{plid}] {repr(e)}')
         finally:
-            self.put_in_queue(_driver)                    
+            client.close()
         
         if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
         
         self.to_screen(f'[page_{plid}] num videos {len(url_list)}')
        
-        offset = (int(plid) - 1)*9 if allpages else 0
         with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
             futures = {ex.submit(self._extract_from_video_page, _url, plid): (i, _url) for i, _url in enumerate(url_list)}
             
         
         for fut in futures:
-            #self.to_screen(f'[page_{plid}] ({offset + futures[fut][0]}, {futures[fut][1]}')
             try:
                 res = fut.result()
                 res.update({'webpage_url': f"{self._BASE_URL_PL}{plid}"})
@@ -346,7 +330,8 @@ class FraternityXIE(FraternityXBaseIE):
     _VALID_URL = r'https?://(?:www\.)?(?:fraternityx|fratx)\.com/episode/.*'
 
     def _real_initialize(self):
-        self._init(ret_driver=False)
+        #self._init(ret_driver=False)
+        super()._real_initialize()
     
     def _real_extract(self, url):
         
@@ -376,7 +361,8 @@ class FraternityXOnePagePlaylistIE(FraternityXBaseIE):
     _VALID_URL = r"https?://(?:www\.)?(?:fraternityx|fratx)\.com/episodes/(?P<id>\d+)"
 
     def _real_initialize(self):
-        self._init(ret_driver=False)
+        super()._real_initialize()
+        #self._init(ret_driver=False)
     
     def _real_extract(self, url):
 
@@ -408,7 +394,8 @@ class FraternityXAllPagesPlaylistIE(FraternityXBaseIE):
     _VALID_URL = r"https?://(?:www\.)?(?:fraternityx|fratx)\.com/episodes/?$"
  
     def _real_initialize(self):
-        self._init(ret_driver=False)
+        super()._real_initialize()
+        #self._init(ret_driver=False)
     
     def _real_extract(self, url):
         
