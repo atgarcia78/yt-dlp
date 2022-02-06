@@ -132,17 +132,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             with SeleniumInfoExtractor._MASTER_LOCK:
                 SeleniumInfoExtractor._MASTER_COUNT -= 1
     
-    def _init(self, num=None):
+    def _init(self):
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not SeleniumInfoExtractor._MASTER_INIT:
                 
                 SeleniumInfoExtractor._YTDL = self._downloader
-                if num == None: 
-                    num = 5
-                    SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit') or num
-                else:
-                    SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = num
-                    
+                SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit') or 5
+
                 init_drivers = []
                 try:
                     with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS) as ex:
@@ -179,8 +175,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                 SeleniumInfoExtractor._MASTER_INIT = True
 
-    def _real_initialize(self, num=None):        
-        self._init(num)
+    def _real_initialize(self):        
+        self._init()
 
     def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 
@@ -313,8 +309,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
                 if not verify and _config['verify']:
 
-                        if headers: _config['headers'].update(headers)
-                        res = httpx.head(url, verify=False, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
+                    if headers: _config['headers'].update(headers)
+                    res = httpx.head(url, verify=False, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
                 else:    
                     res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
             
@@ -323,7 +319,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             return ({'url': _url, 'filesize': _filesize})
-        
+            
         except Exception as e:
             if not res:
                 self.write_debug(f"{repr(e)}")
