@@ -34,6 +34,8 @@ import html
 
 from backoff import on_exception, constant
 
+import httpx
+
 class SketchySexBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://sketchysex.com/sign-in"
     _SITE_URL = "https://sketchysex.com"
@@ -53,7 +55,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
         try:
  
-            res = self._CLIENT.get(url, headers=headers)
+            res = SketchySexBaseIE._CLIENT.get(url, headers=headers)
             res.raise_for_status()
             return res
         
@@ -69,7 +71,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         
             if not driver:
                             
-                res = self._CLIENT.get(url, headers=headers)
+                res = SketchySexBaseIE._CLIENT.get(url, headers=headers)
                 res.raise_for_status()
                 return res
             
@@ -156,12 +158,9 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         self.to_screen("Login OK")    
             
 
-    def _init(self, ret_driver=True):
+    def _real_initialize(self):
+        super()._real_initialize()
         
-        if not SketchySexBaseIE._MASTER_INIT:
-            super()._init()
-        
-        driver = None
         
         with SketchySexBaseIE._LOCK:            
                         
@@ -177,6 +176,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     
                     #driver wont require cookies of login for the playlist extraction
                     for cookie in SketchySexBaseIE._COOKIES:
+                        SketchySexBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])                    
                         if (_name:=cookie['name']) != 'pp-accepted':
                             driver.delete_cookie(_name)
                     
@@ -188,30 +188,16 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                         SketchySexBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
                     else: 
                         SketchySexBaseIE._MAX_PAGE = 50
-                    
                 
                 except Exception as e:
                     self.to_screen("error when login")
-                    #self.rm_driver(driver)
-                    self.put_in_queue(driver)
+                    #self.rm_driver(driver)                    
                     raise
+                finally:
+                    self.put_in_queue(driver)
         
-            for cookie in SketchySexBaseIE._COOKIES:
-                self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-        
-        if ret_driver: #driver wont require cookies of login for the playlist extraction
-            
-            if not driver:
-                                    
-                driver = self.get_driver(usequeue=True)    
-                self._send_request(self._SITE_URL, driver=driver)
-                driver.add_cookie({'name': 'pp-accepted', 'value': 'true', 'domain': 'sketchysex.com'}) 
-            
-            return driver
-        
-        else:
-            if driver: 
-                self.put_in_queue(driver)
+
+
 
     def _extract_from_video_page(self, url, playlistid=None):        
         
@@ -301,35 +287,35 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
  
         url_pl = f"{self._BASE_URL_PL}{plid}"
         
-        self.report_extraction(url_pl)
-
-        _driver = self._init()
+        if allpages:
+            self.report_extraction(url_pl)
+        
         url_list = []
         entries = []
+
+        _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
+        client = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+        client.cookies.set(name="pp-accepted", value="true", domain="sketchysex.com")
+        
         try:
-            self._send_request(url_pl, driver=_driver)
-            el_listmedia = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "content")))
-            if not el_listmedia: raise ExtractorError("no info")
+            res = client.get(url_pl)
+            url_list = try_get(re.findall(r'<h1><a href="([^"]+)"', res.text), lambda x: ["https://sketchysex.com" + el for el in x])
+
             
-            for media in el_listmedia:
-                el_tag = media.find_element(by=By.TAG_NAME, value="a")
-                url_list.append(el_tag.get_attribute("href").replace("/index.php", ""))
         except Exception as e:
             self.to_screen(f'[page_{plid}] {repr(e)}')
         finally:
-            self.put_in_queue(_driver)                    
+            client.close()                    
         
         if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
         
         self.to_screen(f'[page_{plid}] num videos {len(url_list)}')
        
-        offset = (int(plid) - 1)*9 if allpages else 0
         with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
             futures = {ex.submit(self._extract_from_video_page, _url, plid): (i, _url) for i, _url in enumerate(url_list)}
             
         
         for fut in futures:
-            #self.to_screen(f'[page_{plid}] ({offset + futures[fut][0]}, {futures[fut][1]}')
             try:
                 res = fut.result()
                 res.update({'webpage_url': f"{self._BASE_URL_PL}{plid}"})
@@ -349,7 +335,8 @@ class SketchySexIE(SketchySexBaseIE):
     _VALID_URL = r'https?://(?:www\.)?sketchysex\.com/episode/.*'
 
     def _real_initialize(self):
-        self._init(ret_driver=False)
+        #self._init(ret_driver=False)
+        super()._real_initialize()
     
     def _real_extract(self, url):
         
@@ -379,7 +366,8 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     _VALID_URL = r"https?://(?:www\.)?sketchysex\.com/episodes/(?P<id>\d+)"
 
     def _real_initialize(self):
-        self._init(ret_driver=False)
+        super()._real_initialize()
+        #self._init(ret_driver=False)
     
     def _real_extract(self, url):
 
@@ -411,7 +399,8 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
     _VALID_URL = r"https?://(?:www\.)?sketchysex\.com/episodes/?$"
  
     def _real_initialize(self):
-        self._init(ret_driver=False)
+        super()._real_initialize()
+        #self._init(ret_driver=False)
     
     def _real_extract(self, url):
         
