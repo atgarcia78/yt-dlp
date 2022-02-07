@@ -35,6 +35,48 @@ from backoff import on_exception, constant
 
 import httpx
 
+import time
+
+class waitforlogin():
+    def __init__(self, username, password, logger):
+        self.username = username
+        self.password = password
+        self.init = True
+        self.logger = logger
+    def __call__(self, driver):
+        if self.init:
+            el_username = driver.find_element(By.CSS_SELECTOR, "input#username")
+            el_password = driver.find_element(By.CSS_SELECTOR, "input#password")
+            el_login = driver.find_element(By.CSS_SELECTOR, "button")
+            el_username.send_keys(self.username)
+            time.sleep(1)
+            el_password.send_keys(self.password)
+            time.sleep(1)
+            el_login.click()
+            self.init = False
+            return False            
+        if "episodes" in driver.current_url:
+            el_top = driver.find_element(By.CSS_SELECTOR,  "ul.inline-list")
+            if not "LOG OUT" in el_top.get_attribute('innerText').upper():
+                return({"error": "Login failed"})
+            else: return("OK")
+        if "authorize2" in driver.current_url:
+            self.logger("Authorize2")
+            el_email = driver.find_element(By.CSS_SELECTOR, "input#email")
+            el_lastname = driver.find_element(By.CSS_SELECTOR, "input#last-name")
+            el_enter = driver.find_element(By.CSS_SELECTOR, "button")
+            el_email.send_keys("a.tgarc@gmail.com")
+            time.sleep(1)
+            el_lastname.send_keys("Torres")
+            time.sleep(1)
+            el_enter.click()
+            return False
+        if "multiple-sessions" in driver.current_url:                
+            self.logger("Abort existent session")
+            el_abort = driver.find_element(By.CSS_SELECTOR,"button.yellow-btn")
+            el_abort.click()
+            return False
+
 class FraternityXBaseIE(SeleniumInfoExtractor):
     _LOGIN_URL = "https://fratx.com/sign-in"
     _SITE_URL = "https://fratx.com"
@@ -100,59 +142,14 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         if "MEMBERS" in el_top.get_attribute('innerText').upper():
             self.report_login()
             username, password = self._get_login_info()
-
-            
-            
             if not username or not password:
                 self.raise_login_required(
                     'A valid %s account is needed to access this media.'
                     % self._NETRC_MACHINE)
             
             self._send_request(self._LOGIN_URL, driver=_driver)
-            el_username = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username")))
-            el_password = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password")))
-            el_login = _driver.find_element(by=By.CSS_SELECTOR, value="button")
-            if not el_username or not el_password or not el_login: raise ExtractorError("couldnt find text elements")
-            el_username.send_keys(username)
-            self.wait_until(_driver, 1)
-            el_password.send_keys(password)
-            self.wait_until(_driver, 1)
-            #_title = _driver.title
-            _current_url = _driver.current_url
-            #self.to_screen(f"{_title}#{driver.current_url}")
-            el_login.click()
-            self.wait_until(_driver, 60, ec.url_changes(_current_url))
-            count = 3
-            while count > 0:
-            
-                if "episodes" in _driver.current_url:
-                    el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul.inline-list")))
-                    if not "LOG OUT" in el_top.get_attribute('innerText').upper():
-                        raise ExtractorError("Login failed")
-                    else: break
-                if "authorize2" in _driver.current_url:
-                    el_email = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#email")))
-                    el_lastname = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#last-name")))
-                    el_enter = _driver.find_element(by=By.CSS_SELECTOR, value="button")
-                    if not el_email or not el_lastname or not el_enter: raise ExtractorError("couldnt find text elements")
-                    el_email.send_keys("a.tgarc@gmail.com")
-                    self.wait_until(_driver, 1)
-                    el_lastname.send_keys("Torres")
-                    self.wait_until(_driver, 1)                
-                    _current_url = _driver.current_url
-                    el_enter.click()
-                    self.wait_until(_driver, 60, ec.url_changes(_current_url))
-                if "multiple-sessions" in _driver.current_url:                
-                    self.to_screen("Abort existent session")
-                    el_abort = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR,"button")))
-                    if not el_abort: raise ExtractorError("couldnt find button to abort sessions")
-                    _current_url = _driver.current_url
-                    el_abort.click()
-                    self.wait_until(_driver, 60, ec.url_changes(_current_url))
-                
-                count -= 1
-                
-            if count == 0: raise ExtractorError("couldnt log in")
+            res = self.wait_until(_driver, 60, waitforlogin(username, password, self.to_screen))
+            if res != "OK": raise ExtractorError("couldnt log in")
         
         self.to_screen("Login OK")    
             
