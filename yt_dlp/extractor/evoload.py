@@ -24,6 +24,26 @@ from .commonwebdriver import (
 
 from backoff import constant, on_exception
 
+class valid():
+    def __init__(self, logger):
+        self.logger = logger
+    def __call__(self, driver):
+        try:
+            el = driver.find_element(By.ID, "iframe_body")           
+            if el.text:
+                self.logger(f'[valid_evoload_wait][{driver.current_url}] error text: {el.text}')
+                return "error"
+
+            ifr = el.find_element(By.ID, "videoplayer")
+            ifr_src = ifr.get_attribute("src")
+            if ifr_src: return True
+            else: return False
+        except Exception as e:
+            return False
+        
+        
+
+
 
 class get_title():
     def __call__(self, driver):
@@ -59,7 +79,7 @@ class get_videourl():
         
         
 
-class EvoloadIE(SeleniumInfoExtractor):
+class EvoLoadIE(SeleniumInfoExtractor):
     
     _SITE_URL = "https://evoload.io"
     
@@ -76,6 +96,11 @@ class EvoloadIE(SeleniumInfoExtractor):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
         
+    
+
+    def _valid_video(self, url, driver):
+        driver.get(url.replace('/e/','/v/'))
+        return(self.wait_until(driver, 60, valid(self.to_screen)))
     
     @on_exception(constant, Exception, max_tries=5, interval=15)    
     @limiter_15.ratelimit("evoload", delay=True)
@@ -102,10 +127,13 @@ class EvoloadIE(SeleniumInfoExtractor):
 
             self.request_to_host("url_request", driver, _url)
 
-            _title =  self.wait_until(driver, 60, get_title())
-            _videoid = self._match_id(url)           
+            _valid = self.wait_until(driver, 30, valid(self.to_screen))
+            if not _valid or _valid == "error": raise ExtractorError("404 not found")
+            _title =  self.wait_until(driver, 30, get_title())
+            _videoid = self._match_id(url)
+                    
 
-            el_fr = self.wait_until(driver, 60, ec.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR, "iframe#videoplayer")))
+            el_fr = self.wait_until(driver, 30, ec.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR, "iframe#videoplayer")))
             if not el_fr: raise ExtractorError("no videoframe")
             video_url = self.wait_until(driver, 60, get_videourl())
             if not video_url: raise ExtractorError("no video url") 
