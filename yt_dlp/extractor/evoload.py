@@ -39,7 +39,7 @@ class video_or_error_evoload():
                     or ""
                 )
                 if errormsg:
-                    self.logger(f'[video_or_error_wait][{driver.current_url}] error - {errormsg}')
+                    self.logger(f'[evoload_url][{driver.current_url[26:]}] error - {errormsg}')
                     return "error"
                 else:
                     elpreload = driver.find_elements(By.ID, "preloader")
@@ -51,7 +51,7 @@ class video_or_error_evoload():
                         else:
                             
                             self.logger(
-                                f"[video_or_error_wait][{driver.current_url}] error - preloader"
+                                f"[evoload_url][{driver.current_url[26:]}] error - preloader"
                             )
                         return "error"
                     else:

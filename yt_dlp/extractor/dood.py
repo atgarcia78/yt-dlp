@@ -55,8 +55,6 @@ class DoodIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
         
-        _site_url = f"https://{get_domain(url)}"
-
         driver = self.get_driver(usequeue=True)
  
             
@@ -66,7 +64,7 @@ class DoodIE(SeleniumInfoExtractor):
             if _type != 'e': self.wait_until(driver, 30, ec.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe")))
             video_url = self.wait_until(driver, 60, get_videourl())
             if video_url:
-                _videoinfo = self.get_info_for_format(video_url, headers={'Referer': _site_url})
+                _videoinfo = self.get_info_for_format(video_url, headers={'Referer': url})
                 if not _videoinfo: raise ExtractorError("no video info")            
                 _videoid = self._match_id(url)
                 _title = driver.title.replace(" - DoodStream", "").strip()           
@@ -75,7 +73,7 @@ class DoodIE(SeleniumInfoExtractor):
                     'format_id': 'http-mp4',
                     'url': _videoinfo['url'],
                     'filesize': _videoinfo['filesize'],
-                    'http_headers': {'Referer': _site_url},
+                    'http_headers': {'Referer': url},
                     'ext': 'mp4'
                     
                 }

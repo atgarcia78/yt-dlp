@@ -58,7 +58,7 @@ class video_or_error_streamtape():
                 elh1 = driver.find_elements(By.TAG_NAME, "h1")
                 if elh1:
                     errormsg = elh1[0].get_attribute('innerText').strip("!")
-                    self.logger(f'[video_or_error_wait][{driver.current_url}] error - {errormsg}')
+                    self.logger(f'[streamtape_url][{driver.current_url[26:]}] error - {errormsg}')
                     return "error"
                     
                 return False

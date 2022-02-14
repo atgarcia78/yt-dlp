@@ -33,7 +33,7 @@ class video_or_error_userload():
         try:
             elimg = driver.find_elements(By.CSS_SELECTOR, "img.image-blocked")
             if elimg:
-                self.logger(f'[video_or_error_wait][{driver.current_url}] error - video doesnt exist')
+                self.logger(f'[userload_url][{driver.current_url[26:]}] error - video doesnt exist')
                 return "error"
             elover = driver.find_elements(By.ID, "videooverlay")
             if elover:
