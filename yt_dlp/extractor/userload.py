@@ -22,6 +22,7 @@ from selenium.webdriver.common.by import By
 
 import traceback
 import sys
+import time
 
 from backoff import constant, on_exception
 
@@ -39,6 +40,7 @@ class video_or_error_userload():
                 for _ in range(5):
                     try:
                         elover[0].click()
+                        time.sleep(1)
                     except Exception as e:
                         break
             el_vid = driver.find_elements(By.ID, "olvideo_html5_api")
