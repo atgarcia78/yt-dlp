@@ -34,7 +34,7 @@ class video_or_error_evoload():
             if not elvid:
                 errormsg = (
                     try_get(
-                        driver.find_elements(By.CLASS_NAME, "img"), lambda x: x[1].text
+                        driver.find_elements(By.CLASS_NAME, "img"), lambda x: x[1].get_attribute('innerText').replace('\n','').strip()
                     )
                     or ""
                 )
@@ -70,7 +70,7 @@ class get_title():
         
         el = driver.find_elements(by=By.CSS_SELECTOR, value="h3")        
         if el:            
-            text = el[0].text
+            text = el[0].get_attribute('innerText')
             if text:
                 text = re.sub(r"evoload|Evoload|\.mp4", "", text)                
                 subtext = text[0:int(len(text) / 2 * 0.9)]
