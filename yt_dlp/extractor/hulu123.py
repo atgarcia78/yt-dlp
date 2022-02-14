@@ -10,23 +10,20 @@ from ..utils import (
 
 from .commonwebdriver import (
     SeleniumInfoExtractor,
-    limiter_0_1,
-    limiter_15,
     limiter_5
 )
 
-
-
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-
-
 
 import re
 import traceback
 import sys
 
-from backoff import constant, on_exception
+from backoff import (
+    constant, 
+    on_exception
+)
 
 from .streamtape import video_or_error_streamtape
 from .userload import video_or_error_userload
@@ -50,16 +47,13 @@ class Hulu123IE(SeleniumInfoExtractor):
                
     def _real_extract(self, url):        
         
-                
         self.report_extraction(url)        
-         
         driver = self.get_driver(usequeue=True) 
-        #driver = self.get_driver(noheadless=True)  
-        
+
         try:
 
             self._send_request(url, driver)
-            el_title = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "h3"))), lambda x: x.text) or ""
+            el_title = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "h3"))), lambda x: x.get_attribute('innerText')) or ""
             video_id = try_get(re.findall(r'og:url" content="([^"]+)"', driver.page_source), lambda x: self._match_id(x[0]))
             
             _format = try_get(re.search(self._VALID_URL, url), lambda x: x.group('format'))
@@ -82,31 +76,30 @@ class Hulu123IE(SeleniumInfoExtractor):
                         if 'userload' in server: 
                             if (_valul:=self.wait_until(driver, 30, video_or_error_userload(self.to_screen))) and _valul != "error": 
                                 userload_url = _valul
-                                self.to_screen(f'userload OK:[{_url}][{_valul}')
+                                self.to_screen(f'[{server}] userload OK:[{_url}][{_valul}]')
                             else:
                                 userload_url = "error"
-                                self.to_screen(f'userload NOK:{_url}')
+                                self.to_screen(f'[{server}] userload NOK:[{_url}]')
                         elif 'evoload' in server:
-                            #if (_valel:=self._valid_evoload(_url, driver)) and _valel == True: 
                             if (_valel:=self.wait_until(driver, 30, video_or_error_evoload(self.to_screen), poll_freq=5)) and _valel != "error":
                                 evoload_url = _valel
-                                self.to_screen(f'evoload OK:[{_url}][{_valel}]')
+                                self.to_screen(f'[{server}] evoload OK:[{_url}][{_valel}]')
                             else:
                                 evoload_url = "error"
-                                self.to_screen(f'evoload NOK:{_url}')
+                                self.to_screen(f'[{server}] evoload NOK:[{_url}]')
                         elif 'streamtape' in server:
                             if (_valst:=self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))) and _valst != "error":
                                 streamtape_url = _valst
-                                self.to_screen(f'streamtape OK:[{_url}][{_valst}]')
+                                self.to_screen(f'[{server}] streamtape OK:[{_url}][{_valst}]')
                             else:
                                 streamtape_url = "error"
-                                self.to_screen(f'streamtape NOK:{_url}')
+                                self.to_screen(f'[{server}] streamtape NOK:[{_url}]')
                             
                     else:
                         self.to_screen(f'[{server}] No iframe')
                         
                         
-            self.to_screen(f'userload:{userload_url}\nevoload:{evoload_url}\nstreamtape:{streamtape_url}')
+            self.to_screen(f'userload:[{userload_url}]:evoload:[{evoload_url}]:streamtape:[{streamtape_url}]')
             if userload_url == "error" and evoload_url == "error" and streamtape_url == "error": raise ExtractorError("404 UserLoad & EverLoad $ StreamTape servers available but no video found in any")
             if userload_url == "" and evoload_url == "" and streamtape_url == "": raise ExtractorError("no UserLoad & EverLoad & Streamtape servers available")
             
