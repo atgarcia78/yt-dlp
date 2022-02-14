@@ -22,152 +22,20 @@ from selenium.webdriver.common.by import By
 
 
 
-
-import time
 import re
 import traceback
 import sys
 
 from backoff import constant, on_exception
 
-class video_or_error_streamtape:
-    def __init__(self, logger):
-        self.logger = logger
-    def __call__(self, driver):
-        try:
-            
-            elover = driver.find_elements(By.CLASS_NAME, "plyr-overlay")
-            if elover:
-                for _ in range(5):
-                    try:
-                        elover[0].click()
-                    except Exception as e:
-                        break
-            el_vid = driver.find_elements(By.ID, "mainvideo")
-            if el_vid:
-                if _src:=el_vid[0].get_attribute('src'):
-                    return _src
-                else:
-                    return False
-            else: 
-                elbutton = driver.find_elements(By.CSS_SELECTOR, "button.plyr__controls__item")
-                if elbutton:
-                    for _ in range(5):
-                        try:
-                            elbutton[0].click()
-                        except Exception as e:
-                            break
-                elh1 = driver.find_elements(By.TAG_NAME, "h1")
-                if elh1:
-                    errormsg = elh1[0].text.strip("!") 
-                    self.logger(f'[video_or_error_wait][{driver.current_url}] error - {errormsg}')
-                    return "error"
-                    
-                return False
-        except Exception as e:
-            return False
-
-class video_or_error_userload:
-    def __init__(self, logger):
-        self.logger = logger
-    def __call__(self, driver):
-        try:
-            elimg = driver.find_elements(By.CSS_SELECTOR, "img.image-blocked")
-            if elimg:
-                self.logger(f'[video_or_error_wait][{driver.current_url}] error - video doesnt exist')
-                return "error"
-            elover = driver.find_elements(By.ID, "videooverlay")
-            if elover:
-                for _ in range(5):
-                    try:
-                        elover[0].click()
-                    except Exception as e:
-                        break
-            el_vid = driver.find_elements(By.ID, "olvideo_html5_api")
-            if el_vid:
-                if _src:=el_vid[0].get_attribute('src'):
-                    return _src
-                else:
-                    return False
-            else: return False
-        except Exception as e:
-            return False
-            
-            
-    
-class video_or_error_evoload:
-    def __init__(self, logger):
-        self.logger = logger
-        self.init = True
-    def __call__(self, driver):
-        try:
-            elvid = driver.find_elements(By.ID, "EvoVid_html5_api")
-            if not elvid:
-                errormsg = (
-                    try_get(
-                        driver.find_elements(By.CLASS_NAME, "img"), lambda x: x[1].text
-                    )
-                    or ""
-                )
-
-                if errormsg:
-                    self.logger(f'[video_or_error_wait][{driver.current_url}] error - {errormsg}')
-                    return "error"
-                else:
-                    elpreload = driver.find_elements(By.ID, "preloader")
-                    if elpreload:
-                        if self.init:
-                            self.init = False
-                            time.sleep(5)                            
-                            return False
-                        else:
-                            
-                            self.logger(
-                                f"[video_or_error_wait][{driver.current_url}] error - preloader"
-                            )
-                        return "error"
-                    else:
-                        return False
-
-            else:
-                if _src:=elvid[0].get_attribute("src"):
-                    return _src
-                else:
-                    return False
-        except Exception as e:
-            return False
-
+from .streamtape import video_or_error_streamtape
+from .userload import video_or_error_userload
+from .evoload import video_or_error_evoload    
 
 class Hulu123IE(SeleniumInfoExtractor):
     IE_NAME = "hulu123"
     _VALID_URL = r'https?://(www\.)?123hulu\.com/watch/(?P<id>[^-]+)-[^\./]+(?:\.html|/(?P<format>(?:streamtape|userload|evoload)))'
-    _IES_EVO = None
-    
-
-    # @on_exception(constant, Exception, max_tries=2, interval=15)    
-    # @limiter_15.ratelimit("userload", delay=True)   
-    # def _valid_userload(self, url):
-        
-    #     res = Hulu123IE._CLIENT.get(url)
-    #     res.raise_for_status()
-    #     if not 'class=\"image-blocked\"' in res.text:
-    #         return True
-        
-    # @on_exception(constant, Exception, max_tries=2, interval=15)    
-    # @limiter_15.ratelimit("evoload", delay=True)   
-    # def _valid_evoload(self, url, driver):
-    #     #driver = self.get_driver(usequeue=True)
-    #     try:
-    #         #ies_evo = self._downloader.get_info_extractor("EvoLoad")
-    #         return Hulu123IE._IES_EVO._valid_video(url, driver)
-            
-    #     except Exception as e:
-    #         self.to_screen(f'[valid_evoload][{url}] {repr(e)}')
-    #         raise
-    #     # finally:
-    #     #     self.put_in_queue(driver)
-
-
+ 
     @on_exception(constant, Exception, max_tries=5, interval=5)
     @limiter_5.ratelimit("hulu123", delay=True)
     def _send_request(self, url, driver):        
@@ -178,17 +46,15 @@ class Hulu123IE(SeleniumInfoExtractor):
     
     def _real_initialize(self):
         super()._real_initialize()
-        Hulu123IE._IES_EVO = self._downloader.get_info_extractor("EvoLoad")
+        
                
     def _real_extract(self, url):        
         
                 
-        self.report_extraction(url)
-        _format = try_get(re.search(self._VALID_URL, url), lambda x: x.group('format'))
-        
+        self.report_extraction(url)        
          
         driver = self.get_driver(usequeue=True) 
-        #driver = self.get_driver(noheadless=True)
+        #driver = self.get_driver(noheadless=True)  
         
         try:
 
@@ -196,6 +62,7 @@ class Hulu123IE(SeleniumInfoExtractor):
             el_title = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "h3"))), lambda x: x.text) or ""
             video_id = try_get(re.findall(r'og:url" content="([^"]+)"', driver.page_source), lambda x: self._match_id(x[0]))
             
+            _format = try_get(re.search(self._VALID_URL, url), lambda x: x.group('format'))
             if not _format:
                 el_servers = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "server_play")))
                 servers_list = [_serv for _el in el_servers if (_serv:=try_get(_el.find_elements(By.TAG_NAME, "a"), lambda x: x[0].get_attribute("href")))]
@@ -212,14 +79,14 @@ class Hulu123IE(SeleniumInfoExtractor):
                     if el_ifr:
                         _url = el_ifr.get_attribute('src') or ""                    
                         driver.switch_to.frame(el_ifr)
-                        if 'userload' in _url: 
+                        if 'userload' in server: 
                             if (_valul:=self.wait_until(driver, 30, video_or_error_userload(self.to_screen))) and _valul != "error": 
                                 userload_url = _valul
                                 self.to_screen(f'userload OK:[{_url}][{_valul}')
                             else:
                                 userload_url = "error"
                                 self.to_screen(f'userload NOK:{_url}')
-                        elif 'evoload' in _url:
+                        elif 'evoload' in server:
                             #if (_valel:=self._valid_evoload(_url, driver)) and _valel == True: 
                             if (_valel:=self.wait_until(driver, 30, video_or_error_evoload(self.to_screen), poll_freq=5)) and _valel != "error":
                                 evoload_url = _valel
@@ -227,7 +94,7 @@ class Hulu123IE(SeleniumInfoExtractor):
                             else:
                                 evoload_url = "error"
                                 self.to_screen(f'evoload NOK:{_url}')
-                        elif 'streamtape' in _url:
+                        elif 'streamtape' in server:
                             if (_valst:=self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))) and _valst != "error":
                                 streamtape_url = _valst
                                 self.to_screen(f'streamtape OK:[{_url}][{_valst}]')
@@ -263,21 +130,7 @@ class Hulu123IE(SeleniumInfoExtractor):
             if _formats:
                 self._sort_formats(_formats)
                 return({'id': video_id, 'title': sanitize_filename(el_title, restricted=True), 'formats': _formats, 'ext': 'mp4'})
-                    
-            
-            
-            #return self.url_result(video_url)
-                
-            
-            # self._send_request(server_url, driver)
-            # el_ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
-            # if el_ifr:
-            #     video_url = el_ifr.get_attribute('src')
-            #     if video_url:
-            #         return self.url_result(video_url)
-                            
-                
-        
+
         except ExtractorError as e:                 
             raise 
         except Exception as e:
@@ -286,5 +139,5 @@ class Hulu123IE(SeleniumInfoExtractor):
             raise ExtractorError(str(e))
         finally:
             self.put_in_queue(driver)
-            #self.rm_driver(driver)
+ 
         
