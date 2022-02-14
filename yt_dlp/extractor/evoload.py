@@ -3,12 +3,14 @@ from __future__ import unicode_literals
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    block_exceptions
+    try_get
 )
 
 
 import traceback
 import sys
+import time
+import re
 
 
 from selenium.webdriver.support import expected_conditions as ec
@@ -20,30 +22,48 @@ from .commonwebdriver import (
 )
 
 
-
-
 from backoff import constant, on_exception
 
-class valid():
+class video_or_error_evoload():
     def __init__(self, logger):
         self.logger = logger
+        self.init = True
     def __call__(self, driver):
         try:
-            el = driver.find_element(By.ID, "iframe_body")           
-            if el.text:
-                self.logger(f'[valid_evoload_wait][{driver.current_url}] error text: {el.text}')
-                return "error"
+            elvid = driver.find_elements(By.ID, "EvoVid_html5_api")
+            if not elvid:
+                errormsg = (
+                    try_get(
+                        driver.find_elements(By.CLASS_NAME, "img"), lambda x: x[1].text
+                    )
+                    or ""
+                )
+                if errormsg:
+                    self.logger(f'[video_or_error_wait][{driver.current_url}] error - {errormsg}')
+                    return "error"
+                else:
+                    elpreload = driver.find_elements(By.ID, "preloader")
+                    if elpreload:
+                        if self.init:
+                            self.init = False
+                            time.sleep(5)                            
+                            return False
+                        else:
+                            
+                            self.logger(
+                                f"[video_or_error_wait][{driver.current_url}] error - preloader"
+                            )
+                        return "error"
+                    else:
+                        return False
 
-            ifr = el.find_element(By.ID, "videoplayer")
-            ifr_src = ifr.get_attribute("src")
-            if ifr_src: return True
-            else: return False
+            else:
+                if _src:=elvid[0].get_attribute("src"):
+                    return _src
+                else:
+                    return False
         except Exception as e:
             return False
-        
-        
-
-
 
 class get_title():
     def __call__(self, driver):
@@ -52,31 +72,18 @@ class get_title():
         if el:            
             text = el[0].text
             if text:
-                return text.replace(".mp4", "").replace("evo", "").replace("-","_")
+                text = re.sub(r"evoload|Evoload|\.mp4", "", text)                
+                subtext = text[0:int(len(text) / 2 * 0.9)]
+                if text.count(subtext) > 1:
+                    text = text[0:text.rindex(subtext) - 1]
+                text = text.replace("-","_").replace(".", "_").strip('_ ')
+                return text
             else:
-                return False
-                       
+                return False                       
         else:       
             return False
         
-class get_videourl():
-    def __call__(self, driver):
-        
-        
-        el_video = driver.find_elements(By.ID, "EvoVid_html5_api")
-        if not el_video:
-            return False
-        try:
-            el_video[0].click()
-            return False
-        except Exception:
-            video_url = el_video[0].get_attribute("src")
-            if not video_url: return False
-            else: return video_url
- 
-        
-        
-        
+       
         
 
 class EvoLoadIE(SeleniumInfoExtractor):
@@ -96,12 +103,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
         
-    
-
-    def _valid_video(self, url, driver):
-        driver.get(url.replace('/e/','/v/'))
-        return(self.wait_until(driver, 60, valid(self.to_screen)))
-    
+     
     @on_exception(constant, Exception, max_tries=5, interval=15)    
     @limiter_15.ratelimit("evoload", delay=True)
     def request_to_host(self, _type, *args):
@@ -123,24 +125,18 @@ class EvoLoadIE(SeleniumInfoExtractor):
             
         try:            
             
-            _url = url.replace('/e/', '/v/')
-
-            self.request_to_host("url_request", driver, _url)
-
-            _valid = self.wait_until(driver, 30, valid(self.to_screen))
-            if not _valid or _valid == "error": raise ExtractorError("404 not found")
-            _title =  self.wait_until(driver, 30, get_title())
-            _videoid = self._match_id(url)
-                    
-
-            el_fr = self.wait_until(driver, 30, ec.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR, "iframe#videoplayer")))
-            if not el_fr: raise ExtractorError("no videoframe")
-            video_url = self.wait_until(driver, 60, get_videourl())
-            if not video_url: raise ExtractorError("no video url") 
-
-            _videoinfo = self.request_to_host("video_info", video_url)
             
-            if not _videoinfo: raise Exception(f"error video info")
+
+            self.request_to_host("url_request", driver, url.replace('/v/', '/e/'))
+
+            video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
+            if not video_url or video_url == 'error': raise ExtractorError("404 not video found") 
+            _videoinfo = self.request_to_host("video_info", video_url)            
+            if not _videoinfo: raise ExtractorError("error video info")
+            
+            self.request_to_host("url_request", driver, url.replace('/e/', '/v/'))
+            _title =  self.wait_until(driver, 30, get_title())
+            
             
             _format = {
                     'format_id': 'http-mp4',
@@ -149,15 +145,14 @@ class EvoLoadIE(SeleniumInfoExtractor):
                     'ext': 'mp4'
             }
             
-            _entry_video = {
-                'id' : _videoid,
+            return({
+                'id' : self._match_id(url),
                 'title' : sanitize_filename(_title, restricted=True),
                 'formats' : [_format],
                 'ext': 'mp4'
-            }
+            })
             
-            if not _entry_video: raise ExtractorError("no video info")
-            else:  return _entry_video   
+
             
         except ExtractorError:
             raise

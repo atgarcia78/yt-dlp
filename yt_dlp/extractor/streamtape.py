@@ -1,31 +1,71 @@
 from __future__ import unicode_literals
 
-
 import re
 
 from ..utils import (
     ExtractorError,
-    int_or_none,
-    std_headers,
     sanitize_filename,
-    block_exceptions
-    
-    
+    try_get
+
 )
 
-import httpx
 import sys
 import traceback
 
-from .common import InfoExtractor
-from .commonwebdriver import limiter_5
+
+from .commonwebdriver import (
+    limiter_5,
+    SeleniumInfoExtractor
+)
 
 from backoff import on_exception, constant
 
-from urllib.parse import quote, unquote
 
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.common.by import By
 
-class StreamtapeIE(InfoExtractor):
+import time
+
+class video_or_error_streamtape():
+    def __init__(self, logger):
+        self.logger = logger
+    def __call__(self, driver):
+        try:
+            
+            elover = driver.find_elements(By.CLASS_NAME, "plyr-overlay")
+            if elover:
+                for _ in range(5):
+                    try:
+                        elover[0].click()
+                        time.sleep(1)
+                    except Exception as e:
+                        break
+            el_vid = driver.find_elements(By.ID, "mainvideo")
+            if el_vid:
+                if _src:=el_vid[0].get_attribute('src'):
+                    return _src
+                else:
+                    return False
+            else: 
+                elbutton = driver.find_elements(By.CSS_SELECTOR, "button.plyr__controls__item")
+                if elbutton:
+                    for _ in range(5):
+                        try:
+                            elbutton[0].click()
+                            time.sleep(1)
+                        except Exception as e:
+                            break
+                elh1 = driver.find_elements(By.TAG_NAME, "h1")
+                if elh1:
+                    errormsg = elh1[0].get_attribute('innerText').strip("!")
+                    self.logger(f'[video_or_error_wait][{driver.current_url}] error - {errormsg}')
+                    return "error"
+                    
+                return False
+        except Exception as e:
+            return False
+
+class StreamtapeIE(SeleniumInfoExtractor):
 
     IE_NAME = 'streamtape'
     _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?((?P<title>.+)\.mp4)?'
@@ -38,80 +78,50 @@ class StreamtapeIE(InfoExtractor):
             return mobj.group('url')
 
     
-   
-    @block_exceptions
-    @on_exception(constant, Exception, max_tries=5, interval=1)
-    def _get_infovideo(self, client, url, headers):
-        
-       
-        res = client.head(url, headers=headers)        
-        res.raise_for_status()
-        _filesize = int_or_none(res.headers.get('content-length'))
-        _url = unquote(str(res.url))
-        if _url and _filesize: return ({'url': _url, 'filesize': _filesize})
-    
-
-    
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @on_exception(constant, Exception, max_tries=5, interval=5)
     @limiter_5.ratelimit("streamtape", delay=True)
-    def _send_request(self, client, url, _type):
+    def _send_request(self, url, driver):        
         
-        res = client.request(_type, url)
-        res.raise_for_status()
-        return res
+        self.logger_info(f"[send_request] {url}") 
+        driver.get(url)
+        
+    def _real_initialize(self):
+        super()._real_initialize()
         
     
     def _real_extract(self, url):
 
-        try:
         
-            _timeout = httpx.Timeout(30, connect=30)        
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
+        self.report_extraction(url)
+        
+        driver = self.get_driver(usequeue=True)
+        
+        try:        
 
-
-            res = self._send_request(client, url, 'GET')
-                     
+            self._send_request(url, driver)            
+            video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
+            if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
+            _info_video = self.get_info_for_format(video_url)
+            if not _info_video: raise ExtractorError("error info video")
+             
+            title = try_get(re.findall(r'og:title" content="([^"]+)"', driver.page_source), 
+                            lambda x: re.sub(r'\.mp4| at Streamtape\.com|amp;', '', x[0], re.IGNORECASE))
                                         
-            webpage = re.sub('[\n\t]', '', res.text)            
-            mobj = re.findall(r'id=\"(?:norobotlink|robotlink)\" style\=\"display\:none;\"\>/streamtape\.(?:com|net)/get_video\?([^\<]+)\<', webpage)
-            mobj2 = re.findall(r"getElementById\(\'(?:norobotlink|robotlink)\'\).+(token=[^\"\']+)[\'\"]", webpage)
-            if mobj and mobj2:
-                _params = mobj[0].split('token')[0] + mobj2[0]
+             
+            _format = {
+                'format_id': 'http-mp4',
+                'url': _info_video.get('url'),
+                'filesize': _info_video.get('filesize'),
+                'ext': 'mp4'
+            }
                 
-                video_url = f"https://streamtape.com/get_video?{_params}"
-                _headers = {'referer': quote(url)}
-                _info_video = self._get_infovideo(client, video_url, _headers)
-                if not _info_video.get: raise ExtractorError("error info video max retries")
-                mobj = re.search(r'og:title\" content=\"(?P<title>[^\"]+)\"', webpage) or re.search(self._VALID_URL, url)
-                if mobj:
-                    title = mobj.group('title')
-                    if title: title = re.sub(r'\.mp4| at Streamtape\.com|amp;', '', title, re.IGNORECASE)
-                    else: title = "streamtape_video"
-                
-                
-                videoid = self._match_id(url)
-            
-                _format = {
-                        'format_id': 'http-mp4',
-                        'url': _info_video.get('url'),
-                        'filesize': _info_video.get('filesize'),
-                        'ext': 'mp4'
-                }
-                
-                _entry_video = {
-                    'id' : videoid,
-                    'title' : sanitize_filename(title, restricted=True),
-                    'formats' : [_format],
-                    'ext': 'mp4'
-                }   
-                
-                if _entry_video:
-                    return _entry_video
-                else: raise ExtractorError("No video info")
-            else: 
-                self.write_debug(webpage)
-                raise ExtractorError("Couldnt find tokens")
+            return({
+                'id' : self._match_id(url),
+                'title' : sanitize_filename(title, restricted=True),
+                'formats' : [_format],
+                'ext': 'mp4'
+            })
+
             
         except ExtractorError as e:
             raise
@@ -120,4 +130,4 @@ class StreamtapeIE(InfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")            
             raise ExtractorError(repr(e)) 
         finally:
-            client.close()
+            self.put_in_queue(driver)
