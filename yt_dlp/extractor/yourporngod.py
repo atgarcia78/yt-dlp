@@ -6,13 +6,10 @@ import re
 from ..utils import (
     ExtractorError,   
     sanitize_filename,
-
-
 )
 
 
 import html
-
 
 
 from concurrent.futures import ThreadPoolExecutor
@@ -29,24 +26,48 @@ from .commonwebdriver import (
 
 from backoff import constant, on_exception
 
-class get_videourl():
-    
+class get_videourl:
+    def __init__(self, logger):
+        self.logger = logger
+        self.init = True
+        self.title = None
+
     def __call__(self, driver):
+        try:
+            if self.init:
+                elembed = driver.find_elements(By.CLASS_NAME, "embed-wrap")
+                self.title = driver.title
+                if elembed:
+                    elifr = elembed[0].find_element(By.TAG_NAME, "iframe")
+                    driver.switch_to.frame(elifr)
+                    self.init = False
+                
+            eldiv = driver.find_elements(By.TAG_NAME, "div")
+            if eldiv:
+                for _ in range(5):
+                    try:
+                        eldiv[0].click()
+                    except Exception as e:
+                        self.logger(repr(e))
+                        break
         
-        el_player = driver.find_elements(by=By.ID, value="kt_player")
-        if not el_player: return False
-        else:
-            try:
-                el_player[0].click()
-                el_fp = driver.find_elements(by=By.CSS_SELECTOR, value="video.fp-engine")
-                if not el_fp: return False
-                else:            
-                    video_url = el_fp[0].get_attribute('src')
-                    if video_url: return video_url
-                    else: return False
-            except Exception:
+            elplayer = driver.find_elements(By.ID, "kt_player")
+            if elplayer:
+                for _ in range(5):
+                    try:
+                        elplayer[0].click()
+                    except Exception as e:
+                        self.logger(repr(e))
+                        break
+        
+            el_fp = driver.find_element(By.CSS_SELECTOR, "video.fp-engine")
+            if video_url := el_fp.get_attribute("src"):
+                return (self.title, video_url)
+            else:
                 return False
-                    
+        except Exception as e:
+            self.logger(repr(e))
+            return False
 
 class YourPornGodIE(SeleniumInfoExtractor):
     
@@ -75,20 +96,19 @@ class YourPornGodIE(SeleniumInfoExtractor):
     def _real_initialize(self):
         super()._real_initialize()
     
-    def _real_extract(self, url):
-        
+    def _real_extract(self, url):        
               
         self.report_extraction(url)
         
-        driver = self.get_driver()
+        driver = self.get_driver(usequeue=True)
         try:
                     
-            #self._send_request(driver, url)
             self.request_to_host("url_request", driver, url)
-            
-            video_url = self.wait_until(driver, 30, get_videourl())                
+ 
+            res = self.wait_until(driver, 60, get_videourl(self.to_screen))                
                 
-            if not video_url: raise ExtractorError("No video url")
+            if not res: raise ExtractorError("No video url")
+            title, video_url = res
             
             #info_video = self._get_video_info(video_url)
             info_video = self.request_to_host("video_info", video_url)
@@ -106,7 +126,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
                         'title' : sanitize_filename(title, restricted=True),
                         'formats' : formats,
                         'ext': 'mp4'
-                    }            
+                 }            
                 return entry
         
         
@@ -114,11 +134,8 @@ class YourPornGodIE(SeleniumInfoExtractor):
             self.to_screen(e)
             raise
         finally:
-            try:
-                self.rm_driver(driver)
-            except Exception:
-                pass
-            
+            self.put_in_queue(driver)
+                        
         
 class YourPornGodPlayListIE(SeleniumInfoExtractor):
     
