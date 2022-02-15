@@ -117,9 +117,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         finally:
             self.put_in_queue(driver)
                     
-    def _init(self):
-        
-        super()._init()
+   
+    def _real_initialize(self):
+    
+        super()._real_initialize()
         
         with NakedSwordBaseIE._LOCK:           
             if not NakedSwordBaseIE._NSINIT:
@@ -138,11 +139,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         NakedSwordBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                     
                 NakedSwordBaseIE._NSINIT = True
-            
-    def _real_initialize(self):
-    
-        self._init()
-        return
+        
   
     
     def get_entries_scenes(self, url):
@@ -267,6 +264,8 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         return formats               
                 
     
+    def _real_initialize(self):
+        super()._real_initialize()
     
     def _real_extract(self, url):
 
@@ -310,6 +309,9 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     _MOVIES_URL = "https://nakedsword.com/movies/"
 
 
+    def _real_initialize(self):
+        super()._real_initialize()
+
     def _real_extract(self, url):
 
         playlist_id, title = self._match_valid_url(url).group('id', 'title')
@@ -341,6 +343,10 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:mostwatched:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/most-watched/?'
     _MOST_WATCHED = 'https://nakedsword.com/most-watched?content=Scenes&page='
+    
+    
+    def _real_initialize(self):
+        super()._real_initialize()
     
     def _real_extract(self, url):      
        
@@ -374,6 +380,9 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
     _NPAGES = {"stars" : 2, "studios" : 3}
     
+    def _real_initialize(self):
+        super()._real_initialize()
+    
     def _real_extract(self, url):     
        
         
@@ -405,6 +414,8 @@ class NakedSwordPlaylistIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<id>[^?&]+)$'
     
+    def _real_initialize(self):
+        super()._real_initialize()
     
     def _real_extract(self, url):      
        
@@ -526,8 +537,6 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         'vr-3d-360': '706',
         'white-collar': '682',
         'wrestling': '608'}
-    
-        
     _SETTINGS = {
         'abandonedbuilding': '48146',
         'airplane': '48001',
@@ -774,17 +783,11 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         'whipping': '32099',
         'worship': '32114',
         'wrestling': '32100'}
-
-
     _SORTBY = {'scenes': ['Popularity', 'Trending', 'Newest'], 'movies': ['MostWatched', 'Trending', 'Newest', 'Released']}
-    
     _CONTENTS = ['movies', 'scenes']    
-    
     _PARAMS = {'movies': ['content', 'pages', 'tag', 'star', 'studio', 'videoquality', 'director', 'releasedate'],
                'scenes': ['content', 'pages', 'tag', 'star', 'studio', 'videoquality', 'setting', 'sexact', 'position']}
-    
     _STUDIOS = {}
-    
     _STARS = {}
     
     @staticmethod
@@ -798,10 +801,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         conf_str = '{"studios": ' + json.dumps(NakedSwordSearchIE._STUDIOS) + ', ' + '"stars": ' + json.dumps(NakedSwordSearchIE._STARS) + '}' 
         with open("/Users/antoniotorres/Projects/common/logs/nakedsword_conf.json", 'w') as file:
             file.write(conf_str)
-            
-        
-    
-    
+ 
     def get_starid(self, starname):
          
         query = starname.replace(' ', '+')
@@ -936,8 +936,6 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(f"{repr(e)}")
 
-    
-    
     def get_movies_ns(self, urls):
         
 
@@ -1025,9 +1023,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         NakedSwordSearchIE._STARS = conf['stars']
     
     def _real_extract(self, url):
-        
-        
-        
+
         query = re.search(self._VALID_URL, url).group('query')
         
         params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
