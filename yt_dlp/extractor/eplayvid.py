@@ -24,6 +24,7 @@ class video_or_error_eplayvid:
 
     def __call__(self, driver):
         try:
+                        
             el_vid = driver.find_elements(By.ID, "player_html5_api")
             if el_vid:
                 el_src = el_vid[0].find_elements(By.TAG_NAME, "source")

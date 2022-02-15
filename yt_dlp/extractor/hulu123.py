@@ -46,7 +46,9 @@ class Hulu123IE(SeleniumInfoExtractor):
 
     def _worker(self, key, func, server_list):
         
-        if not server_list: return ""
+        if not server_list: 
+            if key != "vip_url": return ""
+            else: return []
         driver = self.get_driver(usequeue=True)
         
         try:
@@ -68,12 +70,16 @@ class Hulu123IE(SeleniumInfoExtractor):
                     
                     return _res_url            
             
+            vip_list = [] 
             for server in server_list:
                 vid_url = _getter(server)
                 if vid_url and vid_url != "error":
-                    break
+                    if key != "vip_url":
+                        break
+                    else: vip_list.append(vid_url)
             
-            return vid_url
+            if key != "vip_url": return vid_url
+            else: return vip_list
         
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
@@ -108,7 +114,7 @@ class Hulu123IE(SeleniumInfoExtractor):
             
             self.write_debug(f'servers list: {servers_list}')
             
-            _res_urls = {'vip_url': "", 'userload_url': "", 'evoload_url': "", 'streamtape_url' :""}
+            _res_urls = {'vip_url': [], 'userload_url': "", 'evoload_url': "", 'streamtape_url' :""}
             
             _server_vip_list = [server for server in servers_list if "vip.html" in server]
             _server_userload_list = [server for server in servers_list if "userload.html" in server]
@@ -117,7 +123,9 @@ class Hulu123IE(SeleniumInfoExtractor):
 
             self.to_screen(f'servers list:[{len(servers_list)}]:vip[{len(_server_vip_list)}]:userload[{len(_server_userload_list)}]:evoload[{len(_server_evoload_list)}]:streamtape[{len(_server_streamtape_list)}]')
             
-            if _server_vip_list and _server_userload_list:  _server_streamtape_list = []
+            if _server_vip_list and _server_userload_list: 
+                _server_streamtape_list = []
+                _server_evoload_list = []
 
             _server_all_list = [(video_or_error_eplayvid, _server_vip_list, 'vip_url'), (video_or_error_userload, _server_userload_list, 'userload_url'), (video_or_error_evoload, _server_evoload_list, 'evoload_url'), (video_or_error_streamtape, _server_streamtape_list, 'streamtape_url')]
             
@@ -138,17 +146,17 @@ class Hulu123IE(SeleniumInfoExtractor):
                       
             #self.to_screen(f'vip:[{vip_url}]:userload:[{userload_url}]:evoload:[{evoload_url}]:streamtape:[{streamtape_url}]')
             self.to_screen(f'RESULT: {_res_urls}')
-            if vip_url == 'error' and userload_url == "error" and evoload_url == "error" and streamtape_url == "error": raise ExtractorError("404 UserLoad & EverLoad $ StreamTape servers available but no video found in any")
-            if vip_url == "" and userload_url == "" and evoload_url == "" and streamtape_url == "": raise ExtractorError("no UserLoad & EverLoad & Streamtape servers available")
+            if list(set(vip_url)) == ['error'] and userload_url == "error" and evoload_url == "error" and streamtape_url == "error": raise ExtractorError("404 UserLoad & EverLoad $ StreamTape servers available but no video found in any")
+            if vip_url == [] and userload_url == "" and evoload_url == "" and streamtape_url == "": raise ExtractorError("no UserLoad & EverLoad & Streamtape servers available")
             
-            video_urls = [(_url, _id) for (_url, _id) in [(vip_url, "vip"), (userload_url, "userload"), (evoload_url, "evoload"), (streamtape_url, "streamtape")] if _url and _url != "error"]
+            video_urls = [(_url, f'vip{i+1}') for i, _url in enumerate(vip_url) if _url and _url != "error"] + [(_url, _id) for (_url, _id) in [(userload_url, "userload"), (evoload_url, "evoload"), (streamtape_url, "streamtape")] if _url and _url != "error"]
             
             if not video_urls: raise ExtractorError("404 UserLoad & EverLoad $ StreamTape servers available but no video found in any")
 
             _formats = []
             for (_url, _id) in video_urls:
                 try:
-                    if _id == 'vip': 
+                    if 'vip' in _id: 
                         headers = {'Referer': 'https://eplayvid.net/'}
                         _f = {'http_headers': headers}
                     else: 
