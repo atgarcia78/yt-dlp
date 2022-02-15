@@ -338,7 +338,7 @@ class SketchySexIE(SketchySexBaseIE):
     _VALID_URL = r'https?://(?:www\.)?sketchysex\.com/episode/.*'
 
     def _real_initialize(self):
-        #self._init(ret_driver=False)
+       
         super()._real_initialize()
     
     def _real_extract(self, url):
@@ -370,7 +370,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
 
     def _real_initialize(self):
         super()._real_initialize()
-        #self._init(ret_driver=False)
+       
     
     def _real_extract(self, url):
 
@@ -403,7 +403,7 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
  
     def _real_initialize(self):
         super()._real_initialize()
-        #self._init(ret_driver=False)
+       
     
     def _real_extract(self, url):
         

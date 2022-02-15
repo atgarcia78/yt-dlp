@@ -74,9 +74,9 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
         pass
         
                     
-    def _init(self):
+    def _real_initialize(self):
         
-        super()._init()
+        super()._real_initialize()
         
         with VODNakedSwordBaseIE._LOCK:           
             if not VODNakedSwordBaseIE._NSINIT:
@@ -98,8 +98,8 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
             
     def _real_initialize(self):
     
-        self._init()
-        return
+        super()._real_initialize()
+        
   
     
         
