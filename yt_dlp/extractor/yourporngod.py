@@ -5,20 +5,17 @@ import re
 
 from ..utils import (
     ExtractorError,   
-    std_headers,
     sanitize_filename,
-    block_exceptions
+
 
 )
 
-import httpx
+
 import html
 
 
 
 from concurrent.futures import ThreadPoolExecutor
-from .common import InfoExtractor
-
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
@@ -28,7 +25,6 @@ from .commonwebdriver import (
     SeleniumInfoExtractor,
     limiter_15
 )
-
 
 
 from backoff import constant, on_exception
@@ -76,7 +72,9 @@ class YourPornGodIE(SeleniumInfoExtractor):
         elif _type == "url_request":
             self._send_request(*args)
         
-   
+    def _real_initialize(self):
+        super()._real_initialize()
+    
     def _real_extract(self, url):
         
               
@@ -122,7 +120,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
                 pass
             
         
-class YourPornGodPlayListIE(InfoExtractor):
+class YourPornGodPlayListIE(SeleniumInfoExtractor):
     
     IE_NAME = 'yourporngod:playlist'
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/(?:((?P<type1>playlists)/(?P<id>\d+)/(?P<title>[^\/\$]+))|((?P<type3>models)/(?P<model>[^\/\$]+))|((?P<type2>categories)/(?P<categorie>[^\/\$]+)))'
@@ -134,15 +132,27 @@ class YourPornGodPlayListIE(InfoExtractor):
                       "categories": r'item  [\"\']><a href=["\']([^\'\"]+)[\'\"]'}
     
     
+    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @limiter_15.ratelimit("yourporngod", delay=True)
+    def _send_request(self, url):
+        self.logger_info(f"[send_request] {url}")   
+        res = YourPornGodPlayListIE._CLIENT.get(url)
+        res.raise_for_status()
+        return res
+
     def _get_entries(self, url, _type):
-        res = httpx.get(url, headers=std_headers)
-        webpage = re.sub('[\t\n]', '', html.unescape(res.text))
-        entries = re.findall(self._REGEX_ENTRIES[_type],webpage)
-        return entries
+        res = self._send_request(url)
+        if res:
+            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+            entries = re.findall(self._REGEX_ENTRIES[_type],webpage)
+            return entries
+    
+    def _real_initialize(self):
+        super()._real_initialize()
     
     def _real_extract(self, url):
         
-        
+        self.report_extraction(url)
         #playlist_id = self._match_id(url)
         _type1, _type2, _type3, _id, _title, _model, _categorie = re.search(self._VALID_URL, url).group('type1','type2','type3','id','title','model','categorie')
         
@@ -150,23 +160,19 @@ class YourPornGodPlayListIE(InfoExtractor):
                       
         self.report_extraction(url)
         
-        res = httpx.get(url, headers=std_headers)
-        
-                
+        res = self._send_request(url)        
+        if not res: raise ExtractorError("couldnt download webpage")
         webpage = re.sub('[\t\n]', '', html.unescape(res.text))
         
         mobj = re.findall(r"<title>([^<]+)<", webpage)
         title = mobj[0] if mobj else _title or _model or _categorie
         
         playlist_id = _id or _model or _categorie
-        
-        
+
         mobj = re.findall(r'\:(\d+)[\"\']>Last', webpage)        
         last_page = int(mobj[0]) if mobj else 1
         
-        base_url = url + self._SEARCH_URL[_type]
-        
-        
+        base_url = url + self._SEARCH_URL[_type]        
         
         with ThreadPoolExecutor(max_workers=16) as ex:        
             
@@ -183,7 +189,6 @@ class YourPornGodPlayListIE(InfoExtractor):
         entries = [self.url_result(_url, ie="YourPornGod") for _url in res]
         
         return {
-            
             '_type': 'playlist',
             'id': playlist_id,
             'title': sanitize_filename(title,restricted=True),
