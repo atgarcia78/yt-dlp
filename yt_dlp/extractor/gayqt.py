@@ -1,63 +1,122 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-import re
+import traceback
+import sys
 
-from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
-    HEADRequest,
-    int_or_none,
     sanitize_filename,
-    std_headers
+    try_get
 )
 
-
-import shutil
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from .commonwebdriver import SeleniumInfoExtractor
 
 
-class GayQTIE(InfoExtractor):
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.common.by import By
+
+import time
+
+class get_video_data:
+    def __init__(self, logger):
+        self.logger = logger
+    def __call__(self, driver):
+        try:
+            eldiv = driver.find_element(By.TAG_NAME, "div")
+            for _ in range(5):
+                try:
+                    eldiv.click()
+                except Exception as e:
+                    print(f"div click {repr(e)}")
+                    break
+
+            elsett_list = driver.find_elements(By.CLASS_NAME, "fp-settings-list-item")
+
+            if not elsett_list:
+                return False
+            n = len(elsett_list)
+
+            _formats = {}
+            elsett = driver.find_element(By.CSS_SELECTOR, "a.fp-settings")
+            elvid = driver.find_element(By.CSS_SELECTOR, "video.fp-engine")
+
+            for i in range(n):
+
+                _key = elsett_list[i].get_attribute("innerText")
+                elsett.click()
+                elsett_list[i].click()
+                time.sleep(5)
+                _vidurl = elvid.get_attribute("src")
+                self.logger(f"{_key}:{_vidurl}")
+                _formats.update({_key: _vidurl})
+                if i < n:
+                    elsett_list = driver.find_elements(
+                        By.CLASS_NAME, "fp-settings-list-item"
+                    )
+
+            if not _formats:
+                return False
+            _title = driver.find_element(By.TAG_NAME, "h1").get_attribute("innerText")
+
+            return (_title, _formats)
+
+        except Exception as e:
+            self.logger(repr(e))
+            return False
+
+
+class GayQTIE(SeleniumInfoExtractor):
     IE_NAME = "gayqt"
     _VALID_URL = r'https?://(?:www\.)gayqt\.com/videos/(?P<id>[\d]+)/.*'
     
     def _real_initialize(self):
-        options = Options()
-        options.add_argument(f"user-agent={std_headers['User-Agent']}")
-        options.add_argument("headless=True")
-        self.driver = webdriver.Chrome(executable_path=shutil.which('chromedriver'),options=options)
+        super()._real_initialize()
+        
 
     def _real_extract(self, url):
         
-        videoid = self._search_regex(self._VALID_URL, url, 'videoid',default=None, fatal=False, group='id')
-
-        self.driver.get(url)
-        webpage = self.driver.page_source
+        self.report_extraction(url)
+        videoid = self._match_id(url)
+        driver = self.get_driver(usequeue=True)
         
-        title = self._search_regex(r'<title>([^<]+)</title>', webpage, 'title', default=None, fatal=False)
+        try:
+            
+            driver.get(url)            
+
+            title, streams = self.wait_until(driver, 60, get_video_data(self.to_screen))
+            #self.to_screen(title)
+            #self.to_screen(streams)
+            if not streams:
+                raise ExtractorError("no video url")
+            _formats = []
+            
+            for _id, _url in streams.items():
+                _info_video = self.get_info_for_format(_url) or {}
+                #self.to_screen(_info_video)
+                _formats.append({
+                    'format_id': f'http-{_id}',
+                    'url': _info_video['url'],
+                    'height': int(_id[:-1]),
+                    'format_note': _id,
+                    'filesize': _info_video['filesize'],
+                    'ext': 'mp4'})
+                    
+            if not _formats: raise ExtractorError("no formats founnd")
+            self._sort_formats(_formats)
+            
+            return({
+                'id': videoid,
+                'title': sanitize_filename(title,restricted=True),
+                'formats': _formats,
+                'ext': 'mp4'
+            })
         
-        title = title.replace(" in Free Gay Porn", "")
-
-        video_url = self._search_regex(r'<video src=\"([^\"]+)\"', webpage, 'videourl', default=None, fatal=False)
-
-        if not video_url:
-            raise ExtractorError("no video url")
-
-        res = self._request_webpage(HEADRequest(video_url), videoid, headers={'Referer' : url, 'Range' : 'bytes=0-'})
-
-        filesize =  int_or_none(res.headers.get('Content-Length'))
-        
-        format_video = {
-            'format_id' : "http-mp4",
-            'url' : video_url,
-            'filesize' : filesize,
-            'ext' : 'mp4'
-         }
-
-        return {
-            'id': videoid,
-            'title': sanitize_filename(title,restricted=True),
-            'formats': [format_video],
-            'ext': 'mp4'
-        }
+        except ExtractorError as e:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+        finally:
+            self.put_in_queue(driver)

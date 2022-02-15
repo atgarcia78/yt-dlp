@@ -6,7 +6,7 @@ from ..utils import (
     ExtractorError,
     sanitize_filename,
     int_or_none,
-    std_headers   
+
 )
 
 import time
@@ -34,33 +34,7 @@ class GayStreamIE(SeleniumInfoExtractor):
     
     _LOCK =  Lock()
     
-
-    
-    def _get_filesize(self, url):
-        
-        count = 0
-        try:
-            
-            _res = None
-            while (count<3):
-                
-                try:
-                    
-                    res = httpx.head(url, headers=std_headers)
-                    if res.status_code > 400:
-                        time.sleep(10)
-                        count += 1
-                    else: 
-                        _res = int_or_none(res.headers.get('content-length')) 
-                        break
-            
-                except Exception as e:
-                    count += 1
-        except Exception as e:
-            pass
-
-        
-        return _res
+ 
     
     def get_info_video(self, url, url_post, data_post, headers_post, driver):
         
@@ -110,18 +84,21 @@ class GayStreamIE(SeleniumInfoExtractor):
                 data_post = {'r': "https://gaystream.pw/", 'd': _url_ifr.host}
                 headers_post = {'Referer': url_ifr, 'Origin': f'{_url_ifr.scheme}://{_url_ifr.host}'}
                 self.wait_until(driver, randint(3,5))
-                info_video = self.get_info_video(url, url_post, data_post, headers_post, driver)
-                self.to_screen(f'{url}:{url_post}\n{info_video}')
+                info = self.get_info_video(url, url_post, data_post, headers_post, driver)
+                self.to_screen(f'{url}:{url_post}\n{info}')
                 _formats = []
-                if info_video:
-                    for vid in info_video.get('data'):
+                if info:
+                    for vid in info.get('data'):
+                        _url = vid.get('file')
+                        _info_video = self.get_info_for_format(_url)
+                        if not _info_video: raise ExtractorError(f"[{_url}] no video info")
                         _formats.append({
                                 'format_id': vid.get('label'),
-                                'url': (_url:=vid.get('file')),
+                                'url': _info_video.get('url'),
                                 'resolution' : vid.get('label'),
                                 'height': int_or_none(vid.get('label')[:-1]),                                
-                                'filesize': self._get_filesize(_url),
-                                'ext': "mp4"
+                                'filesize': _info_video.get('filesize'),
+                                'ext': 'mp4'
                             })
             
                     if _formats: self._sort_formats(_formats)
