@@ -2,8 +2,6 @@ from __future__ import unicode_literals
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
-from py import std
-
 from .common import (
     InfoExtractor,
     ExtractorError)
@@ -135,7 +133,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             with SeleniumInfoExtractor._MASTER_LOCK:
                 SeleniumInfoExtractor._MASTER_COUNT -= 1
     
-    def _init(self):
+    def _real_initialize(self):
+          
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not SeleniumInfoExtractor._MASTER_INIT:
                 
@@ -176,8 +175,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                 SeleniumInfoExtractor._MASTER_INIT = True
 
-    def _real_initialize(self):        
-        self._init()
+
 
     def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 

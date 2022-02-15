@@ -85,15 +85,12 @@ class GayQTIE(SeleniumInfoExtractor):
             driver.get(url)            
 
             title, streams = self.wait_until(driver, 60, get_video_data(self.to_screen))
-            #self.to_screen(title)
-            #self.to_screen(streams)
             if not streams:
                 raise ExtractorError("no video url")
             _formats = []
             
             for _id, _url in streams.items():
                 _info_video = self.get_info_for_format(_url) or {}
-                #self.to_screen(_info_video)
                 _formats.append({
                     'format_id': f'http-{_id}',
                     'url': _info_video['url'],
