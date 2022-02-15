@@ -138,7 +138,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         try:
             
             if not self._MASTER_INIT: 
-                self._init()
+                super()._real_initialize()
                                     
             res = self._send_request(url) 
             if not res: 
@@ -171,7 +171,8 @@ class NetDNAIE(SeleniumInfoExtractor):
     def get_entry(self, url, ytdl=None):        
         
         
-        if not self._MASTER_INIT: self._init()
+        if not self._MASTER_INIT: 
+            super()._real_initialize()
         
         _info_video = self.get_video_info_url(url)
         if (_error:=_info_video.get('error')): raise ExtractorError(_error) 
