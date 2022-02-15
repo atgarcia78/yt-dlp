@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
+from py import std
+
 from .common import (
     InfoExtractor,
     ExtractorError)
@@ -27,7 +29,8 @@ from urllib.parse import unquote
 
 from ..utils import (    
     int_or_none,
-    std_headers)
+    std_headers
+)
 
 from queue import Queue, Empty
 
@@ -163,9 +166,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                             SeleniumInfoExtractor._QUEUE.put_nowait(driver)
                             SeleniumInfoExtractor._MASTER_COUNT += 1
                 
-                _headers = dict(httpx.Headers(std_headers.copy()))
-                _headers.pop('referer', None)
-                _headers.pop('origin', None)
+                _headers = dict(httpx.Headers((SeleniumInfoExtractor._YTDL.params.get('http_headers') or std_headers).copy()))
                 _headers.update({'user-agent': SeleniumInfoExtractor._USER_AGENT})
                 
                 SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(60, connect=60), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})

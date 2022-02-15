@@ -7,7 +7,6 @@ from .common import InfoExtractor
 from ..utils import (
     ExtractorError, 
     HEADRequest,
-    std_headers
 )
 
 
@@ -51,11 +50,8 @@ class CumlouderIE(InfoExtractor):
         if not video_id:
             video_id = 'cumlouder'
 
-        
-        std_headers['Referer'] = url
-        std_headers['Accept'] = "*/*"
         reqhead = HEADRequest(video_url)
-        res = self._request_webpage(reqhead, None, headers={'Range' : 'bytes=0-'})
+        res = self._request_webpage(reqhead, None, headers={'Range' : 'bytes=0-', 'Accept': '*/*', 'Referer': url})
         filesize = res.getheader('Content-Lenght')
         if filesize:
             filesize = int(filesize)
@@ -65,7 +61,8 @@ class CumlouderIE(InfoExtractor):
             'url' : video_url,
             'filesize' : filesize,
             'weight' : weight,
-            'height' : height
+            'height' : height,
+            'http_headers': {'Accept': '*/*', 'Referer': url}
         }
         
 

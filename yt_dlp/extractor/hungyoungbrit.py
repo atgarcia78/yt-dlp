@@ -1,21 +1,16 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-
-
 from ..utils import (
     ExtractorError, 
     int_or_none,
     sanitize_filename,
-    std_headers    
-
 )
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-import time
+
 import re
-import httpx
 import html
 import traceback
 import sys
@@ -24,7 +19,6 @@ import threading
 import json
 from .commonwebdriver import SeleniumInfoExtractor
 
-import os
 
 
 class HungYoungBritBaseIE(SeleniumInfoExtractor):
@@ -35,9 +29,6 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
     _LOCK = threading.Lock()
     
     _COOKIES = []
-    
-    _CLIENT = None
-    
 
 
     def _get_info_video(self, url):
@@ -81,107 +72,94 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 
     def _real_initialize(self):
         
+        super()._real_initialize()
+        
         _home_url = "https://www.hungyoungbrit.com/members/category.php?id=5"
         
-        with HungYoungBritBaseIE._LOCK:
-        
-            if not HungYoungBritBaseIE._CLIENT:        
- 
-                try:                
-                        
-                    _timeout = httpx.Timeout(15, connect=15)        
-                    _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-                    HungYoungBritBaseIE._CLIENT = httpx.Client(timeout=_timeout, limits=_limits, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')), headers=std_headers)
+        with HungYoungBritBaseIE._LOCK:        
+                 
+            _cookies = None
+            if not HungYoungBritBaseIE._COOKIES:
                 
-                    _cookies = None
-                    if not HungYoungBritBaseIE._COOKIES:
+                try:
+                    with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "r") as f:
+                        _cookies = json.load(f)
+                except Exception as e:
+                    self.to_screen(str(e))
+            else: _cookies = HungYoungBritBaseIE._COOKIES
+            
+            if _cookies:
                         
-                        try:
-                            with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "r") as f:
-                                _cookies = json.load(f)
-                        except Exception as e:
-                            self.to_screen(str(e))
-                    else: _cookies = HungYoungBritBaseIE._COOKIES
-                    
-                    if _cookies:
-                                
-                        for cookie in _cookies:
-                            HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                        
-                        res = HungYoungBritBaseIE._CLIENT.get(_home_url)
-                        
-                        if _home_url in str(res.url):
-                            self.to_screen("login OK - 112")
-                            HungYoungBritBaseIE._COOKIES = _cookies
-                            return
-                                    
-                    self.report_login()                                        
-                    
-                    
-                    
-                    
-                    driver = self.get_driver(noheadless=True)
-
-                                
-                    
-                    
-                    driver.get(self._SITE_URL)
-                    driver.add_cookie({"name": "warn", "value":"1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})  
-                    
-                    driver.get(_home_url)  
-                    self.wait_until(driver, 30, ec.url_changes(""))
-                    self.to_screen(f"current url: {driver.current_url}")
-                    if _home_url not in driver.current_url:
+                for cookie in _cookies:
+                    HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                
+                res = HungYoungBritBaseIE._CLIENT.get(_home_url)
+                
+                if _home_url in str(res.url):
+                    self.to_screen("login OK - 112")
+                    HungYoungBritBaseIE._COOKIES = _cookies
+                    return
                             
-                        
-                                
-                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
-                        el.click()
-                        
-                        el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
-                        el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
-                        button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR,"button#btnLogin.btn.btn-primary.btn-sm.btn-block")))                    
-                        username, password = self._get_login_info()
-                        el_username.send_keys(username)
-                        self.wait_until(driver, 2)
-                        el_password.send_keys(password)
-                        self.wait_until(driver, 2)
-                        
-                        button_login.click()
-                        
-                        #self.wait_until(driver, 300, ec.url_changes(_url)) 
-                        self.wait_until(driver, 300, ec.invisibility_of_element(button_login)) 
-                        
-                        #if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
-                        
-                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
-                        
-                        if el.text != 'ACCOUNT': raise ExtractorError("log in error")
+            self.report_login()                                        
 
-                                        
-                    #self.to_screen("login OK")
-                    HungYoungBritBaseIE._COOKIES = driver.get_cookies()
-                    self.rm_driver(driver)
-                                
-                    with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
-                        json.dump(HungYoungBritBaseIE._COOKIES, f)
+            driver = self.get_driver(noheadless=True)
+
+            try:
+                
+                driver.get(self._SITE_URL)
+                driver.add_cookie({"name": "warn", "value":"1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})  
+                
+                driver.get(_home_url)  
+                self.wait_until(driver, 30, ec.url_changes(""))
+                self.to_screen(f"current url: {driver.current_url}")
+                if _home_url not in driver.current_url:
+
+                    el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+                    el.click()                    
+                    el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
+                    el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
+                    button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR,"button#btnLogin.btn.btn-primary.btn-sm.btn-block")))                    
+                    username, password = self._get_login_info()
+                    el_username.send_keys(username)
+                    self.wait_until(driver, 2)
+                    el_password.send_keys(password)
+                    self.wait_until(driver, 2)                    
+                    button_login.click()                    
+                    #self.wait_until(driver, 300, ec.url_changes(_url)) 
+                    self.wait_until(driver, 300, ec.invisibility_of_element(button_login)) 
+                    
+                    #if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
+                    
+                    el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+                    
+                    if el.text != 'ACCOUNT': raise ExtractorError("log in error")
+
+                                    
+                #self.to_screen("login OK")
+                HungYoungBritBaseIE._COOKIES = driver.get_cookies()
+                
+                            
+                with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
+                    json.dump(HungYoungBritBaseIE._COOKIES, f)
+                    
+                for cookie in HungYoungBritBaseIE._COOKIES:
+                    HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    
+                res = HungYoungBritBaseIE._CLIENT.get(_home_url)
+                    
+                if _home_url in str(res.url):
+                    self.to_screen("login OK - 172")
+                else: raise ExtractorError("Error cookies")
+                
                         
-                    for cookie in HungYoungBritBaseIE._COOKIES:
-                        HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                        
-                    res = HungYoungBritBaseIE._CLIENT.get(_home_url)
-                        
-                    if _home_url in str(res.url):
-                        self.to_screen("login OK - 172")
-                    else: raise ExtractorError("Error cookies")
-                        
-                               
-                except ExtractorError as e:
-                    raise
-                except Exception as e:                    
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")                    
-                    raise ExtractorError(repr(e))
+            except ExtractorError as e:
+                raise
+            except Exception as e:                    
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")                    
+                raise ExtractorError(repr(e))
+            finally:
+                self.rm_driver(driver)
               
                 
     
@@ -193,6 +171,8 @@ class HungYoungBritIE(HungYoungBritBaseIE):
     
     _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
     
+    def _real_initialize(self):
+        super()._real_initialize()
  
     def _real_extract(self, url):
         
@@ -265,7 +245,9 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
     
     _VALID_URL = r'https?://(?:www\.)?hungyoungbrit\.com/members/category\.php\?id=5(?:&page=(?P<page>\d+))?(?:&(?P<search>s=\w))?'
    
-
+    def _real_initialize(self):
+        super()._real_initialize()
+   
     def _real_extract(self, url):
         
             
