@@ -49,26 +49,27 @@ class Hulu123IE(SeleniumInfoExtractor):
         if not server_list: 
             if key != "vip_url": return ""
             else: return []
+        
         driver = self.get_driver(usequeue=True)
         
-        try:
-            
-            @limiter_5.ratelimit("hulu123" + key, delay=True)
-            def _getter(server):
-                self.to_screen(f'[{key}][{server[26:]}] getting video url')
-                driver.get(server)
-                el_ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
-                if el_ifr:
-                    _url = el_ifr.get_attribute('src')                    
-                    driver.switch_to.frame(el_ifr)                
-                    if (_val:=self.wait_until(driver, 30, func(self.to_screen))) and _val != "error": 
-                        _res_url = _val
-                        self.to_screen(f'[{key}][{server[26:]}] OK:[{_url}][{_val}]')
-                    else:
-                        _res_url = "error"
-                        self.to_screen(f'[{key}][{server[26:]}] NOK:[{_url}]')
-                    
-                    return _res_url            
+        @limiter_5.ratelimit("hulu123" + key, delay=True)
+        def _getter(server):
+            self.to_screen(f'[{key}][{server[26:]}] getting video url')
+            driver.get(server)
+            el_ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
+            if el_ifr:
+                _url = el_ifr.get_attribute('src')                    
+                driver.switch_to.frame(el_ifr)                
+                if (_val:=self.wait_until(driver, 30, func(self.to_screen))) and _val != "error": 
+                    _res_url = _val
+                    self.to_screen(f'[{key}][{server[26:]}] OK:[{_url}][{_val}]')
+                else:
+                    _res_url = "error"
+                    self.to_screen(f'[{key}][{server[26:]}] NOK:[{_url}]')
+                
+                return _res_url 
+        
+        try:           
             
             vip_list = [] 
             for server in server_list:
