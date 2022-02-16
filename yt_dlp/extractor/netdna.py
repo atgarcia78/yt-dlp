@@ -208,10 +208,11 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         while count < 3:        
         
+            self.report_extraction(f"[{url}] attempt[{count+1}/3]")
+            driver = self.get_driver(usequeue=True)
+            
             try:
-                driver = self.get_driver(usequeue=True)
-                
-                self.report_extraction(f"[{url}] attempt[{count+1}/3]")
+
                 self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
                 
                 el_res = self.wait_until(driver, 60, fast_forward(url, self.to_screen), poll_freq=4)
@@ -236,8 +237,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                         el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
                         
                         if el_formats:
-                            
-                            
+
                             with ThreadPoolExecutor(thread_name_prefix='fmt_netdna', max_workers=len(el_formats)) as ex:
                                 futures = [ex.submit(self.get_format, _el.text, info_video.get('ext'), _el.get_attribute('href')) for _el in el_formats]
                                 
@@ -290,15 +290,13 @@ class NetDNAIE(SeleniumInfoExtractor):
                                     
                         if not entry: raise ExtractorError("no video info")
                         else:
-                            return entry       
-                                
+                            return entry                               
                         
                     
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
                         self.write_debug(f"{repr(e)}, \n{'!!'.join(lines)}")
-                        raise
-                    
+                        raise                    
                     
             
             except ExtractorError:
@@ -306,8 +304,7 @@ class NetDNAIE(SeleniumInfoExtractor):
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.write_debug(f"{repr(e)}\n{'!!'.join(lines)}")
-                raise ExtractorError(repr(e))
-                    
+                raise ExtractorError(repr(e))                    
             finally:
                 self.put_in_queue(driver)
             
