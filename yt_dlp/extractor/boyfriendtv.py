@@ -29,7 +29,10 @@ import sys
 
 import httpx
 import json
-from urllib.parse import unquote
+from urllib.parse import (
+    unquote, 
+    urlparse
+)
 
 
 from backoff import constant, on_exception
@@ -165,7 +168,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             webpage = el_html.get_attribute("outerHTML") 
             jsonstr = try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster',re.sub('[\t\n]','', html.unescape(webpage))), lambda x: x[0])                    
             info_sources = json.loads(js_to_json(jsonstr)) if jsonstr else None
-            
+            el_vplayer.click()
             if info_sources:
                 
                 try:
@@ -185,7 +188,8 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                             'format_id': f"http-{_src.get('desc')}",
                             'resolution': _src.get('desc'),
                             'height': int_or_none(_src.get('desc').lower().replace('p','')),
-                            'filesize': _info_video.get('filesize')
+                            'filesize': _info_video.get('filesize'),
+                            'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
                         })
                         
                     self._sort_formats(_formats)
@@ -245,7 +249,8 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                     'format_id': f"http-{_src.get('desc')}",
                     'resolution': _src.get('desc'),
                     'height': int_or_none(_src.get('desc').lower().replace('p','')),
-                    'filesize': _info_video.get('filesize')
+                    'filesize': _info_video.get('filesize'),
+                    
                 })
                 
             if _formats:
@@ -277,7 +282,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                 _formats = self.get_formats_single_video(webpage)
                 if _formats:
                     _title_video = _title.strip() if (_title:=try_get(re.findall(r'title:\s+\"([^-\"]*)[-\"]', webpage), lambda x: x[0])) else None
-                    
+                    for el in _formats: el.update({'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}})
                     _res = {
                         'id': self._match_id(str(res.url)),                        
                         'formats': _formats,
