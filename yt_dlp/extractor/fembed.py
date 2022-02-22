@@ -18,10 +18,10 @@ import sys
 
 from backoff import constant, on_exception
 
-class GayGuyTopIE(SeleniumInfoExtractor):
+class FembedIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'gayguytop'
-    _VALID_URL = r'https?://(?:www\.)?gayguy\.top/'
+    IE_NAME = 'fembed'
+    _VALID_URL = r'https?://(?:www\.)?fembed\.com/v/(?P<id>.+)'
 
     @on_exception(constant, Exception, max_tries=5, interval=5)    
     def _get_video_info(self, url):        
@@ -30,7 +30,7 @@ class GayGuyTopIE(SeleniumInfoExtractor):
         
         
     @on_exception(constant, Exception, max_tries=5, interval=5)
-    @limiter_5.ratelimit("gayguytop", delay=True)
+    @limiter_5.ratelimit("fembed", delay=True)
     def _send_request(self, url, driver):        
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
@@ -43,30 +43,18 @@ class GayGuyTopIE(SeleniumInfoExtractor):
         driver = self.get_driver(usequeue=True)
         
         try:
-            #videoid = url.split("/")[-1]
+            videoid = self._match_id(url)
             self._send_request(url, driver)
-            #el_art = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.TAG_NAME, "article")))
-            #if el_art:
-            #    videoid = try_get(el_art[0].get_attribute('id'), lambda x: x.split("-")[-1])
-            title = driver.title.replace("| GayGuy.Top", "").strip().lower()
-            el_ifr = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.TAG_NAME, "iframe")))
-            _ok = False
-            for el in el_ifr:
-                if 'fembed.com' in (_ifrsrc:=el.get_attribute('data-src')):
-                    self.to_screen(f"[iframe] {_ifrsrc}")
-                    videoid = _ifrsrc.split("/")[-1]
-                    el.click()                    
-                    driver.switch_to.frame(el)
-                    _ok = True
-                    break
-            if not _ok: raise ExtractorError("iframe fembed.com not found")
-            cont = driver.find_elements(By.CLASS_NAME, "loading-container.faplbu")
+            
+            
+            cont = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "loading-container.faplbu")))
             if cont:
-                cont[0].click()
+                cont.click()
             else:
-                elobs = driver.find_elements(By.TAG_NAME, 'svg')
+                elobs = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, 'svg')))
                 if elobs:
-                    elobs[0].click()
+                    elobs.click()
+            title = driver.title.replace("Video ", "").replace(".mp4", "").strip().lower()
             vstr = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "vstr")))
             vstr.click()            
             setb = self.wait_until(driver, 30, ec.presence_of_element_located((
