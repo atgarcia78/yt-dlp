@@ -125,7 +125,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                 )
             )
             if not _info: raise ExtractorError('no video info')
-            return ({'format_id': formatid, 'url': _info.get('url'), 'ext': ext, 'filesize': _info.get('filesize')})
+            return ({'format_id': formatid, 'url': _info.get('url'), 'ext': ext, 'filesize': _info.get('filesize'), 'http_headers': {'Referer': 'https://netdna-storage.com/'}})
 
         except Exception as e:
             self.write_debug(repr(e))
@@ -279,7 +279,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                                     if count == 3: raise ExtractorError("max attempts to get info")
                                     else: continue
                                     
-                                _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext')}]
+                                _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext'), 'http_headers': {'Referer': 'https://netdna-storage.com/'}}]
                                                                 
                                 entry = {
                                     'id' : info_video.get('id'),

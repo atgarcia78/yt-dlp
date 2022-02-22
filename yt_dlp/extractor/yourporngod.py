@@ -53,7 +53,7 @@ class get_videourl:
         
             elplayer = driver.find_elements(By.ID, "kt_player")
             if elplayer:
-                for _ in range(5):
+                for _ in range(4):
                     try:
                         elplayer[0].click()
                     except Exception as e:
@@ -73,6 +73,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
     
     IE_NAME = 'yourporngod'
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
+    _SITE_URL = 'https://yourporngod.com'
     
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
@@ -115,19 +116,25 @@ class YourPornGodIE(SeleniumInfoExtractor):
             
             if not info_video: raise Exception(f"error video info")
             
-            formats = [{'format_id': 'http', 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4'}]
-            if not formats: raise ExtractorError("No formats found")
-            else:
-                self._sort_formats(formats)
-                video_id = self._match_id(url)
-                title = driver.title        
-                entry = {
-                        'id' : video_id,
-                        'title' : sanitize_filename(title, restricted=True),
-                        'formats' : formats,
-                        'ext': 'mp4'
-                 }            
-                return entry
+            _format = {
+                'format_id': 'http', 
+                'url': info_video.get('url'), 
+                'filesize': info_video.get('filesize'), 
+                'http_headers': {'Referer': self._SITE_URL}, 
+                'ext': 'mp4'}
+            
+            
+            
+            
+            video_id = self._match_id(url)
+            title = driver.title        
+            entry = {
+                'id' : video_id,
+                'title' : sanitize_filename(title, restricted=True),
+                'formats' : [_format],
+                'ext': 'mp4'
+                }            
+            return entry
         
         
         except Exception as e:
@@ -212,3 +219,8 @@ class YourPornGodPlayListIE(SeleniumInfoExtractor):
             'entries': entries,
             
         }
+        
+class OnlyGayVideoIE(YourPornGodIE):
+    IE_NAME = 'onlygayvideo'
+    _VALID_URL = r'https?://(?:www\.)?onlygayvideo\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
+    _SITE_URL = 'https://onlygayvideo.com'
