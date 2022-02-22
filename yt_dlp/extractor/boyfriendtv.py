@@ -155,6 +155,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             driver.get(url)
             
             el_vplayer = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-player")))
+            el_vplayer.click()
             el_title = self.wait_until(driver, 10, ec.presence_of_element_located((By.TAG_NAME, "title")))
             if el_title: _title = el_title.get_attribute("innerHTML")
             if "deleted" in _title or "removed" in _title or "page not found" in _title or not el_vplayer:
