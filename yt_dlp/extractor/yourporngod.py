@@ -53,7 +53,7 @@ class get_videourl:
         
             elplayer = driver.find_elements(By.ID, "kt_player")
             if elplayer:
-                for _ in range(4):
+                for _ in range(5):
                     try:
                         elplayer[0].click()
                     except Exception as e:

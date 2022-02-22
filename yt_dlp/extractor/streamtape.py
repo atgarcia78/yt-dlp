@@ -5,8 +5,8 @@ import re
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    try_get
-
+    try_get,
+    
 )
 
 import sys
@@ -25,6 +25,8 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
 import time
+
+from urllib.parse import urlparse
 
 class video_or_error_streamtape():
     def __init__(self, logger):
@@ -112,7 +114,8 @@ class StreamtapeIE(SeleniumInfoExtractor):
                 'format_id': 'http-mp4',
                 'url': _info_video.get('url'),
                 'filesize': _info_video.get('filesize'),
-                'ext': 'mp4'
+                'ext': 'mp4',
+                'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
             }
                 
             return({
