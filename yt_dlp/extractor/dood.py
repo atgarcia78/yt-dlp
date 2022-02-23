@@ -44,7 +44,7 @@ class DoodIE(SeleniumInfoExtractor):
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
     
-    @limiter_1.ratelimit("dood2", delay=True)
+    @limiter_5.ratelimit("dood2", delay=True)
     def _send_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
