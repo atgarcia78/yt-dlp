@@ -5,7 +5,7 @@ from ..utils import (
     sanitize_filename,
     int_or_none,
     try_get,
-    std_headers
+
 
     
 )
@@ -94,7 +94,7 @@ class GayBingoIE(SeleniumInfoExtractor):
                         if not formats[0].get('height'): formats[0].update({'height': height})            
                     for f in formats:
                         
-                        _httpheaders = std_headers.copy()                        
+                        _httpheaders = self.get_param('http_headers').copy()                        
                         _httpheaders.update(_headers)                        
                         f.update({'http_headers': _httpheaders})                        
                         

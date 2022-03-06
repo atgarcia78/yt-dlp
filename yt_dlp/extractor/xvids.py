@@ -5,16 +5,14 @@ import re
 from tarfile import ExtractError
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError,
     int_or_none,
-    std_headers,
     sanitize_filename
 )
 
 import httpx
 import html
 import time
-from threading import Lock
+
 
 class XVidsIE(InfoExtractor):
 
@@ -62,7 +60,7 @@ class XVidsIE(InfoExtractor):
         
             _timeout = httpx.Timeout(15, connect=15)        
             _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-            client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
+            client = httpx.Client(timeout=_timeout, limits=_limits, headers=self.get_param('http_headers'), follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
                       
             res = client.get(url) 
             webpage = re.sub('[\t\n]', '', html.unescape(res.text))
