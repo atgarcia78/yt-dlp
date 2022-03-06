@@ -5,7 +5,6 @@ import re
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,   
-    std_headers,
     sanitize_filename,
     int_or_none,
     js_to_json
@@ -18,9 +17,6 @@ import sys
 import json
 import time
 
-
-import random
-from urllib.parse import unquote
 
 
 class Gay0DayIE(InfoExtractor):
@@ -64,7 +60,7 @@ class Gay0DayIE(InfoExtractor):
         
         try:
             
-            client = httpx.Client(headers=std_headers,timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
+            client = httpx.Client(headers=self.get_param('http_headers'),timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
             
             res = client.get(url)
             if res.status_code > 400: raise ExtractorError(f'{url}:{res}')

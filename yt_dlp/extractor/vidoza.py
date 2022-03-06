@@ -6,7 +6,6 @@ from ..utils import (
     ExtractorError,
     int_or_none,
     sanitize_filename,
-    std_headers,
     js_to_json
 )
 
@@ -31,7 +30,7 @@ class VidozaIE(InfoExtractor):
                 
                 try:
                     
-                    res = httpx.head(url,headers={'Referer': 'https://vidoza.net', 'User-Agent': std_headers['User-Agent']})
+                    res = httpx.head(url,headers={'Referer': 'https://vidoza.net', 'User-Agent': self.get_param('http_headers')['User-Agent']})
                     if res.status_code > 400:
                         time.sleep(1)
                         count += 1

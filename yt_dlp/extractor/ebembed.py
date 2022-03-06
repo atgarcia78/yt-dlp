@@ -5,7 +5,6 @@ import re
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,   
-    std_headers,
     sanitize_filename,
     int_or_none,
     js_to_json
@@ -39,7 +38,7 @@ class EbembedIE(InfoExtractor):
         
         _timeout = httpx.Timeout(15, connect=15)        
         _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
-        client = httpx.Client(timeout=_timeout, limits=_limits, headers=std_headers, follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
+        client = httpx.Client(timeout=_timeout, limits=_limits, headers=self.get_param('http_headers'), follow_redirects=True, verify=(not self._downloader.params.get('nocheckcertificate')))
         
         try:    
             
