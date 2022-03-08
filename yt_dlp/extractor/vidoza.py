@@ -30,7 +30,7 @@ class VidozaIE(InfoExtractor):
                 
                 try:
                     
-                    res = httpx.head(url,headers={'Referer': 'https://vidoza.net', 'User-Agent': self.get_param('http_headers')['User-Agent']})
+                    res = httpx.head(url,headers={'Referer': 'https://vidoza.net', 'User-Agent': self.get_param('http_headers')['User-agent']})
                     if res.status_code > 400:
                         time.sleep(1)
                         count += 1
