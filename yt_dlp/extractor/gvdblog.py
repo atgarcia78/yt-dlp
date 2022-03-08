@@ -1,5 +1,4 @@
 from __future__ import unicode_literals
-import queue
 
 import re
 
@@ -63,8 +62,9 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
         def getter(x):
             if len(x) > 1:
                 for el in x:
-                    if not 'dood.' in el: return el
-            else: return x[0]
+                    if not 'dood.' in el and not '.gs/' in el: return el
+            else: 
+                if not '.gs/' in x[0]: return x[0]
         
         self.report_extraction(url)
 
@@ -72,7 +72,10 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
 
             res = self._send_request(url)
             webpage = re.sub(r'[\t\n]', '', res.text)
-            videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), getter)                       
+            #videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), getter)
+            videourl = try_get(re.findall(r'href="([^" ]+)" target=', webpage), getter) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), lambda x: x[0])
+            #if not videourl or '.gs/' in videourl:
+            #    videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), lambda x: x[0])                    
             postdate = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))            
             if not videourl: raise ExtractorError("no video url")
             self.to_screen(videourl)

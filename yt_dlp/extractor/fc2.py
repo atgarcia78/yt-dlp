@@ -204,7 +204,7 @@ class FC2LiveIE(InfoExtractor):
             'Cookie': str(self._get_cookies('https://live.fc2.com/'))[12:],
             'Origin': 'https://live.fc2.com',
             'Accept': '*/*',
-            'User-Agent': self.get_param('http_headers')['User-Agent'],
+            'User-Agent': self.get_param('http_headers')['User-agent'],
         })
 
         self.write_debug('Sending HLS server request')
