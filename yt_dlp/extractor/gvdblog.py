@@ -62,7 +62,7 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
         def getter(x):
             if len(x) > 1:
                 for el in x:
-                    if not 'dood.' in el and not '.gs/' in el: return el
+                    if not 'dood.' in el and not '.gs/' and not 'imdb.com' in el: return el
             else: 
                 if not '.gs/' in x[0]: return x[0]
         
