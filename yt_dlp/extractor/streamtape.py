@@ -23,17 +23,20 @@ from backoff import on_exception, constant
 
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 import time
 
 from urllib.parse import urlparse
+
+import html
 
 class video_or_error_streamtape():
     def __init__(self, logger):
         self.logger = logger
     def __call__(self, driver):
         try:
-            
+
             elover = driver.find_elements(By.CLASS_NAME, "plyr-overlay")
             if elover:
                 for _ in range(5):
@@ -98,15 +101,35 @@ class StreamtapeIE(SeleniumInfoExtractor):
         
         driver = self.get_driver(usequeue=True)
         
+        
         try:        
-
-            self._send_request(url, driver)            
-            video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
+            #we need to disable the adblock addon to bypass cloudflare bot detection
+            driver.get("about:addons")
+            elbutton = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "input.toggle-button.extension-enable-button")))
+            elbutton[1].click()
+            
+            #open a new tab to load the url webpage
+            eltab =  driver.find_element(By.CSS_SELECTOR, "a")
+            eltab.send_keys(Keys.COMMAND + Keys.RETURN)
+            driver.switch_to.window(driver.window_handles[1])
+            self._send_request(url.replace(".com", "adblock.art"), driver)           
+            
+            #enable again the addon adblock
+            driver.switch_to.window(driver.window_handles[0])
+            elbutton = driver.find_elements(By.CSS_SELECTOR, "input.toggle-button.extension-enable-button")            
+            elbutton[1].click()
+            driver.close()            
+            driver.switch_to.window(driver.window_handles[0]) 
+                       
+            webpage = html.unescape(driver.page_source)
+            video_url = try_get(re.findall(r"(//streamtapeadblock\.art/get_video\?.+)<\/div>", webpage), lambda x: f'https:{x[0]}&stream=1')
+            self.to_screen(f'[{url}] {video_url}')
+            #video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
             _info_video = self.get_info_for_format(video_url)
             if not _info_video: raise ExtractorError("error info video")
              
-            title = try_get(re.findall(r'og:title" content="([^"]+)"', driver.page_source), 
+            title = try_get(re.findall(r'og:title" content="([^"]+)"', webpage), 
                             lambda x: re.sub(r'\.mp4| at Streamtape\.com|amp;', '', x[0], re.IGNORECASE))
                                         
              
