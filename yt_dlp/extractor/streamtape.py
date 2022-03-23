@@ -113,7 +113,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             eltab.send_keys(Keys.COMMAND + Keys.RETURN)
             driver.switch_to.window(driver.window_handles[1])
             self._send_request(url.replace(".com", "adblock.art"), driver)           
-            
+            self.wait_until(driver, 30, ec.title_contains("Streamtape"))
             #enable again the addon adblock
             driver.switch_to.window(driver.window_handles[0])
             elbutton = driver.find_elements(By.CSS_SELECTOR, "input.toggle-button.extension-enable-button")            
