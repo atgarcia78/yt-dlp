@@ -16,17 +16,21 @@ class ClosePluginPP(PostProcessor):
     # ℹ️ See docstring of yt_dlp.postprocessor.common.PostProcessor.run
     def run(self, info):
         
+        self.write_debug(info)
+        #ies_to_close = ['NakedSwordScene', 'NetDNA', 'GayBeeg', 'GayBeegPlaylist', 'GayBeegPlaylistPage', 'BoyFriendTVEmbed', 'BoyFriendinfoTV']
         
-        #ies_to_close = ['NakedSwordScene', 'NetDNA', 'GayBeeg', 'GayBeegPlaylist', 'GayBeegPlaylistPage', 'BoyFriendTVEmbed', 'BoyFriendTV']
-        ies = self._downloader._ies_instances
-        
-        for ie, ins in ies.items():
+        if info.get('_type', 'video') != 'video' or not info.get('playlist'):
+            ies = self._downloader._ies_instances
             
-            if (close:=getattr(ins, 'close', None)):
-                try:
-                    close()
-                    self.to_screen(f"[{ie}] Close OK")
-                except Exception as e:
-                    self.to_screen(f"[{ie}] {repr(e)}")
+            for ie, ins in ies.items():
+                
+                if (close:=getattr(ins, 'close', None)):
+                    try:
+                        close()
+                        self.to_screen(f"[{ie}] Close OK")
+                    except Exception as e:
+                        self.to_screen(f"[{ie}] {repr(e)}")
                 
         return [], info
+
+

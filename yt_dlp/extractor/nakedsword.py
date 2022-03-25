@@ -5,7 +5,7 @@ import re
 
 from .commonwebdriver import (
     SeleniumInfoExtractor,
-    limiter_0_1
+    limiter_0_01
 )
 
 from ..utils import (
@@ -21,7 +21,6 @@ import sys
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-import httpx
 
 import json
 from urllib.parse import quote, unquote
@@ -64,12 +63,18 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         return _headers
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_0_1.ratelimit("nakedsword", delay=True)
+    @limiter_0_01.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):
         
-        res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
-        res.raise_for_status()
-        return res
+        try:
+            res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
+            res.raise_for_status()
+            return res
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"[send_request] error {repr(e)}\n{'!!'.join(lines)}")
+            raise
+            
     
     def get_driver_NS(self):
         driver = self.get_driver(usequeue=True)
@@ -142,6 +147,24 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
   
     
+    def _get_info(self, anystr):       
+        
+        if anystr.startswith('http'):
+
+            res = self._send_request(anystr)
+            if not res: raise ExtractorError("No info for sceneid")
+            else:
+                webpage = res.text
+            
+        else:
+            webpage = anystr
+            
+        res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", webpage)
+        res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", webpage.replace(" ",""))
+      
+        return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if res and res2 else None)
+
+    
     def get_entries_scenes(self, url):
         
         entries = []
@@ -156,7 +179,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 
                 for video in videos_paths:
                     _urlscene = self._SITE_URL + video
-                    res = NakedSwordSceneIE._get_info(_urlscene)
+                    res = self._get_info(_urlscene)
                     if res:
                         _id = res.get('id')
                         _title = res.get('title')
@@ -189,33 +212,8 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
 
        
-    @staticmethod
-    def _get_info(anystr):       
-        
-        if anystr.startswith('https://'):
-            count = 0
-            while count < 3:
-                try:
-                    _res = httpx.get(anystr)
-                    if _res.status_code < 400:         
-                        res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", _res.text)
-                        res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", _res.text.replace(" ",""))
-                        if res and res2: break
-                        else: count += 1
-                        
-                    else: count += 1
-                except Exception as e:
-                    count += 1 
-        else:
-            
-            res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", anystr)
-            res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", anystr.replace(" ",""))
-            if res and res2: count = 0
-            else: count = 3
-                           
-        
-        return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if count < 3 else None)
     
+        
     
     def _get_formats(self, url, stream_url, _type):
         
@@ -270,11 +268,9 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     def _real_extract(self, url):
 
         try:            
-
-            info_video = {}
-            res = self._send_request(url)
-            if res:
-                info_video = self._get_info(res.text)
+            self.report_extraction(url)
+            info_video = {}            
+            info_video = self._get_info(url)
             
             if not info_video: raise ExtractorError("Can't find sceneid")
                           
@@ -325,7 +321,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         entries = []
         for scene in scenes_paths:
             _urlscene = self._MOVIES_URL + playlist_id + "/" + title + "/" + "scene" + "/" + scene
-            res = NakedSwordSceneIE._get_info(_urlscene)
+            res = self._get_info(_urlscene)
             if res:
                 _id = res.get('id')
                 _title = res.get('title')

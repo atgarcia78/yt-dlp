@@ -31,7 +31,7 @@ class QueroFoderIE(SeleniumInfoExtractor):
        
     
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @limiter_0_1.ratelimit("gvdblog", delay=True)
+    @limiter_0_1.ratelimit("querofoder", delay=True)
     def _send_request(self, url):        
         
         self.logger_info(f"[send_request] {url}") 
