@@ -99,6 +99,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     
    
     def close(self, client=True):
+        
         while True:
             try:
                 _driver = SeleniumInfoExtractor._QUEUE.get(block=False)                
@@ -106,7 +107,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             except Empty:
                 if SeleniumInfoExtractor._YTDL:
-                    SeleniumInfoExtractor._YTDL.to_screen(f'[{self.__class__.__name__[:-2].lower()}] queue empty')
+                    SeleniumInfoExtractor._YTDL.to_screen(f'[{self.__class__.__name__[:-2].lower()}] SeleniumInfoExtractor drivers queue empty')
                 break
             except Exception:
                 pass
@@ -114,9 +115,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         if client:
             try:
                 SeleniumInfoExtractor._CLIENT.close()
+                SeleniumInfoExtractor._YTDL.to_screen(f'[{self.__class__.__name__[:-2].lower()}] SeleniumInfoExtradctor httpx client close')
             except Exception:
                 pass
         
+        #just in case a selenium extractor is needed after closing its network resources
         SeleniumInfoExtractor._MASTER_INIT = False
         self._ready = False
         
