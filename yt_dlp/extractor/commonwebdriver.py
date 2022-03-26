@@ -97,16 +97,16 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 SeleniumInfoExtractor._YTDL.to_screen(f"[{cls.__name__[:-2].lower()}]{msg}")
     
-    @classmethod
-    def close(cls, client=True):
+   
+    def close(self, client=True):
         while True:
             try:
                 _driver = SeleniumInfoExtractor._QUEUE.get(block=False)                
-                cls.rm_driver(_driver)               
+                SeleniumInfoExtractor.rm_driver(_driver)               
             
             except Empty:
                 if SeleniumInfoExtractor._YTDL:
-                    SeleniumInfoExtractor._YTDL.to_screen(f'[{cls.__name__[:-2].lower()}] queue empty')
+                    SeleniumInfoExtractor._YTDL.to_screen(f'[{self.__class__.__name__[:-2].lower()}] queue empty')
                 break
             except Exception:
                 pass
@@ -116,6 +116,9 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._CLIENT.close()
             except Exception:
                 pass
+        
+        SeleniumInfoExtractor._MASTER_INIT = False
+        self._ready = False
         
         
         
