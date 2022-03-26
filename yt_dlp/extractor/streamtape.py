@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 
 import html
 
+
 class video_or_error_streamtape():
     def __init__(self, logger):
         self.logger = logger
@@ -70,6 +71,7 @@ class video_or_error_streamtape():
         except Exception as e:
             return False
 
+
 class StreamtapeIE(SeleniumInfoExtractor):
 
     IE_NAME = 'streamtape'
@@ -82,6 +84,12 @@ class StreamtapeIE(SeleniumInfoExtractor):
         if mobj is not None:
             return mobj.group('url')
 
+    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @limiter_5.ratelimit("streamtape", delay=True)
+    def _get_video_info(self, url):        
+        
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url)     
     
     @on_exception(constant, Exception, max_tries=5, interval=5)
     @limiter_5.ratelimit("streamtape", delay=True)
@@ -112,6 +120,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             eltab =  driver.find_element(By.CSS_SELECTOR, "a")
             eltab.send_keys(Keys.COMMAND + Keys.RETURN)
             driver.switch_to.window(driver.window_handles[1])
+            self.wait_until(driver, timeout=5)
             self._send_request(url.replace(".com", "adblock.art"), driver)           
             self.wait_until(driver, 30, ec.title_contains("Streamtape"))
             #enable again the addon adblock
@@ -126,7 +135,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             self.to_screen(f'[{url}] {video_url}')
             #video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
-            _info_video = self.get_info_for_format(video_url)
+            _info_video = self._get_video_info(video_url)
             if not _info_video: raise ExtractorError("error info video")
              
             title = try_get(re.findall(r'og:title" content="([^"]+)"', webpage), 
