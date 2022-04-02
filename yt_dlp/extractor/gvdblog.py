@@ -14,7 +14,7 @@ from ..utils import (
 
 from .commonwebdriver import (
     SeleniumInfoExtractor,
-    limiter_0_1
+    limiter_1
 )
 
 
@@ -29,7 +29,7 @@ import sys
 
 from backoff import constant, on_exception
 
-
+from httpx import HTTPStatusError
 class GVDBlogPostIE(SeleniumInfoExtractor):
     IE_NAME = "gvdblogpost"
     _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html'
@@ -47,13 +47,22 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
                 'release_timestamp': int(_info_date.timestamp())}
         
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @limiter_0_1.ratelimit("gvdblog", delay=True)
-    def _send_request(self, url):        
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @limiter_1.ratelimit("gvdblog", delay=True)
+    def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        self.logger_info(f"[send_request] {url}") 
-        res = self._CLIENT.get(url)
-        return res
+        res = None
+        try:
+            self.logger_info(f"[_send_request] {url}") 
+            res = self.send_request(url, _type=_type, data=data, headers=headers)
+            res.raise_for_status()
+            return res
+        except Exception as e:
+            if res: 
+                msg_error = f'{res} - {res.request} \n{res.request.headers}'
+            else: msg_error = ""
+            self.logger_info(f"[_send_request][{url}] error {repr(e)} - {msg_error}")
+            raise
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -61,9 +70,16 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
     def _real_extract(self, url):        
         
         def getter(x):
+            
             if len(x) > 1:
+                temp = ""
                 for el in x:
-                    if not 'dood.' in el and not '.gs/' and not 'imdb.com' in el: return el
+                    if not 'dood.' in el and not '.gs/' in el and not 'imdb.com' in el: 
+                        if self._is_valid(el, ""):
+                            return el
+                    elif 'dood.' in el and not '.gs/' in el:
+                        temp = el
+                return temp
             else: 
                 if not '.gs/' in x[0]: return x[0]
         
@@ -71,12 +87,16 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
 
         try:
 
-            res = self._send_request(url)
-            webpage = re.sub(r'[\t\n]', '', res.text)
+            #res = self._send_request(url)
+            webpage = try_get(self._send_request(url), lambda x: x.text)
             #videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), getter)
+            if not webpage: raise ExtractorError("couldnt download webpage")
+            #self.to_screen(webpage)
             videourl = try_get(re.findall(r'href="([^" ]+)" target=', webpage), getter) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), lambda x: x[0])
             #if not videourl or '.gs/' in videourl:
-            #    videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), lambda x: x[0])                    
+            #    videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), lambda x: x[0])    
+            
+                            
             postdate = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))            
             if not videourl: raise ExtractorError("no video url")
             self.to_screen(videourl)
@@ -102,13 +122,22 @@ class GVDBlogPlaylistIE(SeleniumInfoExtractor):
     IE_NAME = "gvdblog:playlist"
     _VALID_URL = r'https?://(?:www\.)?gvdblog.com/search\?(?P<query>.+)'
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @limiter_0_1.ratelimit("gvdblog", delay=True)
+    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @limiter_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url):        
         
-        self.logger_info(f"[send_request] {url}") 
-        res = self._CLIENT.get(url)
-        return res
+        res = None
+        try:
+            self.to_screen(f"[_send_request] {url}") 
+            res = self.send_request(url)
+            res.raise_for_status()
+            return res
+        except Exception as e:
+            if res: 
+                msg_error = f'{res} - {res.request} \n{res.request.headers}'
+            else: msg_error = ""
+            self.to_screen(f"[_send_request][{url}] error {repr(e)} - {msg_error}")
+            raise
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -124,12 +153,19 @@ class GVDBlogPlaylistIE(SeleniumInfoExtractor):
             
         def get_videourl(x):
             if len(x) > 1:
+                temp = ""
                 for el in x:
-                    if not 'dood.' in el and not '.gs/' and not 'imdb.com' in el: return el
+                    if not 'dood.' in el and not '.gs/' in el and not 'imdb.com' in el: 
+                        if self._is_valid(el, ""):
+                            return el
+                    elif 'dood.' in el and not '.gs/' in el:
+                        temp = el
+                return temp
             else: 
                 if not '.gs/' in x[0]: return x[0]
             
         
+        self.report_extraction(url)
         
         query = re.search(self._VALID_URL, url).group('query')
         
@@ -149,14 +185,18 @@ class GVDBlogPlaylistIE(SeleniumInfoExtractor):
             postdate = datetime.strptime(_entry['published']['$t'].split('T')[0], '%Y-%m-%d')
             videourlpost = _entry['link'][-1]['href']
             videourl = try_get(re.findall(r'href="([^" ]+)" target=', _entry['content']['$t']), get_videourl) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', _entry['content']['$t']), lambda x: x[0])
-            _entries.append({
-                '_type': 'url_transparent',
-                'original_url': videourlpost,
-                'webpage_url': url,
-                'release_date': postdate.strftime('%Y%m%d'),
-                'release_timestamp': int(postdate.timestamp()),
-                'url': videourl
-            })
+            if videourl:
+                _entries.append({
+                    '_type': 'url_transparent',
+                    'original_url': videourlpost,
+                    'webpage_url': url,
+                    'release_date': postdate.strftime('%Y%m%d'),
+                    'release_timestamp': int(postdate.timestamp()),
+                    'url': videourl
+                })
+            else:
+                self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
+                
         
         if not _entries: raise ExtractorError("no video list")
         return self.playlist_result(_entries, f"gvdblog_playlist", f"gvdblog_playlist")

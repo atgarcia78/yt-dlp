@@ -116,7 +116,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
             self.to_screen(f'[get_entries] {url}')
 
-            self.send_request(_driver, url)
+            self.send_driver_request(_driver, url)
 
             el_netdna_list = self.wait_until(_driver, 60, get_links_netdna(self.to_screen), poll_freq=2)
 
@@ -134,7 +134,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
            
 
     @limiter_1.ratelimit("gaybeeg2", delay=True)  
-    def send_request(self, driver, url):
+    def send_driver_request(self, driver, url):
         
         try:        
             driver.execute_script("window.stop();")

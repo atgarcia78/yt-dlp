@@ -128,7 +128,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
     @limiter_0_1.ratelimit("onlyfans2", delay=True)
-    def send_request(self, driver, url):
+    def send_driver_request(self, driver, url):
                 
         driver.execute_script("window.stop();")
         driver.get(url)
@@ -206,7 +206,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         try:
 
              
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             self.wait_until(driver, 2)        
 
             
@@ -217,7 +217,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 return
             else: 
                 #el_init[1].click()
-                self.send_request(driver, el_init[1].get_attribute('href'))
+                self.send_driver_request(driver, el_init[1].get_attribute('href'))
             
             el = self.wait_until(driver, 60, succ_or_twlogin())            
 
@@ -408,7 +408,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 _harproxy = _server.create_proxy({'port' : _port})
 
             driver  = self.get_driver(host=_host, port=_port)
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             for cookie in OnlyFansPostIE._COOKIES:
                 driver.add_cookie(cookie)
             
@@ -421,7 +421,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             entries = {} 
             
             _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
-            self.send_request(driver, url) 
+            self.send_driver_request(driver, url) 
             res = self.wait_until(driver, 30, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("Error 404: Post doesnt exists")
             har = _harproxy.har            
@@ -479,7 +479,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 _harproxy = _server.create_proxy({'port' : _port})
 
             driver  = self.get_driver(host=_host, port=_port)
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             for cookie in OnlyFansPlaylistIE._COOKIES:
                 driver.add_cookie(cookie)
             
@@ -491,7 +491,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             if mode in ("all", "latest", "favorites","tips"):
 
-                self.send_request(driver, f"{self._SITE_URL}/{account}")
+                self.send_driver_request(driver, f"{self._SITE_URL}/{account}")
                 res = self.wait_until(driver, 60, error404_or_found())
                 if not res or res[0] == "error404": raise ExtractorError("Error 404: User profile doesnt exists")
                 
@@ -499,7 +499,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 
-                self.send_request(driver, _url)
+                self.send_driver_request(driver, _url)
                 self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
                 if mode in ("latest"):
                     har = _harproxy.har
@@ -546,7 +546,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                 _url =  f"{self._SITE_URL}/{account}"
-                self.send_request(driver, _url)
+                self.send_driver_request(driver, _url)
                 res = self.wait_until(driver, 60, error404_or_found())
                 if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
                 har = _harproxy.har
@@ -557,7 +557,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 url_chat = f"https://onlyfans.com/my/chats/chat/{userid}/"
 
                 self.to_screen(url_chat)
-                self.send_request(driver, url_chat)
+                self.send_driver_request(driver, url_chat)
                 #init start of chat is to be at the end, with all the previous messages above. Lets scroll
                 # up to the start of the chat
                 el_chat_scroll = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto")))
@@ -628,12 +628,12 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
         
             driver  = self.get_driver(host=_host, port=_port)
             _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             for cookie in OnlyFansPaidlistIE._COOKIES:
                 driver.add_cookie(cookie)
             
             
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
                 (By.CLASS_NAME, "b-tabs__nav__item") ))
             for el in list_el:
@@ -718,16 +718,16 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
                 _harproxy = _server.create_proxy({'port' : _port})
             
             driver = self.get_driver(host=_host, port=_port, msg=f'[{_url_videos}]')
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             for cookie in OnlyFansActSubslistIE._COOKIES:
                 driver.add_cookie(cookie)
             
-            self.send_request(driver, url)
+            self.send_driver_request(driver, url)
             res = self.wait_until(driver, 60, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")        
             account = url.split("/")[-1]
             _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_actsubs_{account}", title=f"har_actsubs_{account}")            
-            self.send_request(driver, _url_videos)
+            self.send_driver_request(driver, _url_videos)
             self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
             
             har = _harproxy.har
@@ -772,12 +772,12 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             self.report_extraction(url)            
         
             driver  = self.get_driver(usequeue=True)
-            self.send_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, self._SITE_URL)
             for cookie in OnlyFansActSubslistIE._COOKIES:
                 driver.add_cookie(cookie)
             
             
-            self.send_request(driver, self._ACT_SUBS_URL)
+            self.send_driver_request(driver, self._ACT_SUBS_URL)
             el_subs = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-users__item__inner")))
             
             act_subs_urls = [el.find_element(By.TAG_NAME, "a").get_attribute('href') for el in el_subs]

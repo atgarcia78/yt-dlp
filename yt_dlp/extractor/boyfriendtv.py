@@ -157,13 +157,14 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         
             driver.get(url)
             
-            el_vplayer = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-player")))
-            el_vplayer.click()
+            el_vplayer = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-player")))            
             el_title = self.wait_until(driver, 10, ec.presence_of_element_located((By.TAG_NAME, "title")))
             if el_title: _title = el_title.get_attribute("innerHTML")
             if "deleted" in _title or "removed" in _title or "page not found" in _title or not el_vplayer:
                 raise ExtractorError("Page not found 404")   
-            _title_video = _title.replace(" - BoyFriendTV.com", "").strip()            
+            el_vplayer.click()
+            _title_video = _title.replace(" - BoyFriendTV.com", "").strip()
+            _rating = try_get(driver.find_elements(By.CSS_SELECTOR, "div.progress-big.js-rating-title"), lambda x: try_get(x[0].get_attribute('title').strip('%'), lambda y: int(y)))           
             el_html = self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "html")))
             webpage = el_html.get_attribute("outerHTML") 
             jsonstr = try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster',re.sub('[\t\n]','', html.unescape(webpage))), lambda x: x[0])                    
@@ -199,7 +200,8 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                         'title': sanitize_filename(_title_video, restricted=True),
                         'formats': _formats,
                         'ext': 'mp4',
-                        'original_url': url
+                        #'original_url': url,
+                        'average_rating': _rating
                 
                     })
                   
@@ -330,7 +332,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
 class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv:playlist'
     IE_DESC = 'boyfriendtv:playlist'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>.*?)(?:(/|$))'
+    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
 
  
     def _real_initialize(self):
@@ -339,7 +341,10 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
     def _real_extract(self, url):
         mobj = re.match(self._VALID_URL, url)
         playlist_id = mobj.group('playlist_id')
-
+        query = mobj.group('query')
+        if query:
+            params =  { (_key:=el.split('=')[0]): el.split('=')[1] if _key not in ('raiting') else int(el.split('=')[1]) for el in mobj.group('query').split('&')}
+        else: params = {}
         driver = self._init_driver()
         try:
         
@@ -347,13 +352,28 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             driver.get(url)
             el_title = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "h1")))
             _title = el_title.text.splitlines()[0]
+            _min_rating = params.get('raiting', 0)
+            _q = try_get(params.get('q'), lambda x: x.split(','))
             
             while True:
 
-                el_sources = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.thumb.vidItem")))
-                
-                if el_sources:                        
-                    entries += [self.url_result((el_a:=el.find_element(by=By.TAG_NAME, value='a')).get_attribute('href').rsplit("/", 1)[0], ie=BoyFriendTVIE.ie_key(), video_id=el.get_attribute('data-video-id'), video_title=sanitize_filename(el_a.get_attribute('title'), restricted=True)) for el in el_sources]
+                #el_videos = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.playlist-thumb-info")))
+                el_videos = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "li.playlist-video-thumb.thumb-item.videospot")))
+                if el_videos:
+                    for el in el_videos:
+                        (_thumb, _title, _url) = try_get(el.find_elements(By.CSS_SELECTOR, 'a'), lambda x: (try_get(x[0].find_elements(By.TAG_NAME, 'img'), lambda y: y[0].get_attribute('src')),x[0].get_attribute('title'), x[0].get_attribute('href').rsplit("/", 1)[0])) or ("", "", "")
+                        if 'img/removed-video' in _thumb or not _url: 
+                            continue
+                        #(_title, _url) = try_get(el.find_elements(By.CSS_SELECTOR, 'a'), lambda x: (x[0].get_attribute('title'), x[0].get_attribute('href').rsplit("/", 1)[0])) or ("", "")
+                        _rating = try_get(el.find_elements(By.CSS_SELECTOR, 'div.progress-small.js-rating-title.green'), lambda x: try_get(x[0].get_attribute('title').strip('%'), lambda y: int(y)))                      
+                        if _rating and (_rating < _min_rating): 
+                            continue
+                        if _title and _q:
+                            if not any(_.lower() in _title.lower() for _ in _q):
+                                continue
+                                
+                                
+                        entries += [self.url_result(_url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, _url), lambda x: x.group('id')), video_title=sanitize_filename(_title, restricted=True), average_rating=_rating, original_url=url)]
 
                 el_next = self.wait_until(driver, 60, ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, "Next")))
                 if el_next: 
