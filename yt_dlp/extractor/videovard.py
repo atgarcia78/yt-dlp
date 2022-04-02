@@ -38,7 +38,7 @@ class VideovardIE(SeleniumInfoExtractor):
  
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
     @limiter_0_1.ratelimit("onlyfans2", delay=True)
-    def send_request(self, driver, url):
+    def send_multi_request(self, driver, url):
         
         if driver:
             driver.execute_script("window.stop();")
@@ -102,7 +102,7 @@ class VideovardIE(SeleniumInfoExtractor):
                             
                 try:
                     _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
-                    self.send_request(driver, url.replace('/e/', '/v/'))
+                    self.send_multi_request(driver, url.replace('/e/', '/v/'))
                     title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
                     vpl = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "vplayer")))
                     vpl.click()
@@ -112,7 +112,7 @@ class VideovardIE(SeleniumInfoExtractor):
                     m3u8_url = self.scan_for_request(har, f"har_{videoid}", f"master.m3u8")
                     if m3u8_url:
                         self.write_debug(f"[{url}] m3u8 url - {m3u8_url}")
-                        res = self.send_request(None, m3u8_url)
+                        res = self.send_multi_request(None, m3u8_url)
                         if not res: raise ExtractorError(f"[{url}] no m3u8 doc")
                         m3u8_doc = (res.content).decode('utf-8', 'replace')
                         self.write_debug(f"[{url}] \n{m3u8_doc}")        
