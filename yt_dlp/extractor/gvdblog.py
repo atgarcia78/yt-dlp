@@ -5,8 +5,6 @@ import re
 from datetime import datetime
 import json
 
-from backoff import on_exception
-
 from ..utils import (
     ExtractorError,
     try_get)
