@@ -49,7 +49,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_5.ratelimit("boyfriendtv", delay=True)   
-    def get_info_for_format(self, *args, **kwargs):
+    def _get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
     
     def _login(self, driver):
@@ -177,7 +177,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                     _formats = []
                     for _src in info_sources.get('mp4'):
                         _url = unquote(_src.get('src'))
-                        _info_video = self.get_info_for_format(_url)
+                        _info_video = self._get_info_for_format(_url)
                             
                         if not _info_video:
                             self.to_screen("no info video")
@@ -244,7 +244,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             
             for _src in info_sources.get('mp4'):
                 _url = unquote(_src.get('src'))
-                _info_video = self.get_info_for_format(_url) 
+                _info_video = self._get_info_for_format(_url) 
                 _formats.append({
                     'url': _info_video.get('url'),
                     'ext': 'mp4',
