@@ -66,6 +66,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @limiter_0_01.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):
         
+        res = None
         try:
             res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
             res.raise_for_status()
@@ -211,10 +212,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:scene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
 
-       
-    
-        
-    
+
     def _get_formats(self, url, stream_url, _type):
         
         _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json",
@@ -223,43 +221,32 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         
         try:
                     
-            res = self._send_request(stream_url, headers=_headers_json)
-            if not res or not res.content: raise ExtractorError("Cant get stream url info")
-            info_json = res.json()
-            if not info_json: raise ExtractorError("Can't get json")                                                     
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(f"Cant get json info - {str(e)}")
-
-        mpd_url = info_json.get("StreamUrl") 
-        if not mpd_url: raise ExtractorError("Can't find url mpd")    
-    
-        
-        try:
-            res = self._send_request(mpd_url, headers=_headers_mpd)
-
-            if not res or not res.content: raise ExtractorError("Cant get mpd info")
-            
-            mpd_doc = (res.content).decode('utf-8', 'replace')
+            info_json = try_get(self._send_request(stream_url, headers=_headers_json), lambda x: x.json())
+            if not info_json: raise ExtractorError("Cant get json")
+            mpd_url = info_json.get("StreamUrl") 
+            if not mpd_url: raise ExtractorError("Can't find url mpd")
+            mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace'))
+            if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
             if _type == "dash":
                 mpd_doc = self._parse_xml(mpd_doc, None)
-
-            if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
-                
+                            
             if _type == "m3u8":
                 formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
             elif _type == "dash":
                 formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
                 
-            if not formats: raise ExtractorError("Cant get formats") 
+            self._sort_formats(formats)
             
+            return formats
+            
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{type(e)}: {str(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(f"Cant get formats {_type} - {str(e)}") 
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(f'{repr(e)}')
 
-        return formats               
+                       
                 
     
     def _real_initialize(self):
@@ -269,9 +256,8 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
         try:            
             self.report_extraction(url)
-            info_video = {}            
-            info_video = self._get_info(url)
             
+            info_video = self._get_info(url)
             if not info_video: raise ExtractorError("Can't find sceneid")
                           
             scene_id = info_video.get('id')
@@ -284,17 +270,24 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             
             self._sort_formats(formats) 
             
-            return {
+            _entry = {
                 "id": scene_id,
                 "title": info_video.get('title'),
                 "formats": formats,
                 "ext": "mp4"
             }
+            
+            return _entry
  
+        except ExtractorError:
+            raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
+            raise ExtractorError(f'{repr(e)}')
+            
+            
+        
         
 
         
