@@ -26,7 +26,7 @@ class ClosePluginPP(PostProcessor):
                         self.to_screen(f"[{ie}] {repr(e)}")
             
         
-        self.write_debug(info)
+        self.to_screen(f' {info}')
         
         
         if info.get('_type', 'video') != 'video' and info.get('original_url') == self._kwargs['url']:
