@@ -3,6 +3,7 @@
 # Allow direct execution
 import os
 import sys
+from os.path import dirname as dirn
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
