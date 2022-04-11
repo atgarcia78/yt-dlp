@@ -72,12 +72,12 @@ class waitforlogin():
         else: return("OK")
             
 
-class SketchySexBaseIE(SeleniumInfoExtractor):
-    _LOGIN_URL = "https://sketchysex.com/sign-in"
-    _SITE_URL = "https://sketchysex.com"
-    _BASE_URL_PL = "https://members.sketchysex.com/index.php?page="
+class BreederBrosBaseIE(SeleniumInfoExtractor):
+    _LOGIN_URL = "https://breederbros.com/sign-in"
+    _SITE_URL = "https://breederbros.com"
+    _BASE_URL_PL = "https://members.breederbros.com/index.php?page="
 
-    _NETRC_MACHINE = 'sketchysex'
+    _NETRC_MACHINE = 'fraternityx'
 
     _LOCK = threading.Lock()
 
@@ -86,12 +86,12 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
     _MAX_PAGE = None
     
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @limiter_0_01.ratelimit("sketchysex1", delay=True)
+    @limiter_0_01.ratelimit("breederbros1", delay=True)
     def _send_request_vs(self, url, headers=None):
         
         try:
  
-            res = SketchySexBaseIE._CLIENT.get(url, headers=headers)
+            res = BreederBrosBaseIE._CLIENT.get(url, headers=headers)
             res.raise_for_status()
             return res
         
@@ -100,14 +100,14 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             raise
     
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @limiter_0_01.ratelimit("sketchysex2", delay=True)
+    @limiter_0_01.ratelimit("breederbros2", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         
         try:
         
             if not driver:
                             
-                res = SketchySexBaseIE._CLIENT.get(url, headers=headers)
+                res = BreederBrosBaseIE._CLIENT.get(url, headers=headers)
                 res.raise_for_status()
                 return res
             
@@ -157,9 +157,9 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         super()._real_initialize()
         
         
-        with SketchySexBaseIE._LOCK:            
+        with BreederBrosBaseIE._LOCK:            
                         
-            if not SketchySexBaseIE._COOKIES:
+            if not BreederBrosBaseIE._COOKIES:
                 
                 driver = self.get_driver(usequeue=True)
                 #driver = self.get_driver(noheadless=True)
@@ -168,21 +168,21 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     
                     self._login(driver)                
                     
-                    SketchySexBaseIE._COOKIES = driver.get_cookies()
+                    BreederBrosBaseIE._COOKIES = driver.get_cookies()
                     
                     
-                    for cookie in SketchySexBaseIE._COOKIES:
-                        SketchySexBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])                    
+                    for cookie in BreederBrosBaseIE._COOKIES:
+                        BreederBrosBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])                    
                         
                     
-                    self._send_request("https://members.sketchysex.com", driver=driver)
+                    self._send_request("https://members.breederbros.com", driver=driver)
                     el_pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
                     if el_pag:
                         elnext = el_pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
                         totalpages = el_pag.find_elements(By.TAG_NAME, "a")
-                        SketchySexBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
+                        BreederBrosBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
                     else: 
-                        SketchySexBaseIE._MAX_PAGE = 50
+                        BreederBrosBaseIE._MAX_PAGE = 50
                 
                 except Exception as e:
                     self.to_screen("error when login")
@@ -205,14 +205,14 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             
             title = try_get(re.findall(r'class="name"> <span>([^<]+)<', res.text), lambda x: x[0])
             
-            videoid = try_get(re.findall(r'video id="([^"]+)"', res.text), lambda x: x[0])
+            videoid = try_get(re.findall(r'video id="([^"]+)"', res.text), lambda x: x[0].replace("_", ""))
            
             manifesturl = try_get(re.findall(r'source src="([^"]+)"', res.text), lambda x: x[0])
 
             if not manifesturl: raise ExtractorError(f"{pre}[{url}] no manifesturl")
                         
             headers = {
-                "Referer" : "https://members.sketchysex.com/",
+                "Referer" : "https://members.breederbros.com/",
                 "Accept" : "*/*",
             }
 
@@ -248,7 +248,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         entries = []
         
         with ThreadPoolExecutor(thread_name_prefix="ExtrListAll", max_workers=10) as ex:
-            futures = {ex.submit(self._extract_list, i, True): i for i in range(1, SketchySexAllPagesPlaylistIE._MAX_PAGE+1)}             
+            futures = {ex.submit(self._extract_list, i, True): i for i in range(1, BreederBrosAllPagesPlaylistIE._MAX_PAGE+1)}             
         
         for fut in futures:
             #self.to_screen(f'[page_{futures[fut]}] results')
@@ -274,9 +274,9 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         entries = []
         
         try:
-            res = self._send_request(url_pl, headers={'Referer': 'https://members.sketchysex.com'})
+            res = self._send_request(url_pl, headers={'Referer': 'https://members.breederbros.com'})
             #self.to_screen(res.text)
-            url_list = try_get(re.findall(r'<a href="gallery\.php\?id=([^"]+)"', res.text), lambda x: ["https://members.sketchysex.com/gallery.php?id=" + el for el in x])
+            url_list = try_get(re.findall(r'description">\s+<a href="gallery\.php\?id=([^"]+)"', res.text.replace("\n", "").replace("\t", "")), lambda x: ["https://members.breederbros.com/gallery.php?id=" + el for el in x])
 
             
         except Exception as e:
@@ -305,10 +305,10 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
 
 
 
-class SketchySexIE(SketchySexBaseIE):
-    IE_NAME = 'sketchysex'
-    IE_DESC = 'sketchysex'
-    _VALID_URL = r'https://members\.sketchysex\.com/gallery\.php.*'
+class BreederBrosIE(BreederBrosBaseIE):
+    IE_NAME = 'breederbros'
+    IE_DESC = 'breederbros'
+    _VALID_URL = r'https://members\.breederbros\.com/gallery\.php.*'
 
     def _real_initialize(self):
        
@@ -337,10 +337,10 @@ class SketchySexIE(SketchySexBaseIE):
         else:
             return(data)
 
-class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
-    IE_NAME = 'sketchysex:playlist'
-    IE_DESC = 'sketchysex:playlist'
-    _VALID_URL = r"https://members\.sketchysex\.com/index\.php\?page=(?P<id>\d+)"
+class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
+    IE_NAME = 'breederbros:playlist'
+    IE_DESC = 'breederbros:playlist'
+    _VALID_URL = r"https://members\.breederbros\.com/index\.php\?page=(?P<id>\d+)"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -354,7 +354,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
         
         try:              
 
-            if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
+            if int(playlistid) > BreederBrosOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
             entries = self._extract_list(playlistid)  
        
@@ -368,12 +368,12 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
             
         if not entries: raise ExtractorError("no video list") 
         
-        return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
+        return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
 
-class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
-    IE_NAME = 'sketchysex:allpages:playlist'
-    IE_DESC = 'sketchysex:allpages:playlist'
-    _VALID_URL = r"https://members\.sketchysex\.com/index.php\?page=all"
+class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
+    IE_NAME = 'breederbros:allpages:playlist'
+    IE_DESC = 'breederbros:allpages:playlist'
+    _VALID_URL = r"https://members\.breederbros\.com/index.php\?page=all"
  
     def _real_initialize(self):
         super()._real_initialize()
@@ -398,4 +398,4 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
             
         if not entries: raise ExtractorError("no video list")         
         
-        return self.playlist_result(entries, f"sketchysex:AllPages", f"sketchysex:AllPages")
+        return self.playlist_result(entries, f"breederbros:AllPages", f"breederbros:AllPages")
