@@ -14,6 +14,7 @@ from ..utils import (
 
 import traceback
 import sys
+import re
 
 
 from selenium.webdriver.support import expected_conditions as ec
@@ -45,26 +46,29 @@ class TubeloadIE(SeleniumInfoExtractor):
     
     IE_NAME = 'tubeload'
     _VALID_URL = r'https?://(?:www\.)?tubeload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
+    
+    @staticmethod
+    def _extract_urls(webpage):
+        #return try_get(re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage), lambda x: x.group('url'))
+        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1',webpage)]
 
-    def _get_video_info(self, url):        
-        self.logger_info(f"[get_video_info] {url}")
-        return self.get_info_for_format(url, verify=False)       
         
-
-    def _send_request(self, driver, url):
-        self.logger_info(f"[send_request] {url}")   
+    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @limiter_15.ratelimit("tubeload1", delay=True)
+    def _get_video_info(self, url):        
+        
+        self.logger_info(f"[get_video_info] {url}")
+        return self.get_info_for_format(url, verify=False)     
+    
+    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @limiter_15.ratelimit("tubeload", delay=True)
+    def _send_request(self, url, driver):        
+        
+        self.logger_info(f"[send_request] {url}") 
         driver.get(url)
     
    
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
-    @limiter_15.ratelimit("highload", delay=True)
-    def request_to_host(self, _type, *args):
-    
-        if _type == "video_info":
-            return self._get_video_info(*args)
-        elif _type == "url_request":
-            self._send_request(*args)
-
+ 
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -78,10 +82,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             
         try:                            
 
-            _url = url.replace('/e/', '/f/')
-            
-          
-            self.request_to_host("url_request", driver, _url)
+            self._send_request(url.replace('/e/', '/f/'), driver)
             
             video_url = self.wait_until(driver, 60, getvideourl())
             
@@ -91,17 +92,22 @@ class TubeloadIE(SeleniumInfoExtractor):
             videoid = self._match_id(url)
             
                        
-           # _videoinfo = self._get_video_info(video_url)
-            _videoinfo = self.request_to_host("video_info", video_url)
             
-            if not _videoinfo: raise Exception(f"error video info")
+            
+            #if not _videoinfo: raise Exception(f"error video info")
             
             _format = {
                     'format_id': 'http-mp4',
-                    'url': _videoinfo['url'],
-                    'filesize': _videoinfo['filesize'],
+                    #'url': _videoinfo['url'],
+                    'url': video_url,
+                    #'filesize': _videoinfo['filesize'],
                     'ext': 'mp4'
             }
+            
+            if self._downloader.params.get('external_downloader'):
+                _videoinfo = self._get_video_info(video_url)
+                if _videoinfo:
+                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
             
             _entry_video = {
                 'id' : videoid,

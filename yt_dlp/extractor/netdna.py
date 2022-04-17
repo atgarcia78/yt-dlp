@@ -114,18 +114,31 @@ class NetDNAIE(SeleniumInfoExtractor):
         driver.get(url)
 
     @on_exception(constant, ExtractorError, max_tries=5, interval=0.02)
-    def get_format(self, formatid, ext, url):
+    def get_format(self, formatid, ext, url, get_info):
+        
+        def getter(x):
+            _url = x.group('file')
+            if _url:
+                res = {'url': _url}
+                if get_info:
+                    if (_info:=self._send_request(_url, "GET_INFO")): res = _info
+                return res
+                
         
         try:
             _info = try_get(
                 self._send_request(url),
                 lambda x: try_get(
                     re.search(r'file: \"(?P<file>[^\"]+)\"', x.text),
-                    lambda y: self._send_request(y.group('file'), "GET_INFO")
+                    #lambda y: self._send_request(y.group('file'), "GET_INFO")
+                    getter
                 )
             )
             if not _info: raise ExtractorError('no video info')
-            return ({'format_id': formatid, 'url': _info.get('url'), 'ext': ext, 'filesize': _info.get('filesize'), 'http_headers': {'Referer': 'https://netdna-storage.com/'}})
+            _format = {'format_id': formatid, 'url': _info.get('url'), 'ext': ext, 'http_headers': {'Referer': 'https://netdna-storage.com/'}}
+            if (_filesize:=_info.get('filesize')):
+                _format.update({'filesize': _filesize}) 
+            return _format
 
         except Exception as e:
             self.write_debug(repr(e))
@@ -237,9 +250,12 @@ class NetDNAIE(SeleniumInfoExtractor):
                         el_formats = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR,"a.btn.btn--small")))
                         
                         if el_formats:
-
+                            if len(el_formats) > 1: _get_info_video = True
+                            else:  
+                                if self._downloader.params.get('external_downloader'): _get_info_video = True
+                                else: _get_info_video = False
                             with ThreadPoolExecutor(thread_name_prefix='fmt_netdna', max_workers=len(el_formats)) as ex:
-                                futures = [ex.submit(self.get_format, _el.text, info_video.get('ext'), _el.get_attribute('href')) for _el in el_formats]
+                                futures = [ex.submit(self.get_format, _el.text, info_video.get('ext'), _el.get_attribute('href'), _get_info_video) for _el in el_formats]
                                 
                             _formats = []
                             _reset = False
@@ -270,7 +286,17 @@ class NetDNAIE(SeleniumInfoExtractor):
                             if el_download:
                                 try:
                                     _video_url = el_download.get_attribute('href')
-                                    _info = self._send_request(_video_url, "GET_INFO")
+                                    _formats = {'format_id': 'ORIGINAL', 
+                                                 #'url': _info.get('url'), 
+                                                 'url': _video_url,
+                                                 #'filesize': _info.get('filesize'), 
+                                                 'ext': info_video.get('ext'), 
+                                                 'http_headers': {'Referer': 'https://netdna-storage.com/'}}
+                                    if self._downloader.params.get('external_downloader'):
+                                        _info = self._send_request(_video_url, "GET_INFO")
+                                        if _info:
+                                            _formats.update({'url': _info['url'],'filesize': _info['filesize'] })
+                                    
                                 
                                 except Exception as e:
                                     msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats"
@@ -279,12 +305,12 @@ class NetDNAIE(SeleniumInfoExtractor):
                                     if count == 3: raise ExtractorError("max attempts to get info")
                                     else: continue
                                     
-                                _formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext'), 'http_headers': {'Referer': 'https://netdna-storage.com/'}}]
+                                #_formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext'), 'http_headers': {'Referer': 'https://netdna-storage.com/'}}]
                                                                 
                                 entry = {
                                     'id' : info_video.get('id'),
                                     'title': sanitize_filename(info_video.get('title'),restricted=True),
-                                    'formats': _formats,
+                                    'formats':[_formats],
                                     'ext' : info_video.get('ext')
                                 } 
                                     

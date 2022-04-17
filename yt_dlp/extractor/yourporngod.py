@@ -6,6 +6,7 @@ import re
 from ..utils import (
     ExtractorError,   
     sanitize_filename,
+    try_get
 )
 
 
@@ -26,7 +27,7 @@ from .commonwebdriver import (
 
 from backoff import constant, on_exception
 
-class get_videourl:
+class get_title_videourl:
     def __init__(self, logger):
         self.logger = logger
         self.init = True
@@ -62,7 +63,7 @@ class get_videourl:
         
             el_fp = driver.find_element(By.CSS_SELECTOR, "video.fp-engine")
             if video_url := el_fp.get_attribute("src"):
-                return (self.title, video_url)
+                return ({'title': self.title, 'url': video_url})
             else:
                 return False
         except Exception as e:
@@ -75,24 +76,20 @@ class YourPornGodIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
     _SITE_URL = 'https://yourporngod.com'
     
+    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @limiter_15.ratelimit("yourporngod", delay=True)   
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
         
-
-    def _send_request(self, driver, url):
+    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @limiter_15.ratelimit("yourporngod", delay=True)
+    def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
     
    
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
-    @limiter_15.ratelimit("yourporngod", delay=True)
-    def request_to_host(self, _type, *args):
-    
-        if _type == "video_info":
-            return self._get_video_info(*args)
-        elif _type == "url_request":
-            self._send_request(*args)
+
         
     def _real_initialize(self):
         super()._real_initialize()
@@ -104,30 +101,26 @@ class YourPornGodIE(SeleniumInfoExtractor):
         driver = self.get_driver(usequeue=True)
         try:
                     
-            self.request_to_host("url_request", driver, url)
+            self._send_request(url, driver)
  
-            res = self.wait_until(driver, 60, get_videourl(self.to_screen))                
-                
-            if not res: raise ExtractorError("No video url")
-            title, video_url = res
-            
-            #info_video = self._get_video_info(video_url)
-            info_video = self.request_to_host("video_info", video_url)
-            
-            if not info_video: raise Exception(f"error video info")
+            title, video_url = try_get(self.wait_until(driver, 60, get_title_videourl(self.to_screen)), lambda x: (x['title'], x['url'])) or ("","")                
+            self.to_screen(f"{title} : {video_url}")    
+            if not video_url: raise ExtractorError("No video url")
             
             _format = {
                 'format_id': 'http', 
-                'url': info_video.get('url'), 
-                'filesize': info_video.get('filesize'), 
+                'url': video_url,
                 'http_headers': {'Referer': self._SITE_URL}, 
                 'ext': 'mp4'}
             
-            
+            if self._downloader.params.get('external_downloader'):
+                _videoinfo = self._get_video_info(video_url)
+                _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
             
             
             video_id = self._match_id(url)
-            title = driver.title        
+            if not title: title = try_get(re.search(self._VALID_URL, url), lambda x: x.group('title').replace("-","_"))
+                    
             entry = {
                 'id' : video_id,
                 'title' : sanitize_filename(title, restricted=True),

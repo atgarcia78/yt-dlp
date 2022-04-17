@@ -25,6 +25,8 @@ from selenium.webdriver.common.by import By
 import traceback
 import sys
 
+from urllib.parse import unquote
+
 from backoff import constant, on_exception
 
 from httpx import HTTPStatusError
@@ -100,7 +102,7 @@ class GVDBlogPostIE(SeleniumInfoExtractor):
             self.to_screen(videourl)
             _entry = {
                 '_type': 'url_transparent',
-                'url': videourl}
+                'url': unquote(videourl)}
             if postdate:                
                 _entry.update({
                     'release_date': postdate.strftime('%Y%m%d'),
@@ -190,7 +192,7 @@ class GVDBlogPlaylistIE(SeleniumInfoExtractor):
                     'webpage_url': url,
                     'release_date': postdate.strftime('%Y%m%d'),
                     'release_timestamp': int(postdate.timestamp()),
-                    'url': videourl
+                    'url': unquote(videourl)
                 })
             else:
                 self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')

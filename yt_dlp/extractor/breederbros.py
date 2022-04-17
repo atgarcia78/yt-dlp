@@ -205,7 +205,31 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             
             title = try_get(re.findall(r'class="name"> <span>([^<]+)<', res.text), lambda x: x[0])
             
-            videoid = try_get(re.findall(r'video id="([^"]+)"', res.text), lambda x: x[0].replace("_", ""))
+            def replTxt(match):
+                repl_dict = {"+": "PLUS", "&": "AND", "'": "", "-": ""}
+                if match:
+                    _res = try_get(match.groups(), lambda x: (x[0] or "", x[2] or "")) or ("","")
+                    _key = try_get(match.groups(), lambda x: x[1]) or 'dummmy'
+                    if (_key in repl_dict):
+                        if _key not in ["'","-"]:
+                            _txt = [_res[0] + ' ' if _res[0] not in [' ',''] else _res[0], ' ' + _res[1] if _res[1] not in [' ',''] else _res[1]]
+                        elif _key in ["-"]:
+                            _txt = [_res[0], ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
+                            if _txt== [' ', ' ']: _txt = [' ','']
+                        elif _key in ["'"]:
+                            if _res[1] == 'S':
+                                _txt = [_res[0], 'S']
+                            else:
+                                _txt = [_res[0], ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
+                            if _txt == [' ', ' ']: _res = [' ','']
+
+
+                    return f"{_txt[0]}{repl_dict[_key]}{_txt[1]}"
+
+            title = re.sub(r'([ ]+)', ' ', re.sub(r'(.)?([\+,\&,\',-])(.)?', replTxt, title))
+ 
+            
+            videoid = try_get(re.findall(r'video id="video_([^"]+)"', res.text), lambda x: x[0] + "BB")
            
             manifesturl = try_get(re.findall(r'source src="([^"]+)"', res.text), lambda x: x[0])
 
@@ -232,7 +256,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                         
                 return ({
                     "id": videoid,
-                    "title": sanitize_filename(re.sub(r'([^_ -])-', r'\1_', title.replace("'","").replace("&","AND")), restricted=True).upper(),
+                    "title": sanitize_filename(title, restricted=True).upper(),
                     "original_url": url,
                     "formats": formats_m3u8
                 })

@@ -93,25 +93,27 @@ class EvoLoadIE(SeleniumInfoExtractor):
     IE_NAME = 'evoload'
     _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$]+)(?:\/|$)'
 
-
+    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @limiter_15.ratelimit("evoload", delay=True)
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
             
-
-    def _send_request(self, driver, url):
+    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @limiter_15.ratelimit("evoload", delay=True)
+    def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
         
      
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
-    @limiter_15.ratelimit("evoload", delay=True)
-    def request_to_host(self, _type, *args):
+    # @on_exception(constant, Exception, max_tries=5, interval=15)    
+    # @limiter_15.ratelimit("evoload", delay=True)
+    # def request_to_host(self, _type, *args):
     
-        if _type == "video_info":
-            return self._get_video_info(*args)
-        elif _type == "url_request":
-            self._send_request(*args)
+    #     if _type == "video_info":
+    #         return self._get_video_info(*args)
+    #     elif _type == "url_request":
+    #         self._send_request(*args)
          
     def _real_initialize(self):
         super()._real_initialize()
@@ -127,23 +129,27 @@ class EvoLoadIE(SeleniumInfoExtractor):
             
             
 
-            self.request_to_host("url_request", driver, url.replace('/v/', '/e/'))
+            self._send_request(url.replace('/v/', '/e/'), driver)
 
             video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError("404 not video found") 
-            _videoinfo = self.request_to_host("video_info", video_url)            
-            if not _videoinfo: raise ExtractorError("error video info")
             
-            self.request_to_host("url_request", driver, url.replace('/e/', '/v/'))
+            self._send_request(url.replace('/e/', '/v/'), driver)
             _title =  self.wait_until(driver, 30, get_title())
             
             
             _format = {
                     'format_id': 'http-mp4',
-                    'url': _videoinfo['url'],
-                    'filesize': _videoinfo['filesize'],
+                    #'url': _videoinfo['url'],
+                    'url': video_url,
+                    #'filesize': _videoinfo['filesize'],
                     'ext': 'mp4'
             }
+            
+            if self._downloader.params.get('external_downloader'):
+                _videoinfo = self._get_video_info(video_url)
+                if _videoinfo:
+                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
             
             return({
                 'id' : self._match_id(url),

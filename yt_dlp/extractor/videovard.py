@@ -31,13 +31,13 @@ class VideovardIE(SeleniumInfoExtractor):
 
     IE_NAME = "videovard"
     _SITE_URL = "https://videovard.sx"
-    _VALID_URL = r'https?://videovard\.sx/e/(?P<id>[^&]+)'
+    _VALID_URL = r'https?://videovard\.\w\w/[e,v]/(?P<id>[^&]+)'
     
     _LOCK = threading.Lock()     
 
  
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
-    @limiter_0_1.ratelimit("onlyfans2", delay=True)
+    @limiter_0_1.ratelimit("videovard", delay=True)
     def send_multi_request(self, driver, url):
         
         if driver:
@@ -104,10 +104,23 @@ class VideovardIE(SeleniumInfoExtractor):
                     _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
                     self.send_multi_request(driver, url.replace('/e/', '/v/'))
                     title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
+                    
                     vpl = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "vplayer")))
-                    vpl.click()
-                    self.wait_until(driver, 1)
-                    vpl.click()
+                    for i in range(2):
+                        try:
+                            vpl.click()
+                            self.wait_until(driver, 1)
+                            vpl.click()
+                            break
+                        except Exception as e:
+                            el_kal = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.kalamana")))
+                            if el_kal: el_kal.click()
+                            self.wait_until(driver, 1)
+                            el_rul = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.rulezco")))
+                            if el_rul: el_rul.click()
+                            self.wait_until(driver, 1)
+                            continue
+                        
                     har = _harproxy.har            
                     m3u8_url = self.scan_for_request(har, f"har_{videoid}", f"master.m3u8")
                     if m3u8_url:
