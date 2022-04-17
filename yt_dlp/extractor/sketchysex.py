@@ -85,6 +85,8 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
 
     _MAX_PAGE = None
     
+    _TRAD_FROM_NEW_TO_OLD = {'19SX': '5433', '20SX': '5528', '21SX': '5498', '22SX': '5587', '23SX': '5472', '24SX': '5563', '25SX': '5511', '26SX': '5617', '27SX': '5637', '28SX': '5735', '29SX': '5758', '30SX': '5709', '31SX': '5684', '32SX': '5788', '33SX': '5821', '34SX': '5662', '36SX': '5910', '37SX': '5853', '38SX': '5948', '39SX': '5968', '40SX': '5998', '41SX': '6028', '42SX': '6063', '43SX': '6098', '44SX': '6127', '45SX': '6152', '46SX': '6200', '47SX': '6172', '48SX': '6288', '49SX': '6263', '50SX': '6231', '51SX': '6321', '52SX': '6370', '53SX': '6340', '54SX': '6420', '55SX': '6392', '56SX': '6449', '57SX': '6500', '58SX': '6472', '59SX': '6555', '60SX': '6591', '61SX': '6530', '62SX': '6824', '63SX': '6845', '64SX': '6889', '65SX': '6677', '66SX': '6754', '67SX': '6928', '68SX': '6977', '69SX': '856', '70SX': '1788', '71SX': '1796', '72SX': '1803', '73SX': '2900', '74SX': '2893', '75SX': '1827', '76SX': '469', '77SX': '1131', '78SX': '515', '79SX': '798', '80SX': '3104', '81SX': '2781', '82SX': '4359', '83SX': '2047', '84SX': '3256', '85SX': '4588', '86SX': '5164', '87SX': '5224', '88SX': '5207', '89SX': '5277', '90SX': '5402', '91SX': '5303', '92SX': '5367', '93SX': '882', '94SX': '946', '96SX': '1833', '97SX': '1520', '98SX': '654', '100SX': '1256', '143SX': '7000', '144SX': '7033', '145SX': '7079', '35SX': '5882'} 
+    
     @on_exception(constant, Exception, max_tries=5, interval=0.01)
     @limiter_0_01.ratelimit("sketchysex1", delay=True)
     def _send_request_vs(self, url, headers=None):
@@ -205,7 +207,10 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             
             title = try_get(re.findall(r'class="name"> <span>([^<]+)<', res.text), lambda x: x[0])
             
-            videoid = try_get(re.findall(r'video id="([^"]+)"', res.text), lambda x: x[0])
+            videoid = try_get(re.findall(r'video id="video_([^"]+)"', res.text), lambda x: x[0] + "SX")
+            
+            if videoid in SketchySexBaseIE._TRAD_FROM_NEW_TO_OLD: 
+                videoid = SketchySexBaseIE._TRAD_FROM_NEW_TO_OLD[videoid]
            
             manifesturl = try_get(re.findall(r'source src="([^"]+)"', res.text), lambda x: x[0])
 

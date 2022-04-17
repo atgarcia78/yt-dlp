@@ -32,21 +32,30 @@ class get_links_netdna():
         self.old_len = -1
         self.logger = logger
         
-    def __call__(self, driver):
-        el_footer = driver.find_element(By.ID, "footer")        
-        driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer.location)
-
-        el_a_list = driver.find_elements(By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')
-
-        if not el_a_list:
-            return False
         
-        if (new_len:=len(el_a_list)) != self.old_len:
-            self.old_len = new_len
-            return False
-        else:
-            return el_a_list
+    def __call__(self, driver):
+        try:
+            
+            el_footer = driver.find_element(By.ID, "footer")        
+            driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer.location)
 
+            el_a_list = driver.find_elements(By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')
+
+            # if not el_a_list:
+            #     return False
+            self.logger(f"[gets_links_netdna] {el_a_list}")
+            
+            if (new_len:=len(el_a_list)) > self.old_len:
+                #self.logger(f"[gets_links_netdna] {self.old_len} - {new_len}")
+                self.old_len = new_len
+                return False
+            else:
+                if not el_a_list: return "no entries"
+                else: return el_a_list
+        
+        except Exception as e:
+            self.logger(f"[gets_links_netdna] {repr(e)}")
+            raise
             
 
 class GayBeegBaseIE(SeleniumInfoExtractor):
@@ -106,8 +115,8 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         return entries
     
 
-    @on_exception(constant, Exception, max_tries=5, jitter=None, interval=15)
-    @limiter_1.ratelimit("gaybeeg1", delay=True)
+    #@on_exception(constant, Exception, max_tries=5, jitter=None, interval=15)
+    #@limiter_1.ratelimit("gaybeeg1", delay=True)
     def _get_entries(self, url):
         
         try:
@@ -120,7 +129,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
             el_netdna_list = self.wait_until(_driver, 60, get_links_netdna(self.to_screen), poll_freq=2)
 
-            if not el_netdna_list: 
+            if not el_netdna_list or el_netdna_list == "no entries":
                 raise ExtractorError("No entries")
             else:
                 self.to_screen(f"[{url}] list links: {len(el_netdna_list)}")
@@ -128,7 +137,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             
         except Exception as e:
             self.to_screen(f'[get_entries][{url}] {repr(e)}')
-            raise
+            
         finally:
             self.put_in_queue(_driver)
            
@@ -216,7 +225,8 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             for fut in futures:
                 try:
                     res = fut.result()
-                    entries += res
+                    if res:
+                        entries += res
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f'[{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')  

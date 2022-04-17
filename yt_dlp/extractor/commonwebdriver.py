@@ -344,16 +344,21 @@ class SeleniumInfoExtractor(InfoExtractor):
                     res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
             
             res.raise_for_status()
-            self.write_debug(f"{res.request} \n{res.request.headers}")
+            #self.write_debug(f"{res.request} \n{res.request.headers}")
+            self.logger_debug(f"{res.request} \n{res.request.headers}")
+
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             return ({'url': _url, 'filesize': _filesize})
             
         except Exception as e:
             if not res:
-                self.write_debug(f"{repr(e)}")
+                #self.write_debug(f"{repr(e)}")
+                self.logger_debug(f"{repr(e)}")
+
             else:
-                self.write_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
+                #self.write_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
+                self.logger_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
                 #HTTPErrorStatus exception raised to differenciate from ExtractorError from the function in the
                 #extractor using this method
                 if res.status_code == 404:

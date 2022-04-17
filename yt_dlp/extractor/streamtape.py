@@ -79,10 +79,9 @@ class StreamtapeIE(SeleniumInfoExtractor):
     
     
     @staticmethod
-    def _extract_url(webpage):
-        mobj = re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage)
-        if mobj is not None:
-            return mobj.group('url')
+    def _extract_urls(webpage):
+        #return try_get(re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage), lambda x: x.group('url'))
+        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage)]
 
     @on_exception(constant, Exception, max_tries=5, interval=5)
     @limiter_5.ratelimit("streamtape", delay=True)
@@ -135,8 +134,8 @@ class StreamtapeIE(SeleniumInfoExtractor):
             self.to_screen(f'[{url}] {video_url}')
             #video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
-            _info_video = self._get_video_info(video_url)
-            if not _info_video: raise ExtractorError("error info video")
+            # _info_video = self._get_video_info(video_url)
+            # if not _info_video: raise ExtractorError("error info video")
              
             title = try_get(re.findall(r'og:title" content="([^"]+)"', webpage), 
                             lambda x: re.sub(r'\.mp4| at Streamtape\.com|amp;', '', x[0], re.IGNORECASE))
@@ -144,11 +143,17 @@ class StreamtapeIE(SeleniumInfoExtractor):
              
             _format = {
                 'format_id': 'http-mp4',
-                'url': _info_video.get('url'),
-                'filesize': _info_video.get('filesize'),
+                #'url': _info_video.get('url'),
+                'url': video_url,
+                #'filesize': _info_video.get('filesize'),
                 'ext': 'mp4',
                 'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
             }
+            
+            if self._downloader.params.get('external_downloader'):
+                _videoinfo = self._get_video_info(video_url)
+                if _videoinfo:
+                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
                 
             return({
                 'id' : self._match_id(url),
