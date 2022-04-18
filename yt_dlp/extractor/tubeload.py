@@ -54,11 +54,11 @@ class TubeloadIE(SeleniumInfoExtractor):
 
         
     @on_exception(constant, Exception, max_tries=5, interval=5)
-    @limiter_15.ratelimit("tubeload1", delay=True)
+    @limiter_15.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
-        return self.get_info_for_format(url, verify=False)     
+        return self.get_info_for_format(url, headers={'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL}, verify=False)     
     
     @on_exception(constant, Exception, max_tries=5, interval=5)
     @limiter_15.ratelimit("tubeload", delay=True)
@@ -101,6 +101,7 @@ class TubeloadIE(SeleniumInfoExtractor):
                     #'url': _videoinfo['url'],
                     'url': video_url,
                     #'filesize': _videoinfo['filesize'],
+                    'http_headers': {'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL},
                     'ext': 'mp4'
             }
             
