@@ -371,6 +371,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def _is_valid(self, url, msg):
         
+        self.to_screen(f'[valid][{msg}]:{url} start checking')
+        
         if not url: 
             return False
         try:
