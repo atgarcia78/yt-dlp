@@ -47,7 +47,10 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
         try:
-            self.logger_info(f"[send_request] {url}") 
+            if len(url) > 150:
+                _url_str = f'{url[:140]}...{url[-10:]}'
+            else: _url_str = url
+            #self.logger_info(f"[send_request] {_url_str}") 
             res = self.send_request(url, _type=_type, data=data, headers=headers)
             res.raise_for_status()
             return res
@@ -75,7 +78,11 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                     break
         
         if not extractor: extractor = 'Generic'
-        self.to_screen(f"[get_extr]:{url}:{extractor}")
+        if len(url) > 150:
+            _url_str = f'{url[:140]}...{url[-10:]}'
+        else: _url_str = url
+        
+        self.to_screen(f"[get_extr]:{_url_str}:{extractor}")
         return extractor
     
 
@@ -245,9 +252,10 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
                 if real_url:
                     _entry.update({
-                        '_type' : 'url_transparent',
-                        'id' : video_id,
-                        'title': sanitize_filename(re.sub(r"([_ ]at[_ ][^$]+$)", "", title), True),
+                        #'_type' : 'url_transparent',
+                        '_type': 'url',
+                        #'id' : video_id,
+                        #'title': sanitize_filename(re.sub(r"([_ ]at[_ ][^$]+$)", "", title), True),
                         'url' : unquote(real_url),
                         'ie_key': self._get_extractor(real_url)                     
                     })
@@ -423,7 +431,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     def _real_initialize(self):
         super()._real_initialize()
         self._get_rss()
-        self.to_screen(f"\n{MyVidsterBaseIE._RSS}")
+       # self.to_screen(f"\n{MyVidsterBaseIE._RSS}")
         
     def _real_extract(self, url):
         

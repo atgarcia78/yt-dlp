@@ -219,6 +219,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
             headers = {
                 "Referer" : "https://members.sketchysex.com/",
                 "Accept" : "*/*",
+                "Origin" : "https://members.sketchysex.com"
             }
 
             
@@ -233,7 +234,11 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
                     raise ExtractorError(f"[{url}] Can't find any M3U8 format")
 
                 self._sort_formats(formats_m3u8)
-        
+                for _format in formats_m3u8:
+                    if (_head:=_format.get('http_headers')):
+                        _head.update(headers)
+                    else:
+                        _format.update({'http_headers': headers})
                         
                 return ({
                     "id": videoid,

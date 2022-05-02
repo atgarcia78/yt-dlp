@@ -399,15 +399,26 @@ class OnlyFansPostIE(OnlyFansBaseIE):
         try:            
             
             with OnlyFansPostIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansPostIE._NUM
-                OnlyFansPostIE._NUM += 1
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start({'log_path': '/dev', 'log_file': 'null'})
-                _host = 'localhost'
-                _port = _server_port + 1                
-                _harproxy = _server.create_proxy({'port' : _port})
-
+            
+                while True:    
+                
+                    _server_port = 18080 + 100*OnlyFansPostIE._NUM
+                    
+                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                    if _server._is_listening():
+                            OnlyFansPostIE._NUM += 1
+                            if OnlyFansPostIE._NUM == 25: raise Exception("mobproxy max tries")
+                    else:
+                    
+                        _server.start({'log_path': '/dev', 'log_file': 'null'})
+                        OnlyFansPostIE._NUM += 1
+                        break
+                    
+            _host = 'localhost'
+            _port = _server_port + 1                
+            _harproxy = _server.create_proxy({'port' : _port})
             driver  = self.get_driver(host=_host, port=_port)
+            
             self.send_driver_request(driver, self._SITE_URL)
             for cookie in OnlyFansPostIE._COOKIES:
                 driver.add_cookie(cookie)
@@ -469,14 +480,26 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         try:
             self.report_extraction(url)
             
-            with OnlyFansPlaylistIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansPlaylistIE._NUM
-                OnlyFansPlaylistIE._NUM += 1            
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start({'log_path': '/dev', 'log_file': 'null'})
-                _host = 'localhost' 
-                _port = _server_port + 1               
-                _harproxy = _server.create_proxy({'port' : _port})
+            with OnlyFansPostIE._LOCK:
+            
+                while True:    
+                
+                    _server_port = 18080 + 100*OnlyFansPostIE._NUM
+                    
+                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                    if _server._is_listening():
+                            OnlyFansPostIE._NUM += 1
+                            if OnlyFansPostIE._NUM == 25: raise Exception("mobproxy max tries")
+                    else:
+                    
+                        _server.start({'log_path': '/dev', 'log_file': 'null'})
+                        OnlyFansPostIE._NUM += 1
+                        break
+                    
+            _host = 'localhost'
+            _port = _server_port + 1                
+            _harproxy = _server.create_proxy({'port' : _port})
+            driver  = self.get_driver(host=_host, port=_port)
 
             driver  = self.get_driver(host=_host, port=_port)
             self.send_driver_request(driver, self._SITE_URL)

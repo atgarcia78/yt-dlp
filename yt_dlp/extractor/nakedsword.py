@@ -268,7 +268,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
             formats = self._get_formats(url, "/".join([stream_url, "HLS"]), "m3u8")       
             
-            self._sort_formats(formats) 
+            #self._sort_formats(formats) 
             
             _entry = {
                 "id": scene_id,

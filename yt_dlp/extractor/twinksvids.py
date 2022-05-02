@@ -28,14 +28,14 @@ import sys
 from backoff import constant, on_exception
 
 
-class GayMaleTubesIE(SeleniumInfoExtractor):
-    IE_NAME = "gaymaletubes"
-    _VALID_URL = r'https?://(www\.)?gaymaletubes\.ga/[^\?]+$'
+class TwinksVidsIE(SeleniumInfoExtractor):
+    IE_NAME = "twinksvids"
+    _VALID_URL = r'https?://(www\.)?twinksvids\.com/[^\?]+$'
     
             
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_1.ratelimit("gaymaletubes", delay=True)
+    @limiter_1.ratelimit("twinksvids", delay=True)
     def _send_request(self, url):        
         
         if len(url) > 150:
@@ -46,10 +46,10 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
         return res
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_1.ratelimit("gaymaletubes", delay=True)  
+    @limiter_1.ratelimit("twinksvids", delay=True)  
     def _get_info_video(self, url):
         
-        return super().get_info_for_format(url, headers={'Referer': 'https://gaymaletubes.ga/'})
+        return super().get_info_for_format(url, headers={'Referer': 'https://twinksvids.com/'})
     
     
     def _real_initialize(self):
@@ -65,7 +65,7 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
             webpage = try_get(self._send_request(url), lambda x: x.text.replace("\n", ""))
             if not webpage: raise ExtractorError("couldnt download webpage")
            
-            title, videoid, videourl = try_get(re.search(r'og:title["\'] content=["\']([^"\']+)["\'].*gaymaletubes\.ga/\?p=([^"\']+)["\'].*contentURL["\'] content=["\']([^"\']+)["\']', webpage), lambda x: x.groups()) or ("", "", "")
+            title, videoid, videourl = try_get(re.search(r'og:title" content="([^"]+)".*twinksvids\.com/\?p=([^"\']+)["\'].*contentURL["\'] content=["\']([^"\']+)["\']', webpage), lambda x: x.groups()) or ("", "", "")
             
             if not videourl: raise ExtractorError("no video url")
             
@@ -73,9 +73,9 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
             
             _entry = {
                 'id': videoid,
-                'title': sanitize_filename(title.split(' - GayMaleTubes')[0], restricted=True),                
+                'title': sanitize_filename(title.split(' - TwinksVids')[0], restricted=True),                
                 'url': videourl,
-                'http_headers': {'Referer': 'https://gaymaletubes.ga/'},
+                'http_headers': {'Referer': 'https://twinksvids.com/'},
                 'ext': 'mp4'}
             
             if (_video_info:=self._get_info_video(videourl)):
