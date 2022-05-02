@@ -25,20 +25,19 @@ from backoff import constant, on_exception
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
     
-    def get_videourl(self, x):
     
-        if len(x) > 1:
-            temp = ""
-            for el in x:
-                if '.gs/' in el or 'imdb.com' in el:
-                    continue
-                if not 'dood.' in el and self._is_valid(el, ""):
-                    return el
-                elif 'dood.' in el:
-                    temp = el
-            return temp
-        else: 
-            if not '.gs/' in x[0]: return x[0]
+    def get_videourl(self, x):
+
+        temp = ""
+        for el in x:
+            if any(re.search(_re, el) for _re in [r'imdb\.com', r'blogger\.com', r'https?://.+\.gs/.+']):
+                continue
+            elif not 'dood.' in el and self._is_valid(el, ""):
+                return el
+            elif 'dood.' in el:
+                temp = el
+        return temp
+
             
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_1.ratelimit("gvdblog", delay=True)

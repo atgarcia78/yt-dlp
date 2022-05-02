@@ -28,28 +28,28 @@ import sys
 from backoff import constant, on_exception
 
 
-class GayMaleTubesIE(SeleniumInfoExtractor):
-    IE_NAME = "gaymaletubes"
-    _VALID_URL = r'https?://(www\.)?gaymaletubes\.ga/[^\?]+$'
+class GayPornVideosIE(SeleniumInfoExtractor):
+    IE_NAME = "gaypornvideos"
+    _VALID_URL = r'https?://(www\.)?gaypornvideos\.cc/[^\?]+$'
     
             
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_1.ratelimit("gaymaletubes", delay=True)
+    @limiter_1.ratelimit("gaypornvideos", delay=True)
     def _send_request(self, url):        
         
         if len(url) > 150:
             _url_str = f'{url[:140]}...{url[-10:]}'
         else: _url_str = url
-        self.logger_info(f"[send_request] {_url_str}") 
+        self.logger_info(f"[send_request] {_url_str}")         
         res = self._CLIENT.get(url)
         return res
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_1.ratelimit("gaymaletubes", delay=True)  
+    @limiter_1.ratelimit("gaypornvideos", delay=True)  
     def _get_info_video(self, url):
         
-        return super().get_info_for_format(url, headers={'Referer': 'https://gaymaletubes.ga/'})
+        return super().get_info_for_format(url, headers={'Referer': 'https://gaypornvideos.cc/'})
     
     
     def _real_initialize(self):
@@ -65,7 +65,7 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
             webpage = try_get(self._send_request(url), lambda x: x.text.replace("\n", ""))
             if not webpage: raise ExtractorError("couldnt download webpage")
            
-            title, videoid, videourl = try_get(re.search(r'og:title["\'] content=["\']([^"\']+)["\'].*gaymaletubes\.ga/\?p=([^"\']+)["\'].*contentURL["\'] content=["\']([^"\']+)["\']', webpage), lambda x: x.groups()) or ("", "", "")
+            title, videoid, videourl = try_get(re.search(r'og:title["\'] content=["\']([^"\']+)["\'].*gaypornvideos\.cc/\?p=([^"\']+)["\'].*contentURL["\'] content=["\']([^"\']+)["\']', webpage), lambda x: x.groups()) or ("", "", "")
             
             if not videourl: raise ExtractorError("no video url")
             
@@ -73,9 +73,9 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
             
             _entry = {
                 'id': videoid,
-                'title': sanitize_filename(title.split(' - GayMaleTubes')[0], restricted=True),                
+                'title': sanitize_filename(title.split(' - GayPornVideos')[0], restricted=True),                
                 'url': videourl,
-                'http_headers': {'Referer': 'https://gaymaletubes.ga/'},
+                'http_headers': {'Referer': 'https://gaypornvideos.cc/'},
                 'ext': 'mp4'}
             
             if (_video_info:=self._get_info_video(videourl)):

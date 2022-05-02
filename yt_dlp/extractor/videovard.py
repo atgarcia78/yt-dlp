@@ -33,7 +33,8 @@ class VideovardIE(SeleniumInfoExtractor):
     _SITE_URL = "https://videovard.sx"
     _VALID_URL = r'https?://videovard\.\w\w/[e,v]/(?P<id>[^&]+)'
     
-    _LOCK = threading.Lock()     
+    _LOCK = threading.Lock()
+    _NUM = 0     
 
  
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
@@ -77,17 +78,18 @@ class VideovardIE(SeleniumInfoExtractor):
                 self.report_extraction(url) 
                 videoid = self._match_id(url)
 
-                n = 0
+                
                 while True:
-                    _server_port = 18080 + n*100                 
+                    _server_port = 18080 + VideovardIE._NUM*100                 
                     _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
                     try:
                         if _server._is_listening():
-                            n += 1
-                            if n == 25: raise Exception("mobproxy max tries")
+                            VideovardIE._NUM += 1
+                            if VideovardIE._NUM == 25: raise Exception("mobproxy max tries")
                         else:
                             _server.start({"log_path": "/dev", "log_file": "null"})
                             self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
+                            VideovardIE._NUM += 1
                             break
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
