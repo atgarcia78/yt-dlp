@@ -195,7 +195,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _headers.update({'user-agent': SeleniumInfoExtractor._USER_AGENT})
                 
                 SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(60, connect=60), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
-                self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
+                #self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
                 
                 SeleniumInfoExtractor._FIREFOX_HEADERS['User-Agent'] = SeleniumInfoExtractor._CLIENT_CONFIG['headers']['user-agent']
                 
@@ -210,7 +210,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if usequeue:
             
             with SeleniumInfoExtractor._MASTER_LOCK:
-                self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
+                #self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
                 if SeleniumInfoExtractor._QUEUE._qsize() > 0:
                     driver = SeleniumInfoExtractor._QUEUE.get()
                 else:    
@@ -345,7 +345,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             res.raise_for_status()
             #self.write_debug(f"{res.request} \n{res.request.headers}")
-            self.logger_debug(f"{res.request} \n{res.request.headers}")
+            #self.logger_debug(f"{res.request} \n{res.request.headers}")
 
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
@@ -371,14 +371,18 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def _is_valid(self, url, msg):
         
-        self.to_screen(f'[valid][{msg}]:{url} start checking')
-        
         if not url: 
             return False
+        if len(url) > 150:
+            _url_str = f'{url[:140]}...{url[-10:]}'
+        else: _url_str = url
+        self.to_screen(f'[valid][{msg}]:{_url_str} start checking')
+        
+        
         try:
 
             if any(_ in url for _ in ['gaypornmix.com', 'thisvid.com/embed', 'xtube.com']):
-                self.to_screen(f'[valid][{msg}]:{url}:False')
+                self.to_screen(f'[valid][{msg}]:{_url_str}:False')
                 return False
                 
             else:  
@@ -388,32 +392,32 @@ class SeleniumInfoExtractor(InfoExtractor):
             if res:
                 if (st_code:=res.status_code) >= 400: 
                     valid = False
-                    self.to_screen(f'[valid][{msg}]:{url}:{st_code}:{valid}\n{res.request.headers}')
+                    self.to_screen(f'[valid][{msg}]:{_url_str}:{st_code}:{valid}\n{res.request.headers}')
                     
                     
                 elif res.headers.get('content-type') == "video/mp4":
                     valid = True
-                    self.to_screen(f'[valid][{msg}]:{url}:video/mp4:{valid}')
+                    self.to_screen(f'[valid][{msg}]:{_url_str}:video/mp4:{valid}')
                     
                 else:
 
                     webpage = try_get(self._send_request(url.replace("streamtape.com", "streamtapeadblock.art"), headers=SeleniumInfoExtractor._FIREFOX_HEADERS), lambda x: x.text)
                     if not webpage: 
                         valid = False
-                        self.to_screen(f'[valid][{msg}]:{url}:{valid} couldnt download webpage')
+                        self.to_screen(f'[valid][{msg}]:{_url_str}:{valid} couldnt download webpage')
                     else:
                         valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
                     
-                        self.to_screen(f'[valid][{msg}]:{url}:{valid} check with webpage content')
+                        self.to_screen(f'[valid][{msg}]:{_url_str}:{valid} check with webpage content')
             
             else: 
                 valid = False
-                self.to_screen(f'[valid][{msg}]:{url}:{valid} couldnt download webpage')
+                self.to_screen(f'[valid][{msg}]:{_url_str}:{valid} couldnt download webpage')
                 
             return valid
         
         except Exception as e:
-            self.report_warning(f'[valid][{msg}]:{url} error {repr(e)}')
+            self.report_warning(f'[valid][{msg}]:{_url_str} error {repr(e)}')
             return False
     
     def send_request(self, url, _type="GET", data=None, headers=None):        

@@ -91,7 +91,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
     _SITE_URL = "https://evoload.io"
     
     IE_NAME = 'evoload'
-    _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$]+)(?:\/|$)'
+    _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$/?]+)'
 
     @on_exception(constant, Exception, max_tries=5, interval=15)    
     @limiter_15.ratelimit("evoload", delay=True)
@@ -104,17 +104,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
-        
-     
-    # @on_exception(constant, Exception, max_tries=5, interval=15)    
-    # @limiter_15.ratelimit("evoload", delay=True)
-    # def request_to_host(self, _type, *args):
-    
-    #     if _type == "video_info":
-    #         return self._get_video_info(*args)
-    #     elif _type == "url_request":
-    #         self._send_request(*args)
-         
+
     def _real_initialize(self):
         super()._real_initialize()
     
@@ -125,26 +115,21 @@ class EvoLoadIE(SeleniumInfoExtractor):
         driver = self.get_driver(usequeue=True)
  
             
-        try:            
-            
-            
+        try:             
 
-            self._send_request(url.replace('/v/', '/e/'), driver)
+            self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
 
             video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
-            if not video_url or video_url == 'error': raise ExtractorError("404 not video found") 
-            
-            self._send_request(url.replace('/e/', '/v/'), driver)
-            _title =  self.wait_until(driver, 30, get_title())
-            
+            if not video_url or video_url == 'error': raise ExtractorError("404 not video found")
             
             _format = {
-                    'format_id': 'http-mp4',
-                    #'url': _videoinfo['url'],
-                    'url': video_url,
-                    #'filesize': _videoinfo['filesize'],
-                    'ext': 'mp4'
+                'format_id': 'http-mp4',
+                'url': video_url,
+                'ext': 'mp4'
             }
+            
+            self._send_request(url.split('?')[0].replace('/e/', '/v/'), driver)
+            _title =  self.wait_until(driver, 30, get_title())            
             
             if self._downloader.params.get('external_downloader'):
                 _videoinfo = self._get_video_info(video_url)
@@ -152,7 +137,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
                     _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
             
             return({
-                'id' : self._match_id(url),
+                'id' : self._match_id(url.split('?')[0]),
                 'title' : sanitize_filename(_title, restricted=True),
                 'formats' : [_format],
                 'ext': 'mp4'

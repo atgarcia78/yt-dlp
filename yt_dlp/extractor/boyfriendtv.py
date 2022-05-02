@@ -57,8 +57,6 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         
         username, password = self._get_login_info()
         
-        #self.to_screen(f'{username}:{password}')
-        
         if not username or not password:
             self.raise_login_required(
                 'A valid %s account is needed to access this media.'
@@ -159,7 +157,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             
             el_vplayer = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-player")))            
             el_title = self.wait_until(driver, 10, ec.presence_of_element_located((By.TAG_NAME, "title")))
-            if el_title: _title = el_title.get_attribute("innerHTML")
+            if el_title: _title = el_title.get_attribute("innerText")
             if "deleted" in _title or "removed" in _title or "page not found" in _title or not el_vplayer:
                 raise ExtractorError("Page not found 404")   
             el_vplayer.click()
@@ -231,7 +229,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
 class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv:embed'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/embed/(?:((?P<id>[0-9]+)/)|embed.php\?)'
+    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/embed/(?:(?P<id>[0-9]+)/|embed.php\?)'
     
     def get_formats_single_video(self, webpage):
         
@@ -268,7 +266,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
         self.report_extraction(url)
         
         try:
-            if not self._match_id(url):
+            if not (videoid:=self._match_id(url)):
                 _url_embed = httpx.URL(url)
                 _params_dict = dict(_url_embed.params.items())
                 _url = f"https://{_url_embed.host}/embed/{_params_dict.get('m')}/{_params_dict.get('h')}"
@@ -276,47 +274,31 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             
                         
             res = self._CLIENT.get(_url)            
-                
+            
+            if not videoid:   
+                videoid = self._match_id(str(res.url))
+            
             webpage = re.sub('[\t\n]','', html.unescape(res.text))
             
             if 'class="video-container"' in webpage:
                 
+                _title_video = try_get(re.findall(r'<title>([^<]*)</title>', webpage), lambda x: x[0].replace(" - ", "").replace("BoyFriendTv.com", "")) or ""
                 _formats = self.get_formats_single_video(webpage)
                 if _formats:
-                    _title_video = _title.strip() if (_title:=try_get(re.findall(r'title:\s+\"([^-\"]*)[-\"]', webpage), lambda x: x[0])) else None
-                    for el in _formats: el.update({'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}})
+                    
+                    for el in _formats: 
+                        el.update({'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}})
+                    
                     _res = {
-                        'id': self._match_id(str(res.url)),                        
+                        'id': videoid,
+                        'title': sanitize_filename(_title_video, restricted=True),                     
                         'formats': _formats,
                         'ext': 'mp4'}
                     
-                    if _title_video: _res['title'] = sanitize_filename(_title_video, restricted=True),
-                                
+                                                    
                     return _res
             
-            # elif 'class="grid"' in webpage:
-                
-            #     info_videos = json.loads(js_to_json(jsonstr)) if  (jsonstr:=try_get(re.findall(r'"videos":(\[[^\]]+\])', webpage), lambda x: x[0])) else None
-            #     if info_videos:
-            #         with ThreadPoolExecutor(thread_name_prefix='BoyFriendTV', max_workers=min(len(info_videos), self._downloader.params.get('winit', 5))) as ex:
-            #             futures = [ex.submit(BoyFriendTVIE.get_video_entry, urljoin(self._SITE_URL, link)) for el in info_videos if (link:=el.get('videoLink'))]           
-                    
-            #         _entries = []
-            #         for fut in futures:
-            #             try:
-            #                 _entries.append(fut.result())
-            #             except Exception as e:
-            #                 self.to_screen(repr(e))                        
-                    
-            #         #_entries = [self.url_result(urljoin(self._SITE_URL, link), ie=BoyFriendTVIE.ie_key(), title=title) for el in info_videos if (link:=el.get('videoLink')) and (title:=el.get('videoName'))]
-                   
-            #         if _entries:
-                    
-            #             return {
-            #                 '_type': 'playlist',
-            #                 'id': self._match_id(str(res.url)),                        
-            #                 'entries': _entries}
-                    
+           
 
         except ExtractorError as e:
             raise     

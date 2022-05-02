@@ -48,6 +48,7 @@ class TheGayIE(SeleniumInfoExtractor):
     IE_NAME = 'thegayx'
     _VALID_URL = r'https?://(?:www\.)?thegay\.com/(?P<type>(?:embed|videos))/(?P<id>[^\./]+)[\./]'
     _LOCK = threading.Lock()
+    _NUM = 0
 
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
@@ -99,17 +100,18 @@ class TheGayIE(SeleniumInfoExtractor):
             with TheGayIE._LOCK:
         
                
-                n = 0
+                
                 while True:
-                    _server_port = 18080 + n*100                 
+                    _server_port = 18080 + TheGayIE._NUM*100                 
                     _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
                     try:
                         if _server._is_listening():
-                            n += 1
-                            if n == 25: raise Exception("mobproxy max tries")
+                            TheGayIE._NUM += 1
+                            if TheGayIE._NUM == 25: raise Exception("mobproxy max tries")
                         else:
                             _server.start({"log_path": "/dev", "log_file": "null"})
                             self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
+                            TheGayIE._NUM += 1
                             break
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
