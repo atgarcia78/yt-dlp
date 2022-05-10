@@ -3,21 +3,15 @@ from __future__ import unicode_literals
 
 from .commonwebdriver import (
     SeleniumInfoExtractor,
-    limiter_1
-)
+    limiter_1)
 
 from ..utils import (
-    ExtractorError
-
-)
+    ExtractorError)
 
 import traceback
 import sys
 
-
 from backoff import constant, on_exception
-
-        
 
 class TrafficDePotIE(SeleniumInfoExtractor):
     IE_NAME = 'trafficdepot'
@@ -62,7 +56,6 @@ class TrafficDePotIE(SeleniumInfoExtractor):
         
             videojson = self.request_to_host("post", f"https://trafficdepot.xyz/api/source/{videoid}", data=_data, headers=_headers)
 
-
             _entry_video = {}
             
             if videojson.get('data'):
@@ -76,17 +69,17 @@ class TrafficDePotIE(SeleniumInfoExtractor):
                     if not _info: continue
                     _desc = _format.get('label', 'mp4')
                     _format_video = {
-                            'format_id' : f"http-{_desc}",
-                            'url' : _info.get('url'),
-                            'filesize' : _info.get('filesize'),                            
-                            'ext': 'mp4'
+                        'format_id' : f"http-{_desc}",
+                        'url' : _info.get('url'),
+                        'filesize' : _info.get('filesize'),
+                        'ext': 'mp4'
                     }
                     
                     if _desc != 'mp4':
                         _format_video.update(
                             {
                                 'resolution': _desc,
-                                'height' : int(_desc[:-1])                            
+                                'height' : int(_desc[:-1])
                             }
                         )
                     
@@ -110,26 +103,18 @@ class TrafficDePotIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             raise ExtractorError(repr(e))
-        
-        
-        
-        
-    
+
     def _real_initialize(self):
         super()._real_initialize()
 
     def _real_extract(self, url):
 
-        
         self.report_extraction(url)
-        
-     
+
         try:
-            
-            
+
             return self._get_video_entry(url)
-        
-            
+
         except ExtractorError as e:
             raise
         except Exception as e:
