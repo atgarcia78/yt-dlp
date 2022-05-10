@@ -1,10 +1,7 @@
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor
 
 import re
 
-import sys
-import traceback
 
 from httpx import HTTPStatusError
 
@@ -16,12 +13,8 @@ from .commonwebdriver import (
 from ..utils import (
     ExtractorError,
     sanitize_filename,
-    try_get,
-    urljoin,
-    datetime_from_str,
-    get_elements_by_class)
+    try_get)
 
-from urllib.parse import unquote
 import html
 from threading import Lock
 
@@ -30,7 +23,6 @@ from backoff import on_exception, constant
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 
-from datetime import datetime
 
 class ifr_or_captcha():
     def __call__(self, driver):
@@ -49,9 +41,7 @@ class PornDuneIE(SeleniumInfoExtractor):
     
     _LOCK = Lock()
     _COOKIES = {}
-
-
- 
+    
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_1.ratelimit("porndune", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
@@ -60,14 +50,12 @@ class PornDuneIE(SeleniumInfoExtractor):
             if len(url) > 150:
                 _url_str = f'{url[:140]}...{url[-10:]}'
             else: _url_str = url
-            #self.logger_info(f"[send_request] {_url_str}") 
+            self.logger_debug(f"[send_request] {_url_str}") 
             res = self.send_request(url, _type=_type, data=data, headers=headers)
             res.raise_for_status()
             return res
         except HTTPStatusError as e:
             return
-        
-            
 
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_1.ratelimit("porndune", delay=True)
@@ -75,11 +63,11 @@ class PornDuneIE(SeleniumInfoExtractor):
         
         return self.get_info_for_format(url)
 
-    def _real_initialize(self):
-           
+    def _real_initialize(self): 
+                  
         super()._real_initialize()
         
-    def _real_extract(self, url):
+    def _real_extract(self, url):        
 
         self.report_extraction(url)
         #video_id = self._match_id(url)
