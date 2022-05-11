@@ -8,11 +8,9 @@ from datetime import datetime
 from urllib.parse import unquote
 
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1, By, ec
 
 
 class get_links_netdna():

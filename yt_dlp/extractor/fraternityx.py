@@ -11,11 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, js_to_json, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01, By, ec
 
 
 class waitforlogin():
