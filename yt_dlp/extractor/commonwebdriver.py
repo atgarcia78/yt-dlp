@@ -19,6 +19,8 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 
+from browsermobproxy import Server
+
 from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
 
@@ -65,6 +67,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CLIENT = None
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
+    _SERVER_NUM = 0
     _FIREFOX_HEADERS =  {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en,es-ES;q=0.5',
@@ -290,7 +293,28 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def put_in_queue(self, driver):
         SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+    
+    
+    def start_browsermob(self, url):
         
+        while True:
+            _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*100                 
+            _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+            try:
+                if _server._is_listening():
+                    SeleniumInfoExtractor._SERVER_NUM += 1
+                    if SeleniumInfoExtractor._SERVER_NUM == 25: raise Exception("mobproxy max tries")
+                else:
+                    _server.start({"log_path": "/dev", "log_file": "null"})
+                    self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
+                    SeleniumInfoExtractor._SERVER_NUM += 1
+                    return (_server, _server_port)
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
+                if _server.process: _server.stop()                   
+                raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
+              
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
         try:
             el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(method)

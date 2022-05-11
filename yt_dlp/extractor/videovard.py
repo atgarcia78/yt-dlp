@@ -5,7 +5,7 @@ import threading
 import traceback
 
 from backoff import constant, on_exception
-from browsermobproxy import Server
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, By, ec
@@ -18,7 +18,7 @@ class VideovardIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://videovard\.\w\w/[e,v]/(?P<id>[^&]+)'
     
     _LOCK = threading.Lock()
-    _NUM = 0     
+    
 
  
     @on_exception(constant, Exception, max_tries=5, interval=0.1)
@@ -62,24 +62,7 @@ class VideovardIE(SeleniumInfoExtractor):
                 self.report_extraction(url) 
                 videoid = self._match_id(url)
 
-                
-                while True:
-                    _server_port = 18080 + VideovardIE._NUM*100                 
-                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                    try:
-                        if _server._is_listening():
-                            VideovardIE._NUM += 1
-                            if VideovardIE._NUM == 25: raise Exception("mobproxy max tries")
-                        else:
-                            _server.start({"log_path": "/dev", "log_file": "null"})
-                            self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
-                            VideovardIE._NUM += 1
-                            break
-                    except Exception as e:
-                        lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
-                        if _server.process: _server.stop()                   
-                        raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
+                _server, _server_port = self.start_browsermob(url)
 
                 _host = 'localhost'
                 _port = _server_port + 1                

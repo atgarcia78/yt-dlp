@@ -6,37 +6,36 @@ import threading
 import traceback
 
 from backoff import constant, on_exception
-from browsermobproxy import Server
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1, By
 
 
 class get_videourl():
     
     def __init__(self, _type):
-        self.id = "player-1" if _type == 'embed' else "videoplayer"
+        self.id = "player-1" if _type == "embed" else "videoplayer"
     def __call__(self, driver):
-        el_player = driver.find_elements(by=By.ID, value=self.id)
+        el_player = driver.find_elements(By.ID, self.id)
         if not el_player: return False
         else:
-            el_video = el_player[0].find_elements(by=By.TAG_NAME, value="video")
+            el_video = el_player[0].find_elements(By.TAG_NAME, "video")
             if not el_video: return False
-            video_url = el_video[0].get_attribute('src', '').replace('blob:','')
+            video_url = el_video[0].get_attribute('src')
             if video_url: 
                 return video_url
             else: return False
 
 class TheGayIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'thegayx'
+    IE_NAME = 'thegay'
     _VALID_URL = r'https?://(?:www\.)?thegay\.com/(?P<type>(?:embed|videos))/(?P<id>[^\./]+)[\./]'
     _LOCK = threading.Lock()
-    _NUM = 0
 
-    def _get_video_info(self, url):        
+
+    def _get_video_info(self, url, headers):        
         self.logger_info(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)       
+        return self.get_info_for_format(url, headers=headers)       
             
 
     def _send_request(self,url, driver):
@@ -46,10 +45,10 @@ class TheGayIE(SeleniumInfoExtractor):
     
     @on_exception(constant, Exception, max_tries=5, interval=1)    
     @limiter_1.ratelimit("thegay", delay=True)
-    def request_to_host(self, _type, url, driver=None):
+    def request_to_host(self, _type, url, driver=None, headers=None):
     
         if _type == "video_info":
-            return self._get_video_info(url)
+            return self._get_video_info(url, headers)
         elif _type == "url_request":
             self._send_request(url, driver)
         elif _type == "client_request":
@@ -80,130 +79,42 @@ class TheGayIE(SeleniumInfoExtractor):
         _type, videoid = re.search(self._VALID_URL, url).groups()
 
         try:
+
+            driver  = self.get_driver(usequeue=True)
+
+            try:
+
+                self.request_to_host("url_request", url, driver)
+                videourl = self.wait_until(driver, 30, get_videourl(_type))
+                _title = driver.title.replace(" - TheGay.com", "").strip()
+                
+                if not videourl: raise ExtractorError("couldnt find videourl")
+                headers = {'Referer': url}
+                _info_video = self.request_to_host("video_info", videourl, headers)
+                if not _info_video: raise ExtractorError
+                _format = {
+                    'url': _info_video['url'],
+                    'filesize': _info_video['filesize'],
+                    'format_id': 'http',
+                    'ext': 'mp4',
+                    'http_headers': headers
+                }
+                return ({ 
+                    "id": videoid,
+                    "title": sanitize_filename(_title, restricted=True),                    
+                    "formats": [_format],
+                    "ext": "mp4"})
             
-            with TheGayIE._LOCK:
-        
-               
-                
-                while True:
-                    _server_port = 18080 + TheGayIE._NUM*100                 
-                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                    try:
-                        if _server._is_listening():
-                            TheGayIE._NUM += 1
-                            if TheGayIE._NUM == 25: raise Exception("mobproxy max tries")
-                        else:
-                            _server.start({"log_path": "/dev", "log_file": "null"})
-                            self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
-                            TheGayIE._NUM += 1
-                            break
-                    except Exception as e:
-                        lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
-                        if _server.process: _server.stop()                   
-                        raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
-
-                _host = 'localhost'
-                _port = _server_port + 1                
-                _harproxy = _server.create_proxy({'port' : _port})
-                driver  = self.get_driver(host=_host, port=_port)
-                            
-                try:
-                    _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
-                    
-                    self.request_to_host("url_request", url, driver)
-                    self.wait_until(driver, 30, get_videourl(_type))
-                    _title = driver.title.replace(" - TheGay.com", "").strip()
-                    har = _harproxy.har            
-                    m3u8_url = self.scan_for_request(har, f"har_{videoid}", f"video.m3u8")
-                    if m3u8_url:
-                        self.write_debug(f"[{url}] m3u8 url - {m3u8_url}")
-                        headers =  {'Referer': 'https://thegay.com/', 'Origin':'https://thegay.com' }
-                        formats_m3u8 = self._extract_m3u8_formats(
-                            m3u8_url, None, m3u8_id="hls", ext="mp4", entry_protocol="m3u8", headers=headers, fatal=False)
-                        
-                        # res = self.request_to_host("client_request", m3u8_url)
-                        # if not res: raise ExtractorError(f"[{url}] no m3u8 doc")
-                        # m3u8_doc = (res.content).decode('utf-8', 'replace')
-                        # self.write_debug(f"[{url}] \n{m3u8_doc}")        
-                        # formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                        #     m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-
-                        if not formats_m3u8:
-                            raise ExtractorError(f"[{url}] Can't find any M3U8 format")
-
-                        self._sort_formats(formats_m3u8)
-                        for _format in formats_m3u8:
-                            if (_head:=_format.get('http_headers')):
-                                _head.update(headers)
-                            else:
-                                _format.update({'http_headers': headers})
-                        
-                        return ({ 
-                                "id": videoid,
-                                "title": sanitize_filename(_title, restricted=True),                    
-                                "formats": formats_m3u8,
-                                "ext": "mp4"})
-                
-                except ExtractorError as e:
-                    raise
-                except Exception as e:                
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-                    raise ExtractorError(repr(e))
-                finally:
-                    _harproxy.close()
-                    _server.stop()
-                    self.rm_driver(driver)                    
+            except ExtractorError as e:
+                raise
+            except Exception as e:                
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
+                raise ExtractorError(repr(e))
+            finally:
+                self.put_in_queue(driver)                    
                     
         except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-            raise ExtractorError(repr(e))            
-                    
-        
-        
-        
-        # driver = self.get_driver(usequeue=True) 
-        
-        # try:
-
-        #     self.request_to_host("url_request",url, driver)
-
-        #     video_url = self.wait_until(driver, 30, get_videourl(_type)) 
-
-        #     if not video_url: raise ExtractorError("no video url")            
-        #     _title = driver.title.replace(" - TheGay.com", "").strip()
-        #     _videoinfo = self.request_to_host("video_info", video_url)
-        #     if not _videoinfo: raise Exception(f"error video info")
-
-        #     _format = {
-        #             'format_id': 'http-mp4',
-        #             'url': _videoinfo['url'],
-        #             'filesize': _videoinfo['filesize'],
-        #             'ext': 'mp4'
-        #     }
-            
-        #     _entry_video = {
-        #         'id' : _videoid,
-        #         'title' : sanitize_filename(_title, restricted=True),
-        #         'formats' : [_format],
-        #         'ext': 'mp4'
-        #     } 
-            
-        #     if not _entry_video: raise ExtractorError("no video info")
-        #     else:
-        #         return _entry_video      
-            
-        
-        # except ExtractorError as e:
-        #     raise
-        # except Exception as e:
-        #     lines = traceback.format_exception(*sys.exc_info())
-        #     self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-        #     raise ExtractorError(repr(e))
-        # finally:
-        #     try:
-        #         self.put_in_queue(driver)
-        #     except Exception:
-        #         pass
+            raise ExtractorError(repr(e))
