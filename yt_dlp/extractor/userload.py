@@ -5,11 +5,9 @@ import time
 import traceback
 
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15
+from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By, ec
 
 
 class video_or_error_userload():

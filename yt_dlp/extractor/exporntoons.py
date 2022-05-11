@@ -5,11 +5,9 @@ import sys
 import traceback
 
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, limiter_5
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, limiter_5, By, ec
 
 
 class get_videourl():

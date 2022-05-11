@@ -6,11 +6,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15
+from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By, ec
 
 
 class get_title_videourl:

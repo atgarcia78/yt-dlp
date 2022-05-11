@@ -6,11 +6,9 @@ import time
 from threading import Lock
 
 import httpx
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, int_or_none, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import SeleniumInfoExtractor, By, ec
 
 
 class GayForFansIE(SeleniumInfoExtractor):

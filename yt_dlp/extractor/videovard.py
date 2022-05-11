@@ -6,11 +6,9 @@ import traceback
 
 from backoff import constant, on_exception
 from browsermobproxy import Server
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, By, ec
 
 
 class VideovardIE(SeleniumInfoExtractor):
