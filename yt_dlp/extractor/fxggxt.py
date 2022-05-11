@@ -1,30 +1,15 @@
 from __future__ import unicode_literals
 
 import re
-
-from backoff import on_exception
-
-from ..utils import (
-    ExtractorError,
-    try_get)
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_1
-)
-
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
-
-import traceback
 import sys
+import traceback
 
 from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
 
 
 class FxggxtIE(SeleniumInfoExtractor):

@@ -1,35 +1,19 @@
 from __future__ import unicode_literals
 
+import html
 import re
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get,
-    
-)
-
 import sys
-import traceback
-
-
-from .commonwebdriver import (
-    limiter_5,
-    SeleniumInfoExtractor
-)
-
-from backoff import on_exception, constant
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-
 import time
-
+import traceback
 from urllib.parse import urlparse
 
-import html
+from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5
 
 
 class video_or_error_streamtape():

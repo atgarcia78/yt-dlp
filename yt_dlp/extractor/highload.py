@@ -1,26 +1,16 @@
 from __future__ import unicode_literals
 
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_15
-)
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    
-)
-
-
-import traceback
 import sys
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
+import traceback
 
 from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor, limiter_15
+
+
 class HighloadIE(SeleniumInfoExtractor):
     
     _SITE_URL = "https://highload.to"

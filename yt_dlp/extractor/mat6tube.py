@@ -1,27 +1,16 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
+import hashlib
+import html
 import re
 
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_10,
-    limiter_5)
+from backoff import constant, on_exception
 
-from ..utils import (
-    ExtractorError, 
-    sanitize_filename,
-    try_get
-    
-)
-import hashlib
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5, limiter_10
 
-from backoff import (
-    constant, 
-    on_exception
-)
 
-import html 
 class Mat6TubeIE(SeleniumInfoExtractor):
     IE_NAME = 'mat6tube'
     IE_DESC = 'mat6tube'

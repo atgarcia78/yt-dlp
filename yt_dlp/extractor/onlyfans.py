@@ -1,44 +1,23 @@
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor
-
-import json
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    scroll,
-    limiter_0_1
-)
-
-from ..utils import (
-    ExtractorError,
-    int_or_none,
-    try_get)
-
-
-import re
-import httpx
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-
-from browsermobproxy import Server
 
 import html
-
-
+import json
+import re
 import sys
-import traceback
 import threading
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
+import httpx
+from backoff import constant, on_exception
+from browsermobproxy import Server
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as ec
 
-from datetime import datetime 
-
-from backoff import on_exception, constant
-
-
+from ..utils import ExtractorError, int_or_none, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, scroll
 
 
 class error404_or_found():    

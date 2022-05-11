@@ -1,26 +1,17 @@
 from __future__ import unicode_literals
 
-
-from .commonwebdriver import SeleniumInfoExtractor
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    int_or_none,
-
-)
-
+import sys
 import time
 import traceback
-import sys
 from random import randint
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
 from threading import Lock
 
 import httpx
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, int_or_none, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor
 
 
 class GayStreamIE(SeleniumInfoExtractor):

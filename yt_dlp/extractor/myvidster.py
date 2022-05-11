@@ -1,36 +1,24 @@
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor
 
+import html
 import re
-
 import sys
 import traceback
-
-from httpx import HTTPStatusError
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_1
-)
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get,
-    urljoin,
-    datetime_from_str,
-    get_elements_by_class)
-
-from urllib.parse import unquote
-import html
-from threading import Lock
-
-from backoff import on_exception, constant
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from threading import Lock
+from urllib.parse import unquote
+
+from backoff import constant, on_exception
+from httpx import HTTPStatusError
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import (ExtractorError, datetime_from_str, get_elements_by_class,
+                     sanitize_filename, try_get, urljoin)
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
+
+
 class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     _LOGIN_URL = "https://www.myvidster.com/user/"

@@ -1,30 +1,16 @@
 from __future__ import unicode_literals
 
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_1
-)
-
-from ..utils import (
-    ExtractorError,
-    try_get,
-    sanitize_filename)
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
-from browsermobproxy import Server
-
-
 import sys
-import traceback
 import threading
+import traceback
 
+from backoff import constant, on_exception
+from browsermobproxy import Server
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
 
-from backoff import on_exception, constant
-
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
 
 
 class VideovardIE(SeleniumInfoExtractor):

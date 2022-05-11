@@ -1,24 +1,19 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-from ..utils import (
-    ExtractorError, 
-    int_or_none,
-    sanitize_filename,
-)
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-import re
-import html
-import traceback
-import sys
 import hashlib
-import threading
+import html
 import json
-from .commonwebdriver import SeleniumInfoExtractor
+import re
+import sys
+import threading
+import traceback
 
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, int_or_none, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor
 
 
 class HungYoungBritBaseIE(SeleniumInfoExtractor):

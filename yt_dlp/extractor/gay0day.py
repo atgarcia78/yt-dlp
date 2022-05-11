@@ -1,24 +1,15 @@
 from __future__ import unicode_literals
 
-
-import re
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_1
-)
-
-from ..utils import (
-    ExtractorError,   
-    sanitize_filename,
-    js_to_json,
-    try_get
-)
-
-import traceback
-import sys
 import json
+import re
+import sys
+import traceback
 
 from backoff import constant, on_exception
+
+from ..utils import ExtractorError, js_to_json, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+
 
 class Gay0DayIE(SeleniumInfoExtractor):
     

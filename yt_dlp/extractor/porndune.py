@@ -1,27 +1,16 @@
 from __future__ import unicode_literals
 
-import re
-
-
-from httpx import HTTPStatusError
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_1
-)
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get)
-
 import html
+import re
 from threading import Lock
 
-from backoff import on_exception, constant
-
-from selenium.webdriver.support import expected_conditions as ec
+from backoff import constant, on_exception
+from httpx import HTTPStatusError
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1
 
 
 class ifr_or_captcha():

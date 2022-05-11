@@ -1,22 +1,15 @@
 from __future__ import unicode_literals
 
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-)
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_5
-)
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-import traceback
 import sys
+import traceback
 
 from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+
 
 class video_or_error_eplayvid:
     def __init__(self, logger):
