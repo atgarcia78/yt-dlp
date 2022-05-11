@@ -10,12 +10,10 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import (ExtractorError, int_or_none, js_to_json,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):

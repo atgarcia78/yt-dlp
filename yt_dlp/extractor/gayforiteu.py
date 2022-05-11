@@ -9,11 +9,9 @@ from lzma import PRESET_DEFAULT
 from urllib.parse import unquote
 
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class GayForITEUIE(SeleniumInfoExtractor):

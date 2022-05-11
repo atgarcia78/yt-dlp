@@ -8,12 +8,9 @@ import traceback
 from urllib.parse import urlparse
 
 from backoff import constant, on_exception
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec, Keys
 
 
 class video_or_error_streamtape():

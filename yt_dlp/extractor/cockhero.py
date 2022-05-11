@@ -4,11 +4,9 @@ import re
 import sys
 import traceback
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_10
+from .commonwebdriver import SeleniumInfoExtractor, limiter_10, By, ec
 
 
 class get_videourl_title():

@@ -12,12 +12,9 @@ from datetime import datetime
 import httpx
 from backoff import constant, on_exception
 from browsermobproxy import Server
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, int_or_none, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, scroll
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, scroll, By, ec, Keys
 
 
 class error404_or_found():    
