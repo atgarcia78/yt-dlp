@@ -1,35 +1,20 @@
 # coding: utf-8
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor
 
 import re
-
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get
-)
-
-
-import threading
-import traceback
 import sys
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_01
-)
-
-
-
-from backoff import on_exception, constant
-
+import threading
 import time
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+
+from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01
+
 
 class waitforlogin():
     def __init__(self, username, password, logger):

@@ -1,30 +1,16 @@
 from __future__ import unicode_literals
 
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_1
-)
-
-from ..utils import (
-
-    sanitize_filename,
-    try_get
-)
-
+import json
+from collections import OrderedDict
 from threading import Lock
 
-from selenium.webdriver.support import expected_conditions as ec
+from backoff import constant, on_exception
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
 
+from ..utils import sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
 
-import json
-
-from collections import OrderedDict
-
-
-
-from backoff import on_exception, constant
 
 class VODNakedSwordBaseIE(SeleniumInfoExtractor):
     IE_NAME = 'vodnakedsword'

@@ -1,22 +1,16 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-import traceback
 import sys
+import time
+import traceback
 
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get
-)
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
 
+from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import SeleniumInfoExtractor
 
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-import time
 
 class get_video_data:
     def __init__(self, logger):

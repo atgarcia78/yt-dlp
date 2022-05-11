@@ -1,32 +1,17 @@
 from __future__ import unicode_literals
 
-
-import re
-
-from ..utils import (
-    ExtractorError,   
-    sanitize_filename,
-    try_get
-)
-
-
 import html
-
-
+import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_15
-)
-
-
 from backoff import constant, on_exception
-import time
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_15
+
 
 class get_title_videourl:
     def __init__(self, name, logger):
@@ -85,10 +70,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
-    
-   
 
-        
     def _real_initialize(self):
         super()._real_initialize()
     

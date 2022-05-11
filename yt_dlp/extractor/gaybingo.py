@@ -1,32 +1,17 @@
 from __future__ import unicode_literals
 
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    int_or_none,
-    try_get,
-
-
-    
-)
-
-import traceback
-import sys
 import re
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_1
-)
-
-
+import sys
+import traceback
 
 import httpx
-
 from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, int_or_none, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+
 
 class get_videourl():
     def __call__(self, driver):

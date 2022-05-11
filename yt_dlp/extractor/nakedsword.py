@@ -1,39 +1,23 @@
 from __future__ import unicode_literals
 
-import re
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_01
-)
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get
-)
-
-from threading import Lock
-import traceback
-import sys
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
 import json
+import re
+import sys
+import traceback
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
+from threading import Lock
 from urllib.parse import quote, unquote
 
-from collections import OrderedDict
+from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
 
-from concurrent.futures import ThreadPoolExecutor
-
-from queue import Queue
-
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01
 
 
-from backoff import on_exception, constant
 class NakedSwordBaseIE(SeleniumInfoExtractor):
     IE_NAME = 'nakedsword'
     IE_DESC = 'nakedsword'

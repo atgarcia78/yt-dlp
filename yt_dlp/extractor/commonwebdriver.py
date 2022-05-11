@@ -1,45 +1,25 @@
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor
-import threading
 
-from .common import (
-    InfoExtractor,
-    ExtractorError)
-
-import sys
-import traceback
-
-import tempfile
 import shutil
-
-from selenium.webdriver import (
-    Firefox,
-    FirefoxOptions)
-
-from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
-import httpx
+import sys
+import tempfile
+import threading
+import time
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+from queue import Empty, Queue
 from urllib.parse import unquote
 
-from ..utils import (
-    int_or_none,
-    try_get
-)
+import httpx
+from pyrate_limiter import Duration, Limiter, RequestRate
+from selenium.webdriver import Firefox, FirefoxOptions
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.support.ui import WebDriverWait
 
-
-from queue import Queue, Empty
-
-import time
-
-from pyrate_limiter import (
-    Limiter,
-    RequestRate,
-    Duration
-)
+from ..utils import int_or_none, try_get
+from .common import ExtractorError, InfoExtractor
 
 limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
 limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
