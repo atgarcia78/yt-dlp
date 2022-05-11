@@ -1,41 +1,21 @@
 from __future__ import unicode_literals
 
-import re
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_5
-)
-
-from ..utils import (
-    ExtractorError,
-    js_to_json,
-    int_or_none,
-    sanitize_filename,
-    urljoin,
-    try_get 
-
-)
-
 import html
-import threading
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-import traceback
+import json
+import re
 import sys
+import threading
+import traceback
+from urllib.parse import unquote, urlparse
 
 import httpx
-import json
-from urllib.parse import (
-    unquote, 
-    urlparse
-)
-
-
 from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import (ExtractorError, int_or_none, js_to_json,
+                     sanitize_filename, try_get, urljoin)
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5
 
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):

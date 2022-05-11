@@ -1,22 +1,16 @@
 from __future__ import unicode_literals
 
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-import re
 import json
-
-from .commonwebdriver import SeleniumInfoExtractor
-
-from ..utils import (
-    ExtractorError,
-    int_or_none,
-    sanitize_filename,
-
-)
-
-import httpx
+import re
 import time
 from threading import Lock
+
+import httpx
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, int_or_none, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor
 
 
 class GayForFansIE(SeleniumInfoExtractor):

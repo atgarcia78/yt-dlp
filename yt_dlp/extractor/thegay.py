@@ -1,32 +1,18 @@
 from __future__ import unicode_literals
 
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_1
-)
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-
-
-)
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-from browsermobproxy import Server
-
-import traceback
-import sys
-
-import threading
-
 import re
+import sys
+import threading
+import traceback
 
 from backoff import constant, on_exception
+from browsermobproxy import Server
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+
 
 class get_videourl():
     

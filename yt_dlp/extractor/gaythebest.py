@@ -1,21 +1,16 @@
 from __future__ import unicode_literals
 
-import threading
-
-from .commonwebdriver import SeleniumInfoExtractor
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-
-)
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-import traceback
 import sys
+import threading
 import time
+import traceback
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor
+
 
 class get_video_url:
     def __call__(self, driver):

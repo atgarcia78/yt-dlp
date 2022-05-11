@@ -1,36 +1,21 @@
 from __future__ import unicode_literals
 
-from backoff import on_exception
-
-from ..utils import (
-    ExtractorError,
-    sanitize_filename,
-    try_get)
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_5
-)
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
 import re
-import traceback
 import sys
+import traceback
+from concurrent.futures import ThreadPoolExecutor
 
-from backoff import (
-    constant, 
-    on_exception
-)
+from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
 
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+from .eplayvid import video_or_error_eplayvid
+from .evoload import video_or_error_evoload
 from .streamtape import video_or_error_streamtape
 from .userload import video_or_error_userload
-from .evoload import video_or_error_evoload
-from .eplayvid import video_or_error_eplayvid
 
-from concurrent.futures import ThreadPoolExecutor
 
 class Hulu123IE(SeleniumInfoExtractor):
     IE_NAME = "hulu123"

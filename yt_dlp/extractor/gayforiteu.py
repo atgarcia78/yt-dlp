@@ -1,30 +1,20 @@
 # coding: utf-8
 from __future__ import unicode_literals
-from lzma import PRESET_DEFAULT
 
-
-import re
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_5
-)
-
-from ..utils import (
-    ExtractorError, 
-    sanitize_filename,
-    try_get
-    
-)
-
-from urllib.parse import unquote
-from backoff import on_exception, constant
-import sys, traceback
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
 import html
+import re
+import sys
+import traceback
+from lzma import PRESET_DEFAULT
+from urllib.parse import unquote
+
+from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+
 
 class GayForITEUIE(SeleniumInfoExtractor):
     

@@ -1,17 +1,14 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_1)
-
-from ..utils import (
-    ExtractorError)
-
-import traceback
 import sys
+import traceback
 
 from backoff import constant, on_exception
+
+from ..utils import ExtractorError
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+
 
 class TrafficDePotIE(SeleniumInfoExtractor):
     IE_NAME = 'trafficdepot'

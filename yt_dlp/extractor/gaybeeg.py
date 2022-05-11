@@ -1,30 +1,18 @@
 from __future__ import unicode_literals
 
 import re
+import sys
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from urllib.parse import unquote
 
-from ..utils import (
-    ExtractorError,
-    try_get)
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_1
-)
-
-from concurrent.futures import ThreadPoolExecutor  
-
+from backoff import constant, on_exception
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
-import traceback
-import sys
-
-from datetime import datetime
-
-from backoff import on_exception, constant
-
-from urllib.parse import unquote
-
+from ..utils import ExtractorError, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_1
 
 
 class get_links_netdna():

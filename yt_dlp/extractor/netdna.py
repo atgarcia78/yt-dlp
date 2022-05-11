@@ -1,36 +1,21 @@
 # coding: utf-8
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor
-
-import re
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_0_005,
-    limiter_1
-)
-
-from ..utils import (
-    ExtractorError, 
-    sanitize_filename,
-    try_get
-)
 
 import hashlib
+import re
 import sys
+import time
 import traceback
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-import traceback
-
-
-from backoff import constant, on_exception
-
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
-import time
+from backoff import constant, on_exception
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename, try_get
+from .commonwebdriver import SeleniumInfoExtractor, limiter_0_005, limiter_1
+
 
 class fast_forward():     
     def __init__(self, orig, logger):

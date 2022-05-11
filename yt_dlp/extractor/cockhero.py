@@ -1,29 +1,15 @@
 from __future__ import unicode_literals
 
-
 import re
-
-from ..utils import (
-    ExtractorError, 
-    sanitize_filename
-)
-
-
-
-
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.common.by import By
-
-
-from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    limiter_10
-)
-
-
-
 import sys
 import traceback
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor, limiter_10
+
 
 class get_videourl_title():
     
