@@ -11,7 +11,6 @@ from datetime import datetime
 
 import httpx
 from backoff import constant, on_exception
-from browsermobproxy import Server
 
 from ..utils import ExtractorError, int_or_none, try_get
 from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, scroll, By, ec, Keys
@@ -86,7 +85,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _SITE_URL = "https://onlyfans.com"
     _NETRC_MACHINE = 'twitter2'
     _LOCK = threading.Lock()     
-    _NUM = 0    
     _COOKIES = None
     
     
@@ -376,57 +374,45 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             
             with OnlyFansPostIE._LOCK:
             
-                while True:    
+                _server, _server_port = self.start_browsermob(url)
+                    
+                _host = 'localhost'
+                _port = _server_port + 1                
+                _harproxy = _server.create_proxy({'port' : _port})
+                driver  = self.get_driver(host=_host, port=_port)
                 
-                    _server_port = 18080 + 100*OnlyFansPostIE._NUM
-                    
-                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                    if _server._is_listening():
-                            OnlyFansPostIE._NUM += 1
-                            if OnlyFansPostIE._NUM == 25: raise Exception("mobproxy max tries")
-                    else:
-                    
-                        _server.start({'log_path': '/dev', 'log_file': 'null'})
-                        OnlyFansPostIE._NUM += 1
-                        break
-                    
-            _host = 'localhost'
-            _port = _server_port + 1                
-            _harproxy = _server.create_proxy({'port' : _port})
-            driver  = self.get_driver(host=_host, port=_port)
-            
-            self.send_driver_request(driver, self._SITE_URL)
-            for cookie in OnlyFansPostIE._COOKIES:
-                driver.add_cookie(cookie)
-            
-            self.report_extraction(url)                  
+                self.send_driver_request(driver, self._SITE_URL)
+                for cookie in OnlyFansPostIE._COOKIES:
+                    driver.add_cookie(cookie)
+                
+                self.report_extraction(url)                  
 
-            post, account = re.search(self._VALID_URL, url).group("post", "account")
+                post, account = re.search(self._VALID_URL, url).group("post", "account")
 
-            self.to_screen("post:" + post + ":" + "account:" + account)
-            
-            entries = {} 
-            
-            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
-            self.send_driver_request(driver, url) 
-            res = self.wait_until(driver, 30, error404_or_found())
-            if not res or res[0] == "error404": raise ExtractorError("Error 404: Post doesnt exists")
-            har = _harproxy.har            
-            data_json = self.scan_for_request(har, f"har_{post}", f"/api2/v2/posts/{post}")
-            if data_json:
-                self.write_debug(data_json)                
-                _entry = self._extract_from_json(data_json, user_profile=account)
-                if _entry: 
-                    for _video in _entry:
-                        if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                        else:
-                            if _video['duration'] > entries[_video['id']]['duration']:
-                                entries[_video['id']] = _video               
-            
-            if entries:
-                return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
-            else:
-                raise ExtractorError("No entries")
+                self.to_screen("post:" + post + ":" + "account:" + account)
+                
+                entries = {} 
+                
+                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
+                self.send_driver_request(driver, url) 
+                res = self.wait_until(driver, 30, error404_or_found())
+                if not res or res[0] == "error404": raise ExtractorError("Error 404: Post doesnt exists")
+                har = _harproxy.har            
+                data_json = self.scan_for_request(har, f"har_{post}", f"/api2/v2/posts/{post}")
+                if data_json:
+                    self.write_debug(data_json)                
+                    _entry = self._extract_from_json(data_json, user_profile=account)
+                    if _entry: 
+                        for _video in _entry:
+                            if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                            else:
+                                if _video['duration'] > entries[_video['id']]['duration']:
+                                    entries[_video['id']] = _video               
+                
+                if entries:
+                    return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
+                else:
+                    raise ExtractorError("No entries")
                  
         
         except ExtractorError as e:
@@ -458,135 +444,123 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             with OnlyFansPostIE._LOCK:
             
-                while True:    
-                
-                    _server_port = 18080 + 100*OnlyFansPostIE._NUM
+                _server, _server_port = self.start_browsermob(url)
                     
-                    _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                    if _server._is_listening():
-                            OnlyFansPostIE._NUM += 1
-                            if OnlyFansPostIE._NUM == 25: raise Exception("mobproxy max tries")
-                    else:
-                    
-                        _server.start({'log_path': '/dev', 'log_file': 'null'})
-                        OnlyFansPostIE._NUM += 1
-                        break
-                    
-            _host = 'localhost'
-            _port = _server_port + 1                
-            _harproxy = _server.create_proxy({'port' : _port})
-            driver  = self.get_driver(host=_host, port=_port)
+                _host = 'localhost'
+                _port = _server_port + 1                
+                _harproxy = _server.create_proxy({'port' : _port})
+                driver  = self.get_driver(host=_host, port=_port)
 
-            driver  = self.get_driver(host=_host, port=_port)
-            self.send_driver_request(driver, self._SITE_URL)
-            for cookie in OnlyFansPlaylistIE._COOKIES:
-                driver.add_cookie(cookie)
-            
-            account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
-            if not mode:
-                mode = "latest"
-            
-            entries = {}
-            
-            if mode in ("all", "latest", "favorites","tips"):
+                driver  = self.get_driver(host=_host, port=_port)
+                self.send_driver_request(driver, self._SITE_URL)
+                for cookie in OnlyFansPlaylistIE._COOKIES:
+                    driver.add_cookie(cookie)
+                
+                account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
+                if not mode:
+                    mode = "latest"
+                
+                entries = {}
+                
+                if mode in ("all", "latest", "favorites","tips"):
 
-                self.send_driver_request(driver, f"{self._SITE_URL}/{account}")
-                res = self.wait_until(driver, 60, error404_or_found())
-                if not res or res[0] == "error404": raise ExtractorError("Error 404: User profile doesnt exists")
-                
-                _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
-                
-                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
-                
-                self.send_driver_request(driver, _url)
-                self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
-                if mode in ("latest"):
-                    har = _harproxy.har
-                    data_json = self.scan_for_request(har, f"har_{account}_{mode}", "posts/videos?")
-                    if data_json:
-                        self.write_debug(data_json)
-                        list_json = data_json.get('list')
-                        if list_json:                            
+                    self.send_driver_request(driver, f"{self._SITE_URL}/{account}")
+                    res = self.wait_until(driver, 60, error404_or_found())
+                    if not res or res[0] == "error404": raise ExtractorError("Error 404: User profile doesnt exists")
+                    
+                    _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
+                    
+                    _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
+                    
+                    self.send_driver_request(driver, _url)
+                    self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
+                    if mode in ("latest"):
+                        har = _harproxy.har
+                        data_json = self.scan_for_request(har, f"har_{account}_{mode}", "posts/videos?")
+                        if data_json:
+                            self.write_debug(data_json)
+                            list_json = data_json.get('list')
+                            if list_json:                            
+                                for info_json in list_json:                                                  
+                                    _entry = self._extract_from_json(info_json, user_profile=account)
+                                    if _entry: 
+                                        for _video in _entry:
+                                            if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                                            else:
+                                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                                    entries[_video['id']] = _video
+
+                    else:            
+
+                        #lets scroll down in the videos pages till the end
+                        self.wait_until(driver, 600, scroll(10))
+                            
+                        har = _harproxy.har
+                        _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
+                        data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
+                        if data_json:
+                            self.write_debug(data_json)
+                            list_json = []
+                            for el in data_json:
+                                list_json += el.get('list')
+                        
+                            self.write_debug(list_json)
+                            
                             for info_json in list_json:                                                  
                                 _entry = self._extract_from_json(info_json, user_profile=account)
                                 if _entry: 
                                     for _video in _entry:
                                         if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                                        else:
+                                        else:                                        
                                             if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                                 entries[_video['id']] = _video
-
-                else:            
-
-                    #lets scroll down in the videos pages till the end
-                    self.wait_until(driver, 600, scroll(10))
-                        
+                
+                elif mode in ("chat"):
+                    
+                    _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
+                    _url =  f"{self._SITE_URL}/{account}"
+                    self.send_driver_request(driver, _url)
+                    res = self.wait_until(driver, 60, error404_or_found())
+                    if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
                     har = _harproxy.har
-                    _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
+                    data_json = self.scan_for_request(har, f"har_{account}_{mode}", f"users/{account}")
+                    #self.to_screen(data_json)                
+                    userid = try_get(data_json, lambda x: x['id'])
+                    if not userid: raise ExtractorError("couldnt get id user for chat room")
+                    url_chat = f"https://onlyfans.com/my/chats/chat/{userid}/"
+
+                    self.to_screen(url_chat)
+                    self.send_driver_request(driver, url_chat)
+                    #init start of chat is to be at the end, with all the previous messages above. Lets scroll
+                    # up to the start of the chat
+                    el_chat_scroll = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto")))
+                    self.wait_until(driver, 1) 
+                    el_chat_scroll.send_keys(Keys.HOME)
+                    self.wait_until(driver, 5)                
+                    
+                    har = _harproxy.har
+                    _reg_str = r'/api2/v2/chats/\d+/messages'
                     data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
                     if data_json:
                         self.write_debug(data_json)
                         list_json = []
                         for el in data_json:
                             list_json += el.get('list')
-                    
-                        self.write_debug(list_json)
-                        
-                        for info_json in list_json:                                                  
+                            
+                        for info_json in list_json:
+                            
                             _entry = self._extract_from_json(info_json, user_profile=account)
                             if _entry: 
                                 for _video in _entry:
                                     if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                                    else:                                        
+                                    else:
                                         if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                             entries[_video['id']] = _video
-            
-            elif mode in ("chat"):
-                
-                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
-                _url =  f"{self._SITE_URL}/{account}"
-                self.send_driver_request(driver, _url)
-                res = self.wait_until(driver, 60, error404_or_found())
-                if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
-                har = _harproxy.har
-                data_json = self.scan_for_request(har, f"har_{account}_{mode}", f"users/{account}")
-                #self.to_screen(data_json)                
-                userid = try_get(data_json, lambda x: x['id'])
-                if not userid: raise ExtractorError("couldnt get id user for chat room")
-                url_chat = f"https://onlyfans.com/my/chats/chat/{userid}/"
-
-                self.to_screen(url_chat)
-                self.send_driver_request(driver, url_chat)
-                #init start of chat is to be at the end, with all the previous messages above. Lets scroll
-                # up to the start of the chat
-                el_chat_scroll = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto")))
-                self.wait_until(driver, 1) 
-                el_chat_scroll.send_keys(Keys.HOME)
-                self.wait_until(driver, 5)                
-                
-                har = _harproxy.har
-                _reg_str = r'/api2/v2/chats/\d+/messages'
-                data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
-                if data_json:
-                    self.write_debug(data_json)
-                    list_json = []
-                    for el in data_json:
-                        list_json += el.get('list')
-                        
-                    for info_json in list_json:
-                        
-                        _entry = self._extract_from_json(info_json, user_profile=account)
-                        if _entry: 
-                            for _video in _entry:
-                                if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                                else:
-                                    if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                        entries[_video['id']] = _video
-                
-            if entries:
-                return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
-            else:
-                raise ExtractorError("no entries") 
+                    
+                if entries:
+                    return self.playlist_result(list(entries.values()), "Onlyfans:" + account, "Onlyfans:" + account)
+                else:
+                    raise ExtractorError("no entries") 
             
         
         except ExtractorError as e:
@@ -616,72 +590,72 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             self.report_extraction(url)
             
             with OnlyFansPaidlistIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansPaidlistIE._NUM
-                OnlyFansPaidlistIE._NUM += 1            
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start({'log_path': '/dev', 'log_file': 'null'})
+                
+               
+                _server, _server_port = self.start_browsermob(url)
                 _host = 'localhost' 
                 _port = _server_port + 1   
                 _host = 'localhost'                
                 _harproxy = _server.create_proxy({'port' : _port})
+                
         
-            driver  = self.get_driver(host=_host, port=_port)
-            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
-            self.send_driver_request(driver, self._SITE_URL)
-            for cookie in OnlyFansPaidlistIE._COOKIES:
-                driver.add_cookie(cookie)
-            
-            
-            self.send_driver_request(driver, self._SITE_URL)
-            list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
-                (By.CLASS_NAME, "b-tabs__nav__item") ))
-            for el in list_el:
-                if re.search(r'(?:purchased|comprado)',el.get_attribute("textContent").lower()):
-                    el.click()
-                    break
-            self.wait_until(driver, 60, ec.presence_of_element_located(
-                (By.CLASS_NAME, "user_posts") ))
-       
-            self.wait_until(driver, 600, scroll(10))
+                driver  = self.get_driver(host=_host, port=_port)
+                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
+                self.send_driver_request(driver, self._SITE_URL)
+                for cookie in OnlyFansPaidlistIE._COOKIES:
+                    driver.add_cookie(cookie)
                 
-            har = _harproxy.har           
-            users_json = self.scan_for_all_requests(har, "har_paid", r'/api2/v2/users/list')
-            if users_json:
-                self.to_screen("users list attempt success")                    
-                users_dict = dict()
-                for _users in users_json:
-                    for user in _users.keys():
-                        users_dict.update({_users[user]['id']:_users[user]['username']})
-            else:
-                self.to_screen("User-dict loaded manually")
-                users_dict = dict()
-                users_dict.update({127138: 'lucasxfrost',
-                1810078: 'sirpeeter',
-                5442793: 'stallionfabio',
-                7820586: 'mreyesmuriel'})
                 
-            self.to_screen(users_dict)
-            
-            entries = {}
-            _reg_str = r'/api2/v2/posts/paid\?'
-            data_json = self.scan_for_all_requests(har, "har_paid", _reg_str)
-            if data_json:
-                self.write_debug(data_json)
-                list_json = []
-                for el in data_json:
-                    list_json += el['list']                               
+                self.send_driver_request(driver, self._SITE_URL)
+                list_el = self.wait_until(driver, 60, ec.presence_of_all_elements_located(
+                    (By.CLASS_NAME, "b-tabs__nav__item") ))
+                for el in list_el:
+                    if re.search(r'(?:purchased|comprado)',el.get_attribute("textContent").lower()):
+                        el.click()
+                        break
+                self.wait_until(driver, 60, ec.presence_of_element_located(
+                    (By.CLASS_NAME, "user_posts") ))
+        
+                self.wait_until(driver, 600, scroll(10))
+                    
+                har = _harproxy.har           
+                users_json = self.scan_for_all_requests(har, "har_paid", r'/api2/v2/users/list')
+                if users_json:
+                    self.to_screen("users list attempt success")                    
+                    users_dict = dict()
+                    for _users in users_json:
+                        for user in _users.keys():
+                            users_dict.update({_users[user]['id']:_users[user]['username']})
+                else:
+                    self.to_screen("User-dict loaded manually")
+                    users_dict = dict()
+                    users_dict.update({127138: 'lucasxfrost',
+                    1810078: 'sirpeeter',
+                    5442793: 'stallionfabio',
+                    7820586: 'mreyesmuriel'})
+                    
+                self.to_screen(users_dict)
                 
-                for info_json in list_json:
-                    for _video in self._extract_from_json(info_json, users_dict=users_dict):
-                        if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                        else:
-                            if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                entries[_video['id']] = _video
+                entries = {}
+                _reg_str = r'/api2/v2/posts/paid\?'
+                data_json = self.scan_for_all_requests(har, "har_paid", _reg_str)
+                if data_json:
+                    self.write_debug(data_json)
+                    list_json = []
+                    for el in data_json:
+                        list_json += el['list']                               
+                    
+                    for info_json in list_json:
+                        for _video in self._extract_from_json(info_json, users_dict=users_dict):
+                            if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                            else:
+                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                    entries[_video['id']] = _video
 
-            if entries:
-                return self.playlist_result(list(entries.values()), "Onlyfans:paid", "Onlyfans:paid")
-            else:
-                raise ExtractorError("no entries") 
+                if entries:
+                    return self.playlist_result(list(entries.values()), "Onlyfans:paid", "Onlyfans:paid")
+                else:
+                    raise ExtractorError("no entries") 
                  
             
         except ExtractorError as e:
@@ -707,46 +681,46 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             _url_videos = f"{url}/videos"
             self.report_extraction(_url_videos)
             with OnlyFansActSubslistIE._LOCK:
-                _server_port = 18080 + 100*OnlyFansActSubslistIE._NUM
-                OnlyFansActSubslistIE._NUM += 1            
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                _server.start({'log_path': '/dev', 'log_file': 'null'})
+                
+
+                _server, _server_port = self.start_browsermob(url)
+                
                 _host = 'localhost' 
                 _port = _server_port + 1   
                 _host = 'localhost'                
                 _harproxy = _server.create_proxy({'port' : _port})
             
-            driver = self.get_driver(host=_host, port=_port, msg=f'[{_url_videos}]')
-            self.send_driver_request(driver, self._SITE_URL)
-            for cookie in OnlyFansActSubslistIE._COOKIES:
-                driver.add_cookie(cookie)
-            
-            self.send_driver_request(driver, url)
-            res = self.wait_until(driver, 60, error404_or_found())
-            if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")        
-            account = url.split("/")[-1]
-            _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_actsubs_{account}", title=f"har_actsubs_{account}")            
-            self.send_driver_request(driver, _url_videos)
-            self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
-            
-            har = _harproxy.har
-            data_json = self.scan_for_request(har, f"har_actsubs_{account}", "posts/videos?")
-            entries = {}
-            if data_json:
-                self.write_debug(data_json)
-                list_json = data_json.get('list')
-                if list_json:                            
-                    for info_json in list_json:                                                  
-                        _entry = self._extract_from_json(info_json, user_profile=account)
-                        if _entry: 
-                            for _video in _entry:
-                                if not _video['id'] in entries.keys(): entries[_video['id']] = _video
-                                else:
-                                    if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                        entries[_video['id']] = _video
-            
-            if not entries: raise ExtractorError(f"[{_url_videos}] no entries")                
-            return list(entries.values())
+                driver = self.get_driver(host=_host, port=_port, msg=f'[{_url_videos}]')
+                self.send_driver_request(driver, self._SITE_URL)
+                for cookie in OnlyFansActSubslistIE._COOKIES:
+                    driver.add_cookie(cookie)
+                
+                self.send_driver_request(driver, url)
+                res = self.wait_until(driver, 60, error404_or_found())
+                if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")        
+                account = url.split("/")[-1]
+                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_actsubs_{account}", title=f"har_actsubs_{account}")            
+                self.send_driver_request(driver, _url_videos)
+                self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
+                
+                har = _harproxy.har
+                data_json = self.scan_for_request(har, f"har_actsubs_{account}", "posts/videos?")
+                entries = {}
+                if data_json:
+                    self.write_debug(data_json)
+                    list_json = data_json.get('list')
+                    if list_json:                            
+                        for info_json in list_json:                                                  
+                            _entry = self._extract_from_json(info_json, user_profile=account)
+                            if _entry: 
+                                for _video in _entry:
+                                    if not _video['id'] in entries.keys(): entries[_video['id']] = _video
+                                    else:
+                                        if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                            entries[_video['id']] = _video
+                
+                if not entries: raise ExtractorError(f"[{_url_videos}] no entries")                
+                return list(entries.values())
         
         except ExtractorError as e:
             raise 
