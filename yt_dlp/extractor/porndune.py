@@ -52,7 +52,20 @@ class PornDuneIE(SeleniumInfoExtractor):
         
         return self.get_info_for_format(url)
 
+    
+    def _get_video_entry(self, video_url, title=None):
+        
+        ie_traff = self._downloader.get_info_extractor('TrafficDePot')
+        ie_traff._real_initialize()
+        if ie_traff.suitable(video_url):
+            _entry = ie_traff._get_video_entry(video_url)
+            if title: _entry.update({'title': title})
+            return _entry
+        
+        
+    
     def _real_initialize(self): 
+        
                   
         super()._real_initialize()
         
@@ -78,13 +91,10 @@ class PornDuneIE(SeleniumInfoExtractor):
 
             for cookie in PornDuneIE._COOKIES:
                 PornDuneIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-            
-                    
-            ie_traff = self._downloader.get_info_extractor('TrafficDePot')
-            ie_traff._real_initialize()
-            if ie_traff.suitable(ifr_url):
-                _entry = ie_traff._get_video_entry(ifr_url)
-                _entry.update({'title': title})
+
+            if not (_entry:= self._get_video_entry(ifr_url, title)):
+                raise ExtractorError('No entry video')
+            else:
                 return _entry
         
         except ExtractorError:
