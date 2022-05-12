@@ -7,7 +7,7 @@ import traceback
 from backoff import constant, on_exception
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By, ec
+from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By
 
 
 class getvideourl():
@@ -40,22 +40,19 @@ class TubeloadIE(SeleniumInfoExtractor):
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1',webpage)]
 
         
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_15.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url, headers={'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL}, verify=False)     
     
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_15.ratelimit("tubeload", delay=True)
     def _send_request(self, url, driver):        
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
-    
-   
- 
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -78,17 +75,12 @@ class TubeloadIE(SeleniumInfoExtractor):
             title = driver.title.replace(" at Tubeload.co","").strip()
             videoid = self._match_id(url)
             
-                       
-            
-            
-            #if not _videoinfo: raise Exception(f"error video info")
+
             
             _format = {
                     'format_id': 'http-mp4',
-                    #'url': _videoinfo['url'],
                     'url': video_url,
-                    #'filesize': _videoinfo['filesize'],
-                    'http_headers': {'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL},
+                    'http_headers': {'Referer': f'{self._SITE_URL}/', 'Origin': self._SITE_URL},
                     'ext': 'mp4'
             }
             
