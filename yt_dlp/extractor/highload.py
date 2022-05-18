@@ -50,8 +50,7 @@ class HighloadIE(SeleniumInfoExtractor):
         try:                            
 
             _url = url.replace('/e/', '/f/')
-            
-            #self._send_request(driver, _url)
+
             self.request_to_host("url_request", driver, url)
             
             el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videerlay")))
@@ -70,19 +69,19 @@ class HighloadIE(SeleniumInfoExtractor):
             title = driver.title.replace(" - Highload.to","").replace(".mp4","").strip()
             videoid = self._match_id(url)
             
-                       
-           # _videoinfo = self._get_video_info(video_url)
-            _videoinfo = self.request_to_host("video_info", video_url)
-            
-            if not _videoinfo: raise Exception(f"error video info")
-            
             _format = {
-                    'format_id': 'http-mp4',
-                    'url': _videoinfo['url'],
-                    'filesize': _videoinfo['filesize'],
-                    'ext': 'mp4'
+                'format_id': 'http-mp4',
+                #'url': _videoinfo['url'],
+                'url': video_url,
+                #'filesize': _videoinfo['filesize'],
+                'ext': 'mp4'
             }
             
+            if self._downloader.params.get('external_downloader'):
+                _videoinfo = self.request_to_host("video_info", video_url)
+                if _videoinfo:
+                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
+
             _entry_video = {
                 'id' : videoid,
                 'title' : sanitize_filename(title, restricted=True),
