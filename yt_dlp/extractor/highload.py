@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import sys
 import traceback
+import time
 
 from backoff import constant, on_exception
 from selenium.webdriver.common.by import By
@@ -10,6 +11,21 @@ from selenium.webdriver.support import expected_conditions as ec
 from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import SeleniumInfoExtractor, limiter_15
 
+
+class getvideourl():
+    def __call__(self, driver):
+
+        el_video = driver.find_element(By.ID, "faststream_html5_api")
+        videourl = el_video.get_attribute('src')
+        if not videourl:
+            el_overlay = driver.find_element(By.ID, "videerlay")
+            try:
+                el_overlay.click()
+                time.sleep(3)
+            except Exception as e:
+                pass
+            return False
+        else: return videourl
 
 class HighloadIE(SeleniumInfoExtractor):
     
@@ -28,7 +44,7 @@ class HighloadIE(SeleniumInfoExtractor):
         driver.get(url)
     
    
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @on_exception(constant, Exception, max_tries=5, interval=15, raise_on_giveup=False)    
     @limiter_15.ratelimit("highload", delay=True)
     def request_to_host(self, _type, *args):
     
@@ -38,32 +54,38 @@ class HighloadIE(SeleniumInfoExtractor):
             self._send_request(*args)
 
 
+    def _video_active(self, url):
+        
+        try:
+            _videoinfo = None
+            driver = self.get_driver(usequeue=True)
+            self.request_to_host("url_request", driver, url)
+            video_url = self.wait_until(driver, 60, getvideourl())
+            _videoinfo = self.request_to_host("video_info", video_url)
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+        finally:
+            self.put_in_queue(driver)
+        
+        if _videoinfo: return True
 
 
     def _real_extract(self, url):
         
         self.report_extraction(url)
         
-        driver = self.get_driver() 
+        driver = self.get_driver(usequeue=True) 
            
             
         try:                            
 
-            _url = url.replace('/e/', '/f/')
+            #_url = url.replace('/e/', '/f/')
 
             self.request_to_host("url_request", driver, url)
             
-            el = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID,"videerlay")))
-            res = self.wait_until(driver, 60, ec.presence_of_element_located((By.ID, "faststream_html5_api")))
-            
-            if not res: raise ExtractorError("no info")
-            if el:
-                try:
-                    el.click()
-                    self.wait_until(driver, 3)
-                except Exception:
-                    pass
-            video_url = res.get_attribute("src")
+            video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url: raise ExtractorError("no video url") 
             
             title = driver.title.replace(" - Highload.to","").replace(".mp4","").strip()
@@ -99,6 +121,6 @@ class HighloadIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         finally:
             try:
-                self.rm_driver(driver)
+                self.put_in_queue(driver)
             except Exception:
                 pass

@@ -11,6 +11,7 @@ from queue import Empty, Queue
 from urllib.parse import unquote
 
 import httpx
+from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
@@ -65,6 +66,9 @@ class SeleniumInfoExtractor(InfoExtractor):
     _USER_AGENT = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
+    _CONFIG_REQ = {('userload', 'evoload', 'highload'): {'ratelimit': limiter_15},
+               'doodstream': {'ratelimit': limiter_10},
+               'tubeload': {'ratelimit': limiter_15} }
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
     _SERVER_NUM = 0
@@ -371,74 +375,139 @@ class SeleniumInfoExtractor(InfoExtractor):
                 
             raise ExtractorError(repr(e))      
 
-    def _send_request(self, *args, **kargs):
-        pass
+   
+    def _get_extractor(self, url):
+        
+        ies = self._downloader._ies
+        for ie_key, ie in ies.items():
+            if ie.suitable(url):
+                extractor = ie
+                if ie_key == 'Generic': 
+                    continue
+                else:                    
+                    break
+        return extractor
+        
+    
+    def _get_ie_name(self, url):    
+        
+        extractor = self._get_extractor(url)
+        
+        _url_str = self._get_url_print(url)
+        
+        extr_name = extractor.IE_NAME
+        
+        self.to_screen(f"[get_extr_name]:{_url_str}:{extr_name}")
+        return extr_name
+    
+    def _get_ie_key(self, url):    
+        
+        extractor = self._get_extractor(url)
+        
+        _url_str = self._get_url_print(url)
+        
+        extr_key = extractor.ie_key()
+        
+        self.to_screen(f"[get_extr_key]:{_url_str}:{extr_key}")
+        return extr_key
+    
+    def _get_url_print(self, url):
+        if len(url) > 150:
+            return(f'{url[:140]}...{url[-10:]}')
+        else: return url
+        
     
     def _is_valid(self, url, msg):
         
+        def transp(func):
+            return func
+        
+        def getter(x):
+        
+            value = try_get([v for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if x in k], lambda y: y[0]) 
+            if value:
+                return(value['ratelimit'].ratelimit(x, delay=True))
+        
         if not url: 
             return False
-        if len(url) > 150:
-            _url_str = f'{url[:140]}...{url[-10:]}'
-        else: _url_str = url
-        self.to_screen(f'[valid][{msg}]:{_url_str} start checking')
+        
+        _url_str = self._get_url_print(url)
+        
+        if msg:
+            _pre_str = f'[{msg}]:[{_url_str}]'
+        else:
+            _pre_str = f'[{_url_str}]'
+            
+        self.to_screen(f'[valid]{_pre_str} start checking')
         
         
         try:
 
             if any(_ in url for _ in ['gaypornmix.com', 'thisvid.com/embed', 'xtube.com']):
-                self.to_screen(f'[valid][{msg}]:{_url_str}:False')
+                self.to_screen(f'[valid]{_pre_str}:False')
                 return False
                 
             else:  
-
-                res = self._send_request(url.replace("streamtape.com", "streamtapeadblock.art"), _type="HEAD", headers=SeleniumInfoExtractor._FIREFOX_HEADERS)
-            
-            if res:
-                if (st_code:=res.status_code) >= 400: 
-                    valid = False
-                    self.to_screen(f'[valid][{msg}]:{_url_str}:{st_code}:{valid}\n{res.request.headers}')
-                    
-                    
-                elif res.headers.get('content-type') == "video/mp4":
-                    valid = True
-                    self.to_screen(f'[valid][{msg}]:{_url_str}:video/mp4:{valid}')
-                    
+                _extr_name = self._get_ie_name(url)
+                if _extr_name == 'generic':
+                    _decor = transp
                 else:
-
-                    webpage = try_get(self._send_request(url.replace("streamtape.com", "streamtapeadblock.art"), headers=SeleniumInfoExtractor._FIREFOX_HEADERS), lambda x: x.text)
-                    if not webpage: 
-                        valid = False
-                        self.to_screen(f'[valid][{msg}]:{_url_str}:{valid} couldnt download webpage')
-                    else:
-                        valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
-                    
-                        self.to_screen(f'[valid][{msg}]:{_url_str}:{valid} check with webpage content')
-            
-            else: 
-                valid = False
-                self.to_screen(f'[valid][{msg}]:{_url_str}:{valid} couldnt download webpage')
+                    _decor = getter(_extr_name) or transp
                 
-            return valid
+                @on_exception(constant, Exception, max_tries=5, interval=15)
+                @_decor
+                def _throttle_isvalid(_url, method="GET"):
+                    return self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS)
+                
+                res = _throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art"), method="HEAD")
+            
+                if res:
+                    # if (st_code:=res.status_code) >= 400: 
+                    #     valid = False
+                    #     self.to_screen(f'[valid]{_pre_str}:{st_code}:{valid}\n{res.request.headers}')
+                        
+                        
+                    if res.headers.get('content-type') == "video/mp4":
+                        valid = True
+                        self.to_screen(f'[valid][{_pre_str}:video/mp4:{valid}')
+                        
+                    else:
+
+                        webpage = try_get(_throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art")), lambda x: x.text)
+                        if not webpage: 
+                            valid = False
+                            self.to_screen(f'[valid]{_pre_str}:{valid} couldnt download webpage')
+                        else:
+                            valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
+                        
+                            self.to_screen(f'[valid]{_pre_str}:{valid} check with webpage content')
+                
+                else: 
+                    valid = False
+                    self.to_screen(f'[valid]{_pre_str}:{valid} couldnt send HEAD request')
+                    
+                return valid
         
         except Exception as e:
-            self.report_warning(f'[valid][{msg}]:{_url_str} error {repr(e)}')
+            self.report_warning(f'[valid]{_pre_str} error {repr(e)}')
             return False
     
-    def send_request(self, url, _type="GET", data=None, headers=None):        
+    def send_http_request(self, url, _type="GET", data=None, headers=None):        
         
         try:
+            res = ""
+            _msg_err = ""
             req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
             res = SeleniumInfoExtractor._CLIENT.send(req)
-            #self.to_screen(f"[send_request][{url}] {res}")
+            
             res.raise_for_status()
             return res
-        except httpx.HTTPStatusError as e:
-            self.to_screen(f"[send_request][{url}] {repr(e)}")    
-            return res
         except Exception as e:
-            self.to_screen(f"[send_request][{url}] {repr(e)}")            
+            _msg_err = repr(e)
             raise
+        finally:
+            _url_str = self._get_url_print(url)
+            self.to_screen(f"[send_http_request][{_url_str}][{_type}] {res}:{_msg_err}")
     
     
     

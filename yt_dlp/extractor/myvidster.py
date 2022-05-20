@@ -34,16 +34,8 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     @limiter_0_1.ratelimit("myvidster", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        try:
-            if len(url) > 150:
-                _url_str = f'{url[:140]}...{url[-10:]}'
-            else: _url_str = url
-            #self.logger_info(f"[send_request] {_url_str}") 
-            res = self.send_request(url, _type=_type, data=data, headers=headers)
-            res.raise_for_status()
-            return res
-        except HTTPStatusError as e:
-            return
+        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
         
             
 
@@ -54,24 +46,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         return self.get_info_for_format(url)
 
     
-    def _get_extractor(self, url):    
-        
-        extractor = None
-        ies = self._downloader._ies
-        for ie_key, ie in ies.items():
-            if ie.suitable(url):
-                if ie_key == 'Generic': continue
-                else: 
-                    extractor = ie_key
-                    break
-        
-        if not extractor: extractor = 'Generic'
-        if len(url) > 150:
-            _url_str = f'{url[:140]}...{url[-10:]}'
-        else: _url_str = url
-        
-        self.to_screen(f"[get_extr]:{_url_str}:{extractor}")
-        return extractor
+
     
 
     def _login(self):
@@ -183,9 +158,16 @@ class MyVidsterIE(MyVidsterBaseIE):
                 _entry = {'release_date': postdate.strftime("%Y%m%d"), 'release_timestamp': int(postdate.timestamp())}
             else:
                 _entry = {}
+                
+            def _getter(x,msg):
+                if x:
+                    for el in x:
+                        if not 'https://syndication.' in el:
+                            if self._is_valid(el, msg): return el
 
-            _srcurl = try_get(re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage), lambda x: x[0]) 
-            source_url = _srcurl if self._is_valid(_srcurl, 'source_url') else None
+
+            source_url = try_get(re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage), lambda x: _getter(x, 'source_url')) 
+            
              
             if source_url:
                 
@@ -215,22 +197,17 @@ class MyVidsterIE(MyVidsterBaseIE):
             
             else:
                 
-                _vlink =  try_get(re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
-                videolink = _vlink if self._is_valid(_vlink, 'videolink') else None
-            
-                _elink = try_get(re.findall(r'<iframe src=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
-                if not _elink or 'syndication.traffichaus.com' in _elink:
-                    _elink = try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
-                
-                embedlink = _elink if self._is_valid(_elink, 'embedlink') else None
 
-                
+                    
+                videolink =  try_get(re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'videolink'))
+                embedlink = try_get(re.findall(r'<iframe src=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink')) or try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink'))
+                #re.findall(r'iframe src=[\"\']((?!.*https://syndication)[^\"\']+)[\"\']', webpage)
+
                 if not videolink and not embedlink: raise ExtractorError("Error 404: no video urls found")
                 elif videolink and embedlink:
-                    videolink_ie = self._get_extractor(videolink)
-                    embedlink_ie = self._get_extractor(embedlink)
-                    _videolink = None if videolink_ie == 'Generic' else videolink
-                    _embedlink = None if embedlink_ie == 'Generic' else embedlink
+
+                    _videolink = None if (self._get_ie_key(videolink) == 'Generic') else videolink
+                    _embedlink = None if (self._get_ie_key(embedlink) == 'Generic') else embedlink
 
                     real_url = _embedlink or _videolink or embedlink
 
@@ -245,7 +222,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                         #'id' : video_id,
                         #'title': sanitize_filename(re.sub(r"([_ ]at[_ ][^$]+$)", "", title), True),
                         'url' : unquote(real_url),
-                        'ie_key': self._get_extractor(real_url)                     
+                        'ie_key': self._get_ie_key(real_url)                     
                     })
                     
                     return _entry

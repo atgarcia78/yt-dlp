@@ -20,18 +20,8 @@ class Gay0DayIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gay0day", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        res = None
-        try:
-            self.logger_info(f"[_send_request] {url}") 
-            res = self.send_request(url, _type=_type, data=data, headers=headers)
-            res.raise_for_status()
-            return res
-        except Exception as e:
-            if res: 
-                msg_error = f'{res} - {res.request} \n{res.request.headers}'
-            else: msg_error = ""
-            self.logger_info(f"[_send_request][{url}] error {repr(e)} - {msg_error}")
-            raise
+        self.logger_info(f"[_send_request] {self._get_url_print(url)}") 
+        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
         
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_1.ratelimit("gay0day", delay=True)   

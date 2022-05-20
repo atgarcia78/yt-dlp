@@ -80,7 +80,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
     IE_NAME = 'evoload'
     _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$/?]+)'
 
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @on_exception(constant, Exception, max_tries=5, interval=15, raise_on_giveup=False)    
     @limiter_15.ratelimit("evoload", delay=True)
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
@@ -91,6 +91,23 @@ class EvoLoadIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   
         driver.get(url)
+        
+    def _video_active(self, url):
+        
+        try:
+            _videoinfo = None
+            driver = self.get_driver(usequeue=True)
+            self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
+            video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
+            _videoinfo = self._get_video_info(video_url)
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+        finally:
+            self.put_in_queue(driver)
+        
+        if _videoinfo: return True
 
     def _real_initialize(self):
         super()._real_initialize()
