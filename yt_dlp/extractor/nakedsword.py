@@ -349,9 +349,9 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
 
 class NakedSwordStarsIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:stars:playlist"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?$'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?(\?pages=(?P<pages>\d+))?$'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
-    _NPAGES = {"stars" : 2, "studios" : 3}
+    
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -359,13 +359,16 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
     def _real_extract(self, url):     
        
         
-        data_list = re.search(self._VALID_URL, url).group("typepl", "id", "name")
+        data = try_get(re.search(self._VALID_URL, url), lambda x: x.groupdict())
+        if not data['pages']: data['pages'] = 1
         
+        
+        base_url = url.split("?pages")[0]
         entries = []
 
         with ThreadPoolExecutor(max_workers=5) as ex:
             
-            futures = [ex.submit(self.get_entries_scenes, f"{url}{self._MOST_WATCHED}{i}") for i in range(1, self._NPAGES[data_list[0]] + 1)]
+            futures = [ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}") for i in range(1, int(data['pages']) + 1)]
 
         for fut in futures:
             try:
@@ -378,8 +381,8 @@ class NakedSwordStarsIE(NakedSwordBaseIE):
 
         return {
             '_type': 'playlist',
-            'id': data_list[1],
-            'title':  f"NSw{data_list[0].capitalize()}_{''.join(w.capitalize() for w in data_list[2].split('-'))}",
+            'id': data['id'],
+            'title':  f"NSw{data['typepl'].capitalize()}_{''.join(w.capitalize() for w in data['name'].split('-'))}",
             'entries': entries,
         }
         

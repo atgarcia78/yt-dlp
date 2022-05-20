@@ -22,9 +22,7 @@ class GayPornVideosIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gaypornvideos", delay=True)
     def _send_request(self, url):        
         
-        if len(url) > 150:
-            _url_str = f'{url[:140]}...{url[-10:]}'
-        else: _url_str = url
+        _url_str = self._get_url_print(url)
         self.logger_info(f"[send_request] {_url_str}")         
         res = self._CLIENT.get(url)
         return res

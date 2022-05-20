@@ -35,16 +35,8 @@ class PornDuneIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("porndune", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        try:
-            if len(url) > 150:
-                _url_str = f'{url[:140]}...{url[-10:]}'
-            else: _url_str = url
-            self.logger_debug(f"[send_request] {_url_str}") 
-            res = self.send_request(url, _type=_type, data=data, headers=headers)
-            res.raise_for_status()
-            return res
-        except HTTPStatusError as e:
-            return
+        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
 
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_1.ratelimit("porndune", delay=True)

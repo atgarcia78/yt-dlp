@@ -25,12 +25,10 @@ class Mat6TubeIE(SeleniumInfoExtractor):
     
     @on_exception(constant, Exception, max_tries=5, interval=10)
     @limiter_10.ratelimit("mat6tube", delay=True)
-    def _send_request(self, url, headers=None):        
+    def _send_request(self, url, _type="GET", data=None, headers=None):       
         
-        self.logger_info(f"[send_request] {url}") 
-        res = self.send_request(url, headers=headers)
-        res.raise_for_status()
-        return res
+        self.logger_info(f"[_send_request] {self._get_url_print(url)}") 
+        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
     
     def _real_initialize(self):
         super()._real_initialize()

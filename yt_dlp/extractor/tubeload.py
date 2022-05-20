@@ -40,7 +40,7 @@ class TubeloadIE(SeleniumInfoExtractor):
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1',webpage)]
 
         
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
     @limiter_15.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url):        
         
@@ -53,6 +53,27 @@ class TubeloadIE(SeleniumInfoExtractor):
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
+        
+    def _video_active(self, url):
+        
+        try:
+            _videoinfo = None
+            driver = self.get_driver(usequeue=True)
+            self._send_request(url, driver)
+            video_url = self.wait_until(driver, 60, getvideourl())
+            _videoinfo = self._get_video_info(video_url)
+            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+        finally:
+            self.put_in_queue(driver)
+        
+        if _videoinfo: return True
+        
+            
+            
+        
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -66,7 +87,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             
         try:                            
 
-            self._send_request(url.replace('/e/', '/f/'), driver)
+            self._send_request(url, driver)
             
             video_url = self.wait_until(driver, 60, getvideourl())
             
