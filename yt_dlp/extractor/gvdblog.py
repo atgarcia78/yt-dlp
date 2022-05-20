@@ -16,14 +16,20 @@ from .commonwebdriver import SeleniumInfoExtractor, limiter_1
 class GVDBlogBaseIE(SeleniumInfoExtractor):
     
     
-    def get_videourl(self, x):
+    def get_videourl(self, x, check=True):
 
         temp = ""
         for el in x:
             if any(re.search(_re, el) for _re in [r'imdb\.com', r'blogger\.com', r'https?://.+\.gs/.+']):
                 continue
-            elif not 'dood.' in el and self._is_valid(el, ""):
-                return el
+            elif not 'dood.' in el and (not check or self._is_valid(el, "")):
+                
+                ie = self._downloader.get_info_extractor(self._get_ie_key(el))
+                ie._real_initialize()
+                if (func:=getattr(ie, '_video_active', None)):
+                    if func(el): return el
+                    else: continue                    
+                else: return el
             elif 'dood.' in el:
                 temp = el
         return temp
@@ -33,18 +39,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        res = None
-        try:
-            self.logger_info(f"[_send_request] {url}") 
-            res = self.send_request(url, _type=_type, data=data, headers=headers)
-            res.raise_for_status()
-            return res
-        except Exception as e:
-            if res: 
-                msg_error = f'{res} - {res.request} \n{res.request.headers}'
-            else: msg_error = ""
-            self.logger_info(f"[_send_request][{url}] error {repr(e)} - {msg_error}")
-            raise
+        
+        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
+        
+        
         
 
     def _real_initialize(self):
@@ -84,7 +83,8 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             self.to_screen(videourl)
             _entry = {
                 '_type': 'url_transparent',
-                'url': unquote(videourl)}
+                'url': unquote(videourl),
+                }
             if postdate:                
                 _entry.update({
                     'release_date': postdate.strftime('%Y%m%d'),
@@ -121,13 +121,16 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         query = re.search(self._VALID_URL, url).group('query')
         
-        params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+        params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
         
-        urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=9999"
+        urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999"
         
         if _category:=params.get('label'):
             urlquery += f"&category={_category}"
-            
+        _check = True 
+        if params.get('check','').lower() == 'no':
+            _check = False
+        
         res = self._send_request(urlquery)
         if not res: raise ExtractorError("no search results")
         video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res.text), getter)
@@ -136,7 +139,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         for _entry in video_entries:
             postdate = datetime.strptime(_entry['published']['$t'].split('T')[0], '%Y-%m-%d')
             videourlpost = _entry['link'][-1]['href']
-            videourl = try_get(re.findall(r'href="([^" ]+)" target=', _entry['content']['$t']), self.get_videourl) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', _entry['content']['$t']), self.get_videourl)
+            videourl = try_get(re.findall(r'href="([^" ]+)" target=', _entry['content']['$t']), lambda x: self.get_videourl(x, _check)) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', _entry['content']['$t']), lambda x: self.get_videourl(x, _check))
             if videourl:
                 _entries.append({
                     '_type': 'url_transparent',
