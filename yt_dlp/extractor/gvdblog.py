@@ -4,6 +4,7 @@ import json
 import re
 import sys
 import traceback
+import html
 from datetime import datetime
 from urllib.parse import unquote
 
@@ -11,6 +12,8 @@ from backoff import constant, on_exception
 
 from ..utils import ExtractorError, try_get
 from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+
+from concurrent.futures import ThreadPoolExecutor
 
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
@@ -22,17 +25,24 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         for el in x:
             if any(re.search(_re, el) for _re in [r'imdb\.com', r'blogger\.com', r'https?://.+\.gs/.+']):
                 continue
-            elif not 'dood.' in el and (not check or self._is_valid(el, "")):
+            elif not 'dood.' in el: 
                 
                 ie = self._downloader.get_info_extractor(self._get_ie_key(el))
                 ie._real_initialize()
                 if (func:=getattr(ie, '_video_active', None)):
-                    if func(el): return el
+                    if (_entry:=func(el)): return _entry
                     else: continue                    
-                else: return el
+                else:
+                    if (not check or self._is_valid(el, "")): return el
+                    
             elif 'dood.' in el:
                 temp = el
-        return temp
+        
+        ie = self._downloader.get_info_extractor('DoodStream')
+        ie._real_initialize()
+        _entry = ie._real_extract(temp)
+        _entry.update({'webpage_url': temp, 'extractor': 'doodstream', 'extractor_key': 'DoodStream'})
+        return _entry
 
             
     @on_exception(constant, Exception, max_tries=5, interval=1)
@@ -55,10 +65,9 @@ class GVDBlogPostIE(GVDBlogBaseIE):
     
     @classmethod
     def get_post_time(cls, webpage):
-        post_time = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", webpage.replace('\n','')), lambda x: x[0])            
+        _info_date = try_get(re.findall(r"<time>([^<]+)</time>", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))            
             
-        if post_time:
-            _info_date = datetime.strptime(post_time, '%B %d, %Y')
+        if _info_date:           
 
             return {
                 'release_date': _info_date.strftime('%Y%m%d'),
@@ -73,22 +82,28 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 
         try:
 
-            webpage = try_get(self._send_request(url), lambda x: x.text)
+            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage: raise ExtractorError("couldnt download webpage")
-            #self.to_screen(webpage)
-            videourl = try_get(re.findall(r'href="([^" ]+)" target=', webpage), self.get_videourl) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), self.get_videourl)             
-                            
-            postdate = try_get(re.findall(r"<span class='post-timestamp'[^>]+><a[^>]+>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))            
-            if not videourl: raise ExtractorError("no video url")
-            self.to_screen(videourl)
-            _entry = {
-                '_type': 'url_transparent',
-                'url': unquote(videourl),
-                }
-            if postdate:                
-                _entry.update({
+            
+            entry = try_get(re.findall(r'href="([^" ]+)" target=', webpage), self.get_videourl) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), self.get_videourl)            
+            if not entry: raise ExtractorError("no video url")
+            
+            postdate = try_get(re.findall(r"<time>([^<]+)</time>", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))
+            _entrydate = {}
+            if postdate: 
+                _entrydate = {
                     'release_date': postdate.strftime('%Y%m%d'),
-                    'release_timestamp': int(postdate.timestamp())})
+                    'release_timestamp': int(postdate.timestamp())}
+
+            if type(entry) == dict:
+                entry.update(_entrydate)                    
+                return entry                    
+            
+            _entry = {
+                '_type': 'url',
+                'url': entry,
+            }
+            _entry.update(_entrydate)
             
             return _entry
                 
@@ -135,25 +150,44 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if not res: raise ExtractorError("no search results")
         video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res.text), getter)
         if not video_entries: raise ExtractorError("no video entries")
-        _entries = []
-        for _entry in video_entries:
+        
+        self._entries = []
+                
+        def get_entry(_entry):
+            
             postdate = datetime.strptime(_entry['published']['$t'].split('T')[0], '%Y-%m-%d')
             videourlpost = _entry['link'][-1]['href']
-            videourl = try_get(re.findall(r'href="([^" ]+)" target=', _entry['content']['$t']), lambda x: self.get_videourl(x, _check)) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', _entry['content']['$t']), lambda x: self.get_videourl(x, _check))
-            if videourl:
-                _entries.append({
-                    '_type': 'url_transparent',
+            entry = try_get(re.findall(r'href="([^" ]+)" target=', _entry['content']['$t']), lambda x: self.get_videourl(x, _check)) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', _entry['content']['$t']), lambda x: self.get_videourl(x, _check))
+            if entry:
+                
+                _res = {
                     'original_url': videourlpost,
-                    'webpage_url': url,
                     'release_date': postdate.strftime('%Y%m%d'),
-                    'release_timestamp': int(postdate.timestamp()),
-                    'url': unquote(videourl)
-                })
+                    'release_timestamp': int(postdate.timestamp())}
+                
+                if type(entry) == dict:
+                    _res.update(entry)
+                    
+                else:
+                    _res.update({
+                        '_type': 'url',
+                        'url': entry,
+                        
+                    })
+                    
+                self._entries.append(_res)
+ 
             else:
                 self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
+        
+                
+        with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
+                
+            futures = [ex.submit(get_entry, _entry) for _entry in video_entries]       
 
-        if not _entries: raise ExtractorError("no video list")
-        return self.playlist_result(_entries, f"gvdblog_playlist", f"gvdblog_playlist")
+
+        if not self._entries: raise ExtractorError("no video list")
+        return self.playlist_result(self._entries, f"gvdblog_playlist", f"gvdblog_playlist")
              
         
         

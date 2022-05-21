@@ -162,7 +162,7 @@ class MyVidsterIE(MyVidsterBaseIE):
             def _getter(x,msg):
                 if x:
                     for el in x:
-                        if not 'https://syndication.' in el:
+                        if not '//syndication.' in el:
                             if self._is_valid(el, msg): return el
 
 

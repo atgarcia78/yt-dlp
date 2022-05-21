@@ -3,16 +3,19 @@ from __future__ import unicode_literals
 import re
 import sys
 import traceback
+from urllib.parse import unquote
 
 from backoff import constant, on_exception
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By
+from .commonwebdriver import SeleniumInfoExtractor, limiter_15, limiter_5, limiter_2, By
 
 
 class getvideourl():
     def __call__(self, driver):
 
+        if '404 - Tubeload.co' in driver.title:
+            return "error404"
         el_video = driver.find_element(By.ID, "mainvideo")
         videourl = el_video.get_attribute('src')
         if not videourl:
@@ -22,7 +25,7 @@ class getvideourl():
             except Exception as e:
                 pass
             return False
-        else: return videourl
+        else: return unquote(videourl)
 
         
         
@@ -41,14 +44,14 @@ class TubeloadIE(SeleniumInfoExtractor):
 
         
     @on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
-    @limiter_15.ratelimit("tubeload", delay=True)
+    @limiter_2.ratelimit("tubeload2", delay=True)
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url, headers={'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL}, verify=False)     
     
     @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_15.ratelimit("tubeload", delay=True)
+    @limiter_2.ratelimit("tubeload", delay=True)
     def _send_request(self, url, driver):        
         
         self.logger_info(f"[send_request] {url}") 
@@ -61,6 +64,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             driver = self.get_driver(usequeue=True)
             self._send_request(url, driver)
             video_url = self.wait_until(driver, 60, getvideourl())
+            if not video_url or video_url == "error404": return False
             _videoinfo = self._get_video_info(video_url)
             
         except Exception as e:
@@ -69,7 +73,27 @@ class TubeloadIE(SeleniumInfoExtractor):
         finally:
             self.put_in_queue(driver)
         
-        if _videoinfo: return True
+        if _videoinfo: 
+            
+            title = driver.title.replace(" at Tubeload.co","").strip()
+            videoid = self._match_id(url)
+            _format = {
+                'format_id': 'http-mp4',
+                'url': _videoinfo['url'],
+                'filesize': _videoinfo['filesize'],
+                'http_headers': {'Referer': f'{self._SITE_URL}/', 'Origin': self._SITE_URL},
+                'ext': 'mp4'
+            }
+            _entry_video = {
+                'id' : videoid,
+                'title' : sanitize_filename(title, restricted=True),
+                'formats' : [_format],
+                'extractor_key' : 'Tubeload',
+                'extractor': 'tubeload',
+                'ext': 'mp4',
+                'webpage_url': url
+            } 
+            return _entry_video
         
             
             
@@ -92,6 +116,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             video_url = self.wait_until(driver, 60, getvideourl())
             
             if not video_url: raise ExtractorError("no video url") 
+            if video_url == "error404": raise ExtractorError("error 404")
             
             title = driver.title.replace(" at Tubeload.co","").strip()
             videoid = self._match_id(url)
