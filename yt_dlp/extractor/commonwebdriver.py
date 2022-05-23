@@ -443,7 +443,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
 
-            if any(_ in url for _ in ['gaypornmix.com', 'thisvid.com/embed', 'xtube.com']):
+            if any(_ in url for _ in ['sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to']):
                 self.to_screen(f'[valid]{_pre_str}:False')
                 return False
                 
@@ -478,7 +478,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                             valid = False
                             self.to_screen(f'[valid]{_pre_str}:{valid} couldnt download webpage')
                         else:
-                            valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
+                            valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'post not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
                         
                             self.to_screen(f'[valid]{_pre_str}:{valid} check with webpage content')
                 

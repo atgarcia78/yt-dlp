@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import sys
 import traceback
-
+import re
 from backoff import constant, on_exception
 
 from ..utils import ExtractorError, sanitize_filename
@@ -25,6 +25,12 @@ class FembedIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver):        
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
+    
+    @staticmethod
+    def _extract_urls(webpage):
+
+        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
+    
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -61,25 +67,36 @@ class FembedIE(SeleniumInfoExtractor):
             setb.click()
             vid = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
             _formats = []
-            for i in range(nquality):
-                vstr.click()
-                setb.click()
-                qbmenu = self.wait_until(driver, 30, ec.presence_of_element_located((
-                    By.CSS_SELECTOR, "div.jw-reset.jw-settings-submenu.jw-settings-submenu-active"
-                )))
-                qbmenubut = qbmenu.find_elements(By.TAG_NAME, "button")
-                _formatid = qbmenubut[i].text
-                qbmenubut[i].click()                
+            if nquality > 4:
                 _videourl = vid.get_attribute("src")
                 _info_video = self._get_video_info(_videourl)
                 _formats.append({
-                    'format_id': f'http-mp4-{_formatid}',
-                    'height': int(_formatid[:-1]),
+                    'format_id': f'http-mp4',
                     'url': _info_video['url'],
                     'filesize': _info_video['filesize'],
                     'ext': 'mp4'
                 })
-            vstr.click()
+            else:                
+           
+                for i in range(nquality):
+                    vstr.click()
+                    setb.click()
+                    qbmenu = self.wait_until(driver, 30, ec.presence_of_element_located((
+                        By.CSS_SELECTOR, "div.jw-reset.jw-settings-submenu.jw-settings-submenu-active"
+                    )))
+                    qbmenubut = qbmenu.find_elements(By.TAG_NAME, "button")
+                    _formatid = qbmenubut[i].text
+                    qbmenubut[i].click()                
+                    _videourl = vid.get_attribute("src")
+                    _info_video = self._get_video_info(_videourl)
+                    _formats.append({
+                        'format_id': f'http-mp4-{_formatid}',
+                        'height': int(_formatid[:-1]),
+                        'url': _info_video['url'],
+                        'filesize': _info_video['filesize'],
+                        'ext': 'mp4'
+                    })
+                vstr.click()
 
             if _formats: 
                 self._sort_formats(_formats)
