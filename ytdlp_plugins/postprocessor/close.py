@@ -7,7 +7,8 @@ class ClosePluginPP(PostProcessor):
 
         super().__init__(downloader)
         self._kwargs = kwargs
-        self.to_screen(self._kwargs)        
+        self.to_screen(self._kwargs)
+              
 
     
     def run(self, info):
@@ -34,6 +35,8 @@ class ClosePluginPP(PostProcessor):
         
         elif info.get('_type', 'video') == 'video' and not info.get('playlist'):
             _close_ies() 
+            
+       
                 
         return [], info
 
