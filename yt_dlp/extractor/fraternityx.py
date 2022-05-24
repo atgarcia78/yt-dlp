@@ -252,7 +252,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
                 return ({
                     "id": videoid,
                     "title": sanitize_filename(_title, restricted=True).upper(),
-                    "original_url": url,
+                    "webpage_url": url,
                     "formats": formats_m3u8
                 })
             
@@ -314,7 +314,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
         for fut in futures:
             try:
                 res = fut.result()
-                res.update({'webpage_url': f"{self._BASE_URL_PL}{plid}"})
+                res.update({'original_url': f"{self._BASE_URL_PL}{plid}"})
                 entries.append(res)
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())

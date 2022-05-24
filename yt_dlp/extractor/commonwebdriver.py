@@ -74,17 +74,14 @@ class SeleniumInfoExtractor(InfoExtractor):
     _SERVER_NUM = 0
     _FIREFOX_HEADERS =  {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en,es-ES;q=0.5',
         'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
+        'Accept-Language': 'en,es-ES;q=0.5',        
+        'Connection': 'keep-alive',        
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-        'TE': 'trailers'
+        'Upgrade-Insecure-Requests': '1', 
     }
     
     @classmethod
@@ -443,9 +440,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
 
-            if any(_ in url for _ in ['sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to']):
+            if any(_ in url for _ in ['sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php']):
                 self.to_screen(f'[valid]{_pre_str}:False')
                 return False
+            elif any(_ in url for _ in ['gayforit.eu/video']):
+                self.to_screen(f'[valid]{_pre_str}:True')
+                return True                
                 
             else:  
                 _extr_name = self._get_ie_name(url)
@@ -454,10 +454,16 @@ class SeleniumInfoExtractor(InfoExtractor):
                 else:
                     _decor = getter(_extr_name) or transp
                 
-                @on_exception(constant, Exception, max_tries=5, interval=15)
+                @on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
                 @_decor
                 def _throttle_isvalid(_url, method="GET"):
-                    return self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS)
+                    try:
+                        return self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS, msg=f'[valid]{_pre_str}')
+                    except httpx.HTTPStatusError as e:
+                        self.to_screen(f"[valid]{_pre_str}:{e}")
+                        
+
+                        
                 
                 res = _throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art"), method="HEAD")
             
@@ -492,7 +498,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             self.report_warning(f'[valid]{_pre_str} error {repr(e)}')
             return False
     
-    def send_http_request(self, url, _type="GET", data=None, headers=None):        
+    def send_http_request(self, url, _type="GET", data=None, headers=None, msg=None):        
         
         try:
             res = ""
@@ -506,8 +512,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             _msg_err = repr(e)
             raise
         finally:
-            _url_str = self._get_url_print(url)
-            self.to_screen(f"[send_http_request][{_url_str}][{_type}] {res}:{_msg_err}")
+            if not msg: msg = f'[{self._get_url_print(url)}]'
+            self.to_screen(f"[send_http_request][{msg}][{_type}] {res}:{_msg_err}")
     
     
     

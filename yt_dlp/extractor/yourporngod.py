@@ -27,6 +27,8 @@ class get_title_videourl:
                     elifr = elembed[0].find_element(By.TAG_NAME, "iframe")
                     driver.switch_to.frame(elifr)
                     self.init = False
+                    elifr2_url = try_get(driver.find_elements(By.TAG_NAME, "iframe"), lambda x: x[0].get_attribute('src')) or ""
+                    if '/deleted' in elifr2_url: return "error404"
 
 
             elplayer = driver.find_element(By.ID, "kt_player")
@@ -81,9 +83,10 @@ class YourPornGodIE(SeleniumInfoExtractor):
                     
             self._send_request(url, driver)
  
-            title, video_url = try_get(self.wait_until(driver, 60, get_title_videourl(self.IE_NAME, self.to_screen)), lambda x: (x['title'], x['url'])) or ("","")                
+            title, video_url = try_get(self.wait_until(driver, 60, get_title_videourl(self.IE_NAME, self.to_screen)), lambda x: (x['title'], x['url']) if isinstance(x, dict) else ("error", x)) or ("","")                
             self.to_screen(f"{title} : {video_url}")    
             if not video_url: raise ExtractorError("No video url")
+            if video_url == "error404": raise ExtractorError("not found 404")
             
             _format = {
                 'format_id': 'http', 

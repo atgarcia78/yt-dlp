@@ -41,9 +41,9 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     @on_exception(constant, Exception, max_tries=5, interval=1)
     @limiter_0_1.ratelimit("myvidster", delay=True)
-    def _get_infovideo(self, url):       
+    def _get_infovideo(self, url, headers=None):       
         
-        return self.get_info_for_format(url)
+        return self.get_info_for_format(url, headers=headers)
 
     
 
@@ -161,7 +161,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
             def _getter(x,msg):
                 if x:
-                    for el in x:
+                    for el in list(set(x)):
                         if not '//syndication.' in el:
                             if self._is_valid(el, msg): return el
 
@@ -173,7 +173,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
                 self.to_screen(f"source url: {source_url}")
                 
-                _info_video = self._get_infovideo(source_url)
+                _headers = {'Referer': 'https://www.myvidster.com'}
+                
+                _info_video = self._get_infovideo(source_url, headers=_headers)
                 
                 if not _info_video:                    
                     raise ExtractorError('couldnt get info video details')
@@ -182,6 +184,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     'format_id' : 'http-mp4',
                     'url': _info_video.get('url'),
                     'filesize': _info_video.get('filesize'),
+                    'http_headers': _headers,
                     'ext' : 'mp4'
                 }
                 
@@ -200,7 +203,8 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                     
                 videolink =  try_get(re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'videolink'))
-                embedlink = try_get(re.findall(r'<iframe src=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink')) or try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink'))
+                #embedlink = try_get(re.findall(r'<iframe src=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink')) or try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink'))
+                embedlink = try_get(re.findall(r'<iframe src=[\'\"](https://[^\'\"]+)[\'\"]', webpage) + re.findall(r'reload_video\([\'\"](https://[^\'\"]+)[\'\"]', webpage), lambda x: _getter(x, 'embedlink')) 
                 #re.findall(r'iframe src=[\"\']((?!.*https://syndication)[^\"\']+)[\"\']', webpage)
 
                 if not videolink and not embedlink: raise ExtractorError("Error 404: no video urls found")
