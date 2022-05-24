@@ -80,6 +80,11 @@ class EvoLoadIE(SeleniumInfoExtractor):
     IE_NAME = 'evoload'
     _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$/?]+)'
 
+    @staticmethod
+    def _extract_urls(webpage):
+       
+        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1',webpage)]
+    
     @on_exception(constant, Exception, max_tries=5, interval=15, raise_on_giveup=False)    
     @limiter_15.ratelimit("evoload", delay=True)
     def _get_video_info(self, url):        
