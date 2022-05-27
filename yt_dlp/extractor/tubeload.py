@@ -44,7 +44,7 @@ class TubeloadIE(SeleniumInfoExtractor):
 
         
     @on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
-    @limiter_2.ratelimit("tubeload2", delay=True)
+    @limiter_2.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
