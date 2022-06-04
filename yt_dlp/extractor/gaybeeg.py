@@ -7,10 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import unquote
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
 class get_links_netdna():
@@ -101,7 +101,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         return entries
     
 
-    #@on_exception(constant, Exception, max_tries=5, jitter=None, interval=15)
+    #@dec_on_exception
     #@limiter_1.ratelimit("gaybeeg1", delay=True)
     def _get_entries(self, url):
         
@@ -138,7 +138,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         driver.get(url)
         
         
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @dec_on_exception
     @limiter_1.ratelimit("gaybeeg3", delay=True)
     def get_info_pages(self, url):
         res = self._CLIENT.get(url)

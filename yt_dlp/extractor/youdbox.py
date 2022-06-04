@@ -3,10 +3,10 @@ from __future__ import unicode_literals
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
 
 class getvideourl():
     def __call__(self, driver):
@@ -35,7 +35,7 @@ class YoudBoxIE(SeleniumInfoExtractor):
         driver.get(url)
     
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)    
+    @dec_on_exception
     @limiter_15.ratelimit("youdbox", delay=True)
     def request_to_host(self, _type, *args):
     

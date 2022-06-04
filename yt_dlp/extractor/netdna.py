@@ -9,12 +9,12 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
-from backoff import constant, on_exception
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_005, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_005, limiter_1
 
 
 class fast_forward():     
@@ -66,7 +66,7 @@ class NetDNAIE(SeleniumInfoExtractor):
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
 
 
-    @on_exception(constant, Exception, max_tries=5, interval=0.01)
+    @dec_on_exception
     @limiter_0_005.ratelimit("netdna1", delay=True)
     def _send_request(self, url, _type=None):
         
@@ -91,14 +91,14 @@ class NetDNAIE(SeleniumInfoExtractor):
         elif _type == "GET_INFO":            
             return self.get_info_for_format(url, headers={'referer': 'https://netdna-storage.com/'})
         
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("netdna2", delay=True)
     def url_request(self, driver, url):
                 
         driver.execute_script("window.stop();")
         driver.get(url)
 
-    @on_exception(constant, ExtractorError, max_tries=5, interval=0.02)
+    @dec_on_exception
     def get_format(self, formatid, ext, url, get_info):
         
         def getter(x):

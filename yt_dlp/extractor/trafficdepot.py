@@ -4,10 +4,10 @@ from __future__ import unicode_literals
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 
 
 class TrafficDePotIE(SeleniumInfoExtractor):
@@ -24,7 +24,7 @@ class TrafficDePotIE(SeleniumInfoExtractor):
         driver.get(url)
     
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)    
+    @dec_on_exception
     @limiter_1.ratelimit("trafficdepot", delay=True)
     def request_to_host(self, _type, *args, **kwargs):
     

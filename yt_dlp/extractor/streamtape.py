@@ -7,10 +7,10 @@ import time
 import traceback
 from urllib.parse import urlparse
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec, Keys
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec, Keys
 
 
 class video_or_error_streamtape():
@@ -64,14 +64,14 @@ class StreamtapeIE(SeleniumInfoExtractor):
         #return try_get(re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage), lambda x: x.group('url'))
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage)]
 
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @dec_on_exception
     @limiter_5.ratelimit("streamtape", delay=True)
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url)     
     
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @dec_on_exception
     @limiter_5.ratelimit("streamtape", delay=True)
     def _send_request(self, url, driver):        
         

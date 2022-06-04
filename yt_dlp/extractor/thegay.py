@@ -5,10 +5,10 @@ import sys
 import threading
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1, By
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By
 
 
 class get_videourl():
@@ -43,7 +43,7 @@ class TheGayIE(SeleniumInfoExtractor):
         driver.get(url)
     
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)    
+    @dec_on_exception
     @limiter_1.ratelimit("thegay", delay=True)
     def request_to_host(self, _type, url, driver=None, headers=None):
     

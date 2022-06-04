@@ -10,10 +10,10 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, js_to_json, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_01, By, ec
 
 
 class waitforlogin():
@@ -69,7 +69,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
 
     _MAX_PAGE = None
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.01)
+    @dec_on_exception
     @limiter_0_01.ratelimit("fratx1", delay=True)
     def _send_request_vs(self, url, headers=None):
         
@@ -83,7 +83,7 @@ class FraternityXBaseIE(SeleniumInfoExtractor):
             self.report_warning(f"[{url}] {repr(e)}")
             raise
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.01)
+    @dec_on_exception
     @limiter_0_01.ratelimit("fratx2", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         

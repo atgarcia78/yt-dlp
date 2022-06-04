@@ -5,10 +5,10 @@ import sys
 import traceback
 from urllib.parse import unquote
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15, limiter_5, limiter_2, By
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, limiter_5, limiter_2, By
 
 
 class getvideourl():
@@ -43,14 +43,14 @@ class TubeloadIE(SeleniumInfoExtractor):
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1',webpage)]
 
         
-    @on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
+    @dec_on_exception
     @limiter_2.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url, headers={'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL}, verify=False)     
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_2.ratelimit("tubeload", delay=True)
     def _send_request(self, url, driver):        
         

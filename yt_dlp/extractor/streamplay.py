@@ -5,10 +5,10 @@ import traceback
 import time
 import re
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By
 
 class getvideourl():
     def __init__(self, logger):
@@ -52,7 +52,7 @@ class StreamplayIE(SeleniumInfoExtractor):
         driver.get(url)
     
     
-    @on_exception(constant, Exception, max_tries=5, interval=5)    
+    @dec_on_exception
     @limiter_5.ratelimit("streamplay", delay=True)
     def request_to_host(self, _type, url, driver=None, headers=None):
     

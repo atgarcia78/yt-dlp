@@ -5,10 +5,10 @@ import sys
 import time
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
 
 
 class video_or_error_evoload():
@@ -85,13 +85,13 @@ class EvoLoadIE(SeleniumInfoExtractor):
        
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1',webpage)]
     
-    @on_exception(constant, Exception, max_tries=5, interval=15, raise_on_giveup=False)    
+    @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
             
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)
     def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   

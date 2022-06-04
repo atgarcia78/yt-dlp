@@ -4,10 +4,10 @@ import json
 from collections import OrderedDict
 from threading import Lock
 
-from backoff import constant, on_exception
+
 
 from ..utils import sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1
 
 
 class VODNakedSwordBaseIE(SeleniumInfoExtractor):
@@ -38,7 +38,7 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
         
         return _headers
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("vodnakedsword", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):
         

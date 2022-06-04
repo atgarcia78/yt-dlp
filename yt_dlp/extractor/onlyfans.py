@@ -10,10 +10,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import httpx
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, int_or_none, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, scroll, By, ec, Keys
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, scroll, By, ec, Keys
 
 
 class error404_or_found():    
@@ -89,7 +89,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     
     
 
-    @on_exception(constant, Exception, max_tries=5, interval=0.1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("onlyfans1", delay=True) 
     def _get_filesize(self, _vurl):
 
@@ -100,7 +100,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         
         
 
-    @on_exception(constant, Exception, max_tries=5, interval=0.1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("onlyfans2", delay=True)
     def send_driver_request(self, driver, url):
                 

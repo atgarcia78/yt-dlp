@@ -8,7 +8,7 @@ from threading import Lock
 import httpx
 
 from ..utils import ExtractorError, int_or_none, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, By, ec
 
 
 class GayForFansIE(SeleniumInfoExtractor):

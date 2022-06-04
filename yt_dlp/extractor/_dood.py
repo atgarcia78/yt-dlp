@@ -4,12 +4,12 @@ import re
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, get_domain, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1, limiter_5
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, limiter_5
 
 
 class get_videourl():
@@ -27,7 +27,7 @@ class DoodIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?dood\.[a-z]+/(?P<type>[ed])/(?P<id>[^\/$]+)(?:\/|$)'
 
 
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_5.ratelimit("dood1", delay=True)  
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)

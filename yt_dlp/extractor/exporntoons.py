@@ -4,10 +4,10 @@ import re
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, limiter_5, By, ec
 
 
 class get_videourl():
@@ -26,14 +26,14 @@ class ExPornToonsIE(SeleniumInfoExtractor):
     IE_NAME = 'exporntoons'
     _VALID_URL = r'https?://(hot\.)?exporntoons\.net/watch/-(?P<id>\d+_\d+)'
 
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("exporntoons1", delay=True)
     def _send_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
         
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_5.ratelimit("exporntoons2", delay=True)   
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)

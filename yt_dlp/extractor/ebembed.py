@@ -4,11 +4,11 @@ import json
 import re
 
 import httpx
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, int_or_none, js_to_json, sanitize_filename
 from .common import InfoExtractor
-from .commonwebdriver import limiter_5
+from .commonwebdriver import dec_on_exception, limiter_5
 
 
 class EbembedIE(InfoExtractor):
@@ -16,7 +16,7 @@ class EbembedIE(InfoExtractor):
     IE_NAME = 'ebembed'
     _VALID_URL = r'https?://(www\.)?ebembed\.com/(?:videos|embed)/(?P<id>\d+)/?(?P<title>[^\$]*)$'
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_5.ratelimit("ebembed", delay=True)    
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)

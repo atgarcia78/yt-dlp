@@ -3,10 +3,10 @@ from __future__ import unicode_literals
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class GayGuyTopIE(SeleniumInfoExtractor):
@@ -14,13 +14,13 @@ class GayGuyTopIE(SeleniumInfoExtractor):
     IE_NAME = 'gayguytop'
     _VALID_URL = r'https?://(?:www\.)?gayguy\.top/'
 
-    @on_exception(constant, Exception, max_tries=5, interval=5)    
+    @dec_on_exception
     def _get_video_info(self, url):        
         self.write_debug(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
         
         
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @dec_on_exception
     @limiter_5.ratelimit("gayguytop", delay=True)
     def _send_request(self, url, driver):        
         self.logger_info(f"[send_request] {url}") 
