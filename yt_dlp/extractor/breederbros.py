@@ -8,10 +8,10 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
 class waitforlogin():
@@ -68,13 +68,14 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
 
     _MAX_PAGE = None
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @limiter_0_01.ratelimit("breederbros1", delay=True)
+    @dec_on_exception
+    @limiter_1.ratelimit("breederbros1", delay=True)
     def _send_request_vs(self, url, headers=None):
         
         try:
  
             res = BreederBrosBaseIE._CLIENT.get(url, headers=headers)
+            #fmts, sbtls = self._extract_m3u8_formats_and_subtitles(url, videoid, 'mp4', m3u8_id='hls', headers=headers)
             res.raise_for_status()
             return res
         
@@ -82,8 +83,8 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             self.report_warning(f"[{url}] {repr(e)}")
             raise
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.01)
-    @limiter_0_01.ratelimit("breederbros2", delay=True)
+    @dec_on_exception
+    @limiter_1.ratelimit("breederbros2", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         
         try:
@@ -181,9 +182,9 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
         
         pre = f"[page_{playlistid}]" if playlistid else ""
         try:
-            
+            self.to_screen(f"{pre}[{url}]")
             res = self._send_request(url)
-            
+            #self.to_screen(f"{pre}[{url}] {res} {res.text}")
             if not res: raise ExtractorError(f"{pre}[{url}] no res")
             
             title = try_get(re.findall(r'class="name"> <span>([^<]+)<', res.text), lambda x: x[0])
@@ -216,22 +217,31 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
            
             manifesturl = try_get(re.findall(r'source src="([^"]+)"', res.text), lambda x: x[0])
 
+            #manifesturl = "https://members.breederbros.com/MembersVideoPlayer.m3u8"
             if not manifesturl: raise ExtractorError(f"{pre}[{url}] no manifesturl")
                         
             headers = {
-                "Referer" : "https://members.breederbros.com/",
+               #"Referer" : "https://members.breederbros.com/",
                 "Accept" : "*/*",
-                "Origin" : "https://members.breederbros.com"
+                "Referer" : url,
+                #"Origin" : "https://members.breederbros.com"
             }
 
             
             try:
+                if '/MembersVideoPlayer.m3u8' in manifesturl: manifesturl = "https://members.breederbros.com/MembersVideoPlayer.m3u8"
                 res2 = self._send_request_vs(manifesturl, headers=headers)
                 if not res2 or not res2.content: raise ExtractorError(f"{pre}[{url}] no res2")
-                m3u8_doc = (res2.content).decode('utf-8', 'replace')        
+                m3u8_doc = (res2.content).decode('utf-8', 'replace')
+                #self.write_debug(m3u8_doc)
+                if '/MembersVideoPlayer.m3u8' in manifesturl:
+                    _url = try_get(re.findall(r"(https://.*)", m3u8_doc), lambda x: x[0]) 
+                    murl, params = _url.split('?')
+                    manifesturl = murl.rsplit('/',1)[0] + '/playlist.m3u8?' + params
+                #self.write_debug(manifesturl)
                 formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                    m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-
+                     m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+              
                 if not formats_m3u8:
                     raise ExtractorError(f"[{url}] Can't find any M3U8 format")
 
@@ -242,7 +252,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                         _head.update(headers)
                     else:
                         _format.update({'http_headers': headers})
-        
+                #self.write_debug(formats_m3u8)
                         
                 return ({
                     "id": videoid,

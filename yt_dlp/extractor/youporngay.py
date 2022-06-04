@@ -2,18 +2,24 @@ from __future__ import unicode_literals
 
 import re
 
-from .common import InfoExtractor
+
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 from ..utils import (
     extract_attributes,
     int_or_none,
     str_to_int,
     unified_strdate,
     url_or_none,
+    try_get,
+    ExtractorError
 )
 
 
-class YouPornGayIE(InfoExtractor):
+
+
+class YouPornGayIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?youporngay\.com/(?:watch|embed)/(?P<id>\d+)(?:/(?P<display_id>[^/?#&]+))?'
+    
     
 
     @staticmethod
@@ -21,16 +27,27 @@ class YouPornGayIE(InfoExtractor):
         return re.findall(
             r'<iframe[^>]+\bsrc=["\']((?:https?:)?//(?:www\.)?youporngay\.com/embed/\d+)',
             webpage)
+        
+    @dec_on_exception
+    @limiter_1.ratelimit("yourporngay", delay=True)
+    def _send_request(self, url, _type="GET", data=None, headers=None):        
+        
+        
+        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
 
+    def _real_initialize(self):
+        super()._real_initialize()
+   
     def _real_extract(self, url):
         mobj = self._match_valid_url(url)
         video_id = mobj.group('id')
         display_id = mobj.group('display_id') or video_id
 
-        definitions = self._download_json(
+        definitions = try_get(self._send_request(
             'https://www.youporngay.com/api/video/media_definitions/%s/' % video_id,
-            display_id)
-
+            headers={'Referer': url}), lambda x: x.json())
+        if not definitions: raise ExtractorError("no video info")
         formats = []
         for definition in definitions:
             if not isinstance(definition, dict):
@@ -61,20 +78,20 @@ class YouPornGayIE(InfoExtractor):
             formats.append(f)
         self._sort_formats(formats)
 
-        webpage = self._download_webpage(
-            'http://www.youporngay.com/watch/%s' % video_id, display_id,
-            headers={'Cookie': 'age_verified=1'})
+        webpage = try_get(self._send_request(
+            'http://www.youporngay.com/watch/%s' % video_id), lambda x: x.text)
 
+        if not webpage: raise ExtractorError('no webpage')
         title = self._html_search_regex(
             r'(?s)<div[^>]+class=["\']watchVideoTitle[^>]+>(.+?)</div>',
-            webpage, 'title', default=None) or self._og_search_title(
+            webpage, 'title', fatal=False, default=None) or self._og_search_title(
             webpage, default=None) or self._html_search_meta(
             'title', webpage, fatal=True)
 
         description = self._html_search_regex(
             r'(?s)<div[^>]+\bid=["\']description["\'][^>]*>(.+?)</div>',
             webpage, 'description',
-            default=None) or self._og_search_description(
+            fatal=False, default=None) or self._og_search_description(
             webpage, default=None)
         thumbnail = self._search_regex(
             r'(?:imageurl\s*=|poster\s*:)\s*(["\'])(?P<thumbnail>.+?)\1',
@@ -96,15 +113,15 @@ class YouPornGayIE(InfoExtractor):
         view_count = None
         views = self._search_regex(
             r'(<div[^>]+\bclass=["\']js_videoInfoViews["\']>)', webpage,
-            'views', default=None)
+            'views', fatal=False, default=None)
         if views:
             view_count = str_to_int(extract_attributes(views).get('data-value'))
         comment_count = str_to_int(self._search_regex(
             r'>All [Cc]omments? \(([\d,.]+)\)',
-            webpage, 'comment count', default=None))
+            webpage, 'comment count', fatal=False, default=None))
 
         def extract_tag_box(regex, title):
-            tag_box = self._search_regex(regex, webpage, title, default=None)
+            tag_box = self._search_regex(regex, webpage, title,fatal=False, default=None)
             if not tag_box:
                 return []
             return re.findall(r'<a[^>]+href=[^>]+>([^<]+)', tag_box)

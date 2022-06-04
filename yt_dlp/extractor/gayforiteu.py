@@ -8,10 +8,10 @@ import traceback
 from lzma import PRESET_DEFAULT
 from urllib.parse import unquote
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec
 
 class getvideourl():
     def __call__(self, driver):
@@ -27,7 +27,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)gayforit\.eu/(?:playvideo.php\?vkey\=[^&]+&vid\=(?P<vid>[\w-]+)|video/(?P<id>[\w-]+)|playvideo.php\?vkey\=.+)'
 
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_5.ratelimit("gayforiteu1", delay=True)
     def _send_request(self, url, driver):
         
@@ -36,7 +36,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
         driver.get(url)
       
             
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_5.ratelimit("gayforiteu2", delay=True)   
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)

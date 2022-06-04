@@ -9,14 +9,14 @@ from datetime import datetime
 from threading import Lock
 from urllib.parse import unquote
 
-from backoff import constant, on_exception
+
 from httpx import HTTPStatusError
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import (ExtractorError, datetime_from_str, get_elements_by_class,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -30,7 +30,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     _RSS = {}
 
  
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("myvidster", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
@@ -39,7 +39,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         
             
 
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("myvidster", delay=True)
     def _get_infovideo(self, url, headers=None):       
         
@@ -210,7 +210,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if not videolink and not embedlink: raise ExtractorError("Error 404: no video urls found")
                 elif videolink and embedlink:
 
-                    _videolink = None if (self._get_ie_key(videolink) == 'Generic') else videolink
+                    _videolink = None if (self._get_ie_key(videolink) in ['Generic','MyVidster']) else videolink
                     _embedlink = None if (self._get_ie_key(embedlink) == 'Generic') else embedlink
 
                     real_url = _embedlink or _videolink or embedlink

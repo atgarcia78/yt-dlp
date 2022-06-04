@@ -10,12 +10,12 @@ from queue import Queue
 from threading import Lock
 from urllib.parse import quote, unquote
 
-from backoff import constant, on_exception
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_01
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_01
 
 
 class NakedSwordBaseIE(SeleniumInfoExtractor):
@@ -46,7 +46,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
         return _headers
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_0_01.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):
         

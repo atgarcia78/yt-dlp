@@ -34,6 +34,7 @@ limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
 limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
+dec_on_exception = on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
 
 
 class scroll():
@@ -189,7 +190,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._MASTER_INIT = True
 
 
-
+    def _real_extract(self, url):
+        """Real extraction process. Redefine in subclasses."""
+        raise NotImplementedError('This method must be implemented by subclasses')
+        
     def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 
         if usequeue:
@@ -440,7 +444,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
 
-            if any(_ in url for _ in ['sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php']):
+            if any(_ in url for _ in ['twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php']):
                 self.to_screen(f'[valid]{_pre_str}:False')
                 return False
             elif any(_ in url for _ in ['gayforit.eu/video']):
@@ -454,7 +458,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 else:
                     _decor = getter(_extr_name) or transp
                 
-                @on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
+                @dec_on_exception
                 @_decor
                 def _throttle_isvalid(_url, method="GET"):
                     try:

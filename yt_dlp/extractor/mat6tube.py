@@ -5,10 +5,10 @@ import hashlib
 import html
 import re
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, limiter_10
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, limiter_10
 
 
 class Mat6TubeIE(SeleniumInfoExtractor):
@@ -17,13 +17,13 @@ class Mat6TubeIE(SeleniumInfoExtractor):
     _VALID_URL = r"https?://(?:www\.)?(?:adult\.)?mat6tube\.com/(?:watch|player)/(?P<id>\d+\_\d+)"
     _SITE_URL = "https://adult.mat6tube.com"
 
-    @on_exception(constant, Exception, max_tries=5, interval=10)
+    @dec_on_exception
     @limiter_5.ratelimit("mat6tube2", delay=True)  
     def _get_video_info(self, *args, **kwargs):
         
         return super().get_info_for_format(*args, **kwargs)
     
-    @on_exception(constant, Exception, max_tries=5, interval=10)
+    @dec_on_exception
     @limiter_10.ratelimit("mat6tube", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):       
         

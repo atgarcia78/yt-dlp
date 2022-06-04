@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, int_or_none, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor
 
 
 class GayStreamIE(SeleniumInfoExtractor):

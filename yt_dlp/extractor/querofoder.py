@@ -4,10 +4,10 @@ import re
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1
 
 
 class QueroFoderIE(SeleniumInfoExtractor):
@@ -16,7 +16,7 @@ class QueroFoderIE(SeleniumInfoExtractor):
     
        
     
-    @on_exception(constant, Exception, max_tries=5, interval=0.1)
+    @dec_on_exception
     @limiter_0_1.ratelimit("querofoder", delay=True)
     def _send_request(self, url):        
         
