@@ -3,10 +3,10 @@ from __future__ import unicode_literals
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class video_or_error_eplayvid:
@@ -32,14 +32,14 @@ class EPlayVidIE(SeleniumInfoExtractor):
     IE_NAME = 'eplayvid'
     _VALID_URL = r'https?://(?:www\.)?eplayvid\.net/watch/[^\/$]+'
 
-    @on_exception(constant, Exception, max_tries=5, interval=5)    
+    @dec_on_exception
     @limiter_5.ratelimit("userload2", delay=True)
     def _get_video_info(self, url):        
         self.write_debug(f"[get_video_info] {url}")
         return self.get_info_for_format(url, headers={'Referer': 'https://eplayvid.net/'})       
         
         
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @dec_on_exception
     @limiter_5.ratelimit("userload", delay=True)
     def _send_request(self, url, driver):        
         

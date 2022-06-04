@@ -4,109 +4,89 @@ import json
 import re
 import sys
 import traceback
-import html
 from datetime import datetime
-from urllib.parse import unquote
-
-from backoff import constant, on_exception
+import time
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 from concurrent.futures import ThreadPoolExecutor
 
+class getvideos():
+    def __call__(self, driver):
+        el_iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        videos = []
+        _subvideos = []
+        if el_iframes:
+            for _ifr in el_iframes:
+                if _ifr.get_attribute("allowfullscreen"):
+                    if _ifr.get_attribute("mozallowfullscreen"):
+                        _subvideos.append(_ifr.get_attribute('src'))
+                    else:
+                        _vid = _ifr.get_attribute('src')
+                        if _subvideos:
+                            _subvideos.append(_vid)
+                            videos.append(_subvideos)
+                            _subvideos = []
+                        else: videos.append(_vid)
+        return(videos)            
+        
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
     
     
-    def get_videourl(self, x, check=True):
 
-        temp = ""
-        for el in x:
-            if any(re.search(_re, el) for _re in [r'imdb\.com', r'blogger\.com', r'https?://.+\.gs/.+']):
-                continue
-            elif not 'dood.' in el: 
-                
-                ie = self._downloader.get_info_extractor(self._get_ie_key(el))
-                ie._real_initialize()
-                if (func:=getattr(ie, '_video_active', None)):
-                    if (_entry:=func(el)): return _entry
-                    else: continue                    
-                else:
-                    if (not check or self._is_valid(el, "")): return el
-                    
-            elif 'dood.' in el:
-                temp = el
+    def getbestvid(self, x, check=True):
+
         
-        ie = self._downloader.get_info_extractor('DoodStream')
-        ie._real_initialize()
-        _entry = ie._real_extract(temp)
-        _entry.update({'webpage_url': temp, 'extractor': 'doodstream', 'extractor_key': 'DoodStream'})
-        return _entry
-
+        if not check: return x[0] if isinstance(x, list) else x
+        _x = x if isinstance(x, list) else [x]
+        for el in _x:
+            ie = self._downloader.get_info_extractor(self._get_ie_key(el))
+            ie._real_initialize()
+            if (func:=getattr(ie, '_video_active', None)): #tubeload
+                if (_entry:=func(el)): return _entry
+                else: continue                    
+            else:
+                _entry = ie._real_extract(el)
+                _entry.update({'webpage_url': el, 'extractor': 'doodstream', 'extractor_key': 'DoodStream'})
+                return _entry
             
-    @on_exception(constant, Exception, max_tries=5, interval=1)
-    @limiter_1.ratelimit("gvdblog", delay=True)
-    def _send_request(self, url, _type="GET", data=None, headers=None):        
-        
-        
-        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
-        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
-        
-        
-        
-
-    def _real_initialize(self):
-        super()._real_initialize()
-
-class GVDBlogPostIE(GVDBlogBaseIE):
-    IE_NAME = "gvdblogpost"
-    _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html'
-    
-    @classmethod
-    def get_post_time(cls, webpage):
-        _info_date = try_get(re.findall(r"<time>([^<]+)</time>", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))            
-            
-        if _info_date:           
-
-            return {
-                'release_date': _info_date.strftime('%Y%m%d'),
-                'release_timestamp': int(_info_date.timestamp())}
-
-    def _real_initialize(self):
-        super()._real_initialize()
-               
-    def _real_extract(self, url):
+    def get_entries(self, url, check=True):
         
         self.report_extraction(url)
+        driver = self.get_driver(usequeue=True)
 
         try:
-
-            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-            if not webpage: raise ExtractorError("couldnt download webpage")
             
-            entry = try_get(re.findall(r'href="([^" ]+)" target=', webpage), self.get_videourl) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), self.get_videourl)            
-            if not entry: raise ExtractorError("no video url")
-            
-            postdate = try_get(re.findall(r"<time>([^<]+)</time>", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y'))
-            _entrydate = {}
-            if postdate: 
-                _entrydate = {
-                    'release_date': postdate.strftime('%Y%m%d'),
-                    'release_timestamp': int(postdate.timestamp())}
-
-            if type(entry) == dict:
-                entry.update(_entrydate)                    
-                return entry                    
-            
-            _entry = {
-                '_type': 'url',
-                'url': entry,
-            }
-            _entry.update(_entrydate)
-            
-            return _entry
+            self._send_request(url, driver)
+            if (el_ifr:=driver.find_elements(By.ID, "injected-iframe")):
                 
+                driver.switch_to.frame(el_ifr[0])
+                
+                el_button = self.wait_until(driver, 1, ec.presence_of_element_located((By.CSS_SELECTOR, "a.maia-button.maia-button-primary")))
+                if el_button: 
+                    el_button.click()
+                    self.wait_until(driver, 5)
+                
+                driver.switch_to.default_content()
+            
+            postdate = try_get(self.wait_until(driver, 1, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "time.published"))), lambda x: datetime.strptime(x[0].text, '%B %d, %Y'))
+            list_candidate_videos = self.wait_until(driver, 30, getvideos())
+            entries = [_entry for _el in list_candidate_videos if (_entry:=self.getbestvid(_el, check=check))]
+            if not entries: raise ExtractorError("no video urls")
+
+            _entryupdate = {'original_url': url}
+            
+            if postdate: 
+                _entryupdate.update({
+                    'release_date': postdate.strftime('%Y%m%d'),
+                    'release_timestamp': int(postdate.timestamp())})
+
+            for _el in entries:
+                _el.update(_entryupdate)
+            
+            return entries
         
         except ExtractorError as e:                 
             raise 
@@ -114,6 +94,41 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(str(e))
+        finally:
+            self.put_in_queue(driver)
+
+    
+    @dec_on_exception
+    @limiter_1.ratelimit("gvdblog", delay=True)
+    def _send_request(self, url, driver=None):
+        
+        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        if driver:
+            driver.get(url)
+        else:
+            return(self.send_http_request(url))
+        
+
+
+    def _real_initialize(self):
+        super()._real_initialize()
+
+class GVDBlogPostIE(GVDBlogBaseIE):
+    IE_NAME = "gvdblogpost:playlist"
+    _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html'
+    
+
+    def _real_initialize(self):
+        super()._real_initialize()
+               
+    def _real_extract(self, url):
+        
+        entries = self.get_entries(url)
+        if not entries: raise ExtractorError("no videos")
+            
+        return self.playlist_result(entries, f"gvdblogpost_playlist", f"gvdblogpost_playlist")
+                
+
         
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"
@@ -153,29 +168,14 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         self._entries = []
                 
-        def get_entry(_entry):
+        def get_list_entries(_entry, check):
             
-            postdate = datetime.strptime(_entry['published']['$t'].split('T')[0], '%Y-%m-%d')
             videourlpost = _entry['link'][-1]['href']
-            entry = try_get(re.findall(r'href="([^" ]+)" target=', _entry['content']['$t']), lambda x: self.get_videourl(x, _check)) or try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', _entry['content']['$t']), lambda x: self.get_videourl(x, _check))
-            if entry:
-                
-                _res = {
-                    'original_url': videourlpost,
-                    'release_date': postdate.strftime('%Y%m%d'),
-                    'release_timestamp': int(postdate.timestamp())}
-                
-                if type(entry) == dict:
-                    _res.update(entry)
+            entries = self.get_entries(videourlpost, check=check)
+
                     
-                else:
-                    _res.update({
-                        '_type': 'url',
-                        'url': entry,
-                        
-                    })
-                    
-                self._entries.append(_res)
+            if entries:
+                self._entries += entries
  
             else:
                 self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
@@ -183,7 +183,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 
         with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
                 
-            futures = [ex.submit(get_entry, _entry) for _entry in video_entries]       
+            futures = [ex.submit(get_list_entries, _entry, _check) for _entry in video_entries]       
 
 
         if not self._entries: raise ExtractorError("no video list")

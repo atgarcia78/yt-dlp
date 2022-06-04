@@ -5,10 +5,10 @@ import re
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, js_to_json, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 
 
 class Gay0DayIE(SeleniumInfoExtractor):
@@ -16,14 +16,14 @@ class Gay0DayIE(SeleniumInfoExtractor):
     IE_NAME = 'gay0day'
     _VALID_URL = r'https?://(www\.)?gay0day\.com/(.+/)?(?:videos|embed)/(?P<id>\d+)/?(?P<title>[^$/]*)'
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("gay0day", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
         self.logger_info(f"[_send_request] {self._get_url_print(url)}") 
         return(self.send_http_request(url, _type=_type, data=data, headers=headers))
         
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("gay0day", delay=True)   
     def _get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)

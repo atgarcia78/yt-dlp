@@ -6,7 +6,7 @@ import traceback
 
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_10, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_10, By, ec
 
 
 class get_videourl_title():

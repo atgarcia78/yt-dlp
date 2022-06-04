@@ -5,10 +5,10 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
 
 
 class get_title_videourl:
@@ -59,13 +59,13 @@ class YourPornGodIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
     _SITE_URL = 'https://yourporngod.com'
     
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @dec_on_exception
     @limiter_15.ratelimit("yourporngod", delay=True)   
     def _get_video_info(self, url):        
         self.logger_info(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
         
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @dec_on_exception
     @limiter_15.ratelimit("yourporngod", delay=True)
     def _send_request(self, url, driver):
         self.logger_info(f"[send_request] {url}")   
@@ -130,7 +130,7 @@ class YourPornGodPlayListIE(SeleniumInfoExtractor):
                       "categories": r'item  [\"\']><a href=["\']([^\'\"]+)[\'\"]'}
     
     
-    @on_exception(constant, Exception, max_tries=5, interval=15)    
+    @dec_on_exception
     @limiter_15.ratelimit("yourporngod", delay=True)
     def _send_request(self, url):
         self.logger_info(f"[send_request] {url}")   

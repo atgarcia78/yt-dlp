@@ -5,12 +5,12 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
-from backoff import constant, on_exception
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5
 from .eplayvid import video_or_error_eplayvid
 from .evoload import video_or_error_evoload
 from .streamtape import video_or_error_streamtape
@@ -21,7 +21,7 @@ class Hulu123IE(SeleniumInfoExtractor):
     IE_NAME = "hulu123"
     _VALID_URL = r'https?://(www\.)?123hulu\.com/watch/(?P<id>[^-]+)-[^\./]+(?:\.html|/(?P<format>(?:vip|streamtape|userload|evoload)))'
  
-    @on_exception(constant, Exception, max_tries=5, interval=5)
+    @dec_on_exception
     @limiter_5.ratelimit("hulu123", delay=True)
     def _send_request(self, url, driver):        
         

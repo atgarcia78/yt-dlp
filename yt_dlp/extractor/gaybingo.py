@@ -5,12 +5,12 @@ import sys
 import traceback
 
 import httpx
-from backoff import constant, on_exception
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, int_or_none, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
 class get_videourl():
@@ -31,14 +31,14 @@ class GayBingoIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?gay.bingo/video/(?P<id>\d+)(?:\?|$)'
 
 
-    @on_exception(constant, Exception, max_tries=5, interval=1)  
+    @dec_on_exception
     @limiter_1.ratelimit("gaybingo1", delay=True)
     def url_request(self, driver, url):        
         
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
         
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("gaybingo2", delay=True)
     def _send_request(self, url, headers=None):
         

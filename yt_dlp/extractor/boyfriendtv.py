@@ -9,11 +9,11 @@ import traceback
 from urllib.parse import unquote, urlparse
 
 import httpx
-from backoff import constant, on_exception
+
 
 from ..utils import (ExtractorError, int_or_none, js_to_json,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):
@@ -25,7 +25,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _LOCK = threading.Lock()    
     _COOKIES = {}
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_5.ratelimit("boyfriendtv", delay=True)   
     def _get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)

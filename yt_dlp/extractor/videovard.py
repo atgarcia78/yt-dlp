@@ -5,11 +5,11 @@ import threading
 import traceback
 import re
 
-from backoff import constant, on_exception
+
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_0_1, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, ec
 
 
 class VideovardIE(SeleniumInfoExtractor):
@@ -26,7 +26,7 @@ class VideovardIE(SeleniumInfoExtractor):
        
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://videovard\.sx/e/.+?)\1',webpage)]
 
-    @on_exception(constant, Exception, max_tries=3, interval=0.1, raise_on_giveup=False)
+    @dec_on_exception
     @limiter_0_1.ratelimit("videovard", delay=True)
     def send_multi_request(self, url, driver=None, _type=None):
         

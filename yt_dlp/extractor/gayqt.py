@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor
 
 
 class get_video_data:

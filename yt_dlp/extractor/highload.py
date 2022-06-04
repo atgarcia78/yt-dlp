@@ -4,12 +4,12 @@ import sys
 import traceback
 import time
 
-from backoff import constant, on_exception
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_15
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15
 
 
 class getvideourl():
@@ -44,7 +44,7 @@ class HighloadIE(SeleniumInfoExtractor):
         driver.get(url)
     
    
-    @on_exception(constant, Exception, max_tries=5, interval=15, raise_on_giveup=False)    
+    @dec_on_exception
     @limiter_15.ratelimit("highload", delay=True)
     def request_to_host(self, _type, *args):
     

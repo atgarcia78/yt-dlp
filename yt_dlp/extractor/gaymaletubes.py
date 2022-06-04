@@ -4,10 +4,10 @@ import re
 import sys
 import traceback
 
-from backoff import constant, on_exception
+
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 
 
 class GayMaleTubesIE(SeleniumInfoExtractor):
@@ -16,7 +16,7 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
     
             
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("gaymaletubes", delay=True)
     def _send_request(self, url):        
         
@@ -25,7 +25,7 @@ class GayMaleTubesIE(SeleniumInfoExtractor):
         res = self._CLIENT.get(url)
         return res
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("gaymaletubes", delay=True)  
     def _get_info_video(self, url):
         

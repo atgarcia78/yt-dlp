@@ -4,13 +4,13 @@ import html
 import re
 from threading import Lock
 
-from backoff import constant, on_exception
+
 from httpx import HTTPStatusError
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 
 
 class ifr_or_captcha():
@@ -31,14 +31,14 @@ class PornDuneIE(SeleniumInfoExtractor):
     _LOCK = Lock()
     _COOKIES = {}
     
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("porndune", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
         self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
         return(self.send_http_request(url, _type=_type, data=data, headers=headers))
 
-    @on_exception(constant, Exception, max_tries=5, interval=1)
+    @dec_on_exception
     @limiter_1.ratelimit("porndune", delay=True)
     def _get_infovideo(self, url):       
         
