@@ -38,24 +38,19 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     def getbestvid(self, x, check=True):
 
-        
-        if not check: return x[0] if isinstance(x, list) else x
         _x = x if isinstance(x, list) else [x]
         for el in _x:
-            ie = self._downloader.get_info_extractor(self._get_ie_key(el))
+            ie = self._downloader.get_info_extractor(ie_key:=self._get_ie_key(el))
             ie._real_initialize()
-            if (func:=getattr(ie, '_video_active', None)): #tubeload
-                if (_entry:=func(el)): return _entry
-                else: continue                    
-            else:
-                _entry = ie._real_extract(el)
-                _entry.update({'webpage_url': el, 'extractor': 'doodstream', 'extractor_key': 'DoodStream'})
+            _entry = ie._get_entry(el, check_active=check)
+            if _entry:
                 return _entry
+               
             
     def get_entries(self, url, check=True):
         
         self.report_extraction(url)
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
 
         try:
             
@@ -95,7 +90,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             self.to_screen(f'{type(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(str(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
 
     
     @dec_on_exception
