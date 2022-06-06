@@ -48,7 +48,8 @@ class TubeloadIE(SeleniumInfoExtractor):
     def _get_video_info(self, url):        
         
         self.logger_info(f"[get_video_info] {url}")
-        return self.get_info_for_format(url, headers={'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL}, verify=False)     
+        return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 
+                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)     
     
     @dec_on_exception
     @limiter_2.ratelimit("tubeload", delay=True)
@@ -57,33 +58,29 @@ class TubeloadIE(SeleniumInfoExtractor):
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
         
-    def _video_active(self, url):
-        
+    
+    def _get_entry(self, url, check_active=False):
         try:
             _videoinfo = None
-            driver = self.get_driver(usequeue=True)
+            driver = self.get_driver()
             self._send_request(url, driver)
-            video_url = self.wait_until(driver, 60, getvideourl())
-            if not video_url or video_url == "error404": return False
-            _videoinfo = self._get_video_info(video_url)
-            
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-        finally:
-            self.put_in_queue(driver)
-        
-        if _videoinfo: 
-            
+            video_url = self.wait_until(driver, 30, getvideourl())
+            if not video_url or video_url == "error404": raise ExtractorError("error404")
             title = driver.title.replace(" at Tubeload.co","").strip()
             videoid = self._match_id(url)
             _format = {
                 'format_id': 'http-mp4',
-                'url': _videoinfo['url'],
-                'filesize': _videoinfo['filesize'],
+                'url': video_url,               
                 'http_headers': {'Referer': f'{self._SITE_URL}/', 'Origin': self._SITE_URL},
                 'ext': 'mp4'
             }
+
+            if check_active:
+                _videoinfo = self._get_video_info(video_url)
+                if not _videoinfo: return
+                else:
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+
             _entry_video = {
                 'id' : videoid,
                 'title' : sanitize_filename(title, restricted=True),
@@ -93,56 +90,8 @@ class TubeloadIE(SeleniumInfoExtractor):
                 'ext': 'mp4',
                 'webpage_url': url
             } 
+            
             return _entry_video
-        
-            
-            
-        
-
-    def _real_initialize(self):
-        super()._real_initialize()
-
-    def _real_extract(self, url):
-        
-        self.report_extraction(url)
-        
-        driver = self.get_driver(usequeue=True) 
-           
-            
-        try:                            
-
-            self._send_request(url, driver)
-            
-            video_url = self.wait_until(driver, 60, getvideourl())
-            
-            if not video_url: raise ExtractorError("no video url") 
-            if video_url == "error404": raise ExtractorError("error 404")
-            
-            title = driver.title.replace(" at Tubeload.co","").strip()
-            videoid = self._match_id(url)
-            
-
-            
-            _format = {
-                    'format_id': 'http-mp4',
-                    'url': video_url,
-                    'http_headers': {'Referer': f'{self._SITE_URL}/', 'Origin': self._SITE_URL},
-                    'ext': 'mp4'
-            }
-            
-            if self._downloader.params.get('external_downloader'):
-                _videoinfo = self._get_video_info(video_url)
-                if _videoinfo:
-                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
-            
-            _entry_video = {
-                'id' : videoid,
-                'title' : sanitize_filename(title, restricted=True),
-                'formats' : [_format],
-                'ext': 'mp4'
-            } 
-            
-            return _entry_video  
             
         except ExtractorError:
             raise
@@ -151,7 +100,33 @@ class TubeloadIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            try:
-                self.put_in_queue(driver)
-            except Exception:
-                pass
+            self.rm_driver(driver)
+        
+    
+    def _video_active(self, url):
+        
+        return self._get_entry(url, check_active=True)
+        
+
+
+    def _real_initialize(self):
+        super()._real_initialize()
+
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:                            
+
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)  
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+
