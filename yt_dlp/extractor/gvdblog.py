@@ -8,7 +8,7 @@ from datetime import datetime
 import time
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, limiter_0_5, By, ec
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -29,6 +29,10 @@ class getvideos():
                             videos.append(_subvideos)
                             _subvideos = []
                         else: videos.append(_vid)
+        if _subvideos:
+            if len(_subvideos) == 1: _subvideos = _subvideos[0]
+            videos.insert(0, _subvideos)        
+        if not videos: return False
         return(videos)            
         
 
@@ -39,6 +43,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def getbestvid(self, x, check=True):
 
         _x = x if isinstance(x, list) else [x]
+        _x.sort(reverse=True) #tube prior to dood
         for el in _x:
             ie = self._downloader.get_info_extractor(ie_key:=self._get_ie_key(el))
             ie._real_initialize()
@@ -62,13 +67,24 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 el_button = self.wait_until(driver, 1, ec.presence_of_element_located((By.CSS_SELECTOR, "a.maia-button.maia-button-primary")))
                 if el_button: 
                     el_button.click()
-                    self.wait_until(driver, 5)
+                    self.wait_until(driver, 5, ec.staleness_of(el_button))
                 
                 driver.switch_to.default_content()
             
             postdate = try_get(self.wait_until(driver, 1, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "time.published"))), lambda x: datetime.strptime(x[0].text, '%B %d, %Y'))
             list_candidate_videos = self.wait_until(driver, 30, getvideos())
-            entries = [_entry for _el in list_candidate_videos if (_entry:=self.getbestvid(_el, check=check))]
+            
+            with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl", max_workers=min(len(list_candidate_videos), 5)) as exe:
+                futures = {exe.submit(self.getbestvid, _el, check=check): _el for _el in list_candidate_videos}
+            
+            #entries = [_entry for _el in list_candidate_videos if (_entry:=self.getbestvid(_el, check=check))]
+            entries = []
+            for fut in futures:
+                try:
+                    entries.append(fut.result())
+                except Exception as e:
+                    self.to_screen(f'[get_entries][{url}] entry [{futures[fut]}] {repr(e)}')
+            
             if not entries: raise ExtractorError("no video urls")
 
             _entryupdate = {'original_url': url}
@@ -94,7 +110,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     
     @dec_on_exception
-    @limiter_1.ratelimit("gvdblog", delay=True)
+    @limiter_0_5.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, driver=None):
         
         self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
