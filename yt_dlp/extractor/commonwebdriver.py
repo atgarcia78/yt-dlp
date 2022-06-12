@@ -28,6 +28,7 @@ from .common import ExtractorError, InfoExtractor
 limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
 limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
 limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
 limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
 limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
 limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
@@ -130,7 +131,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         
     @classmethod
-    def rm_driver(cls, driver, usequeue=None):
+    def rm_driver(cls, driver):
         
         tempdir = driver.caps.get('moz:profile')
         if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
@@ -140,9 +141,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass
         
-        if usequeue:
-            with SeleniumInfoExtractor._MASTER_LOCK:
-                SeleniumInfoExtractor._MASTER_COUNT -= 1
+    
+        
     
     def _real_initialize(self):
           
@@ -150,20 +150,21 @@ class SeleniumInfoExtractor(InfoExtractor):
             if not SeleniumInfoExtractor._MASTER_INIT:
                 
                 SeleniumInfoExtractor._YTDL = self._downloader
-                SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit') or 5
+                SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
 
                 init_drivers = []
                 try:
-                    with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS) as ex:
-                        futures = {ex.submit(self.get_driver): i for i in range(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS)}
+                    # with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS) as ex:
+                    #     futures = {ex.submit(self.get_driver): i for i in range(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS)}
                     
                     
-                    for fut in futures:
-                        try:
-                            init_drivers.append(fut.result())
-                        except Exception as e:
-                            lines = traceback.format_exception(*sys.exc_info())
-                            self.to_screen(f'[init_drivers][{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
+                    # for fut in futures:
+                    #     try:
+                    #         init_drivers.append(fut.result())
+                    #     except Exception as e:
+                    #         lines = traceback.format_exception(*sys.exc_info())
+                    #         self.to_screen(f'[init_drivers][{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
+                    init_drivers.append(self.get_driver())
 
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
@@ -172,9 +173,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                 finally:
                     if init_drivers:
                         SeleniumInfoExtractor._USER_AGENT = init_drivers[0].execute_script("return navigator.userAgent")
-                        for driver in init_drivers:
-                            SeleniumInfoExtractor._QUEUE.put_nowait(driver)
-                            SeleniumInfoExtractor._MASTER_COUNT += 1
+                        # for driver in init_drivers:
+                        #     SeleniumInfoExtractor._QUEUE.put_nowait(driver)
+                        #     SeleniumInfoExtractor._MASTER_COUNT += 1
+                        self.rm_driver(init_drivers[0])
                 
              
                 _headers = dict(httpx.Headers(SeleniumInfoExtractor._YTDL.params.get('http_headers')).copy())
@@ -196,10 +198,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         
     def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 
+        
+       
         if usequeue:
-            
+        
             with SeleniumInfoExtractor._MASTER_LOCK:
-                #self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
+            #self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
                 if SeleniumInfoExtractor._QUEUE._qsize() > 0:
                     driver = SeleniumInfoExtractor._QUEUE.get()
                 else:    
@@ -208,8 +212,11 @@ class SeleniumInfoExtractor(InfoExtractor):
                         SeleniumInfoExtractor._MASTER_COUNT += 1                    
                     else:
                         driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=600)            
-        
-        else: driver = self._get_driver(noheadless, host, port, msg)
+    
+        else: 
+
+            driver = self._get_driver(noheadless, host, port, msg)
+             
         
         return driver
         
@@ -398,7 +405,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         extr_name = extractor.IE_NAME
         
-        self.to_screen(f"[get_extr_name]:{_url_str}:{extr_name}")
+        #self.to_screen(f"[get_extr_name]:{_url_str}:{extr_name}")
         return extr_name
     
     def _get_ie_key(self, url):    
@@ -409,7 +416,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         extr_key = extractor.ie_key()
         
-        self.to_screen(f"[get_extr_key]:{_url_str}:{extr_key}")
+        #self.to_screen(f"[get_extr_key]:{_url_str}:{extr_key}")
         return extr_key
     
     def _get_url_print(self, url):
