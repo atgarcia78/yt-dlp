@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_2
 
 
 class getvideourl():
@@ -27,91 +27,61 @@ class getvideourl():
             return False
         else: return videourl
 
-class HighloadIE(SeleniumInfoExtractor):
+class FastStreamIE(SeleniumInfoExtractor):
     
-    _SITE_URL = "https://highload.to"
-    
-    IE_NAME = 'highload'
-    _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
 
-    def _get_video_info(self, url):        
-        self.logger_info(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)       
+    def _get_entry(self, url, check_active=False):
         
-
-    def _send_request(self, driver, url):
-        self.logger_info(f"[send_request] {url}")   
-        driver.get(url)
+        @dec_on_exception
+        @limiter_2.ratelimit(self.IE_NAME, delay=True)
+        def _get_video_info(url):        
+        
+            self.logger_info(f"[get_video_info] {url}")
+            return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 
+                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)
     
    
-    @dec_on_exception
-    @limiter_15.ratelimit("highload", delay=True)
-    def request_to_host(self, _type, *args):
-    
-        if _type == "video_info":
-            return self._get_video_info(*args)
-        elif _type == "url_request":
-            self._send_request(*args)
-
-
-    def _video_active(self, url):
+        @dec_on_exception
+        @limiter_2.ratelimit(self.IE_NAME, delay=True)
+        def _send_request(url, driver):        
+        
+            self.logger_info(f"[send_request] {url}") 
+            driver.get(url)
+        
         
         try:
             _videoinfo = None
-            driver = self.get_driver(usequeue=True)
-            self.request_to_host("url_request", driver, url)
-            video_url = self.wait_until(driver, 60, getvideourl())
-            _videoinfo = self.request_to_host("video_info", video_url)
-            
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-        finally:
-            self.put_in_queue(driver)
-        
-        if _videoinfo: return True
-
-
-    def _real_extract(self, url):
-        
-        self.report_extraction(url)
-        
-        driver = self.get_driver(usequeue=True) 
-           
-            
-        try:                            
-
-            #_url = url.replace('/e/', '/f/')
-
-            self.request_to_host("url_request", driver, url)
-            
+            driver = self.get_driver()
+            _send_request(url, driver)
             video_url = self.wait_until(driver, 30, getvideourl())
-            if not video_url: raise ExtractorError("no video url") 
-            
-            title = driver.title.replace(" - Highload.to","").replace(".mp4","").strip()
+            if not video_url or video_url == "error404": raise ExtractorError("error404")
+            title = driver.title.replace(self._SUBS_TITLE,"").replace(".mp4","").strip()
             videoid = self._match_id(url)
             
             _format = {
-                'format_id': 'http-mp4',
-                #'url': _videoinfo['url'],
+                'format_id': 'http-mp4',                
                 'url': video_url,
-                #'filesize': _videoinfo['filesize'],
+                'http_headers': {'Referer': f'{self._SITE_URL}/', 'Origin': self._SITE_URL},               
                 'ext': 'mp4'
             }
             
-            if self._downloader.params.get('external_downloader'):
-                _videoinfo = self.request_to_host("video_info", video_url)
-                if _videoinfo:
-                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
-
+            if check_active:
+                _videoinfo = _get_video_info(video_url)
+                if not _videoinfo: return
+                else:
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+            
             _entry_video = {
                 'id' : videoid,
                 'title' : sanitize_filename(title, restricted=True),
                 'formats' : [_format],
-                'ext': 'mp4'
+                'extractor_key' : 'Tubeload',
+                'extractor': 'tubeload',
+                'ext': 'mp4',
+                'webpage_url': url
             } 
             
-            return _entry_video  
+            return _entry_video
             
         except ExtractorError:
             raise
@@ -120,7 +90,41 @@ class HighloadIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            try:
-                self.put_in_queue(driver)
-            except Exception:
-                pass
+            self.rm_driver(driver)
+
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:                            
+
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)  
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+        
+class EmbedoIE(FastStreamIE):
+    
+    _SITE_URL = "https://embedo.co"
+    
+    IE_NAME = 'embedo'
+    _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
+    _SUBS_TITLE = " - embedo.co"
+    
+class HighloadIE(FastStreamIE):
+    
+    _SITE_URL = "https://highload.to"
+    
+    IE_NAME = 'highload'
+    _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
+    _SUBS_TITLE = " - Highload.to"
