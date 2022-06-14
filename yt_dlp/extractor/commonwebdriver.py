@@ -61,6 +61,7 @@ class scroll():
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
+    _FF_PROF_IG = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
     _MASTER_LOCK = threading.Lock()
     _QUEUE = Queue()
     _MASTER_COUNT = 0
@@ -144,7 +145,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     
         
     
-    def _real_initialize(self):
+    def _real_initialize(self, prof=None):
           
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not SeleniumInfoExtractor._MASTER_INIT:
@@ -164,7 +165,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     #     except Exception as e:
                     #         lines = traceback.format_exception(*sys.exc_info())
                     #         self.to_screen(f'[init_drivers][{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
-                    init_drivers.append(self.get_driver())
+                    init_drivers.append(self.get_driver(prof=prof))
 
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
@@ -196,7 +197,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         """Real extraction process. Redefine in subclasses."""
         raise NotImplementedError('This method must be implemented by subclasses')
         
-    def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
+    def get_driver(self, prof=None, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 
         
        
@@ -208,25 +209,32 @@ class SeleniumInfoExtractor(InfoExtractor):
                     driver = SeleniumInfoExtractor._QUEUE.get()
                 else:    
                     if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
-                        driver = self._get_driver(noheadless, host, port, msg)
+                        driver = self._get_driver(prof, noheadless, host, port, msg)
                         SeleniumInfoExtractor._MASTER_COUNT += 1                    
                     else:
                         driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=600)            
     
         else: 
 
-            driver = self._get_driver(noheadless, host, port, msg)
+            driver = self._get_driver(prof, noheadless, host, port, msg)
              
+        
+ 
         
         return driver
         
-    def _get_driver(self, _noheadless, _host, _port, _msg):
+    def _get_driver(self, _prof, _noheadless, _host, _port, _msg):
         
         if _msg: pre = f'{_msg} '
         else: pre = ''
         
-        tempdir = tempfile.mkdtemp(prefix='asyncall-')            
-        res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
+        tempdir = tempfile.mkdtemp(prefix='asyncall-') 
+        if _prof:
+            self.to_screen("FF profile for IG")
+            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF_IG, tempdir, dirs_exist_ok=True)
+        else:           
+            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
+        
         if res != tempdir:
             raise ExtractorError("error when creating profile folder")
         

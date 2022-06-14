@@ -566,7 +566,7 @@ class InstagramPlaylistBaseIE(InstagramBaseIE):
                     '%s' % rhx_gis,
                     '',
                     '%s:%s' % (rhx_gis, csrf_token),
-                    '%s:%s:%s' % (rhx_gis, csrf_token, self.get_param('http_headers')['User-agent']),
+                    '%s:%s:%s' % (rhx_gis, csrf_token, self.get_param('http_headers')['User-Agent']),
                 ]
 
             # try all of the ways to generate a GIS query, and not only use the
