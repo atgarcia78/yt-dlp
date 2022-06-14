@@ -19,7 +19,7 @@ class video_or_error_streamtape():
     def __call__(self, driver):
         try:
 
-            elover = driver.find_elements(By.CLASS_NAME, "plyr-overlay")
+            elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
             if elover:
                 for _ in range(5):
                     try:
@@ -66,10 +66,11 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
     @dec_on_exception
     @limiter_5.ratelimit("streamtape", delay=True)
-    def _get_video_info(self, url):        
+    def _get_video_info(self, url, headers=None):        
         
         self.logger_info(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)     
+        return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 
+                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)      
     
     @dec_on_exception
     @limiter_5.ratelimit("streamtape", delay=True)
@@ -78,77 +79,74 @@ class StreamtapeIE(SeleniumInfoExtractor):
         self.logger_info(f"[send_request] {url}") 
         driver.get(url)
         
-    def _real_initialize(self):
-        super()._real_initialize()
-        
-    
-    def _real_extract(self, url):
 
-        
-        self.report_extraction(url)
-        
-        driver = self.get_driver(usequeue=True)
-        
-        
-        try:        
-            #we need to disable the adblock addon to bypass cloudflare bot detection
-            driver.get("about:addons")
-            elbutton = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "input.toggle-button.extension-enable-button")))
-            elbutton[1].click()
-            
-            #open a new tab to load the url webpage
-            eltab =  driver.find_element(By.CSS_SELECTOR, "a")
-            eltab.send_keys(Keys.COMMAND + Keys.RETURN)
-            driver.switch_to.window(driver.window_handles[1])
-            self.wait_until(driver, timeout=5)
-            self._send_request(url.replace(".com", "adblock.art"), driver)           
-            self.wait_until(driver, 30, ec.title_contains("Streamtape"))
-            #enable again the addon adblock
-            driver.switch_to.window(driver.window_handles[0])
-            elbutton = driver.find_elements(By.CSS_SELECTOR, "input.toggle-button.extension-enable-button")            
-            elbutton[1].click()
-            driver.close()            
-            driver.switch_to.window(driver.window_handles[0]) 
-                       
-            webpage = html.unescape(driver.page_source)
-            video_url = try_get(re.findall(r"(//streamtapeadblock\.art/get_video\?.+)<\/div>", webpage), lambda x: f'https:{x[0]}&stream=1')
-            self.to_screen(f'[{url}] {video_url}')
-            #video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
+    def _get_entry(self, url, check_active=False):
+        try:
+            _videoinfo = None
+            driver = self.get_driver()           
+
+     
+            self._send_request(url, driver)
+            video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
-            # _info_video = self._get_video_info(video_url)
-            # if not _info_video: raise ExtractorError("error info video")
-             
-            title = try_get(re.findall(r'og:title" content="([^"]+)"', webpage), 
-                            lambda x: re.sub(r'\.mp4| at Streamtape\.com|amp;', '', x[0], re.IGNORECASE))
+
+            
+            title = try_get(driver.title, lambda x: re.sub(r'\.mp4| at Streamtape\.com|amp;', '', x[0], re.IGNORECASE))
                                         
              
             _format = {
                 'format_id': 'http-mp4',
-                #'url': _info_video.get('url'),
                 'url': video_url,
-                #'filesize': _info_video.get('filesize'),
                 'ext': 'mp4',
-                'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
+                'http_headers': {'Referer': url}
             }
             
-            if self._downloader.params.get('external_downloader'):
-                _videoinfo = self._get_video_info(video_url)
+            
+            if check_active:
+                _videoinfo = self._get_video_info(video_url, headers= {'Referer': url})
                 if _videoinfo:
                     _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
                 
-            return({
+            _entry_video = {
                 'id' : self._match_id(url),
                 'title' : sanitize_filename(title, restricted=True),
                 'formats' : [_format],
-                'ext': 'mp4'
-            })
-
+                'ext': 'mp4',
+                'extractor_key': 'Streamtape',
+                'extractor': 'streamtape',
+                'webpage_url': url
+            }            
             
-        except ExtractorError as e:
+            return _entry_video
+            
+        except ExtractorError:
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")            
-            raise ExtractorError(repr(e)) 
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
+    
+    def _real_initialize(self):
+        
+        super()._real_initialize()
+        
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:                            
+
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)  
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))

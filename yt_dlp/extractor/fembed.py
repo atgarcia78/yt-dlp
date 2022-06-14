@@ -15,6 +15,7 @@ class FembedIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?fembed\.com/v/(?P<id>.+)'
 
     @dec_on_exception
+    @limiter_5.ratelimit("fembed", delay=True)
     def _get_video_info(self, url):        
         self.write_debug(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
@@ -32,17 +33,14 @@ class FembedIE(SeleniumInfoExtractor):
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
     
     
-    def _real_initialize(self):
-        super()._real_initialize()
-    
-    def _real_extract(self, url):
-        self.report_extraction(url)
-        driver = self.get_driver(usequeue=True)
-        
+    def _get_entry(self, url, check_active=False):
+         
+
         try:
-            videoid = self._match_id(url)
-            self._send_request(url, driver)
             
+            driver = self.get_driver()
+            videoid = self._match_id(url)
+            self._send_request(url, driver)            
             
             cont = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "loading-container.faplbu")))
             if cont:
@@ -69,13 +67,22 @@ class FembedIE(SeleniumInfoExtractor):
             _formats = []
             if nquality > 4:
                 _videourl = vid.get_attribute("src")
-                _info_video = self._get_video_info(_videourl)
-                _formats.append({
+                _f = {
                     'format_id': f'http-mp4',
-                    'url': _info_video['url'],
-                    'filesize': _info_video['filesize'],
+                    'url': _videourl,
                     'ext': 'mp4'
-                })
+                }
+                if check_active: 
+                    _info_video = self._get_video_info(_videourl) or {}
+                else:
+                    _info_video = {}
+                    
+                if _info_video:
+                    _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
+                    
+                
+                _formats.append(_f)
+            
             else:                
            
                 for i in range(nquality):
@@ -88,26 +95,37 @@ class FembedIE(SeleniumInfoExtractor):
                     _formatid = qbmenubut[i].text
                     qbmenubut[i].click()                
                     _videourl = vid.get_attribute("src")
-                    _info_video = self._get_video_info(_videourl)
-                    _formats.append({
+                    _f = {
                         'format_id': f'http-mp4-{_formatid}',
                         'height': int(_formatid[:-1]),
-                        'url': _info_video['url'],
-                        'filesize': _info_video['filesize'],
+                        'url': _videourl,                        
                         'ext': 'mp4'
-                    })
+                    }
+                    if check_active: 
+                        _info_video = self._get_video_info(_videourl) or {}
+                    else:
+                        _info_video = {}
+                    
+                    if _info_video:
+                        _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
+                    
+                    _formats.append(_f)
+                    
                 vstr.click()
 
             if _formats: 
                 self._sort_formats(_formats)
+            
             return({
                 'id' : videoid,
                 'title': sanitize_filename(title, restricted=True),             
                 'formats' : _formats,                
-                'ext': 'mp4'
+                'ext': 'mp4',
+                'extractor_key': 'Fembed',
+                'extractor': 'fembed',
+                'webpage_url': url
             })
-
-    
+        
         except ExtractorError as e:
             raise
         except Exception as e:
@@ -115,4 +133,30 @@ class FembedIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
+    
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:                            
+
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)  
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+       
+
+    
+
