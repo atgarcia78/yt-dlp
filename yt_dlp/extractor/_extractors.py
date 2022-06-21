@@ -1,4 +1,5 @@
-# flake8: noqa: F401
+import contextlib
+import os
 
 from .youtube import (  # Youtube is moved to the top to improve performance
     YoutubeIE,
@@ -848,6 +849,24 @@ from .itprotv import (
     ITProTVIE,
     ITProTVCourseIE
 )
+_LAZY_LOADER = False
+if not os.environ.get('YTDLP_NO_LAZY_EXTRACTORS'):
+    with contextlib.suppress(ImportError):
+        from .lazy_extractors import *  # noqa: F403
+        from .lazy_extractors import _ALL_CLASSES
+        _LAZY_LOADER = True
+
+if not _LAZY_LOADER:
+    from ._extractors import *  # noqa: F403
+    _ALL_CLASSES = [  # noqa: F811
+        klass
+        for name, klass in globals().items()
+        if name.endswith('IE') and name != 'GenericIE'
+    ]
+    _ALL_CLASSES.append(GenericIE)  # noqa: F405
+
+_PLUGIN_CLASSES = load_plugins('extractor', 'IE', globals())
+_ALL_CLASSES = list(_PLUGIN_CLASSES.values()) + _ALL_CLASSES
 from .itv import (
     ITVIE,
     ITVBTCCIE,
@@ -862,7 +881,6 @@ from .iwara import (
     IwaraPlaylistIE,
     IwaraUserIE,
 )
-from .ixigua import IxiguaIE
 from .izlesene import IzleseneIE
 from .jable import (
     JableIE,
@@ -896,11 +914,6 @@ from .khanacademy import (
     KhanAcademyIE,
     KhanAcademyUnitIE,
 )
-from .kick import (
-    KickIE,
-    KickVODIE,
-)
-from .kicker import KickerIE
 from .kickstarter import KickStarterIE
 from .kinja import KinjaEmbedIE
 from .kinopoisk import KinoPoiskIE
@@ -908,7 +921,6 @@ from .kommunetv import KommunetvIE
 from .kompas import KompasVideoIE
 from .konserthusetplay import KonserthusetPlayIE
 from .koo import KooIE
-from .kth import KTHIE
 from .krasview import KrasViewIE
 from .ku6 import Ku6IE
 from .kusi import KUSIIE
@@ -1090,7 +1102,6 @@ from .mirrativ import (
     MirrativIE,
     MirrativUserIE,
 )
-from .mirrorcouk import MirrorCoUKIE
 from .mit import TechTVMITIE, OCWMITIE
 from .mitele import MiTeleIE
 from .mixch import (
@@ -1222,11 +1233,6 @@ from .neteasemusic import (
     NetEaseMusicMvIE,
     NetEaseMusicProgramIE,
     NetEaseMusicDjRadioIE,
-)
-from .netverse import (
-    NetverseIE,
-    NetversePlaylistIE,
-    NetverseSearchIE,
 )
 from .newgrounds import (
     NewgroundsIE,
@@ -1553,6 +1559,7 @@ from .radiojavan import RadioJavanIE
 from .radiobremen import RadioBremenIE
 from .radiofrance import FranceCultureIE, RadioFranceIE
 from .radiozet import RadioZetPodcastIE
+from .radiofrance import RadioFranceIE
 from .radiokapital import (
     RadioKapitalIE,
     RadioKapitalShowIE,
@@ -1874,7 +1881,6 @@ from .streetvoice import StreetVoiceIE
 from .stretchinternet import StretchInternetIE
 from .stripchat import StripchatIE
 from .stv import STVPlayerIE
-from .substack import SubstackIE
 from .sunporno import SunPornoIE
 from .sverigesradio import (
     SverigesRadioEpisodeIE,
@@ -2516,3 +2522,135 @@ from .zingmp3 import (
 )
 from .zoom import ZoomIE
 from .zype import ZypeIE
+
+from .myvidster import (
+    MyVidsterChannelPlaylistIE,
+    MyVidsterSearchPlaylistIE,
+    MyVidsterRSSPlaylistIE
+)
+from .machofactory import MachoFactoryIE
+from .citebeur import CitebeurIE
+from .cazzofilm import CazzoFilmIE
+from .yourporngod import (
+    YourPornGodIE,
+    YourPornGodPlayListIE,
+    OnlyGayVideoIE
+)
+from .timfuck import TimFuckIE
+from .sketchysex import (
+    SketchySexIE,
+    SketchySexOnePagePlaylistIE,
+    SketchySexAllPagesPlaylistIE,
+)
+from .thatgvideo import ThatGVideoIE
+from .rawfuck import RawFuckIE
+from .harlemsex import HarlemSexIE
+from .gaybeeg import (
+    GayBeegIE,
+    GayBeegPlaylistIE,
+    GayBeegPlaylistPageIE,
+    
+)
+from .gayforfans import (
+    GayForFansIE,
+    GayForFansPlayListIE,
+)
+from .jalifstudio import JalifStudioIE
+from .hardkinks import HardKinksIE
+from .darkcruising import DarkCruisingIE
+from .cumlouder import CumlouderIE
+from .ericvideos import EricVideosIE
+from .streamtape import StreamtapeIE
+from .userload import UserLoadIE
+from .britfuckers import BritFuckersIE
+from .gayqt import GayQTIE
+from .slamrush import (
+    SlamRushIE,
+    SlamRushPlaylistIE,    
+)
+from .sketboy import SketBoyIE
+from .mat6tube import Mat6TubeIE
+from .hungyoungbrit import (
+    HungYoungBritIE,
+    HungYoungBritPlaylistIE,
+)
+from .nakedsword import (
+    NakedSwordSceneIE,
+    NakedSwordMovieIE,
+    NakedSwordMostWatchedIE,
+    NakedSwordStarsIE,
+    NakedSwordPlaylistIE,
+    NakedSwordSearchIE
+)
+from .monstercockinfo import MonsterCockInfoIE
+from .onlyfans import (
+    OnlyFansPostIE,
+    OnlyFansPlaylistIE,    
+    OnlyFansPaidlistIE,
+    OnlyFansActSubslistIE
+)
+from .netdna import NetDNAIE
+from .fraternityx import (
+    FraternityXIE,    
+    FraternityXOnePagePlaylistIE,
+    FraternityXAllPagesPlaylistIE,    
+)
+
+from .breederbros import (
+    BreederBrosIE,    
+    BreederBrosOnePagePlaylistIE,
+    BreederBrosAllPagesPlaylistIE,    
+)
+
+from .youngbastards import YoungBastardsIE
+from .boyfriendtv import (
+    BoyFriendTVIE,
+    BoyFriendTVEmbedIE,
+    BoyFriendTVPlayListIE,
+)
+from .gayforiteu import GayForITEUIE
+from .manpornxxx import ManPornXXXIE
+from .upvideo import UpVideoIE
+from .vidoza import VidozaIE
+from .xvids import XVidsIE
+from .highload import (
+    HighloadIE,
+    EmbedoIE
+)
+from .evoload import EvoLoadIE
+from .gaystream import GayStreamIE
+from .gay0day import Gay0DayIE
+from .gaydelicious import GayDeliciousIE
+from .youporngay import YouPornGayIE
+from .gaymentubexxx import GayMenTubexxxIE
+from .gaythebest import GayTheBestIE
+from .youdbox import YoudBoxIE
+from .gaymaletubes import GayMaleTubesIE
+from .ebembed import EbembedIE
+from .mixdrop import MixDropIE
+from .cockhero import CockHeroIE
+from .gvdblog import (
+    GVDBlogPostIE,
+    GVDBlogPlaylistIE
+)
+from .exporntoons import ExPornToonsIE
+from .gaybingo import GayBingoIE
+from .vodnakedsword import VODNakedSwordMovieIE
+from .thegay import TheGayIE
+from .tubeload import TubeloadIE
+from .querofoder import QueroFoderIE
+from .videovard import VideovardIE
+from .hulu123 import Hulu123IE
+from .eplayvid import EPlayVidIE
+from .gayguy import GayGuyTopIE
+from .fembed import FembedIE
+from .fxggxt import FxggxtIE
+from .gaymoviesupport import GayMovieSupportIE
+from .twinksvids import TwinksVidsIE
+from .gaypornvideos import GayPornVideosIE
+from .trafficdepot import TrafficDePotIE
+from .porndune import PornDuneIE
+from .streamplay import StreamplayIE
+from .pornhat import PornHatIE
+from .xhamster import XHamsterPornStarIE
+from .gaymovies import GayMoviesIE
