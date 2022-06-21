@@ -44,11 +44,11 @@ class StreamplayIE(SeleniumInfoExtractor):
 
 
     def _get_video_info(self, url, headers):        
-        self.logger_info(f"[get_video_info] {url}")
+        self.logger_debug(f"[get_video_info] {url}")
         return self.get_info_for_format(url, headers=headers)
 
     def _send_request(self, url, driver):
-        self.logger_info(f"[send_request] {url}")   
+        self.logger_debug(f"[send_request] {url}")   
         driver.get(url)
     
     

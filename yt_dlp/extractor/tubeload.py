@@ -6,7 +6,7 @@ import traceback
 from urllib.parse import unquote
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, limiter_5, limiter_2, limiter_1, limiter_0_5, By
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, limiter_5, limiter_2, limiter_0_1, limiter_0_5, By
 
 class getvideourl():
     def __call__(self, driver):
@@ -40,26 +40,32 @@ class TubeloadIE(SeleniumInfoExtractor):
 
         
     @dec_on_exception
-    @limiter_0_5.ratelimit("tubeload", delay=True)
-    def _get_video_info(self, url):        
+    @limiter_0_1.ratelimit("tubeload", delay=True)
+    def _get_video_info(self, url, msg=None):        
         
-        self.logger_info(f"[get_video_info] {url}")
+        if msg: pre = f'{msg}[get_video_info]'
+        else: pre = '[get_video_info]'
+        self.logger_debug(f"{pre} {self._get_url_print(url)}")
         return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 
                                                     'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)     
     
     @dec_on_exception
-    @limiter_0_5.ratelimit("tubeload", delay=True)
-    def _send_request(self, url, driver):        
+    @limiter_0_1.ratelimit("tubeload", delay=True)
+    def _send_request(self, url, driver, msg=None):        
         
-        self.logger_info(f"[send_request] {url}") 
+        if msg: pre = f'{msg}[_send_request]'
+        else: pre = '[_send_request]'
+        self.logger_debug(f"{pre} {self._get_url_print(url)}") 
         driver.get(url)
         
     
-    def _get_entry(self, url, check_active=False):
+    def _get_entry(self, url, check_active=False, msg=None):
         try:
+            if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
+            else: pre = f'[get_entry][{self._get_url_print(url)}]'
             _videoinfo = None
-            driver = self.get_driver()
-            self._send_request(url, driver)
+            driver = self.get_driver(msg=pre)
+            self._send_request(url, driver, msg=pre)
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url or video_url == "error404": raise ExtractorError("error404")
             title = driver.title.replace(" at Tubeload.co","").strip()
@@ -72,7 +78,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             }
 
             if check_active:
-                _videoinfo = self._get_video_info(video_url)
+                _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo: return
                 else:
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
@@ -93,16 +99,13 @@ class TubeloadIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            self.to_screen(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
         
     
-    def _video_active(self, url):
-        
-        return self._get_entry(url, check_active=True)
-        
+       
 
 
     def _real_initialize(self):

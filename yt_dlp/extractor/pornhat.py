@@ -21,7 +21,7 @@ class PornHatIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("pornhat", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        self.logger_info(f"[_send_request] {self._get_url_print(url)}") 
+        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
         return(self.send_http_request(url, _type=_type, data=data, headers=headers))
         
     @dec_on_exception

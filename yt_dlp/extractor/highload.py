@@ -30,13 +30,13 @@ class getvideourl():
 class FastStreamIE(SeleniumInfoExtractor):
     
 
-    def _get_entry(self, url, check_active=False):
+    def _get_entry(self, url, check_active=False, msg=None):
         
         @dec_on_exception
         @limiter_2.ratelimit(self.IE_NAME, delay=True)
         def _get_video_info(url):        
         
-            self.logger_info(f"[get_video_info] {url}")
+            self.logger_debug(f"[get_video_info] {url}")
             return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 
                                                     'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)
     
@@ -45,7 +45,7 @@ class FastStreamIE(SeleniumInfoExtractor):
         @limiter_2.ratelimit(self.IE_NAME, delay=True)
         def _send_request(url, driver):        
         
-            self.logger_info(f"[send_request] {url}") 
+            self.logger_debug(f"[send_request] {url}") 
             driver.get(url)
         
         

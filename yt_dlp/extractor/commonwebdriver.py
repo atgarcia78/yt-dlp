@@ -60,7 +60,8 @@ class scroll():
 
 class SeleniumInfoExtractor(InfoExtractor):
     
-    _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
+    #_FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
+    _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
     _FF_PROF_IG = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
     _MASTER_LOCK = threading.Lock()
     _QUEUE = Queue()
@@ -99,9 +100,9 @@ class SeleniumInfoExtractor(InfoExtractor):
     def logger_debug(cls, msg):
         if SeleniumInfoExtractor._YTDL:
             if (_logger:=SeleniumInfoExtractor._YTDL.params.get('logger')):
-                _logger.debug(f"[{cls.__name__[:-2].lower()}]{msg}")
+                _logger.debug(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
             else:
-                SeleniumInfoExtractor._YTDL.to_screen(f"[{cls.__name__[:-2].lower()}]{msg}")
+                SeleniumInfoExtractor._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
    
     def close(self, client=True):
@@ -230,7 +231,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         tempdir = tempfile.mkdtemp(prefix='asyncall-') 
         if _prof:
-            self.to_screen("FF profile for IG")
+            #self.to_screen("FF profile for IG")
             res = shutil.copytree(SeleniumInfoExtractor._FF_PROF_IG, tempdir, dirs_exist_ok=True)
         else:           
             res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
@@ -292,7 +293,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
                 self.wait_until(driver, 0.5)
                 
-                self.to_screen(f"{pre}New firefox webdriver")
+                self.logger_debug(f"{pre}New firefox webdriver")
                 
                 return driver
                 
@@ -315,8 +316,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         SeleniumInfoExtractor._QUEUE.put_nowait(driver)
     
     
-    def start_browsermob(self, url):
+    def start_browsermob(self, url=None):
         
+       
         while True:
             _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*100                 
             _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
