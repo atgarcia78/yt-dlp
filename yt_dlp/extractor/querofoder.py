@@ -20,7 +20,7 @@ class QueroFoderIE(SeleniumInfoExtractor):
     @limiter_0_1.ratelimit("querofoder", delay=True)
     def _send_request(self, url):        
         
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         res = self._CLIENT.get(url)
         return res
     

@@ -26,12 +26,12 @@ class YoudBoxIE(SeleniumInfoExtractor):
     
 
     def _get_video_info(self, url):        
-            self.logger_info(f"[get_video_info] {url}")
+            self.logger_debug(f"[get_video_info] {url}")
             return self.get_info_for_format(url)       
             
 
     def _send_request(self, driver, url):
-        self.logger_info(f"[send_request] {url}")   
+        self.logger_debug(f"[send_request] {url}")   
         driver.get(url)
     
     

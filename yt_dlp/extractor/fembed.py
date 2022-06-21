@@ -24,7 +24,7 @@ class FembedIE(SeleniumInfoExtractor):
     @dec_on_exception
     @limiter_5.ratelimit("fembed", delay=True)
     def _send_request(self, url, driver):        
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
     @staticmethod
@@ -33,7 +33,7 @@ class FembedIE(SeleniumInfoExtractor):
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
     
     
-    def _get_entry(self, url, check_active=False):
+    def _get_entry(self, url, check_active=False, msg=None):
          
 
         try:

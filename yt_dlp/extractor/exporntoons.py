@@ -30,7 +30,7 @@ class ExPornToonsIE(SeleniumInfoExtractor):
     @limiter_0_1.ratelimit("exporntoons1", delay=True)
     def _send_request(self, driver, url):        
         
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
         
     @dec_on_exception

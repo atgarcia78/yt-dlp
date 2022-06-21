@@ -23,7 +23,7 @@ class GayGuyTopIE(SeleniumInfoExtractor):
     @dec_on_exception
     @limiter_5.ratelimit("gayguytop", delay=True)
     def _send_request(self, url, driver):        
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
     def _real_initialize(self):

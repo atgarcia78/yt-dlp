@@ -53,7 +53,7 @@ class UserLoadIE(SeleniumInfoExtractor):
     @limiter_15.ratelimit("userload", delay=True)
     def _send_request(self, url, driver):        
         
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
     def _video_active(self, url):

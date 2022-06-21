@@ -35,7 +35,7 @@ class GayBingoIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gaybingo1", delay=True)
     def url_request(self, driver, url):        
         
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
         
     @dec_on_exception
