@@ -32,7 +32,7 @@ class GayMoviesIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gaymovies", delay=True)
     def _send_request(self, url, driver=None):        
         
-        self.logger_info(f"[send_request] {url}") 
+        self.logger_debug(f"[send_request] {url}") 
         if driver:
             driver.get(url)
         else:

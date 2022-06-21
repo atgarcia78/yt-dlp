@@ -62,13 +62,13 @@ class YourPornGodIE(SeleniumInfoExtractor):
     @dec_on_exception
     @limiter_15.ratelimit("yourporngod", delay=True)   
     def _get_video_info(self, url):        
-        self.logger_info(f"[get_video_info] {url}")
+        self.logger_debug(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
         
     @dec_on_exception
     @limiter_15.ratelimit("yourporngod", delay=True)
     def _send_request(self, url, driver):
-        self.logger_info(f"[send_request] {url}")   
+        self.logger_debug(f"[send_request] {url}")   
         driver.get(url)
 
     def _real_initialize(self):
@@ -133,7 +133,7 @@ class YourPornGodPlayListIE(SeleniumInfoExtractor):
     @dec_on_exception
     @limiter_15.ratelimit("yourporngod", delay=True)
     def _send_request(self, url):
-        self.logger_info(f"[send_request] {url}")   
+        self.logger_debug(f"[send_request] {url}")   
         res = YourPornGodPlayListIE._CLIENT.get(url)
         res.raise_for_status()
         return res
