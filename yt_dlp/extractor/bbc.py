@@ -292,9 +292,9 @@ class BBCCoUkIE(InfoExtractor):
                     'Unable to login: %s' % error, expected=True)
             raise ExtractorError('Unable to log in')
 
-    def _real_initialize(self):
-        with self._LOCK:
-            self._login()
+    # def _real_initialize(self):
+    #     with self._LOCK:
+    #         self._login()
 
     class MediaSelectionError(Exception):
         def __init__(self, id):

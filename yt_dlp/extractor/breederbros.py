@@ -66,9 +66,9 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
    
     _MAX_PAGE = None
     
-    _server = None
+    _SERVER = None
    
-    _numdriver = 0
+    _NUMDRIVERS = 0
     
     _LOCALQ = Queue()
     
@@ -77,52 +77,51 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("breederbros", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         
-        try:
-        
+        try:        
             if not driver:
-                            
                 res = SeleniumInfoExtractor._CLIENT.get(url, headers=headers)
                 res.raise_for_status()
                 return res
-            
             else:
-                
                 driver.execute_script("window.stop();")
                 driver.get(url)
-                
         except Exception as e:
             self.report_warning(f"[{url}] {repr(e)}")
             raise
         
-    def _login(self, _driver):
-        
+    def _login(self, _driver):        
             
-        self._send_request(self._LOGIN_URL, driver=_driver)
-        
-        el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul")))
-        if "MEMBERS" in el_top.get_attribute('innerText').upper():
-            self.report_login()
-            username, password = self._get_login_info()
+        try:        
+            self._send_request(self._LOGIN_URL, driver=_driver)
+            
+            if "MEMBERS" in (try_get(self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul"))), lambda x: x.get_attribute('innerText').upper()) or ""):
+            
+                self.report_login()
+                username, password = self._get_login_info()
 
-            if not username or not password:
-                self.raise_login_required(
-                    'A valid %s account is needed to access this media.'
-                    % self._NETRC_MACHINE)
+                if not username or not password:
+                    self.raise_login_required(
+                        'A valid %s account is needed to access this media.'
+                        % self._NETRC_MACHINE)
+
+                if (self.wait_until(_driver, 60, waitforlogin(username, password, self.to_screen)) != "OK"):
+                    raise ExtractorError("couldnt log in")
             
-           # self._send_request(self._LOGIN_URL, driver=_driver)
-            res = self.wait_until(_driver, 60, waitforlogin(username, password, self.to_screen))
-            if res != "OK": raise ExtractorError("couldnt log in")
+            self.to_screen("[login] Login OK")
         
-        self.to_screen("Login OK")    
-            
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"[login] Login NOK - {repr(e)}\n{'!!'.join(lines)}")
+                
+                
 
     def _real_initialize(self):
         super()._real_initialize()        
         
         with BreederBrosBaseIE._MLOCK:
             
-            if not BreederBrosBaseIE._server:
-                BreederBrosBaseIE._server, _server_port = self.start_browsermob(f"breederbros")
+            if not BreederBrosBaseIE._SERVER:
+                BreederBrosBaseIE._SERVER, _server_port = self.start_browsermob(f"breederbros")
                             
             if not BreederBrosBaseIE._MAX_PAGE:
                 
@@ -135,10 +134,9 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                     self.to_screen("error when init")
         
 
-    def scan_for_request(self, _harproxy, _ref, _link):
+    def scan_for_request(self, _harproxy, _ref, _link, timeout=60):
 
-        _started = time.monotonic()
-        #_harproxy.wait_for_traffic_to_stop(5000, 30000)
+        _started = time.monotonic()        
         while(True):
             _har  = _harproxy.har
             #self.write_debug(_har)
@@ -146,7 +144,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                 if entry['pageref'] == _ref:
                     if _link in (entry['request']['url']):
                         return entry.get('response', {}).get('content', {}).get('text')
-            if (_t:=(time.monotonic() - _started)) >= 60:
+            if (time.monotonic() - _started) >= timeout:
                 return
             else:
                 time.sleep(0.5)
@@ -155,18 +153,41 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
 
     def _new_proxy_and_driver(self):
         with BreederBrosBaseIE._MLOCK:
-            if BreederBrosBaseIE._numdriver < 6:
-                _port = int(BreederBrosBaseIE._server.port) + (BreederBrosBaseIE._numdriver + 1)*100
-                BreederBrosBaseIE._numdriver += 1
+            if BreederBrosBaseIE._NUMDRIVERS < 6:
+                _port = int(BreederBrosBaseIE._SERVER.port) + (BreederBrosBaseIE._NUMDRIVERS + 1)*100
+                BreederBrosBaseIE._NUMDRIVERS += 1
             else: return
-        _host = 'localhost' 
-        _harproxy = BreederBrosBaseIE._server.create_proxy({'port' : _port})
+         
+        _harproxy = BreederBrosBaseIE._SERVER.create_proxy({'port' : _port})
         self.to_screen(f"proxy started at port {_port}")
-        _driver  = self.get_driver(host=_host, port=_port)
+        _driver  = self.get_driver(host='localhost', port=_port)
+        
         self._login(_driver)
+        
         return (_driver, _harproxy)
 
     def _extract_from_video_page(self, url, pid=None):        
+        
+        def replTxt(match):
+            repl_dict = {"+": "PLUS", "&": "AND", "'": "", "-": "", ",": ""}
+            if match:
+                _res = try_get(match.groups(), lambda x: (x[0] or "", x[2] or "")) or ("","")
+                _key = try_get(match.groups(), lambda x: x[1]) or 'dummmy'
+                if (_key in repl_dict):
+                    if _key not in ["'","-"]:
+                        _txt = [_res[0] + ' ' if _res[0] not in [' ',''] else _res[0], ' ' + _res[1] if _res[1] not in [' ',''] else _res[1]]
+                    elif _key in ["-"]:
+                        _txt = [_res[0], ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
+                        if _txt== [' ', ' ']: _txt = [' ','']
+                    elif _key in ["'"]:
+                        if _res[1] == 'S':
+                            _txt = [_res[0], 'S']
+                        else:
+                            _txt = [_res[0], ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
+                        if _txt == [' ', ' ']: _res = [' ','']
+
+                return f"{_txt[0]}{repl_dict[_key]}{_txt[1]}"
+        
         
         try:
             _driver, _harproxy = BreederBrosBaseIE._LOCALQ.get(block=False)        
@@ -174,41 +195,17 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             _driver, _harproxy = try_get(self._new_proxy_and_driver(), lambda x: (x[0], x[1])) or BreederBrosBaseIE._LOCALQ.get(block=True, timeout=600)
         
  
-        pre = f"[page_{pid}]" if pid else ""
+        pre = f"[extract_entry][page_{pid}]" if pid else f"[extract_entry]"
+        self.to_screen(f"{pre} start for {url}")
                             
         try:
-            self.to_screen(f"{pre}[{url}]")
+            
             videoid = try_get(re.search(BreederBrosIE._VALID_URL, url), lambda x: f"{x.group('id')}BB")
-            
             _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")            
-            
             self._send_request(url, driver=_driver)
-            
-            def replTxt(match):
-                repl_dict = {"+": "PLUS", "&": "AND", "'": "", "-": "", ",": ""}
-                if match:
-                    _res = try_get(match.groups(), lambda x: (x[0] or "", x[2] or "")) or ("","")
-                    _key = try_get(match.groups(), lambda x: x[1]) or 'dummmy'
-                    if (_key in repl_dict):
-                        if _key not in ["'","-"]:
-                            _txt = [_res[0] + ' ' if _res[0] not in [' ',''] else _res[0], ' ' + _res[1] if _res[1] not in [' ',''] else _res[1]]
-                        elif _key in ["-"]:
-                            _txt = [_res[0], ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
-                            if _txt== [' ', ' ']: _txt = [' ','']
-                        elif _key in ["'"]:
-                            if _res[1] == 'S':
-                                _txt = [_res[0], 'S']
-                            else:
-                                _txt = [_res[0], ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
-                            if _txt == [' ', ' ']: _res = [' ','']
-
-
-                    return f"{_txt[0]}{repl_dict[_key]}{_txt[1]}"
-            
             title = re.sub(r'([ ]+)', ' ', re.sub(r'(.)?([\+\&\'-,])(.)?', replTxt, try_get(self.wait_until(_driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "div.name"))), lambda x: x.text)))
             
             m3u8_doc = self.scan_for_request(_harproxy, f"har_{videoid}", f".m3u8")           
-                            
 
             _url = try_get(re.findall(r"(https://.*)", m3u8_doc), lambda x: x[0]) 
             if _url:
@@ -255,7 +252,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                 BreederBrosBaseIE._LOCALQ.put_nowait((_driver, _harproxy))
             else:
                 _harproxy.close()
-                BreederBrosBaseIE._server.stop()
+                BreederBrosBaseIE._SERVER.stop()
                 self.rm_driver(_driver)
             
 
@@ -277,8 +274,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                     lines = traceback.format_exception(*sys.exc_info())
                     self.report_warning(f'[all_pages][page_{futures[fut]}] {repr(e)} \n{"!!".join(lines)}') 
                     
-            if not entries: raise ExtractorError(f"[all_pages] no videos found")
-            
+            if not entries: raise ExtractorError(f"[all_pages] no videos found")            
             return entries
         finally:
             try:
@@ -286,7 +282,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             except Exception:
                 pass
             try:
-                BreederBrosBaseIE._server.stop()
+                BreederBrosBaseIE._SERVER.stop()
             except Exception:
                 pass
         
@@ -294,14 +290,10 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
 
     def _extract_list(self, plid, allpages=False):
  
-        if plid == '1': url_pl = "https://members.breederbros.com/index.php"
+        #if plid == '1': url_pl = "https://members.breederbros.com/index.php"
         url_pl = f"{self._BASE_URL_PL}{plid}"
-        self.to_screen(url_pl)
-        
-        if allpages:
-            self.report_extraction(url_pl)
+        self.to_screen(f"[page_{plid}] extract list videos")
 
-        entries = []
         
         try:
 
@@ -309,41 +301,36 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
 
             url_list = try_get(re.findall(r'description">\s+<a href="trailer\.php\?id=(\d+)"', res.text.replace("\n", "").replace("\t", "")), lambda x: ["https://members.breederbros.com/gallery.php?id=" + el for el in x])
 
-            self.to_screen(f'[page_{plid}] num videos {len(url_list)}')
-            
-        except Exception as e:
-            self.to_screen(f'[page_{plid}] {repr(e)}')
+            self.to_screen(f'[page_{plid}] {len(url_list)} videos\n[{",".join(url_list)}]')
 
-                        
-        
-        if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
-        
-        try:
-       
-            with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
-                futures = {ex.submit(self._extract_from_video_page, _url, pid=plid): (i, _url) for i, _url in enumerate(url_list)}
-                
+            if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
             
-            for fut in futures:
+            self.entries = []
+                
+            def get_res(fut):                
                 try:
                     res = fut.result()
                     res.update({'original_url': f"{self._BASE_URL_PL}{plid}"})
-                    entries.append(res)
+                    self.entries.append(res)
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
-                    self.report_warning(f'[page_{plid}] {repr(e)} \n{"!!".join(lines)}')  
+                    self.report_warning(f'[page_{plid}] not entry for {futures[fut]} - {repr(e)} \n{"!!".join(lines)}')  
+    
+            with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
+                futures = {ex.submit(self._extract_from_video_page, _url, pid=plid): _url for _url in url_list}
+                for fut in futures: fut.add_done_callback(get_res)
+
+            if not self.entries: raise ExtractorError(f"[page_{plid}] no videos found")
+            return self.entries
             
-            if not entries: raise ExtractorError(f"[page_{plid}] no videos found")
-            return entries
         finally:
             if not allpages:
-                
                 try:
                     [(self.rm_driver(_driver), _harproxy.close()) for (_driver, _harproxy) in list(BreederBrosBaseIE._LOCALQ.queue)]
                 except Exception:
                     pass
                 try:
-                    BreederBrosBaseIE._server.stop()
+                    BreederBrosBaseIE._SERVER.stop()
                 except Exception:
                     pass
                 
@@ -362,25 +349,23 @@ class BreederBrosIE(BreederBrosBaseIE):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        data = None
+       
         try: 
 
             data = self._extract_from_video_page(url)
+            if not data:
+                raise ExtractorError("not any video found")            
+            return data 
         
         except ExtractorError:
             raise    
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e))
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
 
 
-        if not data:
-            raise ExtractorError("Not any video format found")
-        elif "error" in data['id']:
-            raise ExtractorError(str(data['cause']))
-        else:
-            return(data)
+        
 
 class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
     IE_NAME = 'breederbros:playlist'
@@ -395,13 +380,14 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
 
         self.report_extraction(url)
         playlistid = re.search(self._VALID_URL, url).group("id") or '1'
-        entries = None
-        
+               
         try:              
 
             if int(playlistid) > BreederBrosOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid)  
+            entries = self._extract_list(playlistid)
+            if not entries: raise ExtractorError("no video list")  
+            return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
        
         except ExtractorError:
             raise
@@ -411,9 +397,9 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
             raise ExtractorError(repr(e))
 
             
-        if not entries: raise ExtractorError("no video list") 
+         
         
-        return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
+       
 
 class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
     IE_NAME = 'breederbros:allpages:playlist'
@@ -422,28 +408,18 @@ class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
  
     def _real_initialize(self):
         super()._real_initialize()
-        
-        # def put_in_queue(fut):
-        #     try:
-        #         res = fut.result()
-        #         if res:
-        #             BreederBrosBaseIE._LOCALQ.put_nowait(res)
-        #     except Exception as e:
-        #         self.to_screen(repr(e))
-        
-        # with ThreadPoolExecutor() as ex:
-        #     futures = [ex.submit(self._new_proxy_and_driver) for i in range(6)]
-        #     for fut in futures: fut.add_done_callback(put_in_queue)
        
     
     def _real_extract(self, url):
         
         self.report_extraction(url)
         
-        entries = None
         
         try: 
-            entries = self._extract_all_list()  
+            entries = self._extract_all_list()
+            if not entries: raise ExtractorError("no video list")         
+        
+            return self.playlist_result(entries, f"breederbros:AllPages", f"breederbros:AllPages") 
        
         except ExtractorError:
             raise
@@ -453,6 +429,4 @@ class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
             raise ExtractorError(repr(e))
 
             
-        if not entries: raise ExtractorError("no video list")         
-        
-        return self.playlist_result(entries, f"breederbros:AllPages", f"breederbros:AllPages")
+       
