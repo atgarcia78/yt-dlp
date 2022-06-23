@@ -71,8 +71,9 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CLIENT_CONFIG = {}
     _CLIENT = None
     _CONFIG_REQ = {('userload', 'evoload', 'highload'): {'ratelimit': limiter_15},
-               'doodstream': {'ratelimit': limiter_10},
-               'tubeload': {'ratelimit': limiter_15} }
+               'streamtape': {'ratelimit': limiter_5},
+               'doodstream': {'ratelimit': limiter_0_5},
+               ('tubeload', 'fembed'): {'ratelimit': limiter_0_1} }
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
     _SERVER_NUM = 0
