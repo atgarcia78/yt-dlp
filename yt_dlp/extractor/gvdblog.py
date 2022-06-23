@@ -5,9 +5,8 @@ import re
 import sys
 import traceback
 from datetime import datetime
-import time
 
-from ..utils import ExtractorError, try_get
+from ..utils import ExtractorError, try_get, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, limiter_0_5, By, ec
 
 from concurrent.futures import ThreadPoolExecutor
@@ -66,20 +65,16 @@ class check_consent():
                 driver.switch_to.default_content()
                 return True
                 
-class get_postdate():
+class get_infopost():
     def __call__(self, driver):
         el_postdate = driver.find_element(By.CSS_SELECTOR, "time.published")
         if (_text:=el_postdate.text):
-            return _text
+            postid = try_get(driver.find_element(By.CLASS_NAME, "related-tag"), lambda x: x.get_attribute('data-id'))
+            title = driver.title
+            return (_text, title, postid)
         else: return False
         
-                    
-                
-        
-
 class GVDBlogBaseIE(SeleniumInfoExtractor):
-    
-    
 
     def getbestvid(self, x, check=True, msg=None):
 
@@ -103,8 +98,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             except Exception as e:
                 self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING get entry {repr(e)}')
                 
-               
-            
     def get_entries(self, url, check=True):
         
         self.report_extraction(url)
@@ -116,8 +109,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             
             self.wait_until(driver, 30, check_consent())
             
-            postdate = try_get(self.wait_until(driver, 30, get_postdate()), lambda x: datetime.strptime(x.text, '%B %d, %Y'))  
-
+            postdate, title, postid = try_get(self.wait_until(driver, 30, get_infopost()), lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2]))
+            
+            
             list_candidate_videos = self.wait_until(driver, 30, getvideos())
             pre = f'{self._get_url_print(url)}: [get_entry]'
             
@@ -135,7 +129,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         self.to_screen(f'[get_entries][{url}] entry [{futures[fut]}] {repr(e)}')
                 
             elif _len == 1:
-                entries.append(self.getbestvid(list_candidate_videos[0], check=check, msg=pre))
+                try:
+                    entries.append(self.getbestvid(list_candidate_videos[0], check=check, msg=pre))
+                except Exception as e:
+                    pass
             
             if not entries: raise ExtractorError("no video urls")
 
@@ -149,7 +146,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             for _el in entries:
                 _el.update(_entryupdate)
             
-            return entries
+            return (entries, title, postid)
         
         except ExtractorError as e:                 
             raise 
@@ -173,14 +170,23 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         else:
             return(self.send_http_request(url))
         
-
-
     def _real_initialize(self):
         super()._real_initialize()
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"
     _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html'
+    _TESTS = [{
+        'url': 'https://www.gvdblog.com/2022/06/aingeru-solo.html',
+        'info_dict': {
+            'id': '4577767402561614008', 
+            'title': 'Aingeru_Solo_Part_1',
+        },
+        'playlist_mincount': 5,
+        'params': {
+            'skip_download': True,
+        }
+    }]
     
 
     def _real_initialize(self):
@@ -188,10 +194,10 @@ class GVDBlogPostIE(GVDBlogBaseIE):
                
     def _real_extract(self, url):
         
-        entries = self.get_entries(url)
+        entries, title, postid = self.get_entries(url)
         if not entries: raise ExtractorError("no videos")
             
-        return self.playlist_result(entries, f"gvdblogpost_playlist", f"gvdblogpost_playlist")
+        return self.playlist_result(entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
                 
 
         

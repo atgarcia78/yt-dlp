@@ -1,1 +1,1 @@
-from .close import ClosePluginPP
+#from .close import ClosePluginPP
