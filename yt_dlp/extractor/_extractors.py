@@ -2518,7 +2518,7 @@ from .yourporngod import (
     OnlyGayVideoIE
 )
 from .timfuck import TimFuckIE
-from .sketchysex import (
+from .bbgroup import (
     SketchySexIE,
     SketchySexOnePagePlaylistIE,
     SketchySexAllPagesPlaylistIE,
@@ -2577,7 +2577,7 @@ from .fraternityx import (
     FraternityXAllPagesPlaylistIE,    
 )
 
-from .breederbros import (
+from .bbgroup import (
     BreederBrosIE,    
     BreederBrosOnePagePlaylistIE,
     BreederBrosAllPagesPlaylistIE,    

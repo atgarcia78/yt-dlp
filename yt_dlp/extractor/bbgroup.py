@@ -53,41 +53,30 @@ class waitforlogin():
         if not "LOG OUT" in el_top.get_attribute('innerText').upper():
             return({"error": "Login failed"})
         else: return("OK")
-            
+     
+class BBGroupIE(SeleniumInfoExtractor):
+    
+    
 
-class BreederBrosBaseIE(SeleniumInfoExtractor):
-    _LOGIN_URL = "https://members.breederbros.com"
-    _SITE_URL = "https://www.breederbros.com"
-    _BASE_URL_PL = "https://members.breederbros.com/index.php?page="
-
-    _NETRC_MACHINE = 'fraternityx'    
-
-    _MLOCK = threading.Lock() 
-   
-    _MAX_PAGE = None
     
-    _SERVER = None
-   
-    _NUMDRIVERS = 0
-    
-    _LOCALQ = Queue()
-    
-    
-    @dec_on_exception
-    @limiter_2.ratelimit("breederbros", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         
-        try:        
-            if not driver:
-                res = SeleniumInfoExtractor._CLIENT.get(url, headers=headers)
-                res.raise_for_status()
-                return res
-            else:
-                driver.execute_script("window.stop();")
-                driver.get(url)
-        except Exception as e:
-            self.report_warning(f"[{url}] {repr(e)}")
-            raise
+        @dec_on_exception
+        @limiter_2.ratelimit(self.IE_NAME.split(":")[0], delay=True)
+        def _temp():
+            try:        
+                if not driver:
+                    res = SeleniumInfoExtractor._CLIENT.get(url, headers=headers)
+                    res.raise_for_status()
+                    return res
+                else:
+                    driver.execute_script("window.stop();")
+                    driver.get(url)
+            except Exception as e:
+                self.report_warning(f"[{url}] {repr(e)}")
+                raise
+        
+        return _temp()
         
     def _login(self, _driver):        
             
@@ -116,30 +105,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             #self.to_screen(f"[login] Login NOK - {repr(e)}\n{'!!'.join(lines)}")
             self.to_screen("[login] Login NOK")
             return "NOK"
-                
-                
-
-    def _real_initialize(self):
-        super()._real_initialize()        
         
-        with BreederBrosBaseIE._MLOCK:
-            
-            if not BreederBrosBaseIE._SERVER:
-                BreederBrosBaseIE._SERVER, _server_port = self.start_browsermob(f"breederbros")
-                            
-            if not BreederBrosBaseIE._MAX_PAGE:
-                
-                try:
-                    
-                    webpage = try_get(self._send_request("https://www.breederbros.com"),
-                                      lambda x: x.text.replace("\n","").replace("\t",""))
-                    BreederBrosBaseIE._MAX_PAGE  = try_get(re.findall(r'>(\d+)</a></li></ul></div><!-- pagination-center -->', webpage),
-                                                           lambda x: int(x[0])) or 50
-                
-                except Exception as e:
-                    self.to_screen("error when init")
-        
-
     def scan_for_request(self, _harproxy, _ref, _link, timeout=60):
 
         _started = time.monotonic()        
@@ -154,17 +120,41 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                 return
             else:
                 time.sleep(0.5)
+                
+    def _real_initialize(self):
+        super()._real_initialize()
+        
+        
+        with type(self)._MLOCK:
+            
+            if not type(self)._SERVER:
+                type(self)._SERVER, _server_port = self.start_browsermob(self.IE_NAME.split(":")[0])
+                            
+            if not type(self)._MAX_PAGE:
+                
+                try:
+                    
+                    webpage = try_get(self._send_request(self._SITE_URL),
+                                      lambda x: x.text.replace("\n","").replace("\t",""))
+                    type(self)._MAX_PAGE  = try_get(re.findall(r'>(\d+)</a></li></ul></div><!-- pagination-center -->', webpage),
+                                                          lambda x: int(x[0])) or 50
+                
+                except Exception as e:
+                    self.to_screen("error when init")
+        
+
+
             
   
 
     def _new_proxy_and_driver(self):
-        with BreederBrosBaseIE._MLOCK:
-            if BreederBrosBaseIE._NUMDRIVERS < 6:
-                _port = int(BreederBrosBaseIE._SERVER.port) + (BreederBrosBaseIE._NUMDRIVERS + 1)*100
-                BreederBrosBaseIE._NUMDRIVERS += 1
+        with type(self)._MLOCK:
+            if type(self)._NUMDRIVERS < 6:
+                _port = int(type(self)._SERVER.port) + (type(self)._NUMDRIVERS + 1)*100
+                type(self)._NUMDRIVERS += 1
             else: return
          
-        _harproxy = BreederBrosBaseIE._SERVER.create_proxy({'port' : _port})
+        _harproxy = type(self)._SERVER.create_proxy({'port' : _port})
         self.to_screen(f"proxy started at port {_port}")
         _driver  = self.get_driver(host='localhost', port=_port)
         
@@ -204,23 +194,26 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             _harproxy = None
             
             try:
-                _driver, _harproxy = BreederBrosBaseIE._LOCALQ.get(block=False)
+                _driver, _harproxy = type(self)._LOCALQ.get(block=False)
                 _res = "OK"        
             except Empty:             
                 _driver, _harproxy, _res = try_get(self._new_proxy_and_driver(), lambda x: (x[0], x[1], x[2])) or\
-                                           try_get(BreederBrosBaseIE._LOCALQ.get(block=True, timeout=600),
-                                                   lambda x: (x[0], x[1], "OK"))
+                                            try_get(type(self)._LOCALQ.get(block=True, timeout=600),
+                                                    lambda x: (x[0], x[1], "OK"))
             
-            if _res == "NOK": raise ExtractorError("login NOK")
+            if _res == "NOK": 
+                raise ExtractorError("login NOK")
+                
 
-            videoid = try_get(re.search(BreederBrosIE._VALID_URL, url), lambda x: f"{x.group('id')}BB")
-
+            videoid = try_get(re.search(r'gallery\.php\?id=(?P<id>\d+)', url), lambda x: f"{x.group('id')}{self._SUFFIX}")
+            if videoid in self._TRAD_FROM_NEW_TO_OLD: 
+                videoid = self._TRAD_FROM_NEW_TO_OLD[videoid]
             _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
             self._send_request(url, driver=_driver)
             title = re.sub(r'([ ]+)', ' ',
                            re.sub(r'(.)?([\+\&\'-,])(.)?', replTxt,
                                   try_get(self.wait_until(_driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "div.name"))),
-                                                          lambda x: x.get_attribute('innerText'))))
+                                          lambda x: x.get_attribute('innerText'))))
 
             formats_m3u8 = None
             
@@ -281,7 +274,8 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
         except ExtractorError as e:
             #lines = traceback.format_exception(*sys.exc_info())
             #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise
+            #raise
+            return self.url_result(url, ie=self.ie_key().split('AllPages')[0].split('OnePage')[0])
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
@@ -289,13 +283,13 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
         finally:
             if pid:
                 if _driver:
-                    BreederBrosBaseIE._LOCALQ.put_nowait((_driver, _harproxy))
+                    type(self)._LOCALQ.put_nowait((_driver, _harproxy))
             else:
                 if _driver:
                     _harproxy.close()                
                     self.rm_driver(_driver)
                 try:
-                    BreederBrosBaseIE._SERVER.stop()
+                    type(self)._SERVER.stop()
                 except Exception:
                     pass
 
@@ -308,7 +302,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
             
             with ThreadPoolExecutor(thread_name_prefix="ExtrListAll", max_workers=10) as ex:
                 futures = {ex.submit(self._extract_list, i, allpages=True): i 
-                           for i in range(1, BreederBrosAllPagesPlaylistIE._MAX_PAGE+1)}
+                           for i in range(1, self._MAX_PAGE+1)}             
             
             for fut in futures:
                 #self.to_screen(f'[page_{futures[fut]}] results')
@@ -324,11 +318,11 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
         finally:
             try:
                 [(self.rm_driver(_driver), _harproxy.close())
-                 for (_driver, _harproxy) in list(BreederBrosBaseIE._LOCALQ.queue)]
+                 for (_driver, _harproxy) in list(type(self)._LOCALQ.queue)]
             except Exception:
                 pass
             try:
-                BreederBrosBaseIE._SERVER.stop()
+                type(self)._SERVER.stop()
             except Exception:
                 pass
         
@@ -344,9 +338,9 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
 
             res = self._send_request(url_pl.replace('members', 'www'))
 
-            url_list = try_get(re.findall(r'description">\s+<a href="trailer\.php\?id=(\d+)"',
+            url_list = try_get(re.findall(r'<a href="trailer\.php\?id=(\d+)"',
                                           res.text.replace("\n", "").replace("\t", "")),
-                               lambda x: ["https://members.breederbros.com/gallery.php?id=" + el for el in x])
+                               lambda x: list(({f"{self._LOGIN_URL}/gallery.php?id=" + el:"" for el in x}).keys()))
 
             self.to_screen(f'[page_{plid}] {len(url_list)} videos\n[{",".join(url_list)}]')
 
@@ -369,23 +363,171 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
                 for fut in futures: fut.add_done_callback(get_res)
 
             if not self.entries: raise ExtractorError(f"[page_{plid}] no videos found")
+            self.to_screen(self.entries)
             return self.entries
             
         finally:
             if not allpages:
                 try:
                     [(self.rm_driver(_driver), _harproxy.close())
-                     for (_driver, _harproxy) in list(BreederBrosBaseIE._LOCALQ.queue)]
+                     for (_driver, _harproxy) in list(type(self)._LOCALQ.queue)]
                 except Exception:
                     pass
                 try:
-                    BreederBrosBaseIE._SERVER.stop()
+                    type(self)._SERVER.stop()
                 except Exception:
                     pass
+           
+
+class SketchySexBaseIE(BBGroupIE):
+    _LOGIN_URL = "https://members.sketchysex.com"
+    _SITE_URL = "https://www.sketchysex.com"
+    _BASE_URL_PL = "https://members.sketchysex.com/index.php?page="
+
+    _NETRC_MACHINE = 'sketchysex'    
+
+    _SUFFIX = "SX"
+    
+    _TRAD_FROM_NEW_TO_OLD = {'19SX': '5433', '20SX': '5528', '21SX': '5498', '22SX': '5587', '23SX': '5472', '24SX': '5563',
+                             '25SX': '5511', '26SX': '5617', '27SX': '5637', '28SX': '5735', '29SX': '5758', '30SX': '5709',
+                             '31SX': '5684', '32SX': '5788', '33SX': '5821', '34SX': '5662', '36SX': '5910', '37SX': '5853',
+                             '38SX': '5948', '39SX': '5968', '40SX': '5998', '41SX': '6028', '42SX': '6063', '43SX': '6098',
+                             '44SX': '6127', '45SX': '6152', '46SX': '6200', '47SX': '6172', '48SX': '6288', '49SX': '6263',
+                             '50SX': '6231', '51SX': '6321', '52SX': '6370', '53SX': '6340', '54SX': '6420', '55SX': '6392',
+                             '56SX': '6449', '57SX': '6500', '58SX': '6472', '59SX': '6555', '60SX': '6591', '61SX': '6530',
+                             '62SX': '6824', '63SX': '6845', '64SX': '6889', '65SX': '6677', '66SX': '6754', '67SX': '6928',
+                             '68SX': '6977', '69SX': '856', '70SX': '1788', '71SX': '1796', '72SX': '1803', '73SX': '2900',
+                             '74SX': '2893', '75SX': '1827', '76SX': '469', '77SX': '1131', '78SX': '515', '79SX': '798',
+                             '80SX': '3104', '81SX': '2781', '82SX': '4359', '83SX': '2047', '84SX': '3256', '85SX': '4588',
+                             '86SX': '5164', '87SX': '5224', '88SX': '5207', '89SX': '5277', '90SX': '5402', '91SX': '5303',
+                             '92SX': '5367', '93SX': '882', '94SX': '946', '96SX': '1833', '97SX': '1520', '98SX': '654',
+                             '100SX': '1256', '143SX': '7000', '144SX': '7033', '145SX': '7079', '35SX': '5882'}
+    
+    _MLOCK = threading.Lock()
+    _MAX_PAGE = None
+    
+    _SERVER = None
+   
+    _NUMDRIVERS = 0
+    
+    _LOCALQ = Queue()
+    
+    def _real_initialize(self):
+       
+        super()._real_initialize()
+    
+class BreederBrosBaseIE(BBGroupIE):
+    _LOGIN_URL = "https://members.breederbros.com"
+    _SITE_URL = "https://www.breederbros.com"
+    _BASE_URL_PL = "https://members.breederbros.com/index.php?page="
+
+    _NETRC_MACHINE = 'fraternityx'
+    
+    _SUFFIX = "BB"
+    
+    _TRAD_FROM_NEW_TO_OLD = {}
+
+    _MLOCK = threading.Lock() 
+   
+    _MAX_PAGE = None
+    
+    _SERVER = None
+   
+    _NUMDRIVERS = 0
+    
+    _LOCALQ = Queue()
+    
+    def _real_initialize(self):
+       
+        super()._real_initialize()
                 
 
+class SketchySexIE(SketchySexBaseIE):
+    IE_NAME = 'sketchysex'
+    IE_DESC = 'sketchysex'
+    _VALID_URL = r'https://members\.sketchysex\.com/gallery\.php\?id=(?P<id>\d+)'
+
+    def _real_initialize(self):
+       
+        super()._real_initialize()
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+       
+        try: 
+
+            data = self._extract_from_video_page(url)
+            if not data:
+                raise ExtractorError("not any video found")            
+            return data 
+        
+        except ExtractorError:
+            raise    
+        except Exception as e:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+
+ 
+
+class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
+    IE_NAME = 'sketchysex:playlist'
+    IE_DESC = 'sketchysex:playlist'
+    _VALID_URL = r"https://members\.sketchysex\.com/index\.php(?:\?page=(?P<id>\d+)|$)"
+
+    def _real_initialize(self):
+        super()._real_initialize()
+       
+    
+    def _real_extract(self, url):
+
+        self.report_extraction(url)
+        playlistid = re.search(self._VALID_URL, url).group("id") or '1'
+               
+        try:              
+
+            if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
+                raise ExtractorError("episodes page not found 404")
+            entries = self._extract_list(playlistid)
+            if not entries: raise ExtractorError("no video list")  
+            return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
+       
+        except ExtractorError:
+            raise
+        except Exception as e:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
 
 
+class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
+    IE_NAME = 'sketchysex:allpages:playlist'
+    IE_DESC = 'sketchysex:allpages:playlist'
+    _VALID_URL = r"https://members\.sketchysex\.com/index.php\?page=all"
+ 
+    def _real_initialize(self):
+        super()._real_initialize()
+       
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+        
+        
+        try: 
+            entries = self._extract_all_list()
+            if not entries: raise ExtractorError("no video list")         
+        
+            return self.playlist_result(entries, f"sketchysex:AllPages", f"sketchysex:AllPages") 
+       
+        except ExtractorError:
+            raise
+        except Exception as e:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+        
 class BreederBrosIE(BreederBrosBaseIE):
     IE_NAME = 'breederbros'
     IE_DESC = 'breederbros'
@@ -435,7 +577,8 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
             if int(playlistid) > BreederBrosOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
             entries = self._extract_list(playlistid)
-            if not entries: raise ExtractorError("no video list")  
+            if not entries: raise ExtractorError("no video list")
+            self.to_screen(entries)
             return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
        
         except ExtractorError:
@@ -476,4 +619,5 @@ class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
             #lines = traceback.format_exception(*sys.exc_info())
             #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
+        
         
