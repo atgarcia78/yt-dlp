@@ -8,12 +8,10 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
-
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
-
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_01
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_2, By, ec
+
+from queue import Empty, Queue
 
 
 class waitforlogin():
@@ -58,252 +56,355 @@ class waitforlogin():
             
 
 class SketchySexBaseIE(SeleniumInfoExtractor):
-    _LOGIN_URL = "https://sketchysex.com/sign-in"
-    _SITE_URL = "https://sketchysex.com"
+    _LOGIN_URL = "https://members.sketchysex.com"
+    _SITE_URL = "https://www.sketchysex.com"
     _BASE_URL_PL = "https://members.sketchysex.com/index.php?page="
 
-    _NETRC_MACHINE = 'sketchysex'
+    _NETRC_MACHINE = 'sketchysex'    
 
-    _LOCK = threading.Lock()
-
-    _COOKIES = None
-
+    _MLOCK = threading.Lock()
     _MAX_PAGE = None
     
-    _TRAD_FROM_NEW_TO_OLD = {'19SX': '5433', '20SX': '5528', '21SX': '5498', '22SX': '5587', '23SX': '5472', '24SX': '5563', '25SX': '5511', '26SX': '5617', '27SX': '5637', '28SX': '5735', '29SX': '5758', '30SX': '5709', '31SX': '5684', '32SX': '5788', '33SX': '5821', '34SX': '5662', '36SX': '5910', '37SX': '5853', '38SX': '5948', '39SX': '5968', '40SX': '5998', '41SX': '6028', '42SX': '6063', '43SX': '6098', '44SX': '6127', '45SX': '6152', '46SX': '6200', '47SX': '6172', '48SX': '6288', '49SX': '6263', '50SX': '6231', '51SX': '6321', '52SX': '6370', '53SX': '6340', '54SX': '6420', '55SX': '6392', '56SX': '6449', '57SX': '6500', '58SX': '6472', '59SX': '6555', '60SX': '6591', '61SX': '6530', '62SX': '6824', '63SX': '6845', '64SX': '6889', '65SX': '6677', '66SX': '6754', '67SX': '6928', '68SX': '6977', '69SX': '856', '70SX': '1788', '71SX': '1796', '72SX': '1803', '73SX': '2900', '74SX': '2893', '75SX': '1827', '76SX': '469', '77SX': '1131', '78SX': '515', '79SX': '798', '80SX': '3104', '81SX': '2781', '82SX': '4359', '83SX': '2047', '84SX': '3256', '85SX': '4588', '86SX': '5164', '87SX': '5224', '88SX': '5207', '89SX': '5277', '90SX': '5402', '91SX': '5303', '92SX': '5367', '93SX': '882', '94SX': '946', '96SX': '1833', '97SX': '1520', '98SX': '654', '100SX': '1256', '143SX': '7000', '144SX': '7033', '145SX': '7079', '35SX': '5882'} 
+    _SERVER = None
+   
+    _NUMDRIVERS = 0
+    
+    _LOCALQ = Queue()
+    
+    _TRAD_FROM_NEW_TO_OLD = {'19SX': '5433', '20SX': '5528', '21SX': '5498', '22SX': '5587', '23SX': '5472', '24SX': '5563',
+                             '25SX': '5511', '26SX': '5617', '27SX': '5637', '28SX': '5735', '29SX': '5758', '30SX': '5709',
+                             '31SX': '5684', '32SX': '5788', '33SX': '5821', '34SX': '5662', '36SX': '5910', '37SX': '5853',
+                             '38SX': '5948', '39SX': '5968', '40SX': '5998', '41SX': '6028', '42SX': '6063', '43SX': '6098',
+                             '44SX': '6127', '45SX': '6152', '46SX': '6200', '47SX': '6172', '48SX': '6288', '49SX': '6263',
+                             '50SX': '6231', '51SX': '6321', '52SX': '6370', '53SX': '6340', '54SX': '6420', '55SX': '6392',
+                             '56SX': '6449', '57SX': '6500', '58SX': '6472', '59SX': '6555', '60SX': '6591', '61SX': '6530',
+                             '62SX': '6824', '63SX': '6845', '64SX': '6889', '65SX': '6677', '66SX': '6754', '67SX': '6928',
+                             '68SX': '6977', '69SX': '856', '70SX': '1788', '71SX': '1796', '72SX': '1803', '73SX': '2900',
+                             '74SX': '2893', '75SX': '1827', '76SX': '469', '77SX': '1131', '78SX': '515', '79SX': '798',
+                             '80SX': '3104', '81SX': '2781', '82SX': '4359', '83SX': '2047', '84SX': '3256', '85SX': '4588',
+                             '86SX': '5164', '87SX': '5224', '88SX': '5207', '89SX': '5277', '90SX': '5402', '91SX': '5303',
+                             '92SX': '5367', '93SX': '882', '94SX': '946', '96SX': '1833', '97SX': '1520', '98SX': '654',
+                             '100SX': '1256', '143SX': '7000', '144SX': '7033', '145SX': '7079', '35SX': '5882'} 
+    
     
     @dec_on_exception
-    @limiter_0_01.ratelimit("sketchysex1", delay=True)
-    def _send_request_vs(self, url, headers=None):
-        
-        try:
- 
-            res = SketchySexBaseIE._CLIENT.get(url, headers=headers)
-            res.raise_for_status()
-            return res
-        
-        except Exception as e:
-            self.report_warning(f"[{url}] {repr(e)}")
-            raise
-    
-    @dec_on_exception
-    @limiter_0_01.ratelimit("sketchysex2", delay=True)
+    @limiter_2.ratelimit("sketchysex", delay=True)
     def _send_request(self, url, headers=None, driver=None):
         
-        try:
-        
+        try:        
             if not driver:
-                            
-                res = SketchySexBaseIE._CLIENT.get(url, headers=headers)
+                res = SeleniumInfoExtractor._CLIENT.get(url, headers=headers)
                 res.raise_for_status()
                 return res
-            
             else:
-                
                 driver.execute_script("window.stop();")
                 driver.get(url)
-                
         except Exception as e:
             self.report_warning(f"[{url}] {repr(e)}")
             raise
         
-    def _login(self, _driver):
-        
-        self._send_request(self._SITE_URL, driver=_driver)
-        if _driver.find_elements(By.ID, "warningpopup"):
-            self.to_screen("Adult consent")
-            el_enter = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "a.btn-enter.s_enter")))
-            if not el_enter: raise ExtractorError("couldnt find adult consent button")
+    def _login(self, _driver):        
             
-            el_enter.click()
-            self.wait_until(_driver, 5)
-            try:
-                el_enter.click() #por ublock 
-            except Exception:
-                pass
-            
-        
-        el_top = self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul")))
-        if "MEMBERS" in el_top.get_attribute('innerText').upper():
-            self.report_login()
-            username, password = self._get_login_info()
-
-            if not username or not password:
-                self.raise_login_required(
-                    'A valid %s account is needed to access this media.'
-                    % self._NETRC_MACHINE)
-            
+        try:        
             self._send_request(self._LOGIN_URL, driver=_driver)
-            res = self.wait_until(_driver, 60, waitforlogin(username, password, self.to_screen))
-            if res != "OK": raise ExtractorError("couldnt log in")
-        
-        self.to_screen("Login OK")    
             
+            if not "LOG OUT" in (try_get(self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul"))),
+                                         lambda x: x.get_attribute('innerText').upper()) or ""):
+            
+                self.report_login()
+                username, password = self._get_login_info()
+
+                if not username or not password:
+                    self.raise_login_required(
+                        'A valid %s account is needed to access this media.'
+                        % self._NETRC_MACHINE)
+
+                if (self.wait_until(_driver, 60, waitforlogin(username, password, self.to_screen)) != "OK"):
+                    raise ExtractorError("couldnt log in")
+            
+            self.to_screen("[login] Login OK")
+            return "OK"
+        
+        except Exception as e:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"[login] Login NOK - {repr(e)}\n{'!!'.join(lines)}")
+            self.to_screen("[login] Login NOK")
+            return "NOK"
+                
+                
 
     def _real_initialize(self):
-        super()._real_initialize()
+        super()._real_initialize()        
         
-        
-        with SketchySexBaseIE._LOCK:            
-                        
-            if not SketchySexBaseIE._COOKIES:
-                
-                driver = self.get_driver(usequeue=True)
-                #driver = self.get_driver(noheadless=True)
+        with SketchySexBaseIE._MLOCK:
+            
+            if not SketchySexBaseIE._SERVER:
+                SketchySexBaseIE._SERVER, _server_port = self.start_browsermob(f"sketchysex")
+                            
+            if not SketchySexBaseIE._MAX_PAGE:
                 
                 try:
                     
-                    self._login(driver)                
-                    
-                    SketchySexBaseIE._COOKIES = driver.get_cookies()
-                    
-                    
-                    for cookie in SketchySexBaseIE._COOKIES:
-                        SketchySexBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])                    
-                        
-                    
-                    self._send_request("https://members.sketchysex.com", driver=driver)
-                    el_pag = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "pagination")))
-                    if el_pag:
-                        elnext = el_pag.find_elements(By.PARTIAL_LINK_TEXT, "NEXT")
-                        totalpages = el_pag.find_elements(By.TAG_NAME, "a")
-                        SketchySexBaseIE._MAX_PAGE = len(totalpages) - len(elnext)
-                    else: 
-                        SketchySexBaseIE._MAX_PAGE = 50
+                    webpage = try_get(self._send_request("https://www.sketchysex.com"),
+                                      lambda x: x.text.replace("\n","").replace("\t",""))
+                    SketchySexBaseIE._MAX_PAGE  = try_get(re.findall(r'>(\d+)</a></li></ul></div><!-- pagination-center -->', webpage),
+                                                          lambda x: int(x[0])) or 50
                 
                 except Exception as e:
-                    self.to_screen("error when login")
-                    #self.rm_driver(driver)                    
-                    raise
-                finally:
-                    self.put_in_queue(driver)
+                    self.to_screen("error when init")
         
 
+    def scan_for_request(self, _harproxy, _ref, _link, timeout=60):
 
+        _started = time.monotonic()        
+        while(True):
+            _har  = _harproxy.har
+            #self.write_debug(_har)
+            for entry in _har['log']['entries']:
+                if entry['pageref'] == _ref:
+                    if _link in (entry['request']['url']):
+                        return entry.get('response', {}).get('content', {}).get('text', "")
+            if (time.monotonic() - _started) >= timeout:
+                return
+            else:
+                time.sleep(0.5)
+            
+  
 
-    def _extract_from_video_page(self, url, playlistid=None):        
+    def _new_proxy_and_driver(self):
+        with SketchySexBaseIE._MLOCK:
+            if SketchySexBaseIE._NUMDRIVERS < 6:
+                _port = int(SketchySexBaseIE._SERVER.port) + (SketchySexBaseIE._NUMDRIVERS + 1)*100
+                SketchySexBaseIE._NUMDRIVERS += 1
+            else: return
+         
+        _harproxy = SketchySexBaseIE._SERVER.create_proxy({'port' : _port})
+        self.to_screen(f"proxy started at port {_port}")
+        _driver  = self.get_driver(host='localhost', port=_port)
         
-        pre = f"[page_{playlistid}]" if playlistid else ""
+        return (_driver, _harproxy, self._login(_driver))
+
+    def _extract_from_video_page(self, url, pid=None):        
+        
+        def replTxt(match):
+            repl_dict = {"+": "PLUS", "&": "AND", "'": "", "-": "", ",": ""}
+            if match:
+                _res = try_get(match.groups(), lambda x: (x[0] or "", x[2] or "")) or ("","")
+                _key = try_get(match.groups(), lambda x: x[1]) or 'dummmy'
+                if (_key in repl_dict):
+                    if _key not in ["'","-"]:
+                        _txt = [_res[0] + ' ' if _res[0] not in [' ',''] else _res[0],
+                                ' ' + _res[1] if _res[1] not in [' ',''] else _res[1]]
+                    elif _key in ["-"]:
+                        _txt = [_res[0],
+                                ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
+                        if _txt== [' ', ' ']: _txt = [' ','']
+                    elif _key in ["'"]:
+                        if _res[1] == 'S':
+                            _txt = [_res[0], 'S']
+                        else:
+                            _txt = [_res[0],
+                                    ' ' + _res[1] if _res[1] not in [' ',''] and _res[0] not in [' ',''] else _res[1]]
+                        if _txt == [' ', ' ']: _res = [' ','']
+
+                return f"{_txt[0]}{repl_dict[_key]}{_txt[1]}"
+        
         try:
             
-            res = self._send_request(url)
+            pre = f"[extract_entry][page_{pid}]" if pid else f"[extract_entry]"
+            self.to_screen(f"{pre} start for {url}")
             
-            if not res: raise ExtractorError(f"{pre}[{url}] no res")
-            
-            title = try_get(re.findall(r'class="name"> <span>([^<]+)<', res.text), lambda x: x[0])
-            
-            videoid = try_get(re.findall(r'video id="video_([^"]+)"', res.text), lambda x: x[0] + "SX")
-            
-            if videoid in SketchySexBaseIE._TRAD_FROM_NEW_TO_OLD: 
-                videoid = SketchySexBaseIE._TRAD_FROM_NEW_TO_OLD[videoid]
-           
-            manifesturl = try_get(re.findall(r'source src="([^"]+)"', res.text), lambda x: x[0])
-
-            if not manifesturl: raise ExtractorError(f"{pre}[{url}] no manifesturl")
-                        
-            headers = {
-                "Referer" : "https://members.sketchysex.com/",
-                "Accept" : "*/*",
-                "Origin" : "https://members.sketchysex.com"
-            }
-
+            _driver = None
+            _harproxy = None
             
             try:
-                res2 = self._send_request_vs(manifesturl, headers=headers)
-                if not res2 or not res2.content: raise ExtractorError(f"{pre}[{url}] no res2")
-                m3u8_doc = (res2.content).decode('utf-8', 'replace')        
-                formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                    m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-
-                if not formats_m3u8:
-                    raise ExtractorError(f"[{url}] Can't find any M3U8 format")
-
-                self._sort_formats(formats_m3u8)
-                for _format in formats_m3u8:
-                    if (_head:=_format.get('http_headers')):
-                        _head.update(headers)
-                    else:
-                        _format.update({'http_headers': headers})
-                        
-                return ({
-                    "id": videoid,
-                    "title": sanitize_filename(re.sub(r'([^_ -])-', r'\1_', title.replace("'","").replace("&","AND")), restricted=True).upper(),
-                    "webpage_url": url,
-                    "formats": formats_m3u8
-                })
+                _driver, _harproxy = SketchySexBaseIE._LOCALQ.get(block=False)
+                _res = "OK"        
+            except Empty:             
+                _driver, _harproxy, _res = try_get(self._new_proxy_and_driver(), lambda x: (x[0], x[1], x[2])) or\
+                                            try_get(SketchySexBaseIE._LOCALQ.get(block=True, timeout=600),
+                                                    lambda x: (x[0], x[1], "OK"))
             
-            except Exception as e:
-                raise ExtractorError(f"{pre}[{url}] Can't get M3U8 details: {repr(e)}")
+            if _res == "NOK": raise ExtractorError("login NOK")
+
+            videoid = try_get(re.search(SketchySexIE._VALID_URL, url), lambda x: f"{x.group('id')}SX")
+            if videoid in SketchySexBaseIE._TRAD_FROM_NEW_TO_OLD: 
+                videoid = SketchySexBaseIE._TRAD_FROM_NEW_TO_OLD[videoid]
+            _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
+            self._send_request(url, driver=_driver)
+            title = re.sub(r'([ ]+)', ' ',
+                           re.sub(r'(.)?([\+\&\'-,])(.)?', replTxt,
+                                  try_get(self.wait_until(_driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "div.name"))),
+                                          lambda x: x.get_attribute('innerText'))))
+
+            formats_m3u8 = None
+            
+            headers = {            
+                "Accept" : "*/*",
+                "Referer" : url                
+            }
+            
+            def _getter(x):
+                _temp = ""
+                for el in x:
+                    if 'playlist' in (_url:=(el.get_attribute('src') or "")): return _url
+                    elif 'membersvideoplayer' in _url.lower(): _temp = _url
+
+                return _temp
+            
+            manifesturl = try_get(self.wait_until(_driver, 30, ec.presence_of_all_elements_located((By.TAG_NAME, 'video'))), _getter) 
+            
+            self.write_debug(f"[{videoid}] {manifesturl}")
+            
+            if not manifesturl or not "playlist" in manifesturl:
+
+                m3u8_doc = self.scan_for_request(_harproxy, f"har_{videoid}", f".m3u8")           
+
+                _url = try_get(re.findall(r"(https://.*)", m3u8_doc), lambda x: x[0]) 
+                if _url:
+                    murl, params = _url.split('?')
+                    manifesturl = murl.rsplit('/',1)[0] + '/playlist.m3u8?' + params                    
+                    formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
+                        m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+            
+            else:
+                
+                formats_m3u8, _ = self._extract_m3u8_formats_and_subtitles(manifesturl, video_id=videoid, ext="mp4", 
+                                                                           entry_protocol="m3u8_native", m3u8_id="hls", headers=headers)
+                
+            if not formats_m3u8:
+                raise ExtractorError(f"[{url}] Can't find any M3U8 format")
+
+            self._sort_formats(formats_m3u8)
+            
+            
+            
+            for _format in formats_m3u8:
+                if (_head:=_format.get('http_headers')):
+                    _head.update(headers)
+                else:
+                    _format.update({'http_headers': headers})               
+                    
+            return ({
+                "id": videoid,
+                "title": sanitize_filename(title, restricted=True).upper(),
+                "webpage_url": url,
+                "formats": formats_m3u8
+            })            
+
         
-        except Exception as e:
+        except ExtractorError as e:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+        finally:
+            if pid:
+                if _driver:
+                    SketchySexBaseIE._LOCALQ.put_nowait((_driver, _harproxy))
+            else:
+                if _driver:
+                    _harproxy.close()                
+                    self.rm_driver(_driver)
+                try:
+                    SketchySexBaseIE._SERVER.stop()
+                except Exception:
+                    pass
+
+
 
     def _extract_all_list(self):
         
         entries = []
-        
-        with ThreadPoolExecutor(thread_name_prefix="ExtrListAll", max_workers=10) as ex:
-            futures = {ex.submit(self._extract_list, i, True): i for i in range(1, SketchySexAllPagesPlaylistIE._MAX_PAGE+1)}             
-        
-        for fut in futures:
-            #self.to_screen(f'[page_{futures[fut]}] results')
+        try:
+            
+            with ThreadPoolExecutor(thread_name_prefix="ExtrListAll", max_workers=10) as ex:
+                futures = {ex.submit(self._extract_list, i, allpages=True): i 
+                           for i in range(1, SketchySexAllPagesPlaylistIE._MAX_PAGE+1)}             
+            
+            for fut in futures:
+                #self.to_screen(f'[page_{futures[fut]}] results')
+                try:
+                    res = fut.result()                
+                    entries += res        
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.report_warning(f'[all_pages][page_{futures[fut]}] {repr(e)} \n{"!!".join(lines)}') 
+                    
+            if not entries: raise ExtractorError(f"[all_pages] no videos found")            
+            return entries
+        finally:
             try:
-                res = fut.result()                
-                entries += res        
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.report_warning(f'[all_pages][page_{futures[fut]}] {repr(e)} \n{"!!".join(lines)}') 
-                
-        if not entries: raise ExtractorError(f"[all_pages] no videos found")
+                [(self.rm_driver(_driver), _harproxy.close())
+                 for (_driver, _harproxy) in list(SketchySexBaseIE._LOCALQ.queue)]
+            except Exception:
+                pass
+            try:
+                SketchySexBaseIE._SERVER.stop()
+            except Exception:
+                pass
         
-        return entries
+        
 
     def _extract_list(self, plid, allpages=False):
  
         url_pl = f"{self._BASE_URL_PL}{plid}"
-        self.to_screen(url_pl)
-        
-        if allpages:
-            self.report_extraction(url_pl)
+        self.to_screen(f"[page_{plid}] extract list videos")
 
-        entries = []
         
         try:
-            res = self._send_request(url_pl, headers={'Referer': 'https://members.sketchysex.com'})
-            #self.to_screen(res.text)
-            url_list = try_get(re.findall(r'<a href="gallery\.php\?id=([^"]+)"', res.text), lambda x: ["https://members.sketchysex.com/gallery.php?id=" + el for el in x])
 
+            res = self._send_request(url_pl.replace('members', 'www'))
+
+            url_list = try_get(re.findall(r'<a href="trailer\.php\?id=(\d+)"',
+                                          res.text.replace("\n", "").replace("\t", "")),
+                               lambda x: ["https://members.sketchysex.com/gallery.php?id=" + el for el in x])
+
+            self.to_screen(f'[page_{plid}] {len(url_list)} videos\n[{",".join(url_list)}]')
+
+            if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
             
-        except Exception as e:
-            self.to_screen(f'[page_{plid}] {repr(e)}')
-                        
-        
-        if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
-        
-        self.to_screen(f'[page_{plid}] num videos {len(url_list)}')
-       
-        with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
-            futures = {ex.submit(self._extract_from_video_page, _url, plid): (i, _url) for i, _url in enumerate(url_list)}
+            self.entries = []
+                
+            def get_res(fut):                
+                try:
+                    res = fut.result()
+                    res.update({'original_url': f"{self._BASE_URL_PL}{plid}"})
+                    self.entries.append(res)
+                except Exception as e:
+                    #lines = traceback.format_exception(*sys.exc_info())
+                    #self.report_warning(f'[page_{plid}] not entry for {futures[fut]} - {repr(e)} \n{"!!".join(lines)}')  
+                    self.report_warning(f'[page_{plid}] not entry for {futures[fut]} - {repr(e)}')
+
+            with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=10) as ex:
+                futures = {ex.submit(self._extract_from_video_page, _url, pid=plid): _url for _url in url_list}
+                for fut in futures: fut.add_done_callback(get_res)
+
+            if not self.entries: raise ExtractorError(f"[page_{plid}] no videos found")
+            return self.entries
             
-        
-        for fut in futures:
-            try:
-                res = fut.result()
-                res.update({'original_url': f"{self._BASE_URL_PL}{plid}"})
-                entries.append(res)
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.report_warning(f'[page_{plid}] {repr(e)} \n{"!!".join(lines)}')  
-        
-        if not entries: raise ExtractorError(f"[page_{plid}] no videos found")
-        return entries
+        finally:
+            if not allpages:
+                try:
+                    [(self.rm_driver(_driver), _harproxy.close())
+                     for (_driver, _harproxy) in list(SketchySexBaseIE._LOCALQ.queue)]
+                except Exception:
+                    pass
+                try:
+                    SketchySexBaseIE._SERVER.stop()
+                except Exception:
+                    pass
+                
 
 
 
 class SketchySexIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex'
     IE_DESC = 'sketchysex'
-    _VALID_URL = r'https://members\.sketchysex\.com/gallery\.php.*'
+    _VALID_URL = r'https://members\.sketchysex\.com/gallery\.php\?id=(?P<id>\d+)'
 
     def _real_initialize(self):
        
@@ -312,30 +413,28 @@ class SketchySexIE(SketchySexBaseIE):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        data = None
+       
         try: 
 
             data = self._extract_from_video_page(url)
+            if not data:
+                raise ExtractorError("not any video found")            
+            return data 
         
         except ExtractorError:
             raise    
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e))
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
 
 
-        if not data:
-            raise ExtractorError("Not any video format found")
-        elif "error" in data['id']:
-            raise ExtractorError(str(data['cause']))
-        else:
-            return(data)
+        
 
 class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex:playlist'
     IE_DESC = 'sketchysex:playlist'
-    _VALID_URL = r"https://members\.sketchysex\.com/index\.php\?page=(?P<id>\d+)"
+    _VALID_URL = r"https://members\.sketchysex\.com/index\.php(?:\?page=(?P<id>\d+)|$)"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -344,26 +443,27 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        playlistid = re.search(self._VALID_URL, url).group("id")
-        entries = None
-        
+        playlistid = re.search(self._VALID_URL, url).group("id") or '1'
+               
         try:              
 
             if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid)  
+            entries = self._extract_list(playlistid)
+            if not entries: raise ExtractorError("no video list")  
+            return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
        
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
             
-        if not entries: raise ExtractorError("no video list") 
+         
         
-        return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
+       
 
 class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex:allpages:playlist'
@@ -378,19 +478,17 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
         
         self.report_extraction(url)
         
-        entries = None
         
         try: 
-            entries = self._extract_all_list()  
+            entries = self._extract_all_list()
+            if not entries: raise ExtractorError("no video list")         
+        
+            return self.playlist_result(entries, f"sketchysex:AllPages", f"sketchysex:AllPages") 
        
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
-
-            
-        if not entries: raise ExtractorError("no video list")         
         
-        return self.playlist_result(entries, f"sketchysex:AllPages", f"sketchysex:AllPages")
