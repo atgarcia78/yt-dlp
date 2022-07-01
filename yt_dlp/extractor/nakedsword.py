@@ -11,11 +11,8 @@ from threading import Lock
 from urllib.parse import quote, unquote
 
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
-
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_01
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_01, By, ec
 
 
 class NakedSwordBaseIE(SeleniumInfoExtractor):

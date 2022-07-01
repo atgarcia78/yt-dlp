@@ -326,7 +326,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                     if not pid or (nent and nent == type(self)._NENTRIES):
 
                         try:
-                            type(self)._SERVER.stop(self.to_screen)
+                            self.stop_browsermob(type(self)._SERVER)
                         except Exception:
                             pass
                         
@@ -385,7 +385,7 @@ class BBGroupIE(SeleniumInfoExtractor):
             type(self)._NENTRIES = 0
             
             try:
-                type(self)._SERVER.stop(self.to_screen)
+                self.stop_browsermob(type(self)._SERVER)
             except Exception:
                 pass
             
@@ -458,11 +458,14 @@ class BBGroupIE(SeleniumInfoExtractor):
                 type(self)._NENTRIES = 0
                 
                 try:
-                    type(self)._SERVER.stop(self.to_screen)
-                except Exception:
-                    pass
+                    self.stop_browsermob(type(self)._SERVER)
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.report_warning(f'[page_{plid}][stop_server]  {repr(e)} \n{"!!".join(lines)}') 
                 
                 type(self)._SERVER = None
+                
+
                     
                 
            

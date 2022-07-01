@@ -6,7 +6,6 @@ import tempfile
 import threading
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from queue import Empty, Queue
 from urllib.parse import unquote
 
@@ -21,6 +20,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 
 from browsermobproxy import Server
+import os
+import psutil
+import signal
+import subprocess
+import re
 
 from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
@@ -334,6 +338,38 @@ class SeleniumInfoExtractor(InfoExtractor):
                     if _server.process: _server.stop()                   
                     raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
               
+    
+    def stop_browsermob(self, server, timeout=30):
+        
+        _pgid = os.getpgid(server.process.pid)
+        self.logger_info(f"[stop_server] pgid {_pgid}")
+        
+        _pids = re.findall(r'(\d+)\n', subprocess.run(["ps", "-g", str(_pgid), "-o" , "pid"], encoding='utf-8', capture_output=True).stdout)
+        
+        #_pids = re.findall(r'(\d+)\n', res)            
+
+        
+        self.logger_info(f"[stop_server] procs with pgid: {_pids}")
+        
+                
+        if not _pids: return
+        
+        os.killpg(_pgid, signal.SIGTERM)
+        
+        server.process.wait()
+        
+        _started = time.monotonic()
+        while(True):
+                            
+            if not psutil.pid_exists(int(_pids[-1])):
+                self.logger_info(f"[stop_server] {_pids[-1]} term")                                   
+                break
+            
+            time.sleep(0.25)
+            if (time.monotonic() - _started) > timeout:
+                self.logger_info(f"[stop_server] timeout")
+                break
+
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
         try:
             el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(method)
