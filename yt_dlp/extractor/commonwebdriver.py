@@ -30,6 +30,7 @@ limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
 limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
 limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
 limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
+limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
 limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
 limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
 limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
@@ -60,9 +61,7 @@ class scroll():
 
 class SeleniumInfoExtractor(InfoExtractor):
     
-    #_FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/22jv66x2.selenium0'
     _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
-    _FF_PROF_IG = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
     _MASTER_LOCK = threading.Lock()
     _QUEUE = Queue()
     _MASTER_COUNT = 0
@@ -147,7 +146,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     
         
     
-    def _real_initialize(self, prof=None):
+    def _real_initialize(self):
           
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not SeleniumInfoExtractor._MASTER_INIT:
@@ -167,7 +166,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     #     except Exception as e:
                     #         lines = traceback.format_exception(*sys.exc_info())
                     #         self.to_screen(f'[init_drivers][{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
-                    init_drivers.append(self.get_driver(prof=prof))
+                    init_drivers.append(self.get_driver())
 
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
@@ -199,7 +198,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         """Real extraction process. Redefine in subclasses."""
         raise NotImplementedError('This method must be implemented by subclasses')
         
-    def get_driver(self, prof=None, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
+    def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
 
         
        
@@ -211,31 +210,28 @@ class SeleniumInfoExtractor(InfoExtractor):
                     driver = SeleniumInfoExtractor._QUEUE.get()
                 else:    
                     if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
-                        driver = self._get_driver(prof, noheadless, host, port, msg)
+                        driver = self._get_driver(noheadless, host, port, msg)
                         SeleniumInfoExtractor._MASTER_COUNT += 1                    
                     else:
                         driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=600)            
     
         else: 
 
-            driver = self._get_driver(prof, noheadless, host, port, msg)
+            driver = self._get_driver(noheadless, host, port, msg)
              
         
  
         
         return driver
         
-    def _get_driver(self, _prof, _noheadless, _host, _port, _msg):
+    def _get_driver(self, _noheadless, _host, _port, _msg):
         
         if _msg: pre = f'{_msg} '
         else: pre = ''
         
         tempdir = tempfile.mkdtemp(prefix='asyncall-') 
-        if _prof:
-            #self.to_screen("FF profile for IG")
-            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF_IG, tempdir, dirs_exist_ok=True)
-        else:           
-            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
+          
+        res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
         
         if res != tempdir:
             raise ExtractorError("error when creating profile folder")
@@ -319,24 +315,24 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def start_browsermob(self, url=None):
         
-       
-        while True:
-            _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*100                 
-            _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-            try:
-                if _server._is_listening():
-                    SeleniumInfoExtractor._SERVER_NUM += 1
-                    if SeleniumInfoExtractor._SERVER_NUM == 25: raise Exception("mobproxy max tries")
-                else:
-                    _server.start({"log_path": "/dev", "log_file": "null"})
-                    self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
-                    SeleniumInfoExtractor._SERVER_NUM += 1
-                    return (_server, _server_port)
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
-                if _server.process: _server.stop()                   
-                raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            while True:
+                _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*1000                 
+                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+                try:
+                    if _server._is_listening():
+                        SeleniumInfoExtractor._SERVER_NUM += 1
+                        if SeleniumInfoExtractor._SERVER_NUM == 25: raise Exception("mobproxy max tries")
+                    else:
+                        _server.start({"log_path": "/dev", "log_file": "null"})
+                        self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
+                        SeleniumInfoExtractor._SERVER_NUM += 1
+                        return (_server, _server_port)
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
+                    if _server.process: _server.stop()                   
+                    raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
               
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
         try:

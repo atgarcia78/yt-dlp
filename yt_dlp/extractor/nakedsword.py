@@ -314,7 +314,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
 class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:mostwatched:playlist"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/most-watched/?'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/most-watched(\?npages=(?P<npages>\d+))?'
     _MOST_WATCHED = 'https://nakedsword.com/most-watched?content=Scenes&page='
     
     
@@ -323,12 +323,12 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     
     def _real_extract(self, url):      
        
-
+        npages = try_get(re.search(self._VALID_URL, url), lambda x: x.group('npages')) or "1"
         entries = []
 
         with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=5) as ex:
             
-            futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, 3)]
+            futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, int(npages) + 1)]
         
         for fut in futures:
             try:
