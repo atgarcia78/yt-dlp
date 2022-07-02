@@ -107,47 +107,22 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         driver.execute_script("window.stop();")
         driver.get(url)
 
-    def scan_for_request(self, _har, _ref, _link):
-                          
-        self.write_debug(_har)
+    def scan_for_json(self, _driver, _link, _all=False):
+
+        _hints = self.scan_for_request(_driver, _link, _all)
         
-        for entry in _har['log']['entries']:
-                            
-            if entry['pageref'] == _ref:
-                
-                if _link in (_url:=entry['request']['url']):
-                    
-                    self.write_debug(_url)                   
+        if not _all:
+            _info_json = try_get(el, lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))))
+            return(_info_json)
+        else:
+            _list_info_json = []           
             
-                    if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
-                    
-                        _str = html.unescape(_text)
-                        _info_str = re.sub('[\t\n]', '', _str)
-                        _info_json = json.loads(_info_str)
-                        if _info_json:
-                            return(_info_json)
-                    
-    def scan_for_all_requests(self, _har, _ref, _reg):
-                          
-        _list_info_json = []
-        
-        self.write_debug(_har)
-        
-        for entry in _har['log']['entries']:
-                            
-            if entry['pageref'] == _ref:
-                if re.search(_reg, (_url:=entry['request']['url'])):
-                    
-                    self.write_debug(_url)                   
-            
-                    if ((_res:=entry.get('response')) and (_content:=_res.get('content')) and (_text:=_content.get('text'))):                         
-                    
-                        
-                        _info_str = re.sub('[\t\n]', '', html.unescape(_text))
-                        _info_json = json.loads(_info_str)
-                        if _info_json: _list_info_json.append(_info_json)
-            
-        return _list_info_json
+            for el in _hints:
+                _info_json = try_get(el, lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))))
+                if _info_json: 
+                    _list_info_json.append(_info_json)
+            return(_list_info_json)
+
     
     def _logout(self, driver):
               
@@ -238,10 +213,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise           
  
-    def _extract_from_json(self, data_post, users_dict={}, user_profile=None):
+    def _extract_from_json(self, data_post, users_dict={}, user_profile=None, original_url = None):
 
         try:
-            self.write_debug(f"[extract_from_json][input] {data_post}")            
+            #self.write_debug(f"[extract_from_json][input] {data_post}")            
             
             account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
             date_timestamp = int(datetime.fromisoformat((_datevideo:=data_post.get('createdAt','') or data_post.get('postedAt',''))).timestamp())
@@ -316,16 +291,22 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         else:
                             self._sort_formats(_formats, field_preference=('width', 'height'))
                             
-                        _entries.append({
-                                "id" :  str(videoid),
-                                "release_timestamp": date_timestamp,
-                                "release_date" :  _datevideo.split("T")[0].replace("-", ""),
-                                "title" :  _datevideo.split("T")[0].replace("-", "") + "_from_" + account,
-                                "formats" : _formats,
-                                "duration" : _media.get('info',{}).get('source', {}).get('duration', 0),
-                                "ext" : "mp4"})
+                        
+                        _entry = {
+                            "id" :  str(videoid),
+                            "release_timestamp": date_timestamp,
+                            "release_date" :  _datevideo.split("T")[0].replace("-", ""),
+                            "title" :  _datevideo.split("T")[0].replace("-", "") + "_from_" + account,
+                            "formats" : _formats,
+                            "duration" : _media.get('info',{}).get('source', {}).get('duration', 0),
+                            "ext" : "mp4"}
+                        
+                        if original_url: _entry.update({"original_url": original_url})
+                        
+                        _entries.append(_entry)
+                        
         
-            self.write_debug(f'[extract_from_json][output] {_entries}')
+            #self.write_debug(f'[extract_from_json][output] {_entries}')
             return _entries
         
         except Exception as e:            
@@ -335,29 +316,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _real_initialize(self):
 
         super()._real_initialize()
-        
-        with OnlyFansBaseIE._LOCK: 
-            
-            if OnlyFansBaseIE._COOKIES:
-                return           
-
-            driver = self.get_driver(usequeue=True)
-
-            try:
-                self._login(driver)
-                driver.add_cookie({'name': 'wallLayout','value': 'grid', 'domain': '.onlyfans.com', 'path' : '/'})
-                OnlyFansBaseIE._COOKIES = driver.get_cookies()
-                
-            except ExtractorError as e:                 
-                raise 
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
-                raise ExtractorError(repr(e))
-            finally:
-                self.put_in_queue(driver)
-                                            
-
 
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'
@@ -374,16 +332,9 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             
             with OnlyFansPostIE._LOCK:
             
-                _server, _server_port = self.start_browsermob(url)
-                    
-                _host = 'localhost'
-                _port = _server_port + 1                
-                _harproxy = _server.create_proxy({'port' : _port})
-                driver  = self.get_driver(host=_host, port=_port)
-                
-                self.send_driver_request(driver, self._SITE_URL)
-                for cookie in OnlyFansPostIE._COOKIES:
-                    driver.add_cookie(cookie)
+
+                driver = self.get_driver(devtools=True)
+                self._login(driver)
                 
                 self.report_extraction(url)                  
 
@@ -393,14 +344,13 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 
                 entries = {} 
                 
-                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{post}", title=f"har_{post}")
                 self.send_driver_request(driver, url) 
                 res = self.wait_until(driver, 30, error404_or_found())
                 if not res or res[0] == "error404": raise ExtractorError("Error 404: Post doesnt exists")
-                har = _harproxy.har            
-                data_json = self.scan_for_request(har, f"har_{post}", f"/api2/v2/posts/{post}")
+
+                data_json = self.scan_for_json(driver, f"/api2/v2/posts/{post}")
                 if data_json:
-                    self.write_debug(data_json)                
+                    #self.write_debug(data_json)                
                     _entry = self._extract_from_json(data_json, user_profile=account)
                     if _entry: 
                         for _video in _entry:
@@ -422,8 +372,6 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(repr(e))
         finally:
-            _harproxy.close()
-            _server.stop()
             self.rm_driver(driver)
             
 
@@ -444,17 +392,11 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             
             with OnlyFansPostIE._LOCK:
             
-                _server, _server_port = self.start_browsermob(url)
-                    
-                _host = 'localhost'
-                _port = _server_port + 1                
-                _harproxy = _server.create_proxy({'port' : _port})
-                driver  = self.get_driver(host=_host, port=_port)
-
-                driver  = self.get_driver(host=_host, port=_port)
-                self.send_driver_request(driver, self._SITE_URL)
-                for cookie in OnlyFansPlaylistIE._COOKIES:
-                    driver.add_cookie(cookie)
+                driver = self.get_driver(devtools=True)
+                # self.send_driver_request(driver, self._SITE_URL)
+                # for cookie in OnlyFansPlaylistIE._COOKIES:
+                #     driver.add_cookie(cookie)
+                self._login(driver)
                 
                 account, mode = re.search(self._VALID_URL, url).group("account", "mode")            
                 if not mode:
@@ -470,19 +412,18 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     
                     _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
                     
-                    _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
+                    #_harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                     
                     self.send_driver_request(driver, _url)
                     self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
                     if mode in ("latest"):
-                        har = _harproxy.har
-                        data_json = self.scan_for_request(har, f"har_{account}_{mode}", "posts/videos?")
+                        data_json = self.scan_for_json(driver, "posts/videos?")
                         if data_json:
-                            self.write_debug(data_json)
+                            #self.write_debug(data_json)
                             list_json = data_json.get('list')
                             if list_json:                            
                                 for info_json in list_json:                                                  
-                                    _entry = self._extract_from_json(info_json, user_profile=account)
+                                    _entry = self._extract_from_json(info_json, user_profile=account, original_url=_url)
                                     if _entry: 
                                         for _video in _entry:
                                             if not _video['id'] in entries.keys(): entries[_video['id']] = _video
@@ -493,18 +434,17 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     else:            
 
                         #lets scroll down in the videos pages till the end
-                        self.wait_until(driver, 600, scroll(10))
-                            
-                        har = _harproxy.har
+                        self.wait_until(driver, 600, scroll(10))                            
+
                         _reg_str = r'/api2/v2/users/\d+/posts/videos\?'
-                        data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
+                        data_json = self.scan_for_json(driver, _reg_str, _all=True)
                         if data_json:
-                            self.write_debug(data_json)
+                            #self.write_debug(data_json)
                             list_json = []
                             for el in data_json:
                                 list_json += el.get('list')
                         
-                            self.write_debug(list_json)
+                            #self.write_debug(list_json)
                             
                             for info_json in list_json:                                                  
                                 _entry = self._extract_from_json(info_json, user_profile=account)
@@ -517,14 +457,13 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 
                 elif mode in ("chat"):
                     
-                    _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_{account}_{mode}", title=f"har_{account}_{mode}")
                     _url =  f"{self._SITE_URL}/{account}"
                     self.send_driver_request(driver, _url)
                     res = self.wait_until(driver, 60, error404_or_found())
                     if not res or res[0] == "error404": raise ExtractorError("User profile doesnt exists")
-                    har = _harproxy.har
-                    data_json = self.scan_for_request(har, f"har_{account}_{mode}", f"users/{account}")
-                    #self.to_screen(data_json)                
+                    
+                    data_json = self.scan_for_request(driver, f"users/{account}")
+                               
                     userid = try_get(data_json, lambda x: x['id'])
                     if not userid: raise ExtractorError("couldnt get id user for chat room")
                     url_chat = f"https://onlyfans.com/my/chats/chat/{userid}/"
@@ -538,11 +477,11 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                     el_chat_scroll.send_keys(Keys.HOME)
                     self.wait_until(driver, 5)                
                     
-                    har = _harproxy.har
+                    
                     _reg_str = r'/api2/v2/chats/\d+/messages'
-                    data_json = self.scan_for_all_requests(har, f"har_{account}_{mode}", _reg_str)
+                    data_json = self.scan_for_json(driver, _reg_str, _all=True)
                     if data_json:
-                        self.write_debug(data_json)
+                        #self.write_debug(data_json)
                         list_json = []
                         for el in data_json:
                             list_json += el.get('list')
@@ -570,8 +509,6 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(repr(e))       
         finally:
-            _harproxy.close()
-            _server.stop()
             self.rm_driver(driver)
             
 class OnlyFansPaidlistIE(OnlyFansBaseIE):
@@ -592,18 +529,13 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             with OnlyFansPaidlistIE._LOCK:
                 
                
-                _server, _server_port = self.start_browsermob(url)
-                _host = 'localhost' 
-                _port = _server_port + 1   
-                _host = 'localhost'                
-                _harproxy = _server.create_proxy({'port' : _port})
                 
         
-                driver  = self.get_driver(host=_host, port=_port)
-                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref="har_paid", title="har_paid")
-                self.send_driver_request(driver, self._SITE_URL)
-                for cookie in OnlyFansPaidlistIE._COOKIES:
-                    driver.add_cookie(cookie)
+                driver = self.get_driver(devtools=True)
+                # self.send_driver_request(driver, self._SITE_URL)
+                # for cookie in OnlyFansPlaylistIE._COOKIES:
+                #     driver.add_cookie(cookie)
+                self._login(driver)
                 
                 
                 self.send_driver_request(driver, self._SITE_URL)
@@ -618,8 +550,8 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
         
                 self.wait_until(driver, 600, scroll(10))
                     
-                har = _harproxy.har           
-                users_json = self.scan_for_all_requests(har, "har_paid", r'/api2/v2/users/list')
+                          
+                users_json = self.scan_for_json(driver, '/api2/v2/users/list', _all=True)
                 if users_json:
                     self.to_screen("users list attempt success")                    
                     users_dict = dict()
@@ -638,15 +570,15 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
                 
                 entries = {}
                 _reg_str = r'/api2/v2/posts/paid\?'
-                data_json = self.scan_for_all_requests(har, "har_paid", _reg_str)
+                data_json = self.scan_for_json(driver,_reg_str, _all=True)
                 if data_json:
-                    self.write_debug(data_json)
+                    #self.write_debug(data_json)
                     list_json = []
                     for el in data_json:
                         list_json += el['list']                               
                     
                     for info_json in list_json:
-                        for _video in self._extract_from_json(info_json, users_dict=users_dict):
+                        for _video in self._extract_from_json(info_json, users_dict=users_dict, original_url="https://onlyfans.com/paid"):
                             if not _video['id'] in entries.keys(): entries[_video['id']] = _video
                             else:
                                 if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
@@ -665,8 +597,6 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(repr(e))
         finally:
-            _harproxy.close()
-            _server.stop()
             self.rm_driver(driver)
             
 class OnlyFansActSubslistIE(OnlyFansBaseIE):
@@ -683,31 +613,23 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             with OnlyFansActSubslistIE._LOCK:
                 
 
-                _server, _server_port = self.start_browsermob(url)
-                
-                _host = 'localhost' 
-                _port = _server_port + 1   
-                _host = 'localhost'                
-                _harproxy = _server.create_proxy({'port' : _port})
-            
-                driver = self.get_driver(host=_host, port=_port, msg=f'[{_url_videos}]')
-                self.send_driver_request(driver, self._SITE_URL)
-                for cookie in OnlyFansActSubslistIE._COOKIES:
-                    driver.add_cookie(cookie)
+                driver = self.get_driver(devtools=True)
+                # self.send_driver_request(driver, self._SITE_URL)
+                # for cookie in OnlyFansPlaylistIE._COOKIES:
+                #     driver.add_cookie(cookie)
+                self._login(driver)
                 
                 self.send_driver_request(driver, url)
                 res = self.wait_until(driver, 60, error404_or_found())
                 if not res or res[0] == "error404": raise ExtractorError(f"[{_url_videos}] User profile doesnt exists")        
                 account = url.split("/")[-1]
-                _harproxy.new_har(options={'captureHeaders': False, 'captureContent': True}, ref=f"har_actsubs_{account}", title=f"har_actsubs_{account}")            
                 self.send_driver_request(driver, _url_videos)
                 self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
-                
-                har = _harproxy.har
-                data_json = self.scan_for_request(har, f"har_actsubs_{account}", "posts/videos?")
+ 
+                data_json = self.scan_for_request(driver, "posts/videos?")
                 entries = {}
                 if data_json:
-                    self.write_debug(data_json)
+                    #self.write_debug(data_json)
                     list_json = data_json.get('list')
                     if list_json:                            
                         for info_json in list_json:                                                  
@@ -729,8 +651,6 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             self.to_screen(f'[{_url_videos}] {repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(f'[{_url_videos}] {repr(e)}')        
         finally:
-            _harproxy.close()
-            _server.stop()
             self.rm_driver(driver)
             
         
@@ -744,10 +664,11 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             
             self.report_extraction(url)            
         
-            driver  = self.get_driver(usequeue=True)
-            self.send_driver_request(driver, self._SITE_URL)
-            for cookie in OnlyFansActSubslistIE._COOKIES:
-                driver.add_cookie(cookie)
+            driver = self.get_driver(devtools=True)
+            # self.send_driver_request(driver, self._SITE_URL)
+            # for cookie in OnlyFansPlaylistIE._COOKIES:
+            #     driver.add_cookie(cookie)
+            self._login(driver)
             
             
             self.send_driver_request(driver, self._ACT_SUBS_URL)
@@ -777,4 +698,4 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(repr(e))        
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)

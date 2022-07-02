@@ -5,6 +5,7 @@ import re
 import sys
 import traceback
 from datetime import datetime
+import time
 
 from ..utils import ExtractorError, try_get, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, limiter_0_5, By, ec
@@ -50,7 +51,9 @@ class check_consent():
                   
                     self.button = el_button[0]
                     el_button[0].click()
+                    time.sleep(2)
                     driver.switch_to.default_content()
+                    time.sleep(2)
                     return True
 
 
@@ -59,15 +62,17 @@ class check_consent():
 
         if not self.button:
             if (el_button:=driver.find_elements(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")):
-                print("button ok")
+                
                 self.button = el_button[0]
                 el_button[0].click()
+                time.sleep(2)
                 driver.switch_to.default_content()
+                time.sleep(2)
                 return True
                 
 class get_infopost():
     def __call__(self, driver):
-        el_postdate = driver.find_element(By.CSS_SELECTOR, "time.published")
+        el_postdate = driver.find_element(By.CSS_SELECTOR, ".mi")
         if (_text:=el_postdate.text):
             postid = try_get(driver.find_element(By.CLASS_NAME, "related-tag"), lambda x: x.get_attribute('data-id'))
             title = driver.title
@@ -107,9 +112,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             
             self._send_request(url, driver, msg='[get_entries]')
             
-            self.wait_until(driver, 30, check_consent())
+            self.wait_until(driver, 60, check_consent())
             
-            postdate, title, postid = try_get(self.wait_until(driver, 30, get_infopost()), lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2]))
+            postdate, title, postid = try_get(self.wait_until(driver, 60, get_infopost()),
+                                              lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2])) or ("", "", "")
             
             
             list_candidate_videos = self.wait_until(driver, 30, getvideos())
@@ -120,7 +126,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl", max_workers=min(len(list_candidate_videos), 5)) as exe:
                     futures = {exe.submit(self.getbestvid, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
                 
-                #entries = [_entry for _el in list_candidate_videos if (_entry:=self.getbestvid(_el, check=check))]
                 
                 for fut in futures:
                     try:
@@ -222,7 +227,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         query = re.search(self._VALID_URL, url).group('query')
         
-        params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
+        params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
         
         urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999"
         
@@ -242,12 +247,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         def get_list_entries(_entry, check):
             
             videourlpost = _entry['link'][-1]['href']
-            entries = self.get_entries(videourlpost, check=check)
-
+            entries, title, postid = self.get_entries(videourlpost, check=check)
                     
             if entries:
-                self._entries += entries
- 
+                self._entries += entries 
             else:
                 self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
         
@@ -259,6 +262,3 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
         if not self._entries: raise ExtractorError("no video list")
         return self.playlist_result(self._entries, f"gvdblog_playlist", f"gvdblog_playlist")
-             
-        
-        
