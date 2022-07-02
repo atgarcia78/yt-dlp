@@ -139,7 +139,7 @@ class SketchySexBaseIE(SeleniumInfoExtractor):
         with SketchySexBaseIE._MLOCK:
             
             if not SketchySexBaseIE._SERVER:
-                SketchySexBaseIE._SERVER, _server_port = self.start_browsermob(f"sketchysex")
+                SketchySexBaseIE._SERVER, _server_port = self.start_browsermob()
                             
             if not SketchySexBaseIE._MAX_PAGE:
                 

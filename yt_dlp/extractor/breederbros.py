@@ -125,7 +125,7 @@ class BreederBrosBaseIE(SeleniumInfoExtractor):
         with BreederBrosBaseIE._MLOCK:
             
             if not BreederBrosBaseIE._SERVER:
-                BreederBrosBaseIE._SERVER, _server_port = self.start_browsermob(f"breederbros")
+                BreederBrosBaseIE._SERVER, _server_port = self.start_browsermob()
                             
             if not BreederBrosBaseIE._MAX_PAGE:
                 
