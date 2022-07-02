@@ -50,7 +50,7 @@ class waitforlogin():
             return False
         
         el_top = driver.find_element(By.CSS_SELECTOR,  "ul")
-        if not "LOG OUT" in el_top.get_attribute('innerText').upper():
+        if not "LOG OUT" in el_top.get_attribute('innerHTML').upper():
             return({"error": "Login failed"})
         else: return("OK")
      
@@ -85,7 +85,7 @@ class BBGroupIE(SeleniumInfoExtractor):
             self._send_request(self._LOGIN_URL, driver=_driver)
             
             if not "LOG OUT" in (try_get(self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul"))),
-                                         lambda x: x.get_attribute('innerText').upper()) or ""):
+                                         lambda x: x.get_attribute('innerHTML').upper()) or ""):
             
                 self.report_login()
                 username, password = self._get_login_info()
@@ -107,28 +107,11 @@ class BBGroupIE(SeleniumInfoExtractor):
             self.to_screen("[login] Login NOK")
             return "NOK"
         
-    def scan_for_request(self, _harproxy, _ref, _link, timeout=60):
-
-        _started = time.monotonic()        
-        while(True):
-            _har  = _harproxy.har
-            #self.write_debug(_har)
-            for entry in _har['log']['entries']:
-                if entry['pageref'] == _ref:
-                    if _link in (entry['request']['url']):
-                        return entry.get('response', {}).get('content', {}).get('text', "")
-            if (time.monotonic() - _started) >= timeout:
-                return
-            else:
-                time.sleep(0.5)
-                
     def _real_initialize(self):
         
         self.to_screen(f'[real_init] {type(self)}')
         super()._real_initialize()
                             
-        if not type(self)._SERVER:
-            type(self)._SERVER, _server_port = self.start_browsermob(self.IE_NAME.split(":")[0])
                         
         if not type(self)._MAX_PAGE:
             
@@ -143,30 +126,20 @@ class BBGroupIE(SeleniumInfoExtractor):
                 self.to_screen("error when init")
         
 
-
-            
-  
-
-    def _new_proxy_and_driver(self):
+    
+    def _new_driver(self):
         with type(self)._MLOCK:
-            #_error = False
+           
             if type(self)._NUMDRIVERS < 10:
-                _port = int(type(self)._SERVER.port) + (type(self)._NUMDRIVERS + 1)*100
+                
                 type(self)._NUMDRIVERS += 1
-                #if type(self)._NUMDRIVERS == 2: _error = True
+                
             else: 
-                return (None, None, None)
-         
-        _harproxy = type(self)._SERVER.create_proxy({'port' : _port})
-        self.to_screen(f"proxy started at port {_port}")
-        _driver  = self.get_driver(host='localhost', port=_port)
+                return (None, None)
         
-        # if not _error:
-        #     return (_driver, _harproxy, self._login(_driver))
-        # else:
-        #     return (_driver, _harproxy, "TEST")
+        _driver  = self.get_driver(devtools=True)
+        return(_driver, self._login(_driver))
         
-        return (_driver, _harproxy, self._login(_driver))
 
     def _extract_from_video_page(self, url, pid=None, nent=None):        
         
@@ -199,27 +172,24 @@ class BBGroupIE(SeleniumInfoExtractor):
             self.to_screen(f"{pre} start for {url}")
             
             _driver = None
-            _harproxy = None
             _res = "NOK" 
             try:
-                _driver, _harproxy = type(self)._LOCALQ.get(block=False)
+                _driver = type(self)._LOCALQ.get(block=False)
                 _res = "OK"                     
             except Empty:             
-                _driver, _harproxy, _res = try_get(self._new_proxy_and_driver(), lambda x: (x[0], x[1], x[2])) 
+                _driver, _res = try_get(self._new_driver(), lambda x: (x[0], x[1])) 
                 if not _driver:
-                    _driver, _harproxy, _res = try_get(type(self)._LOCALQ.get(block=True, timeout=600),
-                                                    lambda x: (x[0], x[1], "OK"))
+                    _driver, _res = try_get(type(self)._LOCALQ.get(block=True, timeout=600),
+                                                    lambda x: (x[0], "OK"))
             
-            if _res == "NOK": 
+            if _res == "NOK":
+              
                 return self.url_result(url, ie=self.ie_key().split('AllPages')[0].split('OnePage')[0], error="login NOK")
-               
-            # if _res == "TEST":
-            #     raise ExtractorError("testerror")    
+  
 
             videoid = try_get(re.search(r'gallery\.php\?id=(?P<id>\d+)', url), lambda x: f"{x.group('id')}{self._SUFFIX}")
             if videoid in self._TRAD_FROM_NEW_TO_OLD: 
                 videoid = self._TRAD_FROM_NEW_TO_OLD[videoid]
-            _harproxy.new_har(options={'captureHeaders': True, 'captureContent': True}, ref=f"har_{videoid}", title=f"har_{videoid}")
             
             self._send_request(url.split('&page')[0], driver=_driver)
             
@@ -251,24 +221,31 @@ class BBGroupIE(SeleniumInfoExtractor):
             
             self.write_debug(f"[{videoid}] {manifesturl}")
             
-            if not manifesturl or not "playlist" in manifesturl:
-
-                self.write_debug(f"[{videoid}] start scan har")
-
-                m3u8_doc = self.scan_for_request(_harproxy, f"har_{videoid}", f".m3u8")           
-
-                _url = try_get(re.findall(r"(https://.*)", m3u8_doc), lambda x: x[0]) 
-                if _url:
-                    murl, params = _url.split('?')
-                    manifesturl = murl.rsplit('/',1)[0] + '/playlist.m3u8?' + params                    
-                    self.write_debug(f"[{videoid}] {manifesturl}")
-                    formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                        m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-            
-            else:
+            if manifesturl:
                 
-                formats_m3u8, _ = self._extract_m3u8_formats_and_subtitles(manifesturl, video_id=videoid, ext="mp4", 
-                                                                           entry_protocol="m3u8_native", m3u8_id="hls", headers=headers)
+                if not "playlist" in manifesturl:
+
+                    self.write_debug(f"[{videoid}] start scan har")
+
+                    m3u8_url, m3u8_doc = self.scan_for_request(_driver, f".m3u8")           
+                    if m3u8_url:
+                        if not "playlist" in m3u8_url:
+                            if m3u8_doc:
+                                _url = try_get(re.findall(r"(https://.*)", m3u8_doc), lambda x: x[0]) 
+                                if _url:
+                                    murl, params = _url.split('?')
+                                    manifesturl = murl.rsplit('/',1)[0] + '/playlist.m3u8?' + params                    
+                                    self.write_debug(f"[{videoid}] {manifesturl}")
+                                    formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
+                                        m3u8_doc, manifesturl, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                        else:
+                            formats_m3u8, _ = self._extract_m3u8_formats_and_subtitles(m3u8_url, video_id=videoid, ext="mp4", 
+                                                                            entry_protocol="m3u8_native", m3u8_id="hls", headers=headers)
+                            
+                        
+                else:                    
+                    formats_m3u8, _ = self._extract_m3u8_formats_and_subtitles(manifesturl, video_id=videoid, ext="mp4", 
+                                                                            entry_protocol="m3u8_native", m3u8_id="hls", headers=headers)
                 
             if not formats_m3u8:
                 raise ExtractorError(f"[{url}] Can't find any M3U8 format")
@@ -311,11 +288,11 @@ class BBGroupIE(SeleniumInfoExtractor):
                             
                 if pid and _res == "OK" and not '&page' in url and  (not nent or nent > type(self)._NENTRIES):
                     if _driver:
-                        type(self)._LOCALQ.put_nowait((_driver, _harproxy))
+                        type(self)._LOCALQ.put_nowait(_driver)
                 else:
                     if _driver:
                         try:
-                            _harproxy.close()                
+                            #_harproxy.close()                
                             self.rm_driver(_driver)
                         except Exception:
                             pass
@@ -325,14 +302,13 @@ class BBGroupIE(SeleniumInfoExtractor):
 
                     if not pid or (nent and nent == type(self)._NENTRIES):
 
-                        try:
-                            self.stop_browsermob(type(self)._SERVER)
-                        except Exception:
-                            pass
+                        # try:
+                        #     self.stop_browsermob(type(self)._SERVER)
+                        # except Exception:
+                        #     pass
                         
-                        type(self)._SERVER = None
+                        # type(self)._SERVER = None
                         type(self)._NENTRIES = 0
-
 
 
     def _extract_all_list(self, firstpage="1", npages="all"):
@@ -374,9 +350,9 @@ class BBGroupIE(SeleniumInfoExtractor):
         finally:
             while(True):
                 try:                        
-                    _driver, _harproxy = type(self)._LOCALQ.get(block=False)
+                    _driver = type(self)._LOCALQ.get(block=False)
                     self.rm_driver(_driver)
-                    _harproxy.close()
+                    #_harproxy.close()
                 except Empty:
                     break
             
@@ -384,13 +360,12 @@ class BBGroupIE(SeleniumInfoExtractor):
             type(self)._NUMDRIVERS = 0
             type(self)._NENTRIES = 0
             
-            try:
-                self.stop_browsermob(type(self)._SERVER)
-            except Exception:
-                pass
+            # try:
+            #     self.stop_browsermob(type(self)._SERVER)
+            # except Exception:
+            #     pass
             
-            type(self)._SERVER = None
-        
+            # type(self)._SERVER = None
         
 
     def _extract_list(self, plid, allpages=False):
@@ -448,22 +423,22 @@ class BBGroupIE(SeleniumInfoExtractor):
                 
                 while(True):
                     try:                        
-                        _driver, _harproxy = type(self)._LOCALQ.get(block=False)
+                        _driver = type(self)._LOCALQ.get(block=False)
                         self.rm_driver(_driver)
-                        _harproxy.close()
+                        #_harproxy.close()
                     except Empty:
                         break
                 type(self)._LOCALQ = Queue()
                 type(self)._NUMDRIVERS = 0
                 type(self)._NENTRIES = 0
                 
-                try:
-                    self.stop_browsermob(type(self)._SERVER)
-                except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.report_warning(f'[page_{plid}][stop_server]  {repr(e)} \n{"!!".join(lines)}') 
+                # try:
+                #     self.stop_browsermob(type(self)._SERVER)
+                # except Exception as e:
+                #     lines = traceback.format_exception(*sys.exc_info())
+                #     self.report_warning(f'[page_{plid}][stop_server]  {repr(e)} \n{"!!".join(lines)}') 
                 
-                type(self)._SERVER = None
+                # type(self)._SERVER = None
                 
 
                     
@@ -500,7 +475,7 @@ class SketchySexBaseIE(BBGroupIE):
     
     _MAX_PAGE = None
     
-    _SERVER = None
+    #_SERVER = None
    
     _NUMDRIVERS = 0
     
@@ -529,7 +504,7 @@ class BreederBrosBaseIE(BBGroupIE):
    
     _MAX_PAGE = None
     
-    _SERVER = None
+    #_SERVER = None
    
     _NUMDRIVERS = 0
     

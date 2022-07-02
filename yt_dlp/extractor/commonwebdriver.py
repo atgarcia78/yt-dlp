@@ -19,11 +19,6 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 
-from browsermobproxy import Server
-import os
-import psutil
-import signal
-import subprocess
 import re
 
 from ..utils import int_or_none, try_get
@@ -108,7 +103,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 SeleniumInfoExtractor._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
-   
     def close(self, client=True):
         
         while True:
@@ -134,8 +128,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         SeleniumInfoExtractor._MASTER_INIT = False
         self._ready = False
         
-        
-        
     @classmethod
     def rm_driver(cls, driver):
         
@@ -147,9 +139,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass
         
-    
-        
-    
     def _real_initialize(self):
           
         with SeleniumInfoExtractor._MASTER_LOCK:
@@ -197,12 +186,11 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                 SeleniumInfoExtractor._MASTER_INIT = True
 
-
     def _real_extract(self, url):
         """Real extraction process. Redefine in subclasses."""
         raise NotImplementedError('This method must be implemented by subclasses')
         
-    def get_driver(self, noheadless=False, host=None, port=None, msg=None, usequeue=False):        
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, msg=None, usequeue=False):        
 
         
        
@@ -221,14 +209,14 @@ class SeleniumInfoExtractor(InfoExtractor):
     
         else: 
 
-            driver = self._get_driver(noheadless, host, port, msg)
+            driver = self._get_driver(noheadless, devtools, host, port, msg)
              
         
  
         
         return driver
         
-    def _get_driver(self, _noheadless, _host, _port, _msg):
+    def _get_driver(self, _noheadless, _devtools, _host, _port, _msg):
         
         if _msg: pre = f'{_msg} '
         else: pre = ''
@@ -244,6 +232,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         if not _noheadless:
             opts.add_argument("--headless")
+        
+        if _devtools:
+            opts.add_argument("--devtools")
+            opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
+            opts.set_preference("devtools.netmonitor.persistlog", True)
+            opts.set_preference("devtools.debugger.skip-pausing", True);
         
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-application-cache")
@@ -294,7 +288,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
                 self.wait_until(driver, 0.5)
                 
-                self.logger_debug(f"{pre}New firefox webdriver")
+                #self.logger_debug(f"{pre}New firefox webdriver")
                 
                 return driver
                 
@@ -316,60 +310,96 @@ class SeleniumInfoExtractor(InfoExtractor):
     def put_in_queue(self, driver):
         SeleniumInfoExtractor._QUEUE.put_nowait(driver)
     
-    
-    def start_browsermob(self, url=None):
+    # def start_browsermob(self):
         
-        with SeleniumInfoExtractor._MASTER_LOCK:
-            while True:
-                _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*1000                 
-                _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
-                try:
-                    if _server._is_listening():
-                        SeleniumInfoExtractor._SERVER_NUM += 1
-                        if SeleniumInfoExtractor._SERVER_NUM == 25: raise Exception("mobproxy max tries")
-                    else:
-                        _server.start({"log_path": "/dev", "log_file": "null"})
-                        self.to_screen(f"[{url}] browsermob-proxy start OK on port {_server_port}")
-                        SeleniumInfoExtractor._SERVER_NUM += 1
-                        return (_server, _server_port)
-                except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f'[{url}] {repr(e)} \n{"!!".join(lines)}')
-                    if _server.process: _server.stop()                   
-                    raise ExtractorError(f"[{url}] browsermob-proxy start error - {repr(e)}")
-              
-    
-    def stop_browsermob(self, server, timeout=30):
+    #     with SeleniumInfoExtractor._MASTER_LOCK:
+    #         while True:
+    #             _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*1000                 
+    #             _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+    #             try:
+    #                 if _server._is_listening():
+    #                     SeleniumInfoExtractor._SERVER_NUM += 1
+    #                     if SeleniumInfoExtractor._SERVER_NUM == 5: raise Exception("mobproxy max tries")
+    #                 else:
+    #                     _server.start({"log_path": "/dev", "log_file": "null"})
+    #                     self.to_screen(f"[start_browsermob] start OK on port {_server_port}")
+    #                     SeleniumInfoExtractor._SERVER_NUM += 1
+    #                     return (_server, _server_port)
+    #             except Exception as e:
+    #                 lines = traceback.format_exception(*sys.exc_info())
+    #                 self.to_screen(f'[start_browsermob] start error {repr(e)} \n{"!!".join(lines)}')
+    #                 if _server.process:
+    #                     self.stop_browsermob(_server)
+                    
+    # def stop_browsermob(self, server, timeout=30):
         
-        _pgid = os.getpgid(server.process.pid)
-        self.logger_info(f"[stop_server] pgid {_pgid}")
+    #     _pgid = os.getpgid(server.process.pid)
+    #     self.logger_info(f"[stop_server] pgid {_pgid}")
         
-        _pids = re.findall(r'(\d+)\n', subprocess.run(["ps", "-g", str(_pgid), "-o" , "pid"], encoding='utf-8', capture_output=True).stdout)
+    #     _pids = re.findall(r'(\d+)\n', subprocess.run(["ps", "-g", str(_pgid), "-o" , "pid"], encoding='utf-8', capture_output=True).stdout)
         
-        #_pids = re.findall(r'(\d+)\n', res)            
-
+    #     self.logger_info(f"[stop_server] procs with pgid: {_pids}")
         
-        self.logger_info(f"[stop_server] procs with pgid: {_pids}")
+    #     if not _pids: return
         
-                
-        if not _pids: return
+    #     os.killpg(_pgid, signal.SIGTERM)
         
-        os.killpg(_pgid, signal.SIGTERM)
+    #     server.process.wait()
         
-        server.process.wait()
+    #     _started = time.monotonic()
         
-        _started = time.monotonic()
-        while(True):
+    #     while(True):
                             
-            if not psutil.pid_exists(int(_pids[-1])):
-                self.logger_info(f"[stop_server] {_pids[-1]} term")                                   
-                break
+    #         if not psutil.pid_exists(int(_pids[-1])):
+    #             self.logger_info(f"[stop_server] {_pids[-1]} term")                                   
+    #             break
             
-            time.sleep(0.25)
-            if (time.monotonic() - _started) > timeout:
-                self.logger_info(f"[stop_server] timeout")
-                break
+    #         time.sleep(0.25)
+    #         if (time.monotonic() - _started) > timeout:
+    #             self.logger_info(f"[stop_server] timeout")
+    #             break
 
+    def scan_for_request(self, _harproxy, _link, _all=False, _ref=None, timeout=60):
+
+        if isinstance(_harproxy, Firefox):
+            def gethar():
+                return (_harproxy.execute_async_script(
+                    "HAR.triggerExport().then(arguments[0]);"))
+        else:
+            def gethar():
+                return(_harproxy.har.get('log'))
+            
+        _list_hints = []
+        
+        _started = time.monotonic()        
+        while(True):
+            _har  = gethar()
+            for entry in _har.get('entries'):
+                if _ref:
+                    if entry['pageref'] == _ref:
+                        if re.search(_link, (_url:=entry['request']['url'])):
+                            _hint = (_url, entry.get('response', {}).get('content', {}).get('text', ""))                            
+                            if not _all: 
+                                return(_hint)
+                            else:
+                                _list_hints.append(_hint)
+                                
+                else:
+                    if re.search(_link, (_url:=entry['request']['url'])):
+                            _hint = (_url, entry.get('response', {}).get('content', {}).get('text', ""))                            
+                            if not _all: 
+                                return(_hint)
+                            else:
+                                _list_hints.append(_hint)
+                    
+            if _list_hints: 
+                return(_list_hints)
+            
+            if (time.monotonic() - _started) >= timeout:
+                return
+            else:
+                time.sleep(0.5)
+                
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
         try:
             el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(method)
@@ -385,8 +415,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             el = None
             
         return el
-    
-    
     
     def get_info_for_format(self, url, client=None, headers=None, verify=True):
         
@@ -404,8 +432,6 @@ class SeleniumInfoExtractor(InfoExtractor):
                     res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
             
             res.raise_for_status()
-            #self.write_debug(f"{res.request} \n{res.request.headers}")
-            #self.logger_debug(f"{res.request} \n{res.request.headers}")
 
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
@@ -413,20 +439,15 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         except Exception as e:
             if not res:
-                #self.write_debug(f"{repr(e)}")
                 self.logger_debug(f"{repr(e)}")
 
             else:
-                #self.write_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
                 self.logger_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
-                #HTTPErrorStatus exception raised to differenciate from ExtractorError from the function in the
-                #extractor using this method
                 if res.status_code == 404:
                     res.raise_for_status()
                 
             raise ExtractorError(repr(e))      
 
-   
     def _get_extractor(self, url):
         
         ies = self._downloader._ies
@@ -439,7 +460,6 @@ class SeleniumInfoExtractor(InfoExtractor):
                     break
         return extractor
         
-    
     def _get_ie_name(self, url):    
         
         extractor = self._get_extractor(url)
@@ -467,7 +487,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             return(f'{url[:140]}...{url[-10:]}')
         else: return url
         
-    
     def _is_valid(self, url, msg):
         
         def transp(func):
