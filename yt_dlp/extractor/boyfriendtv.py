@@ -64,7 +64,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
     def _init_driver(self):        
         
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         try:
             driver.get(self._SITE_URL)
             el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))            
@@ -92,7 +92,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             
         except Exception as e:
             self.to_screen("error when init driver")
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
             raise            
             
 
@@ -103,7 +103,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             
             if not BoyFriendTVBaseIE._COOKIES:
                 
-                driver = self.get_driver(usequeue=True)
+                driver = self.get_driver()
                 try:                                        
                     driver.get(self._SITE_URL)
                     driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': 'boyfriendtv.com'})
@@ -115,7 +115,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                     self.to_screen("error when login")                    
                     raise
                 finally:
-                    self.put_in_queue(driver)
+                    self.rm_driver(driver)
         
         
 
@@ -194,7 +194,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
         
         
 
@@ -356,4 +356,4 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
             self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))            
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)

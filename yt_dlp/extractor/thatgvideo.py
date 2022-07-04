@@ -50,7 +50,7 @@ class ThatGVideoIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
         
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
  
         try:
             
@@ -91,6 +91,6 @@ class ThatGVideoIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         finally:
             try:
-                self.put_in_queue(driver)
+                self.rm_driver(driver)
             except Exception:
                 pass

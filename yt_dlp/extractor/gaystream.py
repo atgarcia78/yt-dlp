@@ -51,7 +51,7 @@ class GayStreamIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
  
-        driver = self.get_driver(usequeue=True)            
+        driver = self.get_driver()            
    
                             
         try: 
@@ -119,6 +119,6 @@ class GayStreamIE(SeleniumInfoExtractor):
             raise ExtractorError(str(e))
         finally:
             try:
-                self.put_in_queue(driver)
+                self.rm_driver(driver)
             except Exception:
                 pass

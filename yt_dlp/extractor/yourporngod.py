@@ -78,7 +78,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
               
         self.report_extraction(url)
         
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         try:
                     
             self._send_request(url, driver)
@@ -115,7 +115,7 @@ class YourPornGodIE(SeleniumInfoExtractor):
             self.to_screen(e)
             raise
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
                         
         
 class YourPornGodPlayListIE(SeleniumInfoExtractor):

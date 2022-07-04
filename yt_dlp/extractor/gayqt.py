@@ -72,7 +72,7 @@ class GayQTIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
         videoid = self._match_id(url)
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         try:
             
@@ -110,4 +110,4 @@ class GayQTIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
