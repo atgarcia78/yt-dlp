@@ -80,7 +80,7 @@ class TheGayIE(SeleniumInfoExtractor):
 
         try:
 
-            driver  = self.get_driver(usequeue=True)
+            driver  = self.get_driver()
 
             try:
 
@@ -112,7 +112,7 @@ class TheGayIE(SeleniumInfoExtractor):
                 self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
                 raise ExtractorError(repr(e))
             finally:
-                self.put_in_queue(driver)                    
+                self.rm_driver(driver)                    
                     
         except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())

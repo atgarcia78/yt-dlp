@@ -35,7 +35,7 @@ class Hulu123IE(SeleniumInfoExtractor):
             if key != "vip_url": return ""
             else: return []
         
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         @limiter_5.ratelimit("hulu123" + key, delay=True)
         def _getter(server):
@@ -71,7 +71,7 @@ class Hulu123IE(SeleniumInfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
             
                       
         
@@ -83,7 +83,7 @@ class Hulu123IE(SeleniumInfoExtractor):
     def _real_extract(self, url):        
         
         self.report_extraction(url)        
-        driver = self.get_driver(usequeue=True) 
+        driver = self.get_driver() 
 
         try:
 
@@ -170,6 +170,6 @@ class Hulu123IE(SeleniumInfoExtractor):
             self.to_screen(f'{str(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(str(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
  
         

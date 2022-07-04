@@ -405,7 +405,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         try:
             driver.get(self._SITE_URL)
@@ -430,7 +430,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
         
 class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:search:playlist'   

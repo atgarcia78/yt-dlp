@@ -52,7 +52,7 @@ class EPlayVidIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         try:
 
@@ -87,5 +87,5 @@ class EPlayVidIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
         

@@ -47,7 +47,7 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
         return res
     
     def get_driver_NS(self):
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         driver.get(self._SITE_URL)
         for cookie in VODNakedSwordBaseIE._COOKIES:
             driver.add_cookie(cookie)

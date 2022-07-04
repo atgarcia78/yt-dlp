@@ -207,7 +207,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         while count < 3:        
         
             self.report_extraction(f"[{url}] attempt[{count+1}/3]")
-            driver = self.get_driver(usequeue=True)
+            driver = self.get_driver()
             
             try:
 
@@ -317,7 +317,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                 self.write_debug(f"{repr(e)}\n{'!!'.join(lines)}")
                 raise ExtractorError(repr(e))                    
             finally:
-                self.put_in_queue(driver)
+                self.rm_driver(driver)
             
              
    
