@@ -107,7 +107,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         
         try:
         
-            _driver = self.get_driver(usequeue=True)
+            _driver = self.get_driver()
 
             self.to_screen(f'[get_entries] {url}')
 
@@ -125,7 +125,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             self.to_screen(f'[get_entries][{url}] {repr(e)}')
             
         finally:
-            self.put_in_queue(_driver)
+            self.rm_driver(_driver)
            
 
     @limiter_1.ratelimit("gaybeeg2", delay=True)  

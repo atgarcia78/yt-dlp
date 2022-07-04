@@ -138,6 +138,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             driver.quit()
         except Exception:
             pass
+        finally:
+            with SeleniumInfoExtractor._MASTER_LOCK:
+                SeleniumInfoExtractor._MASTER_COUNT -= 1
         
     def _real_initialize(self):
           
@@ -147,31 +150,19 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._YTDL = self._downloader
                 SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
 
-                init_drivers = []
                 try:
-                    # with ThreadPoolExecutor(thread_name_prefix='init_firefox',max_workers=SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS) as ex:
-                    #     futures = {ex.submit(self.get_driver): i for i in range(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS)}
-                    
-                    
-                    # for fut in futures:
-                    #     try:
-                    #         init_drivers.append(fut.result())
-                    #     except Exception as e:
-                    #         lines = traceback.format_exception(*sys.exc_info())
-                    #         self.to_screen(f'[init_drivers][{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
-                    init_drivers.append(self.get_driver())
+
+                    driver = self.get_driver()
 
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
                     
                 finally:
-                    if init_drivers:
-                        SeleniumInfoExtractor._USER_AGENT = init_drivers[0].execute_script("return navigator.userAgent")
-                        # for driver in init_drivers:
-                        #     SeleniumInfoExtractor._QUEUE.put_nowait(driver)
-                        #     SeleniumInfoExtractor._MASTER_COUNT += 1
-                        self.rm_driver(init_drivers[0])
+                    if driver:
+                        SeleniumInfoExtractor._USER_AGENT = driver.execute_script("return navigator.userAgent")
+
+                        self.rm_driver(driver)
                 
              
                 _headers = dict(httpx.Headers(SeleniumInfoExtractor._YTDL.params.get('http_headers')).copy())
@@ -190,36 +181,35 @@ class SeleniumInfoExtractor(InfoExtractor):
         """Real extraction process. Redefine in subclasses."""
         raise NotImplementedError('This method must be implemented by subclasses')
         
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, msg=None, usequeue=False):        
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, usequeue=False):        
 
-        
-       
+
         if usequeue:
         
             with SeleniumInfoExtractor._MASTER_LOCK:
-            #self.write_debug(f"drivers qsize: {SeleniumInfoExtractor._QUEUE._qsize()}")
                 if SeleniumInfoExtractor._QUEUE._qsize() > 0:
                     driver = SeleniumInfoExtractor._QUEUE.get()
                 else:    
                     if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
-                        driver = self._get_driver(noheadless, host, port, msg)
+                        driver = self._get_driver(noheadless, host, port)
                         SeleniumInfoExtractor._MASTER_COUNT += 1                    
                     else:
                         driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=600)            
     
         else: 
 
-            driver = self._get_driver(noheadless, devtools, host, port, msg)
-             
+            with SeleniumInfoExtractor._MASTER_LOCK:
+                if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
+                    driver = self._get_driver(noheadless, devtools, host, port)
+                    SeleniumInfoExtractor._MASTER_COUNT += 1
+           
         
  
         
         return driver
         
-    def _get_driver(self, _noheadless, _devtools, _host, _port, _msg):
+    def _get_driver(self, _noheadless, _devtools, _host, _port):
         
-        if _msg: pre = f'{_msg} '
-        else: pre = ''
         
         tempdir = tempfile.mkdtemp(prefix='asyncall-') 
           
@@ -288,8 +278,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
                 self.wait_until(driver, 0.5)
                 
-                #self.logger_debug(f"{pre}New firefox webdriver")
-                
+               
                 return driver
                 
             except Exception as e:
@@ -299,11 +288,11 @@ class SeleniumInfoExtractor(InfoExtractor):
                     driver = None
                 if 'Status code was: 69' in repr(e):
                     shutil.rmtree(tempdir, ignore_errors=True)
-                    self.report_warning(f'{pre}Firefox needs to be relaunched')
-                    raise ExtractorError(f'{pre}Firefox needs to be relaunched')
+                    self.report_warning(f'Firefox needs to be relaunched')
+                    raise ExtractorError(f'Firefox needs to be relaunched')
                 if n == 3:
                     lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f'{pre}{repr(e)} \n{"!!".join(lines)}')
+                    self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
                     shutil.rmtree(tempdir, ignore_errors=True)  
                     raise ExtractorError(repr(e))
 
@@ -359,39 +348,32 @@ class SeleniumInfoExtractor(InfoExtractor):
     #             self.logger_info(f"[stop_server] timeout")
     #             break
 
-    def scan_for_request(self, _harproxy, _link, _all=False, _ref=None, timeout=60):
+    def scan_for_request(self, driver, _link, _all=False, timeout=60):
 
-        if isinstance(_harproxy, Firefox):
-            def gethar():
-                return (_harproxy.execute_async_script(
-                    "HAR.triggerExport().then(arguments[0]);"))
-        else:
-            def gethar():
-                return(_harproxy.har.get('log'))
-            
+       
+        def _get_har():
+            return (driver.execute_async_script(
+                        "HAR.triggerExport().then(arguments[0]);")).get('entries')
+
         _list_hints = []
+        _har_ant = []
         
         _started = time.monotonic()        
         while(True):
-            _har  = gethar()
-            for entry in _har.get('entries'):
-                if _ref:
-                    if entry['pageref'] == _ref:
-                        if re.search(_link, (_url:=entry['request']['url'])):
-                            _hint = (_url, entry.get('response', {}).get('content', {}).get('text', ""))                            
-                            if not _all: 
-                                return(_hint)
-                            else:
-                                _list_hints.append(_hint)
-                                
-                else:
-                    if re.search(_link, (_url:=entry['request']['url'])):
-                            _hint = (_url, entry.get('response', {}).get('content', {}).get('text', ""))                            
-                            if not _all: 
-                                return(_hint)
-                            else:
-                                _list_hints.append(_hint)
+
+            _har = _get_har()
+ 
+            for entry in _har:
+
+                if re.search(_link, (_url:=entry['request']['url'])):
+                    if (_resp_content:=entry.get('response', {}).get('content', {}).get('text', "")):
+                        _hint = (_url, _resp_content)
+                        if not _all: return(_hint)   
+                        else:                    
+                            _list_hints.append(_hint)
                     
+                                        
+            
             if _list_hints: 
                 return(_list_hints)
             
@@ -400,6 +382,35 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 time.sleep(0.5)
                 
+    
+    def scan_for_json(self, _driver, _link, _all=False):
+
+        import logging
+        import json
+        import html
+        
+        logger = logging.getLogger("YTDL_SUPPORT")
+        
+        _hints = self.scan_for_request(_driver, _link, _all)
+        
+        logger.debug(f"[scan_json] {_hints}")
+        
+        if not _all:
+            _info_json = try_get(_hints, lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else "")
+            return(_info_json)
+        else:            
+            if _hints:
+                _list_info_json = []           
+                        
+                for el in _hints:
+                    _info_json = try_get(el, lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else "")
+                    if _info_json: 
+                        _list_info_json.append(_info_json)
+                
+                return(_list_info_json)
+    
+    
+    
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
         try:
             el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(method)

@@ -59,7 +59,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             
     
     def get_driver_NS(self):
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         driver.get(self._SITE_URL)
         for cookie in NakedSwordBaseIE._COOKIES:
             driver.add_cookie(cookie)
@@ -75,7 +75,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'A valid %s account is needed to access this media.'
                 % self._NETRC_MACHINE)            
 
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         try:
             driver.get(self._SITE_URL)
             if driver.current_url == "https://nakedsword.com/members":
@@ -102,7 +102,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.to_screen(repr(e))
             raise ExtractorError(f"login nok: {repr(e)}")
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
                     
    
     def _real_initialize(self):
@@ -780,7 +780,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         query = starname.replace(' ', '+')
         url = f"https://vod-classic.nakedsword.com/dispatcher/fts?targetSearchMode=basic&isAdvancedSearch=false&isFlushAdvancedSearchCriteria=false&userQuery={query}d&sortType=Relevance&theaterId=22299&genreId=102&locale=en"
         
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         try:
             
@@ -800,14 +800,14 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
         finally:
-            self.put_in_queue(driver)        
+            self.rm_driver(driver)        
     
     def get_studioid(self, studioname):
          
         query = studioname.replace(' ', '+')
         url = f"https://vod-classic.nakedsword.com/dispatcher/fts?targetSearchMode=basic&isAdvancedSearch=false&isFlushAdvancedSearchCriteria=false&userQuery={query}&sortType=Relevance&theaterId=22299&genreId=102&locale=en"
         
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         try:
             
@@ -827,13 +827,13 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
 
     def get_scenes_ns(self, urls):
         
 
         def _get_scenes_url(j):
-            _driver = self.get_driver(usequeue=True)
+            _driver = self.get_driver()
                         
             try:                
                 while True:
@@ -914,7 +914,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
 
 
         def _get_movies_url(j):
-            _driver = self.get_driver(usequeue=True)
+            _driver = self.get_driver()
                         
             try:                
                 while True:

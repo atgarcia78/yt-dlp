@@ -60,7 +60,7 @@ class UserLoadIE(SeleniumInfoExtractor):
         
         try:
             _videoinfo = None
-            driver = self.get_driver(usequeue=True)
+            driver = self.get_driver()
             self._send_request(url, driver)
             video_url = self.wait_until(driver, 30, video_or_error_userload(self.to_screen))
             _videoinfo = self._get_video_info(video_url)
@@ -69,7 +69,7 @@ class UserLoadIE(SeleniumInfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
         
         if _videoinfo: return True
     
@@ -79,7 +79,7 @@ class UserLoadIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        driver = self.get_driver(usequeue=True)
+        driver = self.get_driver()
         
         try:
 
@@ -119,5 +119,5 @@ class UserLoadIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
-            self.put_in_queue(driver)
+            self.rm_driver(driver)
         

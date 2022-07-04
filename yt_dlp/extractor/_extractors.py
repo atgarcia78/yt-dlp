@@ -2574,19 +2574,18 @@ from .onlyfans import (
     OnlyFansPostIE,
     OnlyFansPlaylistIE,    
     OnlyFansPaidlistIE,
-    OnlyFansActSubslistIE
+    OnlyFansActSubslistIE,
+    OnlyFansAllChatslistIE
 )
 from .netdna import NetDNAIE
-from .fraternityx import (
-    FraternityXIE,    
-    FraternityXOnePagePlaylistIE,
-    FraternityXAllPagesPlaylistIE,    
-)
 
 from .bbgroup import (
     BreederBrosIE,    
     BreederBrosOnePagePlaylistIE,
-    BreederBrosAllPagesPlaylistIE,    
+    BreederBrosAllPagesPlaylistIE,
+    SketchySexIE,    
+    SketchySexOnePagePlaylistIE,
+    SketchySexAllPagesPlaylistIE,    
 )
 
 from .youngbastards import YoungBastardsIE
