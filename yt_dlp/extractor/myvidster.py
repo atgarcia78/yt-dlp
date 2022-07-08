@@ -163,7 +163,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if x:
                     for el in list(set(x)):
                         if not '//syndication.' in el:
-                            if self._is_valid(el, msg): return el
+                            if self._is_valid(unquote(el), msg): return unquote(el)
 
 
             source_url = try_get(re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage), lambda x: _getter(x, 'source_url')) 

@@ -37,6 +37,9 @@ limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 dec_on_exception = on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
 
+import logging
+logger = logging.getLogger("Commonwebdriver")
+
 
 class scroll():
     '''
@@ -143,39 +146,36 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._MASTER_COUNT -= 1
         
     def _real_initialize(self):
-          
-        with SeleniumInfoExtractor._MASTER_LOCK:
-            if not SeleniumInfoExtractor._MASTER_INIT:
-                
-                SeleniumInfoExtractor._YTDL = self._downloader
-                SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
-
-                try:
-
-                    driver = self.get_driver()
-
-                except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+        
+        import logging
+        logger = logging.getLogger("Commonwebdriver")
+        
+        try:  
+        
+            with SeleniumInfoExtractor._MASTER_LOCK:
+                if not SeleniumInfoExtractor._MASTER_INIT:
                     
-                finally:
-                    if driver:
-                        SeleniumInfoExtractor._USER_AGENT = driver.execute_script("return navigator.userAgent")
+                    SeleniumInfoExtractor._YTDL = self._downloader
+                    SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
 
-                        self.rm_driver(driver)
-                
-             
-                _headers = dict(httpx.Headers(SeleniumInfoExtractor._YTDL.params.get('http_headers')).copy())
-                _headers.update({'user-agent': SeleniumInfoExtractor._USER_AGENT})
-                
-                SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(60, connect=60), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
-                #self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
-                
-                SeleniumInfoExtractor._FIREFOX_HEADERS['User-Agent'] = SeleniumInfoExtractor._CLIENT_CONFIG['headers']['user-agent']
-                
-                _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
-                SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
-                SeleniumInfoExtractor._MASTER_INIT = True
+                    SeleniumInfoExtractor._USER_AGENT = SeleniumInfoExtractor._YTDL.params.get('user_agent')
+
+                    _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers')
+
+                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(60, connect=60), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
+                    
+                    #self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
+                    
+                    SeleniumInfoExtractor._FIREFOX_HEADERS['User-Agent'] = SeleniumInfoExtractor._USER_AGENT
+                    
+                    _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
+                    SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+                    SeleniumInfoExtractor._MASTER_INIT = True
+                    
+                    print(SeleniumInfoExtractor._CLIENT.headers)
+                    
+        except Exception as e:
+            logger.exception(e)
 
     def _real_extract(self, url):
         """Real extraction process. Redefine in subclasses."""
@@ -184,6 +184,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, usequeue=False):        
 
 
+        driver = None
+        
         if usequeue:
         
             with SeleniumInfoExtractor._MASTER_LOCK:
@@ -199,13 +201,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         else: 
 
             with SeleniumInfoExtractor._MASTER_LOCK:
-                if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
-                    driver = self._get_driver(noheadless, devtools, host, port)
-                    SeleniumInfoExtractor._MASTER_COUNT += 1
-           
-        
- 
-        
+                driver = self._get_driver(noheadless, devtools, host, port)
+                SeleniumInfoExtractor._MASTER_COUNT += 1    
+
+            
+
         return driver
         
     def _get_driver(self, _noheadless, _devtools, _host, _port):
@@ -580,6 +580,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         except Exception as e:
             self.report_warning(f'[valid]{_pre_str} error {repr(e)}')
+            logger.exception(e)
             return False
     
     def send_http_request(self, url, _type="GET", data=None, headers=None, msg=None):        
@@ -587,8 +588,18 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             res = ""
             _msg_err = ""
+           
+                
             req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
             res = SeleniumInfoExtractor._CLIENT.send(req)
+            # if _type=="GET":
+            #     req = SeleniumInfoExtractor._CLIENT.get(url, data=data, headers=headers)
+            # elif _type=="HEAD":
+            #     req = SeleniumInfoExtractor._CLIENT.head(url, data=data, headers=headers)
+            # elif _type=="POST":
+            #     req = SeleniumInfoExtractor._CLIENT.post(url, data=data, headers=headers)
+            
+                
             
             res.raise_for_status()
             return res
