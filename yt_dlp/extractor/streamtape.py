@@ -89,7 +89,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
             else: pre = f'[get_entry][{self._get_url_print(url)}]'
             _videoinfo = None
-            driver = self.get_driver(msg=pre)
+            driver = self.get_driver()
             self._send_request(url, driver, msg=pre)
             video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
