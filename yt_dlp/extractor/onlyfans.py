@@ -154,16 +154,14 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
              
             self.send_driver_request(driver, self._SITE_URL)
-            #self.wait_until(driver, 2)        
 
-            
             el_init = self.wait_until(driver, 60, alreadylogin_or_reqtw())
             if not el_init: raise ExtractorError("Error in login")
             if el_init[0] == "loginok": 
                 self.to_screen("Login OK")
                 return
             else: 
-                #el_init[1].click()
+
                 self.send_driver_request(driver, el_init[1].get_attribute('href'))
             
             el = self.wait_until(driver, 60, succ_or_twlogin())            

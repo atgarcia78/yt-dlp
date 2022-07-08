@@ -885,7 +885,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f"[get_scenes][{j}] {repr(e)}\n{'!!'.join(lines)}")
             finally:
-                SeleniumInfoExtractor._QUEUE.put_nowait(_driver)
+                self.rm_driver(_driver)
                 self.to_screen(f'[get_scenes][{j}] bye') 
 
         try:
@@ -964,7 +964,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f"[get_movies][{j}] {repr(e)}\n{'!!'.join(lines)}")
             finally:
-                SeleniumInfoExtractor._QUEUE.put_nowait(_driver)
+                self.rm_driver(_driver)
                 self.to_screen(f'[get_movies][{j}] bye') 
 
         try:
