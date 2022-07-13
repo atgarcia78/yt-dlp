@@ -7,66 +7,66 @@ import traceback
 from datetime import datetime
 
 from ..utils import ExtractorError, try_get, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, scroll
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_05, limiter_0_1, By, scroll
 
 from concurrent.futures import ThreadPoolExecutor
 
-class getvideos():
-    def __call__(self, driver):
-        el_iframes = driver.find_elements(By.TAG_NAME, "iframe")
-        videos = []
-        _subvideos = []
-        if el_iframes:
-            for _ifr in el_iframes:
-                if _ifr.get_attribute("allowfullscreen"):
-                    if _ifr.get_attribute("mozallowfullscreen"):
-                        _subvideos.append(_ifr.get_attribute('src'))
-                    else:
-                        _vid = _ifr.get_attribute('src')
-                        if _subvideos:
-                            _subvideos.append(_vid)
-                            videos.append(_subvideos)
-                            _subvideos = []
-                        else: videos.append(_vid)
-        if _subvideos:
-            if len(_subvideos) == 1: _subvideos = _subvideos[0]
-            videos.insert(0, _subvideos)        
-        if not videos: 
-            return False
-        return(videos)
+# class getvideos():
+#     def __call__(self, driver):
+#         el_iframes = driver.find_elements(By.TAG_NAME, "iframe")
+#         videos = []
+#         _subvideos = []
+#         if el_iframes:
+#             for _ifr in el_iframes:
+#                 if _ifr.get_attribute("allowfullscreen"):
+#                     if _ifr.get_attribute("mozallowfullscreen"):
+#                         _subvideos.append(_ifr.get_attribute('src'))
+#                     else:
+#                         _vid = _ifr.get_attribute('src')
+#                         if _subvideos:
+#                             _subvideos.append(_vid)
+#                             videos.append(_subvideos)
+#                             _subvideos = []
+#                         else: videos.append(_vid)
+#         if _subvideos:
+#             if len(_subvideos) == 1: _subvideos = _subvideos[0]
+#             videos.insert(0, _subvideos)        
+#         if not videos: 
+#             return False
+#         return(videos)
 
             
-class check_consent():
-    def __init__(self):
-        self.init = True
+# class check_consent():
+#     def __init__(self):
+#         self.init = True
         
-    def __call__(self, driver):
+#     def __call__(self, driver):
 
-        if self.init:
-            if (el_ifr:=driver.find_elements(By.ID, "injected-iframe")):
+#         if self.init:
+#             if (el_ifr:=driver.find_elements(By.ID, "injected-iframe")):
 
-                driver.switch_to.frame(el_ifr[0])
-                self.init = False
+#                 driver.switch_to.frame(el_ifr[0])
+#                 self.init = False
                 
-            else: return True
+#             else: return True
 
-        el_button = driver.find_element(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")
+#         el_button = driver.find_element(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")
             
-        el_button.click()
-        #time.sleep(2)
-        driver.switch_to.default_content()
-        #time.sleep(2)
-        return True
+#         el_button.click()
+#         #time.sleep(2)
+#         driver.switch_to.default_content()
+#         #time.sleep(2)
+#         return True
 
                 
-class get_infopost():
-    def __call__(self, driver):
-        el_postdate = driver.find_element(By.CSS_SELECTOR, ".mi")
-        if (_text:=el_postdate.text):
-            postid = try_get(driver.find_element(By.CLASS_NAME, "related-tag"), lambda x: x.get_attribute('data-id'))
-            title = driver.title
-            return (_text, title, postid)
-        else: return False
+# class get_infopost():
+#     def __call__(self, driver):
+#         el_postdate = driver.find_element(By.CSS_SELECTOR, ".mi")
+#         if (_text:=el_postdate.text):
+#             postid = try_get(driver.find_element(By.CLASS_NAME, "related-tag"), lambda x: x.get_attribute('data-id'))
+#             title = driver.title
+#             return (_text, title, postid)
+#         else: return False
         
 class GVDBlogBaseIE(SeleniumInfoExtractor):
 
@@ -95,19 +95,59 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entries(self, url, check=True):
         
         self.report_extraction(url)
-        driver = self.get_driver()
+        #driver = self.get_driver()
 
         try:
             
-            self._send_request(url, driver, msg='[get_entries]')
+            #self._send_request(url, driver, msg='[get_entries]')
             
-            self.wait_until(driver, 60, check_consent())
+            #self.wait_until(driver, 60, check_consent())
             
-            postdate, title, postid = try_get(self.wait_until(driver, 60, get_infopost()),
-                                              lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2])) or ("", "", "")
+            #postdate, title, postid = try_get(self.wait_until(driver, 60, get_infopost()),
+            #                                  lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2])) or ("", "", "")
             
-            self.wait_until(driver, 60, scroll(2))
-            list_candidate_videos = self.wait_until(driver, 30, getvideos())
+            #self.wait_until(driver, 60, scroll(2))
+            #list_candidate_videos = self.wait_until(driver, 30, getvideos())
+            
+            def get_urls(webpage):    
+    
+                list_urls = [mobj.group('url','ppal') for mobj in re.finditer(r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']',webpage)]
+                list1 = []
+
+                _subvideo = []
+                for el in list_urls:
+                    if el[1]:
+                        if _subvideo:
+                            list1.append(_subvideo)
+                            _subvideo = []
+
+                        _subvideo.append(el[0])
+                    else:
+                        if _subvideo:
+                            _subvideo.append(el[0])
+                            list1.append(_subvideo)
+                            _subvideo = []
+                        else:
+                            list1.append(el[0])
+
+
+                return list1
+                        
+            def get_info(webpage):
+    
+                postid = try_get(re.findall(r"class='related-tag' data-id='(\d+)'", webpage), lambda x: x[0])
+                title = try_get(re.findall(r"title>([^<]+)<", webpage), lambda x: x[0])
+                postdate = try_get(re.findall(r"class='entry-time mi'><time class='published' datetime='[^']+'>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y') if x else None)
+                return(postdate, title, postid)
+            
+            webpage = try_get(self._send_request(url, msg='[get_entries]'), lambda x: x.text)
+            if not webpage: raise ExtractorError("no webpage")
+            
+            postdate, title, postid = get_info(webpage)
+            list_candidate_videos = get_urls(webpage)
+                
+            if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError("no video info")   
+                
             pre = f'{self._get_url_print(url)}: [get_entry]'
             
             entries = []
@@ -149,11 +189,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             self.report_warning(f'[get_entries][{url}] {repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(str(e))
         finally:
-            self.rm_driver(driver)
+            #self.rm_driver(driver)
+            pass
 
     
     @dec_on_exception
-    @limiter_0_1.ratelimit("gvdblog", delay=True)
+    @limiter_0_05.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, driver=None, msg=None):
         
         if msg: pre = f'{msg}[_send_request]'
