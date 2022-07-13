@@ -6,7 +6,7 @@ import traceback
 from urllib.parse import unquote
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, limiter_5, limiter_2, limiter_0_1, limiter_0_5, By
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, limiter_0_07, limiter_2, limiter_0_1, limiter_0_05, By
 
 class getvideourl():
     def __call__(self, driver):
@@ -40,7 +40,7 @@ class TubeloadIE(SeleniumInfoExtractor):
 
         
     @dec_on_exception
-    @limiter_0_1.ratelimit("tubeload", delay=True)
+    @limiter_0_07.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url, msg=None):        
         
         if msg: pre = f'{msg}[get_video_info]'
@@ -50,7 +50,7 @@ class TubeloadIE(SeleniumInfoExtractor):
                                                     'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)     
     
     @dec_on_exception
-    @limiter_0_1.ratelimit("tubeload", delay=True)
+    @limiter_0_07.ratelimit("tubeload", delay=True)
     def _send_request(self, url, driver, msg=None):        
         
         if msg: pre = f'{msg}[_send_request]'
@@ -99,7 +99,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
+            self.report_warning(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
@@ -126,6 +126,6 @@ class TubeloadIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
