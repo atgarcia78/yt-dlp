@@ -18,7 +18,7 @@ class getvideourl():
         el_video = driver.find_elements(By.TAG_NAME, 'video')
         if not el_video: return False
         if (video_url:=el_video[0].get_attribute('src')):
-            return video_url
+            return unquote(video_url)
         else: return False
         
 
@@ -28,7 +28,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
 
     
     @dec_on_exception
-    @limiter_5.ratelimit("gayforiteu1", delay=True)
+    @limiter_5.ratelimit("gayforiteu", delay=True)
     def _send_request(self, url, driver):
         
         #lets use the native method of InfoExtractor to download the webpage content. HTTPX doesnt work with this site
@@ -37,7 +37,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
       
             
     @dec_on_exception
-    @limiter_5.ratelimit("gayforiteu2", delay=True)   
+    @limiter_5.ratelimit("gayforiteu", delay=True)   
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
     
@@ -47,20 +47,17 @@ class GayForITEUIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-        driver = self.get_driver(noheadless=True)
+        driver = self.get_driver()
         try:
             videoid = try_get(re.search(self._VALID_URL, url), lambda x: x.groups()[0] or x.groups()[1])
             self._send_request(url, driver)
             video_url = self.wait_until(driver, 30, getvideourl())
+            if not video_url:
+                raise ExtractorError("no video url")
             title = try_get(re.findall(r'GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title), lambda x: x[0]) 
             
             webpage = html.unescape(driver.page_source)
             if not webpage or 'this video has been removed' in webpage.lower() or 'this video does not exist' in webpage.lower() : raise ExtractorError("Error 404: no video page info")
-
-
-            if not video_url:
-                raise ExtractorError("no video url")
-            else: video_url = unquote(video_url)
             
             if not videoid:
                 videoid = try_get(re.findall(r'/(\d+)_', video_url), lambda x: x[0]) or 'not_id'

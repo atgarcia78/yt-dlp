@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from threading import Lock
 from urllib.parse import quote, unquote
+import html
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
@@ -48,11 +49,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver=None, _type="GET", data=None, headers=None):
         
         if not driver:
-            res = None
+            
             try:
-                res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
-                res.raise_for_status()
-                return res
+                #res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
+                #res.raise_for_status()
+                return(self.send_http_request(url, _type=_type, data=data, headers=headers))
+                #return res
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
                 self.to_screen(f"[send_request] error {repr(e)}\n{'!!'.join(lines)}")
@@ -143,33 +145,54 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if res and res2 else None)
 
     
-    def get_entries_scenes(self, url):
+    def get_entries_scenes(self, url, page=None):
         
         entries = []
-        webpage = self._download_webpage(url, None, "Downloading web page playlist", fatal=False)
-        if webpage:  
-                        
-            videos_paths = re.findall(
-                r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
-                webpage)     
-            
-            if videos_paths:
+        
+        try:
+            premsg = f"[get_entries_scenes]"
+            if page: premsg = f"{premsg}[page {page}]"
+            self.report_extraction(f"{premsg} {url}")
+            #webpage = self._download_webpage(url, None, None, fatal=False)
+            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]','', html.unescape(x.text)) if x else None)
+            if not webpage: raise ExtractorError("no webpage")
+            if webpage:  
+                            
+                videos_paths = re.findall(
+                    r"<div class='SRMainTitleDurationLink'><a href='/([^\']+)'>",
+                    webpage)     
                 
-                for video in videos_paths:
-                    _urlscene = self._SITE_URL + video
-                    res = self._get_info(_urlscene)
-                    if res:
-                        _id = res.get('id')
-                        _title = res.get('title')
-                    entry = self.url_result(_urlscene, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
-                    entries.append(entry)
- 
-        return entries
+                if videos_paths:
+                    
+                    list_urlscenes = [f"{self._SITE_URL}{video}" for video in videos_paths]
+                    self.to_screen(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")               
+                    with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 5)) as exe:
+                                        
+                        
+                        futures = {exe.submit(self._get_entry, _urlscene, "m3u8", premsg): _urlscene for _urlscene in list_urlscenes}
+                        # res = self._get_info(_urlscene)
+                        # if res:
+                        #     _id = res.get('id')
+                        #     _title = res.get('title')
+                        #entry = self._get_entry(_urlscene)
+                        #entry = self.url_result(_urlscene, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
+                    for fut in futures:
+                        try:
+                            _entry = fut.result()
+                            if not _entry: raise ExtractorError("no entry")
+                            _entry.update({'original_url': url})
+                            entries.append(_entry)
+                        except Exception as e:
+                            self.report_warning(f"[get_entries_scenes] {url} - {futures[fut]} error - {repr(e)}")                                             
+    
+            return entries
+        except Exception as e:
+            self.report_warning(f"[get_entries_scenes] {url} error - {repr(e)}")
     
     def get_entries_movies(self, url):
         
         entries = []
-        webpage = self._download_webpage(url, None, "Downloading web page playlist", fatal=False)
+        webpage = self._download_webpage(url, None, None, fatal=False)
         if webpage:  
                         
             videos_paths = re.findall(
@@ -184,48 +207,71 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     entries.append(entry)
  
         return entries
+    
+    def _get_entry(self, url, _type="m3u8", msg=None):
+        
+        _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json", "Accept": "application/json, text/javascript, */*; q=0.01"})
+        _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://nakedsword.com", "Referer": self._SITE_URL})
+        
+        _type_dict = {'m3u8': 'HLS', 'dash': 'DASH'}
+        
+        try:
+            premsg = f"[get_entry] {url}"
+            if msg: premsg = f"{msg}{premsg}"
+            #self.report_extraction(f"{premsg}")    
+            info_video = self._get_info(url)
+            if not info_video: raise ExtractorError("Can't find sceneid")
+                          
+            scene_id = info_video.get('id')
+            if not scene_id: raise ExtractorError("Can't find sceneid")
+            
+            getstream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id), _type_dict[_type]]) 
+                    
+            self.to_screen(f"{premsg} [getstream_url] {getstream_url}")
+            info_json = try_get(self._send_request(getstream_url, headers=_headers_json), lambda x: x.json() if x else None)
+            if not info_json: raise ExtractorError("Cant get json")
+            mpd_url = info_json.get("StreamUrl") 
+            if not mpd_url: raise ExtractorError("Can't find url mpd")
+            self.to_screen(f"{premsg} [m3u8_url] {mpd_url}")
+            mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
+            if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
+            if _type == "dash":
+                mpd_doc = self._parse_xml(mpd_doc, None)
+             
+            formats = []               
+            if _type == "m3u8":
+                formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
+            elif _type == "dash":
+                formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
+                
+            if formats:
+                self._sort_formats(formats)
+            
+                _entry = {
+                    "id": scene_id,
+                    "title": info_video.get('title'),
+                    "formats": formats,
+                    "ext": "mp4",
+                    "webpage_url": url,
+                    "extractor_key": 'NakedSwordScene',
+                    "extractor": 'nakesword:scene'
+                }
+            
+                self.to_screen(f"{premsg}: OK got entry")
+                return _entry
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{premsg}: [_type] {_type}  {repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(f'{repr(e)}')
         
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:scene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
 
 
-    def _get_formats(self, url, stream_url, _type):
-        
-        _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json",
-                                                "Accept": "application/json, text/javascript, */*; q=0.01"})
-        _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://nakedsword.com", "Referer": self._SITE_URL})
-        
-        try:
-                    
-            info_json = try_get(self._send_request(stream_url, headers=_headers_json), lambda x: x.json())
-            if not info_json: raise ExtractorError("Cant get json")
-            mpd_url = info_json.get("StreamUrl") 
-            if not mpd_url: raise ExtractorError("Can't find url mpd")
-            mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace'))
-            if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
-            if _type == "dash":
-                mpd_doc = self._parse_xml(mpd_doc, None)
-                            
-            if _type == "m3u8":
-                formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
-            elif _type == "dash":
-                formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
-                
-            self._sort_formats(formats)
-            
-            return formats
-            
-        except ExtractorError:
-            raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(f'{repr(e)}')
-
-                       
-                
-    
     def _real_initialize(self):
         super()._real_initialize()
     
@@ -234,27 +280,27 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         try:            
             self.report_extraction(url)
             
-            info_video = self._get_info(url)
-            if not info_video: raise ExtractorError("Can't find sceneid")
+            # info_video = self._get_info(url)
+            # if not info_video: raise ExtractorError("Can't find sceneid")
                           
-            scene_id = info_video.get('id')
-            if not scene_id: raise ExtractorError("Can't find sceneid")
+            # scene_id = info_video.get('id')
+            # if not scene_id: raise ExtractorError("Can't find sceneid")
             
-            stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
+            # stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
             
 
-            formats = self._get_formats(url, "/".join([stream_url, "HLS"]), "m3u8")       
+            # formats = self._get_formats(url, "/".join([stream_url, "HLS"]), "m3u8")       
             
             #self._sort_formats(formats) 
             
-            _entry = {
-                "id": scene_id,
-                "title": info_video.get('title'),
-                "formats": formats,
-                "ext": "mp4"
-            }
+            # _entry = {
+            #     "id": scene_id,
+            #     "title": info_video.get('title'),
+            #     "formats": formats,
+            #     "ext": "mp4"
+            # }
             
-            return _entry
+            return self._get_entry(url)
  
         except ExtractorError:
             raise
@@ -282,7 +328,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         playlist_id, title = self._match_valid_url(url).group('id', 'title')
         
-        webpage = self._download_webpage(url, playlist_id, "Downloading web page playlist")
+        webpage = self._download_webpage(url, playlist_id, None, fatal=False)
 
         pl_title = self._html_search_regex(r'(?s)<title>(?P<title>.*?)<', webpage, 'title', group='title').split(" | ")[1]
 
@@ -318,10 +364,10 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
        
         pages = try_get(re.search(self._VALID_URL, url), lambda x: x.group('pages')) or "1"
         entries = []
-
+        list_pages = [(i, f"{self._MOST_WATCHED}{i}") for i in range(1, int(pages) + 1)]
         with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=5) as ex:
             
-            futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, int(pages) + 1)]
+            futures = {ex.submit(self.get_entries_scenes, el[1], el[0]): el[0]  for el in list_pages}
         
         for fut in futures:
             try:
@@ -334,8 +380,8 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
         if entries:
             return {
                 '_type': 'playlist',
-                'id': "NakedSWord mostwatched",
-                'title': "NakedSword mostwatched",
+                'id': f"nakedsword:mostwatched:pages:{pages}",
+                'title': f"nakedsword:mostwatched:pages:{pages}",
                 'entries': entries,
             }
 
@@ -361,7 +407,7 @@ class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
 
         with ThreadPoolExecutor(max_workers=5) as ex:
             
-            futures = [ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}") for i in range(1, int(data['pages']) + 1)]
+            futures = [ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}", i) for i in range(1, int(data['pages']) + 1)]
 
         for fut in futures:
             try:
@@ -391,7 +437,7 @@ class NakedSwordPlaylistIE(NakedSwordBaseIE):
 
         entries = []
 
-        webpage = self._download_webpage(url, None, "Downloading web page playlist")
+        webpage = self._download_webpage(url, None, None, fatal=False)
         if webpage: 
 
             if 'SCENE LIST GRID WRAPPER' in webpage:
