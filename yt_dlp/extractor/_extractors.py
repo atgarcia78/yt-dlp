@@ -2431,7 +2431,7 @@ from .nakedsword import (
     NakedSwordSceneIE,
     NakedSwordMovieIE,
     NakedSwordMostWatchedIE,
-    NakedSwordStarsIE,
+    NakedSwordStarsStudiosIE,
     NakedSwordPlaylistIE,
     NakedSwordSearchIE
 )

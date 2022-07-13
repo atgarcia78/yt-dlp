@@ -12,7 +12,7 @@ from urllib.parse import quote, unquote
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_01, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, ec
 
 
 class NakedSwordBaseIE(SeleniumInfoExtractor):
@@ -44,26 +44,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         return _headers
     
     @dec_on_exception
-    @limiter_0_01.ratelimit("nakedsword", delay=True)
-    def _send_request(self, url, _type="GET", data=None, headers=None):
+    @limiter_0_1.ratelimit("nakedsword", delay=True)
+    def _send_request(self, url, driver=None, _type="GET", data=None, headers=None):
         
-        res = None
-        try:
-            res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
-            res.raise_for_status()
-            return res
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"[send_request] error {repr(e)}\n{'!!'.join(lines)}")
-            raise
-            
-    
-    def get_driver_NS(self):
-        driver = self.get_driver()
-        driver.get(self._SITE_URL)
-        for cookie in NakedSwordBaseIE._COOKIES:
-            driver.add_cookie(cookie)
-        return driver
+        if not driver:
+            res = None
+            try:
+                res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
+                res.raise_for_status()
+                return res
+            except Exception as e:
+                lines = traceback.format_exception(*sys.exc_info())
+                self.to_screen(f"[send_request] error {repr(e)}\n{'!!'.join(lines)}")
+                raise
+        else:
+            driver.execute_script("window.stop();")
+            driver.get(url)
         
     
     def _login(self):
@@ -77,12 +73,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         driver = self.get_driver()
         try:
-            driver.get(self._SITE_URL)
+            self._send_request(self._SITE_URL, driver)
             if driver.current_url == "https://nakedsword.com/members":
                 self.to_screen("Login OK")
                 return driver.get_cookies()
                 
-            driver.get(self._LOGIN_URL)
+            self._send_request(self._LOGIN_URL, driver)
             
             el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
             el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_password.SignInFormInput.SignInFormPassword")))
@@ -311,7 +307,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
 class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:mostwatched:playlist"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/most-watched(\?npages=(?P<npages>\d+))?'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/most-watched(\?pages=(?P<pages>\d+))?'
     _MOST_WATCHED = 'https://nakedsword.com/most-watched?content=Scenes&page='
     
     
@@ -320,12 +316,12 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     
     def _real_extract(self, url):      
        
-        npages = try_get(re.search(self._VALID_URL, url), lambda x: x.group('npages')) or "1"
+        pages = try_get(re.search(self._VALID_URL, url), lambda x: x.group('pages')) or "1"
         entries = []
 
         with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=5) as ex:
             
-            futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, int(npages) + 1)]
+            futures = [ex.submit(self.get_entries_scenes, f"{self._MOST_WATCHED}{i}") for i in range(1, int(pages) + 1)]
         
         for fut in futures:
             try:
@@ -344,8 +340,8 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
             }
 
 
-class NakedSwordStarsIE(NakedSwordBaseIE):
-    IE_NAME = "nakedsword:stars:playlist"
+class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
+    IE_NAME = "nakedsword:starsstudios:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?(\?pages=(?P<pages>\d+))?$'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
     
@@ -756,7 +752,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         'whipping': '32099',
         'worship': '32114',
         'wrestling': '32100'}
-    _SORTBY = {'scenes': ['Popularity', 'Trending', 'Newest'], 'movies': ['MostWatched', 'Trending', 'Newest', 'Released']}
+    _SORTBY = {'scenes': ['Popularity', 'Trending', 'Newest', 'Relevance'], 'movies': ['MostWatched', 'Trending', 'Newest', 'Released', 'Relevance']}
     _CONTENTS = ['movies', 'scenes']    
     _PARAMS = {'movies': ['content', 'pages', 'tag', 'star', 'studio', 'videoquality', 'director', 'releasedate'],
                'scenes': ['content', 'pages', 'tag', 'star', 'studio', 'videoquality', 'setting', 'sexact', 'position']}
@@ -784,7 +780,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
         try:
             
-            driver.get(url)
+            self._send_request(url, driver)
             
             elstar = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStar")))
             if elstar:
@@ -811,19 +807,43 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
         try:
             
-            driver.get(url)
+            self._send_request(url, driver)
             
-            elstudio = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStudio")))
-            if elstudio:
-                ela = try_get(elstudio.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
-                if ela:
-                    studioid = try_get(re.findall(r'studioId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
-                    if studioid: 
-                        NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace("/", "-")] = studioid
-                        NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
-                        self.to_screen(NakedSwordSearchIE._STUDIOS)
-                        NakedSwordSearchIE.upt_info_conf()
-                        return studioid
+            class getstudioid():
+                def __call__(self,driver):
+                    elstudio = driver.find_elements(By.CLASS_NAME, "exactMatchStudio")
+                    if not elstudio:
+                        elres = driver.find_element(By.CLASS_NAME, "searchDetails")
+                        return "NotFound"
+                    else:
+                        if (ela:=try_get(elstudio[0].find_elements(By.TAG_NAME, "a"), lambda x: x[0])):
+                            if (studioid:=try_get(re.findall(r'studioId=(\d+)', ela.get_attribute('href')), lambda x: x[0])):
+                                return studioid
+                        return "NotFound"
+                        
+                            
+            
+            
+            # elstudio = self.wait_until(driver, 60, ec.presence_of_element_located((By.CLASS_NAME, "exactMatchStudio")))
+            # if elstudio:
+            #     ela = try_get(elstudio.find_elements(By.TAG_NAME, "a"), lambda x: x[0])
+            #     if ela:
+            #         studioid = try_get(re.findall(r'studioId=(\d+)', ela.get_attribute('href')), lambda x: x[0])
+            #         if studioid: 
+            #             NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace('-', '')] = studioid
+            #             NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
+            #             self.to_screen(NakedSwordSearchIE._STUDIOS)
+            #             NakedSwordSearchIE.upt_info_conf()
+            #             return studioid
+            
+            studioid = self.wait_until(driver, 60, getstudioid())
+            if studioid and studioid != 'NotFound':
+                NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace('-', '')] = studioid
+                NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
+                self.to_screen(NakedSwordSearchIE._STUDIOS)
+                NakedSwordSearchIE.upt_info_conf()                
+                return studioid
+                
         except Exception as e:
             self.to_screen(repr(e))
         finally:
@@ -841,11 +861,10 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                     if _uq == "KILL": break
                     self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}] {_uq}')
                     try:
-                        _driver.execute_script("window.stop();")
-                        _driver.get(_uq[0])
+                        self._send_request(_uq[0], _driver)
                         el_title = self.wait_until(_driver, 2, ec.presence_of_element_located((By.TAG_NAME, "title")))
                         if not el_title: continue
-                        elscenes = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "dts-panel ")))
+                        elscenes = self.wait_until(_driver, 2, ec.presence_of_all_elements_located((By.CLASS_NAME, "dts-panel ")))
                         if not elscenes: continue
                         _list_scenes_urls = []
                         for el in elscenes:
@@ -859,18 +878,23 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                                 _list_scenes_urls.append((_urlscene, _uq[1], _uq[2]))
                         
                         if not _list_scenes_urls: continue
-                        _nw = min((_size:=len(_list_scenes_urls)), 5)
+                        _nw = min((_size:=len(_list_scenes_urls)), 12)
                         
                         def _check_url(_urlsc, _n):
                             try:
-                                self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc}')
-                                res = NakedSwordSearchIE._CLIENT.get(_urlsc[0])
-                                res.raise_for_status()
-                                if res.text:  self._urlscenesqueue.put_nowait((_urlsc[0], _urlsc[1], _urlsc[2], _n))
+                                
+                                #res = NakedSwordSearchIE._CLIENT.get(_urlsc[0])
+                                #res.raise_for_status()
+                                res = try_get(self._send_request(_urlsc[0]), lambda x: x.text)
+                                if res:  
+                                    self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} OK is available')
+                                    self._urlscenesqueue.put_nowait((_urlsc[0], _urlsc[1], _urlsc[2], _n))
+                                else:
+                                    self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} ERROR not available')
                                
                         
                             except Exception as e:
-                                self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] error {repr(e)}')
+                                self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} ERROR {repr(e)}')
                         
                         with ThreadPoolExecutor(max_workers=_nw) as _ex:               
                             for _k, _elurl in enumerate(_list_scenes_urls):
@@ -922,11 +946,10 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                     if _uq == "KILL": break
                     self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}] {_uq}')
                     try:
-                        _driver.execute_script("window.stop();")
-                        _driver.get(_uq[0])
+                        self._send_request(_uq[0], _driver)
                         el_title = self.wait_until(_driver, 2, ec.presence_of_element_located((By.TAG_NAME, "title")))
                         if not el_title: continue
-                        elmovies = self.wait_until(_driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "dts-image-overlay-container")))
+                        elmovies = self.wait_until(_driver, 2, ec.presence_of_all_elements_located((By.CLASS_NAME, "dts-image-overlay-container")))
                         if not elmovies: continue
                         _list_movies_urls = []
                         for el in elmovies:
@@ -944,13 +967,17 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                         
                         def _check_url(_urlmv, _n):
                             try:
-                                self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv}')
-                                res = NakedSwordSearchIE._CLIENT.get(_urlmv[0])
-                                res.raise_for_status()
-                                if not 'NakedSword.com | Untitled Page' in res.text: self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))
+                                
+                                res = try_get(self._send_request(_urlmv[0]), lambda x: x.text)                                
+                                if res and not 'NakedSword.com | Untitled Page' in res: 
+                                    self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} OK is available')
+                                    self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))
+                                else:
+                                    self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} ERROR not available')
+                                    
                         
                             except Exception as e:
-                                self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] error {repr(e)}')
+                                self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} ERROR {repr(e)}')
                         
                         with ThreadPoolExecutor(max_workers=_nw) as _ex:               
                             futures = [_ex.submit(_check_url, _elurl, _k+1) for _k, _elurl in enumerate(_list_movies_urls)]
@@ -1001,20 +1028,35 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
         params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
         
+        if (_s:=params.get('s', None)):
+            stext = f"sysQuery={_s}&"
+        else:
+            stext = "sysQuery=&"
+            
+        
+        
         content = params.get('content', 'scenes')
+        
         
         if (_sortby:=params.get('sort')):
             _sortby = _sortby.replace(' ','').lower()
             if _sortby == 'mostwatched':
                 if content == 'scenes': _sby = 'Popularity'
                 else: _sby = 'MostWatched'
-            else: _sby = _sortby.capitalize() 
-            criteria_list = [{'sort': _sby}]
+            elif _sortby == 'released':
+                if content == 'scenes': _sby = 'Newest'
+                else: _sby = 'Released'                
+            elif _sortby in ['trending', 'newest', 'relevance']: 
+                _sby = _sortby.capitalize()
+            else:
+                _sby = 'Relevance'
+            criteria = {'sort': _sby}
         else:
-            criteria_list = [{'sort': _sort} for _sort in self._SORTBY[content]]
+            #criteria_list = [{'sort': _sort} for _sort in self._SORTBY[content]]
+            criteria = {'sort': 'Relevance'}
             
         if (_studio:=params.get('studio')):
-            if not (_studioid:=NakedSwordSearchIE._STUDIOS.get(_studio.lower().replace(' ', '').replace('/', '-'))):
+            if not (_studioid:=NakedSwordSearchIE._STUDIOS.get(_studio.lower().replace(' ', '').replace('-', ''))):
                 _studioid = self.get_studioid(_studio)
         if (_star:=params.get('star')):
             if not (_starid:=NakedSwordSearchIE._STAR.get(_star.lower().replace(' ', '').replace('/', '-'))):
@@ -1025,19 +1067,23 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             _settingid = [int(_id) for el in _setting.split(',') if (_id:=NakedSwordSearchIE._SETTINGS.get(el))]
         if (_sexact:=params.get('sexact')):
             _sexactid = [int(_id) for el in _sexact.split(',') if (_id:=NakedSwordSearchIE._SEX_ACTS.get(el))]
-        for criteria in criteria_list:
-            if _tag and _tagid: criteria.update({'tagFilters': _tagid})
-            if _setting and _settingid and content == 'scenes': criteria.update({'settingFilters': _settingid})
-            if _sexact and _sexactid and content == 'scenes': criteria.update({'sexActFilters': _sexactid})
-            if _studio and _studioid: criteria.update({'studioFilters': [int(_studioid)]})
-            if _star and _starid: criteria.update({'starFilters': [int(_starid)]})
+        
+        if _tag and _tagid: criteria.update({'tagFilters': _tagid})
+        if _setting and _settingid and content == 'scenes': criteria.update({'settingFilters': _settingid})
+        if _sexact and _sexactid and content == 'scenes': criteria.update({'sexActFilters': _sexactid})
+        if _studio and _studioid: criteria.update({'studioFilters': [int(_studioid)]})
+        if _star and _starid: criteria.update({'starFilters': [int(_starid)]})
             
         
-        criteria_list_str = [json.dumps(criteria).replace(" ", "") for criteria in criteria_list]        
+        criteria_str = json.dumps(criteria).replace(" ", "")       
+        
+        url_query_base = f'https://vod.nakedsword.com/gay/search/{content}/page/1?{stext}criteria={quote(criteria_str)}&viewMode=List'
+        pages = int(params.get('pages', '5'))        
+        maxpages = min(try_get(self._send_request(url_query_base), lambda x: try_get(re.findall(r'<a class="dts-paginator-tagging" href="/gay/search/(?:scenes|movies)/page/(\d+)\?', x.text), lambda y: int(y[-1]) if y else 1)), pages)
         
         
-        maxpages = int(params.get('pages', 5))
-        url_query = [(f'https://vod.nakedsword.com/gay/search/{content}/page/{page+1}?criteria={quote(criteria_str)}&viewMode=List', criteria['sort'], page+1) for criteria_str, criteria in zip(criteria_list_str, criteria_list) for page in range(maxpages)]
+        
+        url_query = [(f'https://vod.nakedsword.com/gay/search/{content}/page/{page+1}?{stext}criteria={quote(criteria_str)}&viewMode=List', criteria['sort'], page+1) for page in range(maxpages)]
         self.to_screen(f"url query list[{len(url_query)}]: \n{url_query}")
         url_query_str = '\n'.join([f'{unquote(_el[0])}, {_el[0].split("?")[-1]}' for _el in url_query])
         self.to_screen(f"url query list[{len(url_query)}]: \n{url_query_str}")
@@ -1081,8 +1127,12 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             
             else: raise ExtractorError("No entries")
         except ExtractorError:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"error {repr(e)}\n{'!!'.join(lines)}")
             raise
         except Exception as e:
-            self.to_screen(repr(e))
+            #self.to_screen(repr(e))
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"error {repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f"{repr(e)}")
 
