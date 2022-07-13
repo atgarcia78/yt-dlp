@@ -5,10 +5,9 @@ import re
 import sys
 import traceback
 from datetime import datetime
-import time
 
 from ..utils import ExtractorError, try_get, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, limiter_0_5, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, scroll
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -32,13 +31,15 @@ class getvideos():
         if _subvideos:
             if len(_subvideos) == 1: _subvideos = _subvideos[0]
             videos.insert(0, _subvideos)        
-        if not videos: return False
+        if not videos: 
+            return False
         return(videos)
 
+            
 class check_consent():
     def __init__(self):
         self.init = True
-        self.button = None
+        
     def __call__(self, driver):
 
         if self.init:
@@ -46,29 +47,17 @@ class check_consent():
 
                 driver.switch_to.frame(el_ifr[0])
                 self.init = False
-
-                if (el_button:=driver.find_elements(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")):
-                  
-                    self.button = el_button[0]
-                    el_button[0].click()
-                    time.sleep(2)
-                    driver.switch_to.default_content()
-                    time.sleep(2)
-                    return True
-
-
-            else:
-                return True
-
-        if not self.button:
-            if (el_button:=driver.find_elements(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")):
                 
-                self.button = el_button[0]
-                el_button[0].click()
-                time.sleep(2)
-                driver.switch_to.default_content()
-                time.sleep(2)
-                return True
+            else: return True
+
+        el_button = driver.find_element(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")
+            
+        el_button.click()
+        #time.sleep(2)
+        driver.switch_to.default_content()
+        #time.sleep(2)
+        return True
+
                 
 class get_infopost():
     def __call__(self, driver):
@@ -96,12 +85,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             try:
                 _entry = ie._get_entry(el, check_active=check, msg=pre)
                 if _entry:
-                    self.to_screen(f"{pre}OK:{self._get_url_print(el)}")
+                    self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video")
                     return _entry
                 else:
-                    self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING get entry {repr(e)}')
+                    self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
             except Exception as e:
-                self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING get entry {repr(e)}')
+                self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
     def get_entries(self, url, check=True):
         
@@ -117,7 +106,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             postdate, title, postid = try_get(self.wait_until(driver, 60, get_infopost()),
                                               lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2])) or ("", "", "")
             
-            
+            self.wait_until(driver, 60, scroll(2))
             list_candidate_videos = self.wait_until(driver, 30, getvideos())
             pre = f'{self._get_url_print(url)}: [get_entry]'
             
@@ -131,7 +120,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     try:
                         entries.append(fut.result())
                     except Exception as e:
-                        self.to_screen(f'[get_entries][{url}] entry [{futures[fut]}] {repr(e)}')
+                        self.report_warning(f'[get_entries][{url}] entry [{futures[fut]}] {repr(e)}')
                 
             elif _len == 1:
                 try:
@@ -157,7 +146,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             raise 
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'[get_entries][{url}] {repr(e)} \n{"!!".join(lines)}')  
+            self.report_warning(f'[get_entries][{url}] {repr(e)} \n{"!!".join(lines)}')  
             raise ExtractorError(str(e))
         finally:
             self.rm_driver(driver)
@@ -169,7 +158,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         
         if msg: pre = f'{msg}[_send_request]'
         else: pre = '[_send_request]'
-        self.logger_debug(f"{pre} {self._get_url_print(url)}") 
+        #self.logger_debug(f"{pre} {self._get_url_print(url)}") 
         if driver:
             driver.get(url)
         else:

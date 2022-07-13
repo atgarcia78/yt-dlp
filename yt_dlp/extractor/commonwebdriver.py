@@ -25,6 +25,8 @@ from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
 
 limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
+limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
+limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
 limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
 limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
 limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
@@ -35,7 +37,7 @@ limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
 limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
-dec_on_exception = on_exception(constant, Exception, max_tries=3, interval=1, raise_on_giveup=False)
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=None, raise_on_giveup=False, interval=15)
 
 import logging
 logger = logging.getLogger("Commonwebdriver")
@@ -74,7 +76,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CONFIG_REQ = {('userload', 'evoload', 'highload'): {'ratelimit': limiter_15},
                'streamtape': {'ratelimit': limiter_5},
                'doodstream': {'ratelimit': limiter_0_5},
-               ('tubeload', 'fembed'): {'ratelimit': limiter_0_1} }
+               'fembed': {'ratelimit': limiter_0_1}, 'tubeload':{'ratelimit': limiter_0_07} }
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
     _SERVER_NUM = 0
@@ -102,7 +104,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def logger_debug(cls, msg):
         if SeleniumInfoExtractor._YTDL:
             if (_logger:=SeleniumInfoExtractor._YTDL.params.get('logger')):
-                _logger.debug(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
+                _logger.debug(f"[debug+][{cls.__name__[:-2].lower()}]{msg}")
             else:
                 SeleniumInfoExtractor._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
@@ -172,7 +174,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     SeleniumInfoExtractor._MASTER_INIT = True
                     
-                    print(SeleniumInfoExtractor._CLIENT.headers)
+                    self.logger_debug(SeleniumInfoExtractor._CLIENT.headers)
                     
         except Exception as e:
             logger.exception(e)
@@ -356,8 +358,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         "HAR.triggerExport().then(arguments[0]);")).get('entries')
 
         _list_hints = []
-        _har_ant = []
-        
+                
         _started = time.monotonic()        
         while(True):
 
@@ -588,6 +589,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             res = ""
             _msg_err = ""
+            premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
+            if msg: 
+                premsg = f'{msg}{premsg}'
            
                 
             req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
@@ -606,9 +610,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception as e:
             _msg_err = repr(e)
             raise
-        finally:
-            if not msg: msg = f'[{self._get_url_print(url)}]'
-            self.to_screen(f"[send_http_request][{msg}][{_type}] {res}:{_msg_err}")
+        finally:                
+            self.logger_debug(f"{premsg} {res}:{_msg_err}")
+            
+        
+
     
     
     
