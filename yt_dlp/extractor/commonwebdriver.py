@@ -10,6 +10,7 @@ from queue import Empty, Queue
 from urllib.parse import unquote
 
 import httpx
+from httpx import HTTPStatusError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 from selenium.webdriver import Firefox, FirefoxOptions
@@ -37,7 +38,12 @@ limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
 limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=None, raise_on_giveup=False, interval=15)
+
+def my_jitter(value: float) -> float:
+    import random
+    return int(random.uniform(value, value*2))
+
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=15)
 
 import logging
 logger = logging.getLogger("Commonwebdriver")
@@ -432,6 +438,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
             res = None
+            _msg_err = ""
             if client:
                 res = client.head(url, headers=headers)
             else:
@@ -447,18 +454,27 @@ class SeleniumInfoExtractor(InfoExtractor):
 
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
-            return ({'url': _url, 'filesize': _filesize})
+            if _filesize:
+                return ({'url': _url, 'filesize': _filesize})
             
-        except Exception as e:
-            if not res:
-                self.logger_debug(f"{repr(e)}")
+        # except Exception as e:
+        #     if not res:
+        #         self.logger_debug(f"{repr(e)}")
 
-            else:
-                self.logger_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
-                if res.status_code == 404:
-                    res.raise_for_status()
+        #     else:
+        #         self.logger_debug(f"{repr(e)} {res.request} \n{res.request.headers}")
+        #         if res.status_code == 404:
+        #             res.raise_for_status()
                 
-            raise ExtractorError(repr(e))      
+        #     raise ExtractorError(repr(e))
+        except Exception as e:
+            _msg_err = repr(e)
+            if res and res.status_code == 404:           
+                res.raise_for_status()
+            else:
+                raise ExtractorError(_msg_err)                
+        finally:                
+            self.logger_debug(f"{res}:{_msg_err}")   
 
     def _get_extractor(self, url):
         
@@ -544,7 +560,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 def _throttle_isvalid(_url, method="GET"):
                     try:
                         return self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS, msg=f'[valid]{_pre_str}')
-                    except httpx.HTTPStatusError as e:
+                    except HTTPStatusError as e:
                         self.to_screen(f"[valid]{_pre_str}:{e}")
                         
 
@@ -596,24 +612,21 @@ class SeleniumInfoExtractor(InfoExtractor):
                 
             req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
             res = SeleniumInfoExtractor._CLIENT.send(req)
-            # if _type=="GET":
-            #     req = SeleniumInfoExtractor._CLIENT.get(url, data=data, headers=headers)
-            # elif _type=="HEAD":
-            #     req = SeleniumInfoExtractor._CLIENT.head(url, data=data, headers=headers)
-            # elif _type=="POST":
-            #     req = SeleniumInfoExtractor._CLIENT.post(url, data=data, headers=headers)
-            
-                
-            
+ 
             res.raise_for_status()
             return res
         except Exception as e:
             _msg_err = repr(e)
-            raise
+            if res and res.status_code == 404:           
+                res.raise_for_status()
+            else:
+                raise ExtractorError(_msg_err) 
         finally:                
             self.logger_debug(f"{premsg} {res}:{_msg_err}")
             
-        
+                   
+                
+         
 
     
     
