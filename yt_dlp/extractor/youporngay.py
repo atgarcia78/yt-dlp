@@ -30,11 +30,10 @@ class YouPornGayIE(SeleniumInfoExtractor):
         
     @dec_on_exception
     @limiter_1.ratelimit("yourporngay", delay=True)
-    def _send_request(self, url, _type="GET", data=None, headers=None):        
-        
+    def _send_request(self, url, *args, **kwargs):        
         
         self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
-        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
+        return(self.send_http_request(url, *args, **kwargs))
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -46,7 +45,7 @@ class YouPornGayIE(SeleniumInfoExtractor):
 
         definitions = try_get(self._send_request(
             'https://www.youporngay.com/api/video/media_definitions/%s/' % video_id,
-            headers={'Referer': url}), lambda x: x.json())
+            headers={'referer': url}), lambda x: x.json())
         if not definitions: raise ExtractorError("no video info")
         formats = []
         for definition in definitions:
@@ -60,11 +59,7 @@ class YouPornGayIE(SeleniumInfoExtractor):
                 'filesize': int_or_none(definition.get('videoSize')),
             }
             height = int_or_none(definition.get('quality'))
-            # Video URL's path looks like this:
-            #  /201012/17/505835/720p_1500k_505835/youporngay%20-%20Sex%20Ed%20Is%20It%20Safe%20To%20Masturbate%20Daily.mp4
-            #  /201012/17/505835/vl_240p_240k_505835/youporngay%20-%20Sex%20Ed%20Is%20It%20Safe%20To%20Masturbate%20Daily.mp4
-            #  /videos/201703/11/109285532/1080P_4000K_109285532.mp4
-            # We will benefit from it by extracting some metadata
+
             mobj = re.search(r'(?P<height>\d{3,4})[pP]_(?P<bitrate>\d+)[kK]_\d+', video_url)
             if mobj:
                 if not height:

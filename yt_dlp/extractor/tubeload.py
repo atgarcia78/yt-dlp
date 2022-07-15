@@ -46,7 +46,7 @@ class TubeloadIE(SeleniumInfoExtractor):
         try:
             if msg: pre = f'{msg}[get_video_info]'
             else: pre = '[get_video_info]'
-            self.logger_debug(f"{pre} {self._get_url_print(url)}")
+            self.to_screen(f"{pre} {self._get_url_print(url)}")
             return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)
         except HTTPStatusError as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
@@ -61,11 +61,11 @@ class TubeloadIE(SeleniumInfoExtractor):
         self.logger_debug(f"{pre} {self._get_url_print(url)}") 
         driver.get(url)
         
-    @dec_on_exception
+    
     def _get_entry(self, url, check_active=False, msg=None):
         try:
-            if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
-            else: pre = f'[get_entry][{self._get_url_print(url)}]'
+            pre = f'[get_entry][{self._get_url_print(url)}]'
+            if msg: pre = f'{msg}{pre}'
             _videoinfo = None
             driver = self.get_driver()
             self._send_request(url, driver, msg=pre)
@@ -82,7 +82,7 @@ class TubeloadIE(SeleniumInfoExtractor):
 
             if check_active:
                 _videoinfo = self._get_video_info(video_url, msg=pre)
-                if not _videoinfo: raise ExtractorError("no video info")
+                if not _videoinfo: raise ExtractorError("error 404: no video info")
                 else:
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
@@ -102,7 +102,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.report_warning(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
+            self.to_screen(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)

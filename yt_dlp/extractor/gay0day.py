@@ -18,10 +18,10 @@ class Gay0DayIE(SeleniumInfoExtractor):
     
     @dec_on_exception
     @limiter_1.ratelimit("gay0day", delay=True)
-    def _send_request(self, url, _type="GET", data=None, headers=None):        
+    def _send_request(self, url, *args, **kwargs):        
         
         self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
-        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
+        return(self.send_http_request(url, *args, **kwargs))
         
     @dec_on_exception
     @limiter_1.ratelimit("gay0day", delay=True)   
@@ -40,15 +40,21 @@ class Gay0DayIE(SeleniumInfoExtractor):
             
             webpage = try_get(self._send_request(url), lambda x: x.text)
             if not webpage: raise ExtractorError("couldnt download webpage")
-            _info_flashvars = try_get(re.findall(r'(?ms)<script.*?>.*?var\s+flashvars\s*=\s*(\{.*?\});.*?</script>', webpage), lambda x: json.loads(js_to_json(x[0])))
+            _info_flashvars = try_get(re.findall(r'(?ms)<script.*?>.*?var\s+flashvars\s*=\s*(\{.*?\});.*?</script>', webpage), 
+                                      lambda x: json.loads(js_to_json(x[0])))
             _entry_video = {}            
             if _info_flashvars: 
             
                 _url = _info_flashvars.get("video_url")
                 _res = _info_flashvars.get("postfix").replace("_","").replace(".mp4","")
-                _headers = {'Referer': url}
+                
+                _headers = {'referer': url}
+                
                 _info_video = self._get_info_for_format(_url, headers=_headers)
-                if not _info_video: raise ExtractorError('couldnt get info video')           
+                
+                if not _info_video: 
+                    raise ExtractorError('couldnt get info video')           
+                
                 _format = {
                     'format_id': _res,
                     'resolution': _res,
@@ -62,6 +68,7 @@ class Gay0DayIE(SeleniumInfoExtractor):
                 _title = try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0].replace("Video:","").replace("at Gay0Day","").replace("en Gay0Day","").strip()) 
                 if not _title:
                     _title = try_get(re.search(self._VALID_URL, url), lambda x: x.group('title').replace('-', '_'))
+                
                 _entry_video = {
                     'id' : _videoid,
                     'title' : sanitize_filename(_title, restricted=True),

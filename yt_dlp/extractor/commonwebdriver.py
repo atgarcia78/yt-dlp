@@ -21,6 +21,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 
 import re
+import html
 
 from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
@@ -41,9 +42,9 @@ limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
 def my_jitter(value: float) -> float:
     import random
-    return int(random.uniform(value, value*2))
+    return int(random.uniform(value, value*1.25))
 
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=15)
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 import logging
 logger = logging.getLogger("Commonwebdriver")
@@ -82,20 +83,20 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CONFIG_REQ = {('userload', 'evoload', 'highload'): {'ratelimit': limiter_15},
                'streamtape': {'ratelimit': limiter_5},
                'doodstream': {'ratelimit': limiter_0_5},
-               'fembed': {'ratelimit': limiter_0_1}, 'tubeload':{'ratelimit': limiter_0_07} }
+               'fembed': {'ratelimit': limiter_5}, 'tubeload':{'ratelimit': limiter_0_07} }
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
     _SERVER_NUM = 0
     _FIREFOX_HEADERS =  {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Encoding': 'gzip, deflate',
-        'Accept-Language': 'en,es-ES;q=0.5',        
-        'Connection': 'keep-alive',        
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1', 
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'accept-encoding': 'gzip, deflate',
+        'accept-language': 'en,es-ES;q=0.5',        
+        'connection': 'keep-alive',        
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1', 
     }
     
     @classmethod
@@ -170,7 +171,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
                     _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers')
 
-                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(60, connect=60), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
+                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
                     
                     #self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
                     
@@ -474,7 +475,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)                
         finally:                
-            self.logger_debug(f"{res}:{_msg_err}")   
+            self.to_screen(f"{res}:{_msg_err}")   
 
     def _get_extractor(self, url):
         
@@ -515,7 +516,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             return(f'{url[:140]}...{url[-10:]}')
         else: return url
         
-    def _is_valid(self, url, msg):
+    def _is_valid(self, url, msg=None):
         
         def transp(func):
             return func
@@ -536,16 +537,16 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             _pre_str = f'[{_url_str}]'
             
-        self.to_screen(f'[valid]{_pre_str} start checking')
+        self.logger_debug(f'[valid]{_pre_str} start checking')
         
         
         try:
 
             if any(_ in url for _ in ['twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php']):
-                self.to_screen(f'[valid]{_pre_str}:False')
+                self.logger_debug(f'[valid]{_pre_str}:False')
                 return False
             elif any(_ in url for _ in ['gayforit.eu/video']):
-                self.to_screen(f'[valid]{_pre_str}:True')
+                self.logger_debug(f'[valid]{_pre_str}:True')
                 return True                
                 
             else:  
@@ -559,39 +560,39 @@ class SeleniumInfoExtractor(InfoExtractor):
                 @_decor
                 def _throttle_isvalid(_url, method="GET"):
                     try:
-                        return self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS, msg=f'[valid]{_pre_str}')
+                        res = self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS, msg=f'[valid]{_pre_str}')
+                        if not res: 
+                            return ""
+                        else:
+                            return res
                     except HTTPStatusError as e:
-                        self.to_screen(f"[valid]{_pre_str}:{e}")
-                        
-
-                        
-                
+                        self.report_warning(f"[valid]{_pre_str}:{e}")
+                        #logger.exception(repr(e))
+                        #return ""
+ 
                 res = _throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art"), method="HEAD")
             
                 if res:
-                    # if (st_code:=res.status_code) >= 400: 
-                    #     valid = False
-                    #     self.to_screen(f'[valid]{_pre_str}:{st_code}:{valid}\n{res.request.headers}')
                         
                         
                     if res.headers.get('content-type') == "video/mp4":
                         valid = True
-                        self.to_screen(f'[valid][{_pre_str}:video/mp4:{valid}')
+                        self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')
                         
                     else:
 
-                        webpage = try_get(_throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art")), lambda x: x.text)
+                        webpage = try_get(_throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art")), lambda x: html.unescape(x.text) if x else None)
                         if not webpage: 
                             valid = False
-                            self.to_screen(f'[valid]{_pre_str}:{valid} couldnt download webpage')
+                            self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt download webpage')
                         else:
                             valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'post not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
                         
-                            self.to_screen(f'[valid]{_pre_str}:{valid} check with webpage content')
+                            self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
                 
                 else: 
                     valid = False
-                    self.to_screen(f'[valid]{_pre_str}:{valid} couldnt send HEAD request')
+                    self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt send HEAD request')
                     
                 return valid
         
@@ -607,16 +608,19 @@ class SeleniumInfoExtractor(InfoExtractor):
             _msg_err = ""
             premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
             if msg: 
-                premsg = f'{msg}{premsg}'
-           
-                
+                premsg = f'{msg}{premsg}'           
+
+            
             req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
             res = SeleniumInfoExtractor._CLIENT.send(req)
- 
-            res.raise_for_status()
-            return res
+            if res:
+                res.raise_for_status()
+                return res
+            else: return ""
         except Exception as e:
+            
             _msg_err = repr(e)
+            #logger.exception(_msg_err)
             if res and res.status_code == 404:           
                 res.raise_for_status()
             else:
