@@ -40,10 +40,10 @@ class video_or_error_userload():
 class UserLoadIE(SeleniumInfoExtractor):
 
     IE_NAME = 'userload'
-    _VALID_URL = r'https?://(?:www\.)?userload\.co/(?P<type>(?:embed|e|f))/(?P<id>[^\/$]+)(?:\/(?P<title>.+)?|$)'
+    _VALID_URL = r'https?://(?:www\.)?userload\.co/(?:embed|e|f)/(?P<id>[^\/$]+)(?:\/|$)'
 
     @dec_on_exception
-    @limiter_15.ratelimit("userload2", delay=True)
+    @limiter_15.ratelimit("userload", delay=True)
     def _get_video_info(self, url):        
         self.write_debug(f"[get_video_info] {url}")
         return self.get_info_for_format(url)       
@@ -56,14 +56,44 @@ class UserLoadIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
-    def _video_active(self, url):
+    def _get_entry(self, url, check_active=False, msg=None):
         
         try:
+            
+            pre = f'[get_entry][{self._get_url_print(url)}]'
+            if msg: pre = f'{msg}{pre}'
             _videoinfo = None
             driver = self.get_driver()
             self._send_request(url, driver)
             video_url = self.wait_until(driver, 30, video_or_error_userload(self.to_screen))
-            _videoinfo = self._get_video_info(video_url)
+            if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
+            title = driver.title.replace(".mp4", "").split("|")[0].strip()
+            videoid = self._match_id(url)
+            
+            _format = {
+                'format_id': 'http-mp4',
+                #'url': _info_video['url'],
+                'url': video_url,
+                #'filesize': _info_video['filesize'],
+                'ext': 'mp4'
+            }
+            
+            if check_active:
+                _videoinfo = self._get_video_info(video_url, msg=pre)
+                if not _videoinfo: raise ExtractorError("error 404: no video info")
+                else:
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+            
+            _entry_video = {
+                'id' : videoid,
+                'title' : sanitize_filename(title, restricted=True),
+                'formats' : [_format],
+                'extractor_key' : 'UserLoad',
+                'extractor': 'userload',
+                'ext': 'mp4',
+                'webpage_url': url
+            } 
+            return _entry_video
             
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
@@ -76,41 +106,17 @@ class UserLoadIE(SeleniumInfoExtractor):
     def _real_initialize(self):
         super()._real_initialize()
     
+    
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        driver = self.get_driver()
-        
+            
         try:
 
-            #_videoinfo = self.post_api(url.replace('/f/', '/e/'))
-            self._send_request(url, driver)
-            video_url = self.wait_until(driver, 30, video_or_error_userload(self.to_screen))
-            if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
-            
-            
-            title = driver.title.replace(".mp4", "").split("|")[0].strip()
-            
-            _format = {
-                'format_id': 'http-mp4',
-                #'url': _info_video['url'],
-                'url': video_url,
-                #'filesize': _info_video['filesize'],
-                'ext': 'mp4'
-            }
-            if self._downloader.params.get('external_downloader'):
-                _info_video = self._get_video_info(video_url)
-                if _info_video:
-                    _format.update({'url': _info_video['url'],'filesize': _info_video['filesize'] })            
-            
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
 
-            return({
-                'id' : self._match_id(url),
-                'title' : sanitize_filename(title, restricted=True),
-                'formats' : [_format],
-                'ext': 'mp4'
-            })
-
+            return self._get_entry(url, check_active=_check_active)  
     
         except ExtractorError as e:
             raise
@@ -118,6 +124,5 @@ class UserLoadIE(SeleniumInfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
-        finally:
-            self.rm_driver(driver)
+
         

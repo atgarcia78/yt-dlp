@@ -37,7 +37,8 @@ class FembedIE(SeleniumInfoExtractor):
          
 
         try:
-            
+            pre = f'[get_entry][{self._get_url_print(url)}]'
+            if msg: pre = f'{msg}{pre}'
             driver = self.get_driver()
             videoid = self._match_id(url)
             self._send_request(url, driver)            
@@ -82,14 +83,15 @@ class FembedIE(SeleniumInfoExtractor):
                     'ext': 'mp4'
                 }
                 if check_active: 
-                    _info_video = self._get_video_info(_videourl) or {}
+                    _info_video = self._get_video_info(_videourl)
+                    if _info_video:
+                        _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
+                        _formats.append(_f)
+                    else:
+                        self.report_warning(f"{pre} not video info")
                 else:
-                    _info_video = {}
+                     _formats.append(_f)
                     
-                if _info_video:
-                    _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})                    
-                
-                _formats.append(_f)
             
             else:
                
@@ -112,14 +114,16 @@ class FembedIE(SeleniumInfoExtractor):
                         'ext': 'mp4'
                     }
                     if check_active: 
-                        _info_video = self._get_video_info(_videourl) or {}
+                        _info_video = self._get_video_info(_videourl)
+                        if _info_video:
+                            _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
+                            _formats.append(_f)
+                        else:
+                            self.report_warning(f"{pre} not video info")
+                            
+                    
                     else:
-                        _info_video = {}
-                    
-                    if _info_video:
-                        _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
-                    
-                    _formats.append(_f)
+                        _formats.append(_f)
                     
                 vstr.click()
 

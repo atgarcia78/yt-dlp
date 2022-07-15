@@ -56,7 +56,7 @@ class video_or_error_streamtape():
 class StreamtapeIE(SeleniumInfoExtractor):
 
     IE_NAME = 'streamtape'
-    _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?((?P<title>.+)\.mp4)?'
+    _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
     
     
     @staticmethod
@@ -75,7 +75,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
                                                     'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)      
     
     @dec_on_exception
-    @limiter_5.ratelimit("tubeload", delay=True)
+    @limiter_5.ratelimit("streamtape", delay=True)
     def _send_request(self, url, driver, msg=None):        
         
         if msg: pre = f'{msg}[_send_request]'
@@ -86,8 +86,9 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, check_active=False, msg=None):
         try:
+            
+            pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
-            else: pre = f'[get_entry][{self._get_url_print(url)}]'
             _videoinfo = None
             driver = self.get_driver()
             self._send_request(url, driver, msg=pre)
@@ -108,6 +109,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             
             if check_active:
                 _videoinfo = self._get_video_info(video_url, headers= {'Referer': url}, msg=pre)
+                if not _videoinfo: raise ExtractorError("error 404: no video info")
                 if _videoinfo:
                     _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
                 
