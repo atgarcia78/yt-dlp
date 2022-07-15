@@ -6,9 +6,8 @@ import time
 import traceback
 
 
-
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By
 
 
 class video_or_error_evoload():
@@ -87,9 +86,9 @@ class EvoLoadIE(SeleniumInfoExtractor):
     
     @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)
-    def _get_video_info(self, url):        
+    def _get_video_info(self, url, *args, **kwargs):        
         self.logger_debug(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)       
+        return self.get_info_for_format(url, *args, **kwargs)       
             
     @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)
@@ -97,37 +96,15 @@ class EvoLoadIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}")   
         driver.get(url)
         
-    def _video_active(self, url):
+    
+    def _get_entry(self, url, check_active=False, msg=None):
         
         try:
+            pre = f'[get_entry][{self._get_url_print(url)}]'
+            if msg: pre = f'{msg}{pre}'
             _videoinfo = None
             driver = self.get_driver()
             self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
-            video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
-            _videoinfo = self._get_video_info(video_url)
-            
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-        finally:
-            self.rm_driver(driver)
-        
-        if _videoinfo: return True
-
-    def _real_initialize(self):
-        super()._real_initialize()
-    
-    def _real_extract(self, url):
-        
-        self.report_extraction(url)
-
-        driver = self.get_driver()
- 
-            
-        try:             
-
-            self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
-
             video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError("404 not video found")
             
@@ -138,28 +115,52 @@ class EvoLoadIE(SeleniumInfoExtractor):
             }
             
             self._send_request(url.split('?')[0].replace('/e/', '/v/'), driver)
-            _title =  self.wait_until(driver, 30, get_title())            
+            _title =  self.wait_until(driver, 30, get_title()) 
+            videoid = self._match_id(url.split('?')[0])        
+
+            if check_active:
+                _videoinfo = self._get_video_info(video_url, msg=pre)
+                if not _videoinfo: raise ExtractorError("error 404: no video info")
+                else:
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
             
-            if self._downloader.params.get('external_downloader'):
-                _videoinfo = self._get_video_info(video_url)
-                if _videoinfo:
-                    _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
-            
-            return({
-                'id' : self._match_id(url.split('?')[0]),
+            _entry_video = {
+                'id' : videoid,
                 'title' : sanitize_filename(_title, restricted=True),
                 'formats' : [_format],
-                'ext': 'mp4'
-            })
+                'extractor_key' : 'EvoLoad',
+                'extractor': 'evoload',
+                'ext': 'mp4',
+                'webpage_url': url
+            } 
+            return _entry_video
             
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+        finally:
+            self.rm_driver(driver)
+        
 
+
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:                            
+
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)  
             
         except ExtractorError:
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")            
+            self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
-        finally:
-            self.rm_driver(driver)
             

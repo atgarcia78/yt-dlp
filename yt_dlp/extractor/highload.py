@@ -67,7 +67,7 @@ class FastStreamIE(SeleniumInfoExtractor):
             
             if check_active:
                 _videoinfo = _get_video_info(video_url)
-                if not _videoinfo: return
+                if not _videoinfo: raise ExtractorError("error 404: no video info")
                 else:
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
             

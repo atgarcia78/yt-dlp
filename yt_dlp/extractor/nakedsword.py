@@ -166,16 +166,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     
                     list_urlscenes = [f"{self._SITE_URL}{video}" for video in videos_paths]
                     self.to_screen(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")               
-                    with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 5)) as exe:
-                                        
+                    with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 5)) as exe:                                     
                         
                         futures = {exe.submit(self._get_entry, _urlscene, "m3u8", premsg): _urlscene for _urlscene in list_urlscenes}
-                        # res = self._get_info(_urlscene)
-                        # if res:
-                        #     _id = res.get('id')
-                        #     _title = res.get('title')
-                        #entry = self._get_entry(_urlscene)
-                        #entry = self.url_result(_urlscene, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
+
                     for fut in futures:
                         try:
                             _entry = fut.result()
@@ -208,12 +202,15 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
  
         return entries
     
-    def _get_entry(self, url, _type="m3u8", msg=None):
+    def _get_entry(self, url, **kwargs):        
         
         _headers_json = self._headers_ordered({"Referer": url, "X-Requested-With": "XMLHttpRequest",  "Content-Type" : "application/json", "Accept": "application/json, text/javascript, */*; q=0.01"})
-        _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://nakedsword.com", "Referer": self._SITE_URL})
-        
+        _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://nakedsword.com", "Referer": self._SITE_URL})        
         _type_dict = {'m3u8': 'HLS', 'dash': 'DASH'}
+        
+        
+        _type = kwargs.get('_type', 'm3u8')
+        msg = kwargs.get('msg')
         
         try:
             premsg = f"[get_entry] {url}"
@@ -980,8 +977,6 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             raise ExtractorError(f"{repr(e)}")
 
     def get_movies_ns(self, urls):
-        
-
 
         def _get_movies_url(j):
             _driver = self.get_driver()
@@ -1079,8 +1074,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         else:
             stext = "sysQuery=&"
             
-        
-        
+
         content = params.get('content', 'scenes')
         
         
@@ -1127,17 +1121,13 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         pages = int(params.get('pages', '5'))        
         maxpages = min(try_get(self._send_request(url_query_base), lambda x: try_get(re.findall(r'<a class="dts-paginator-tagging" href="/gay/search/(?:scenes|movies)/page/(\d+)\?', x.text), lambda y: int(y[-1]) if y else 1)), pages)
         
-        
-        
+
         url_query = [(f'https://vod.nakedsword.com/gay/search/{content}/page/{page+1}?{stext}criteria={quote(criteria_str)}&viewMode=List', criteria['sort'], page+1) for page in range(maxpages)]
         self.to_screen(f"url query list[{len(url_query)}]: \n{url_query}")
         url_query_str = '\n'.join([f'{unquote(_el[0])}, {_el[0].split("?")[-1]}' for _el in url_query])
         self.to_screen(f"url query list[{len(url_query)}]: \n{url_query_str}")
         
-        #self.to_screen(f"url query: {unquote(url_query[0])} {url_query[0]}")
-        
-        
-        
+
         try:
             entries = []
             if content == 'scenes':
