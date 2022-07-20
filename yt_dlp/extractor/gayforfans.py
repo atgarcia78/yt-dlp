@@ -29,7 +29,7 @@ class GayForFansIE(SeleniumInfoExtractor):
         if msg: pre = f'{msg}[get_video_info]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
         return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 
-                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)      
+                                                    'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})      
     
     @dec_on_exception
     @limiter_5.ratelimit("gayforfans", delay=True)
@@ -91,12 +91,10 @@ class GayForFansIE(SeleniumInfoExtractor):
             
             return _entry_video          
             
-        except ExtractorError:
+        except Exception:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
     

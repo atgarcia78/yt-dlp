@@ -126,11 +126,11 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         
 
 class MyVidsterIE(MyVidsterBaseIE):
-    IE_NAME = 'myvidster'
+    IE_NAME = 'myvidster:playlist'
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
     _NETRC_MACHINE = "myvidster"
     
-    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed','tubeload']
+    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed','tubeload', 'gayforfans']
     
     _URLS_CHECKED = []
     
@@ -181,9 +181,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                             self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_entry}")
                             return _entry
                         else:
-                            self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
+                            self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
                     except Exception as e:
-                        self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                         
                         
                 else:
@@ -191,7 +191,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                         return unquote(el)
             
             except Exception as e:
-                self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
             finally:
                 MyVidsterIE._URLS_CHECKED.append(el)
                 
@@ -203,7 +203,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         url = url.replace("vsearch", "video")
 
 
-        _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)) if x else None))
+        _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)) if x else (None, None)))
         if not webpage: raise ExtractorError("Couldnt download webpage")
         if any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken']): raise ExtractorError("Error 404: Page not found or Page broken") 
         
@@ -581,7 +581,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         else:
             _max = int(firstpage) + int(npages) - 1
             if _max > last_page:
-                self.report_warning(f'[all_pages] pages requested > max page website: will check up to max page')
+                self.logger_debug(f'[{self._get_url_print(url)}] pages requested > max page website: will check up to max page')
                 _max = last_page
                 
 

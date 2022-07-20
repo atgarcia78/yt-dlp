@@ -23,6 +23,8 @@ from selenium.webdriver.common.keys import Keys
 import re
 import html
 
+import copy
+
 from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
 
@@ -77,12 +79,12 @@ class SeleniumInfoExtractor(InfoExtractor):
     _QUEUE = Queue()
     _MASTER_COUNT = 0
     _YTDL = None
-    _USER_AGENT = None
+    #_USER_AGENT = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
     _CONFIG_REQ = {('userload', 'evoload', 'highload'): {'ratelimit': limiter_15},
                'streamtape': {'ratelimit': limiter_5},
-               'doodstream': {'ratelimit': limiter_0_5},
+               'doodstream': {'ratelimit': limiter_0_5}, 'gayforfans': {'ratelimit': limiter_5},
                'fembed': {'ratelimit': limiter_5}, 'tubeload':{'ratelimit': limiter_0_07} }
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
@@ -167,15 +169,17 @@ class SeleniumInfoExtractor(InfoExtractor):
                     SeleniumInfoExtractor._YTDL = self._downloader
                     SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
 
-                    SeleniumInfoExtractor._USER_AGENT = SeleniumInfoExtractor._YTDL.params.get('user_agent')
+                    #SeleniumInfoExtractor._USER_AGENT = SeleniumInfoExtractor._YTDL.params.get('user_agent')
 
-                    _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers')
+                    _headers = copy.deepcopy(SeleniumInfoExtractor._YTDL.params.get('http_headers'))
+                    
+                    #print(f"SEL HEADERS: {_headers}")
 
                     SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
                     
                     #self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
                     
-                    SeleniumInfoExtractor._FIREFOX_HEADERS['User-Agent'] = SeleniumInfoExtractor._USER_AGENT
+                    #SeleniumInfoExtractor._FIREFOX_HEADERS['User-Agent'] = SeleniumInfoExtractor._USER_AGENT
                     
                     _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
                     SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
@@ -443,7 +447,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if client:
                 res = client.head(url, headers=headers)
             else:
-                _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
+                _config = copy.deepcopy(SeleniumInfoExtractor._CLIENT_CONFIG)
                 if not verify and _config['verify']:
 
                     if headers: _config['headers'].update(headers)
@@ -475,7 +479,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)                
         finally:                
-            self.to_screen(f"{res}:{_msg_err}")   
+            self.logger_debug(f"[get_info_for_format][{self._get_url_print(url)}] {res}:{_msg_err}")   
 
     def _get_extractor(self, url):
         
@@ -610,7 +614,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if msg: 
                 premsg = f'{msg}{premsg}'           
 
-            
+            #print(f"HEADERS: {headers}")
             req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
             res = SeleniumInfoExtractor._CLIENT.send(req)
             if res:
