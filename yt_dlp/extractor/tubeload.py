@@ -98,12 +98,10 @@ class TubeloadIE(SeleniumInfoExtractor):
             
             return _entry_video
             
-        except ExtractorError:
+        except Exception:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{pre}{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
         

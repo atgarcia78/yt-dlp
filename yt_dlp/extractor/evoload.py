@@ -135,9 +135,10 @@ class EvoLoadIE(SeleniumInfoExtractor):
             } 
             return _entry_video
             
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+        except Exception:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise
         finally:
             self.rm_driver(driver)
         
