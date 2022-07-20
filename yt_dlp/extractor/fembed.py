@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import sys
 import traceback
 import re
+import time
 
 
 from ..utils import try_get, ExtractorError, sanitize_filename
@@ -43,7 +44,22 @@ class FembedIE(SeleniumInfoExtractor):
             videoid = self._match_id(url)
             self._send_request(url, driver)            
             
+            
             cont = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "loading-container.faplbu")))
+            
+            el_div = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR, 'div'))) 
+            
+            self.to_screen(el_div)
+            
+            for el in el_div:
+                            
+                while True:
+                    try:
+                        el.click()
+                        time.sleep(1)
+                    except Exception:
+                        break
+
             if cont:
                 cont.click()
             else:
@@ -98,6 +114,7 @@ class FembedIE(SeleniumInfoExtractor):
                 vid = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))) 
             
                 for i in range(nquality):
+                    vstr = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "vstr")))
                     vstr.click()
                     setb.click()
                     qbmenu = self.wait_until(driver, 30, ec.presence_of_element_located((
@@ -140,12 +157,10 @@ class FembedIE(SeleniumInfoExtractor):
                 'webpage_url': url
             })
         
-        except ExtractorError as e:
+        except Exception:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
     

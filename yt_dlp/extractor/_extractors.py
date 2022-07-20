@@ -2634,3 +2634,4 @@ from .streamplay import StreamplayIE
 from .pornhat import PornHatIE
 from .xhamster import XHamsterPornStarIE
 from .gaymovies import GayMoviesIE
+from .filemoon import FilemoonIE
