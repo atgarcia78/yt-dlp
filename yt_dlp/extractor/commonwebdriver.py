@@ -24,6 +24,7 @@ import re
 import html
 
 import copy
+import functools
 
 from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
@@ -82,10 +83,19 @@ class SeleniumInfoExtractor(InfoExtractor):
     #_USER_AGENT = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
-    _CONFIG_REQ = {('userload', 'evoload', 'highload'): {'ratelimit': limiter_15},
-               'streamtape': {'ratelimit': limiter_5},
-               'doodstream': {'ratelimit': limiter_0_5}, 'gayforfans': {'ratelimit': limiter_5},
-               'fembed': {'ratelimit': limiter_5}, 'tubeload':{'ratelimit': limiter_0_07} }
+    _CONFIG_REQ = {
+                    ('userload', 'evoload', 'highload'): {
+                                                            'ratelimit': limiter_15, 
+                                                            'maxsplits': 4},
+                    ('doodstream',): {
+                                        'ratelimit': limiter_5,
+                                        'maxsplits': 2}, 
+                    ('tubeload',): {
+                                        'ratelimit': limiter_5, 
+                                        'maxsplits': 4},
+                    ('fembed', 'streamtape', 'gayforfans'): {
+                        'ratelimit': limiter_5, 'maxsplits': 16}, 
+               }
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
     _SERVER_NUM = 0
@@ -180,6 +190,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     #self.write_debug(SeleniumInfoExtractor._CLIENT_CONFIG)
                     
                     #SeleniumInfoExtractor._FIREFOX_HEADERS['User-Agent'] = SeleniumInfoExtractor._USER_AGENT
+                    
+                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'verify': False})
                     
                     _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
                     SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
@@ -439,7 +451,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         return el
     
-    def get_info_for_format(self, url, client=None, headers=None, verify=True):
+    def get_info_for_format(self, url, client=None, headers=None, **kwargs):
         
         try:
             res = None
@@ -447,14 +459,14 @@ class SeleniumInfoExtractor(InfoExtractor):
             if client:
                 res = client.head(url, headers=headers)
             else:
-                _config = copy.deepcopy(SeleniumInfoExtractor._CLIENT_CONFIG)
-                if not verify and _config['verify']:
+                # _config = copy.deepcopy(SeleniumInfoExtractor._CLIENT_CONFIG)
+                # if not verify and _config['verify']:
 
-                    if headers: _config['headers'].update(headers)
-                    res = httpx.head(url, verify=False, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
-                else:    
-                    res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
-            
+                #     if headers: _config['headers'].update(headers)
+                #     res = httpx.head(url, verify=False, timeout=_config['timeout'], headers=_config['headers'], follow_redirects=_config['follow_redirects'])
+                # else:    
+                #     res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
+                res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
             res.raise_for_status()
 
             _filesize = int_or_none(res.headers.get('content-length'))
@@ -481,9 +493,22 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:                
             self.logger_debug(f"[get_info_for_format][{self._get_url_print(url)}] {res}:{_msg_err}")   
 
+
+    
+    def _check_init(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if not SeleniumInfoExtractor._MASTER_INIT:
+                self._real_initialize()
+            return func(self, *args, **kwargs)
+        return wrapper
+        
+    @_check_init
     def _get_extractor(self, url):
         
-        ies = self._downloader._ies
+        # if not SeleniumInfoExtractor._MASTER_INIT:
+        #     self._real_initialize()
+        ies = SeleniumInfoExtractor._YTDL._ies
         for ie_key, ie in ies.items():
             if ie.suitable(url):
                 extractor = ie
@@ -497,7 +522,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         extractor = self._get_extractor(url)
         
-        _url_str = self._get_url_print(url)
+        #_url_str = self._get_url_print(url)
         
         extr_name = extractor.IE_NAME
         
@@ -527,9 +552,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         def getter(x):
         
-            value = try_get([v for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if x in k], lambda y: y[0]) 
+            value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x in (kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
             if value:
-                return(value['ratelimit'].ratelimit(x, delay=True))
+                return(value['ratelimit'].ratelimit(key_text, delay=True))
         
         if not url: 
             return False
@@ -554,7 +579,9 @@ class SeleniumInfoExtractor(InfoExtractor):
                 return True                
                 
             else:  
-                _extr_name = self._get_ie_name(url)
+                _extr_name = self._get_ie_name(url).lower()
+                if _extr_name in ['xhamster', 'xhamsterembed']:
+                    return True
                 if _extr_name == 'generic':
                     _decor = transp
                 else:

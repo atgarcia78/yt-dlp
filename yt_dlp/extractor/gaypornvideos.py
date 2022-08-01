@@ -5,9 +5,6 @@ import sys
 import traceback
 
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
-
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 
@@ -24,14 +21,14 @@ class GayPornVideosIE(SeleniumInfoExtractor):
         
         _url_str = self._get_url_print(url)
         self.logger_debug(f"[send_request] {_url_str}")         
-        res = self._CLIENT.get(url)
-        return res
+        return(self.send_http_request(url))
+        
     
     @dec_on_exception
     @limiter_1.ratelimit("gaypornvideos", delay=True)  
     def _get_info_video(self, url):
         
-        return super().get_info_for_format(url, headers={'Referer': 'https://gaypornvideos.cc/'})
+        return(self.get_info_for_format(url, headers={'Referer': 'https://gaypornvideos.cc/'}))
     
     
     def _real_initialize(self):
@@ -53,16 +50,26 @@ class GayPornVideosIE(SeleniumInfoExtractor):
             
             self.to_screen(videourl)
             
+            _format =  {
+                'format_id': 'http-mp4',
+                'url': videourl,           
+                'http_headers': {'Referer': 'https://gaypornvideos.cc/'},
+                'ext': 'mp4'
+            }            
+    
+            
+            if (_video_info:=self._get_info_video(videourl)):
+                _format.update({'url': _video_info['url'], 'filesize': _video_info['filesize']})                       
+            else: raise ExtractorError("error with video info")
+            
             _entry = {
                 'id': videoid,
                 'title': sanitize_filename(title.split(' - GayPornVideos')[0], restricted=True),                
-                'url': videourl,
-                'http_headers': {'Referer': 'https://gaypornvideos.cc/'},
-                'ext': 'mp4'}
-            
-            if (_video_info:=self._get_info_video(videourl)):
-                _entry.update({'url': _video_info['url'], 'filesize': _video_info['filesize']})                       
-
+                'formats': [_format],
+                'ext': 'mp4',
+                'extractor_key': 'GayPornVideos',
+                'extractor': 'gaypornvideos',
+                'webpage_url': url}
                         
             return _entry
                 

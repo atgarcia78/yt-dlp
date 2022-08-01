@@ -30,7 +30,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     @limiter_0_1.ratelimit("myvidster", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
         return(self.send_http_request(url, _type=_type, data=data, headers=headers))
         
             
@@ -153,9 +153,9 @@ class MyVidsterIE(MyVidsterBaseIE):
         if msg: pre = f'{msg}{pre}'
         
         if isinstance(x, list):            
-            _x = list(set(x))            
+            _x = [unquote(_el) for _el in list(set(x))]            
         else:
-            _x = [x]     
+            _x = [unquote(x)]     
             
         self.logger_debug(f"{pre} urls to check: {_x}")
        
@@ -166,17 +166,20 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if "//syndication" in el: 
                     continue
                 
+                if "?thumb=http" in el:
+                    continue
+                
                 if (url2:=self._already_analysed(el)):
                     self.logger_debug(f"{pre}[{self._get_url_print(el)}] already analysed, same result as {url2}")
                     continue
                     
                 
-                _extr_name = self._get_ie_name(unquote(el))
+                _extr_name = self._get_ie_name(el)
                 if _extr_name in self._CONFIG_EXTR: #get entry
-                    ie = self._downloader.get_info_extractor(self._get_ie_key(unquote(el)))
+                    ie = self._downloader.get_info_extractor(self._get_ie_key(el))
                     ie._real_initialize()
                     try:
-                        _entry = ie._get_entry(unquote(el), check_active=True, msg=pre)
+                        _entry = ie._get_entry(el, check_active=True, msg=pre)
                         if _entry:
                             self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_entry}")
                             return _entry
@@ -187,8 +190,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                         
                         
                 else:
-                    if self._is_valid(unquote(el), msg=pre):
-                        return unquote(el)
+                    if self._is_valid(el, msg=pre):
+                        return el
             
             except Exception as e:
                 self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
