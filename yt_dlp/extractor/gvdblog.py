@@ -7,7 +7,7 @@ import traceback
 from datetime import datetime
 
 from ..utils import ExtractorError, try_get, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_05, limiter_0_1, By, scroll
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_05, limiter_1, By, scroll
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -95,27 +95,21 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entries(self, url, check=True):
         
         self.report_extraction(url)
-        #driver = self.get_driver()
 
         try:
-            
-            #self._send_request(url, driver, msg='[get_entries]')
-            
-            #self.wait_until(driver, 60, check_consent())
-            
-            #postdate, title, postid = try_get(self.wait_until(driver, 60, get_infopost()),
-            #                                  lambda x: (datetime.strptime(x[0], '%B %d, %Y'), x[1], x[2])) or ("", "", "")
-            
-            #self.wait_until(driver, 60, scroll(2))
-            #list_candidate_videos = self.wait_until(driver, 30, getvideos())
+
             
             def get_urls(webpage):    
     
-                list_urls = [mobj.group('url','ppal') for mobj in re.finditer(r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']',webpage)]
-                list1 = []
+                _reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
+                list_urls = [mobj.group('url','ppal') for mobj in re.finditer(_reg_expr, webpage) if mobj]
 
+                list1 = []
                 _subvideo = []
+                
                 for el in list_urls:
+                    if not el[0]:
+                        continue
                     if el[1]:
                         if _subvideo:
                             list1.append(_subvideo)
@@ -140,7 +134,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 postdate = try_get(re.findall(r"class='entry-time mi'><time class='published' datetime='[^']+'>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y') if x else None)
                 return(postdate, title, postid)
             
-            webpage = try_get(self._send_request(url, msg='[get_entries]'), lambda x: x.text)
+            webpage = try_get(self._send_request(url), lambda x: x.text)
             if not webpage: raise ExtractorError("no webpage")
             
             postdate, title, postid = get_info(webpage)
@@ -148,7 +142,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 
             if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError("no video info")   
                 
-            pre = f'{self._get_url_print(url)}: [get_entry]'
+            pre = f'[get_entries]:{self._get_url_print(url)}'
             
             entries = []
             if (_len:=len(list_candidate_videos)) > 1:
@@ -158,17 +152,21 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 
                 for fut in futures:
                     try:
-                        entries.append(fut.result())
+                        if (_res:=fut.result()):
+                            entries.append(_res)
+                        else: raise ExtractorError("no entry")
                     except Exception as e:
-                        self.report_warning(f'[get_entries][{url}] entry [{futures[fut]}] {repr(e)}')
+                        self.report_warning(f'{pre} entry [{futures[fut]}] {repr(e)}')
                 
             elif _len == 1:
                 try:
-                    entries.append(self.getbestvid(list_candidate_videos[0], check=check, msg=pre))
+                    _entry = self.getbestvid(list_candidate_videos[0], check=check, msg=pre)
+                    if _entry:
+                        entries.append(_entry)
                 except Exception as e:
                     pass
             
-            if not entries: raise ExtractorError("no video urls")
+            if not entries: raise ExtractorError(f"{pre} no video entries")
 
             _entryupdate = {'original_url': url}
             
@@ -185,21 +183,18 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         except ExtractorError as e:                 
             raise 
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.report_warning(f'[get_entries][{url}] {repr(e)} \n{"!!".join(lines)}')  
-            raise ExtractorError(str(e))
-        finally:
-            #self.rm_driver(driver)
-            pass
+            self.report_warning(f'{pre} {repr(e)}')  
+            raise ExtractorError(f'{pre} {repr(e)}')
+
 
     
     @dec_on_exception
-    @limiter_0_05.ratelimit("gvdblog", delay=True)
+    @limiter_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, driver=None, msg=None):
         
-        if msg: pre = f'{msg}[_send_request]'
-        else: pre = '[_send_request]'
-        #self.logger_debug(f"{pre} {self._get_url_print(url)}") 
+        if msg: pre = f'{msg}[send_req]'
+        else: pre = '[send_req]'
+        self.logger_debug(f"{pre} {self._get_url_print(url)}") 
         if driver:
             driver.get(url)
         else:

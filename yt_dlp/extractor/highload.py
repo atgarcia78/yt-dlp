@@ -30,28 +30,36 @@ class getvideourl():
 class FastStreamIE(SeleniumInfoExtractor):
     
 
+
     def _get_entry(self, url, check_active=False, msg=None):
         
+
         @dec_on_exception
         @limiter_2.ratelimit(self.IE_NAME, delay=True)
-        def _get_video_info(url):        
+        def _get_video_info(_url):        
         
-            self.logger_debug(f"[get_video_info] {url}")
-            return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 
-                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)
+            _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL,
+                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
+                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        
+            self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
+            
+            return self.get_info_for_format(_url, headers=_headers)
     
    
         @dec_on_exception
         @limiter_2.ratelimit(self.IE_NAME, delay=True)
-        def _send_request(url, driver):        
+        def _send_request(_url, _driver):        
         
-            self.logger_debug(f"[send_request] {url}") 
-            driver.get(url)
+            self.logger_debug(f"[send_request] {_url}") 
+            _driver.get(_url)
         
+        
+        
+        _videoinfo = None
+        driver = self.get_driver()
         
         try:
-            _videoinfo = None
-            driver = self.get_driver()
             _send_request(url, driver)
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url or video_url == "error404": raise ExtractorError("error404")

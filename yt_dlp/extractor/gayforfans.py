@@ -36,8 +36,8 @@ class GayForFansIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver, msg=None):        
         
         
-        pre = '[_send_request]'
-        if msg: pre = f'{msg}[_send_request]'
+        pre = '[send_req]'
+        if msg: pre = f'{msg}[send_req]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
         driver.get(url)
         

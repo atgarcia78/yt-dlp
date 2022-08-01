@@ -72,14 +72,14 @@ class StreamtapeIE(SeleniumInfoExtractor):
         else: pre = '[get_video_info]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
         return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 
-                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}, verify=False)      
+                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})      
     
     @dec_on_exception
     @limiter_5.ratelimit("streamtape", delay=True)
     def _send_request(self, url, driver, msg=None):        
         
-        if msg: pre = f'{msg}[_send_request]'
-        else: pre = '[_send_request]'
+        if msg: pre = f'{msg}[send_req]'
+        else: pre = '[send_req]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
         driver.get(url)
         
