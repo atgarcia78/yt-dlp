@@ -20,7 +20,7 @@ class Gay0DayIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gay0day", delay=True)
     def _send_request(self, url, *args, **kwargs):        
         
-        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
         return(self.send_http_request(url, *args, **kwargs))
         
     @dec_on_exception

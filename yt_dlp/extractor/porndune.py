@@ -5,12 +5,8 @@ import re
 from threading import Lock
 
 
-from httpx import HTTPStatusError
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
-
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
 class ifr_or_captcha():
@@ -35,7 +31,7 @@ class PornDuneIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("porndune", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
         
-        self.logger_debug(f"[_send_request] {self._get_url_print(url)}") 
+        self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
         return(self.send_http_request(url, _type=_type, data=data, headers=headers))
 
     @dec_on_exception

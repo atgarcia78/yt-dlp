@@ -71,7 +71,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
             
             _headers = {"Referer" : "https://www.gayforit.eu/"}
             
-            _info_video = self.get_info_for_format(video_url, headers=_headers, verify=False)
+            _info_video = self.get_info_for_format(video_url, headers=_headers)
             
             if not _info_video: raise ExtractorError("no video info")
 

@@ -64,7 +64,7 @@ class BBGroupIE(SeleniumInfoExtractor):
         @dec_on_exception
         @limiter_1_5.ratelimit(self.IE_NAME.split(":")[0], delay=True)
         def _temp():
-            self.logger_debug(f'[_send_request][{self.IE_NAME.split(":")[0]}] {url}')
+            self.logger_debug(f'[send_req][{self.IE_NAME.split(":")[0]}] {url}')
             try:        
                 if not driver:
                     res = SeleniumInfoExtractor._CLIENT.get(url, headers=headers)
