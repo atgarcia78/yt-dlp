@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_2
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError
 
 
 class getvideourl():
@@ -31,24 +31,28 @@ class FastStreamIE(SeleniumInfoExtractor):
     
 
 
-    def _get_entry(self, url, check_active=False, msg=None):
+    def _get_entry(self, url, check_active=False, **kwargs):
         
-
-        @dec_on_exception
-        @limiter_2.ratelimit(self.IE_NAME, delay=True)
+        @dec_on_exception3 
+        @dec_on_exception2
+        @limiter_0_1.ratelimit(self.IE_NAME, delay=True)
         def _get_video_info(_url):        
         
-            _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL,
-                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
-                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-        
-            self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
+            try:
+                
+                _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL,
+                            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
+                            'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
             
-            return self.get_info_for_format(_url, headers=_headers)
+                self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
+                
+                return self.get_info_for_format(_url, headers=_headers)
+            except HTTPStatusError as e:
+                self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
     
    
         @dec_on_exception
-        @limiter_2.ratelimit(self.IE_NAME, delay=True)
+        @limiter_0_1.ratelimit(self.IE_NAME, delay=True)
         def _send_request(_url, _driver):        
         
             self.logger_debug(f"[send_request] {_url}") 
@@ -83,8 +87,8 @@ class FastStreamIE(SeleniumInfoExtractor):
                 'id' : videoid,
                 'title' : sanitize_filename(title, restricted=True),
                 'formats' : [_format],
-                'extractor_key' : 'Tubeload',
-                'extractor': 'tubeload',
+                'extractor_key' : self.ie_key(),
+                'extractor': self.IE_NAME,
                 'ext': 'mp4',
                 'webpage_url': url
             } 

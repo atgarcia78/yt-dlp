@@ -6,7 +6,7 @@ import traceback
 from urllib.parse import unquote
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, limiter_0_07, limiter_5, limiter_0_1, limiter_0_05, By, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_0_07, limiter_5, limiter_0_1, limiter_0_05, By, HTTPStatusError
 
 class getvideourl():
     def __call__(self, driver):
@@ -38,9 +38,9 @@ class TubeloadIE(SeleniumInfoExtractor):
         #return try_get(re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage), lambda x: x.group('url'))
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1',webpage)]
 
-        
-    @dec_on_exception
-    @limiter_5.ratelimit("tubeload", delay=True)
+    @dec_on_exception3  
+    @dec_on_exception2
+    @limiter_0_1.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url, msg=None):        
         
         try:
@@ -53,7 +53,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             
     
     @dec_on_exception
-    @limiter_5.ratelimit("tubeload", delay=True)
+    @limiter_0_1.ratelimit("tubeload", delay=True)
     def _send_request(self, url, driver, msg=None):        
         
         if msg: pre = f'{msg}[send_req]'
