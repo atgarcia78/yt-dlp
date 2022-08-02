@@ -130,7 +130,7 @@ class MyVidsterIE(MyVidsterBaseIE):
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
     _NETRC_MACHINE = "myvidster"
     
-    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed','tubeload', 'gayforfans']
+    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed','tubeload', 'gayforfans', 'embedo']
     
     _URLS_CHECKED = []
     

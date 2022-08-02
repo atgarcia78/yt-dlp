@@ -168,7 +168,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     self.to_screen(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")               
                     with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 5)) as exe:                                     
                         
-                        futures = {exe.submit(self._get_entry, _urlscene, "m3u8", premsg): _urlscene for _urlscene in list_urlscenes}
+                        futures = {exe.submit(self._get_entry, _urlscene, _type="m3u8", msg=premsg): _urlscene for _urlscene in list_urlscenes}
 
                     for fut in futures:
                         try:
@@ -251,7 +251,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     "ext": "mp4",
                     "webpage_url": url,
                     "extractor_key": 'NakedSwordScene',
-                    "extractor": 'nakesword:scene'
+                    "extractor": 'nakedswordscene'
                 }
             
                 self.to_screen(f"{premsg}: OK got entry")
@@ -265,7 +265,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             raise ExtractorError(f'{repr(e)}')
         
 class NakedSwordSceneIE(NakedSwordBaseIE):
-    IE_NAME = 'nakedsword:scene'
+    IE_NAME = 'nakedswordscene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
 
 

@@ -7,7 +7,7 @@ import traceback
 from datetime import datetime
 
 from ..utils import ExtractorError, try_get, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_05, limiter_1, By, scroll
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1, By, scroll
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -101,8 +101,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             
             def get_urls(webpage):    
     
-                _reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
-                list_urls = [mobj.group('url','ppal') for mobj in re.finditer(_reg_expr, webpage) if mobj]
+                #_reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
+                _reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
+                list_urls = [mobj.group('url','ppal', 'ppal2') for mobj in re.finditer(_reg_expr, webpage) if mobj]
 
                 list1 = []
                 _subvideo = []
@@ -110,7 +111,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 for el in list_urls:
                     if not el[0]:
                         continue
-                    if el[1]:
+                    if el[1] or el[2]:
                         if _subvideo:
                             list1.append(_subvideo)
                             _subvideo = []
@@ -124,7 +125,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         else:
                             list1.append(el[0])
 
-
+                if _subvideo:
+                    list1.append(_subvideo)
                 return list1
                         
             def get_info(webpage):
@@ -189,7 +191,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     
     @dec_on_exception
-    @limiter_1.ratelimit("gvdblog", delay=True)
+    @limiter_0_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, driver=None, msg=None):
         
         if msg: pre = f'{msg}[send_req]'
@@ -262,28 +264,52 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if params.get('check','').lower() == 'no':
             _check = False
         
-        res = self._send_request(urlquery)
-        if not res: raise ExtractorError("no search results")
-        video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res.text), getter)
+        _nentries = int(params.get('entries', -1))
+        _from = int(params.get('from', 1))
+        
+        
+        res_search = try_get(self._send_request(urlquery), lambda x: x.text)        
+        if not res_search: raise ExtractorError("no search results")
+        video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), getter)
         if not video_entries: raise ExtractorError("no video entries")
+
+
+        if _nentries > 0:
+            video_entries = video_entries[_from-1:_from-1+_nentries]
+        else:
+            video_entries = video_entries[_from-1:]
+                
         
         self._entries = []
                 
         def get_list_entries(_entry, check):
             
-            videourlpost = _entry['link'][-1]['href']
-            entries, title, postid = self.get_entries(videourlpost, check=check)
+            
+            try:
+                
+                videourlpost = _entry['link'][-1]['href']
+                entries, title, postid = self.get_entries(videourlpost, check=check)
                     
-            if entries:
-                self._entries += entries 
-            else:
+                if entries:
+                    #self._entries += entries
+                    return entries
+                else:
+                    self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
+            except Exception as e:
                 self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
+                
         
                 
         with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
                 
             futures = [ex.submit(get_list_entries, _entry, _check) for _entry in video_entries]       
 
-
+        for fut in futures:
+            try:
+                if entries:=fut.result():
+                    self._entries += entries                
+            except Exception as e:
+                pass
+            
         if not self._entries: raise ExtractorError("no video list")
         return self.playlist_result(self._entries, f"gvdblog_playlist", f"gvdblog_playlist")
