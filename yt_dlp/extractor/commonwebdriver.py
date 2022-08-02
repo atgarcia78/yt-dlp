@@ -25,6 +25,7 @@ import html
 
 import copy
 import functools
+import random
 
 from ..utils import int_or_none, try_get
 from .common import ExtractorError, InfoExtractor
@@ -44,10 +45,26 @@ limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
 def my_jitter(value: float) -> float:
-    import random
+
     return int(random.uniform(value, value*1.25))
 
+def my_jitter2(value: float) -> float:
+
+    return int(random.uniform(value, value*2))
+
+class StatusError503(Exception):
+    """Error during info extraction."""
+
+    def __init__(self, msg):
+        
+        super().__init__(msg)
+
+        self.exc_info = sys.exc_info()  # preserve original exception
+
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter2, raise_on_giveup=False, interval=15)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+
 
 import logging
 logger = logging.getLogger("Commonwebdriver")
@@ -84,16 +101,16 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CLIENT_CONFIG = {}
     _CLIENT = None
     _CONFIG_REQ = {
-                    ('userload', 'evoload', 'highload'): {
+                    ('userload', 'evoload', 'highload',): {
                                                             'ratelimit': limiter_15, 
                                                             'maxsplits': 4},
                     ('doodstream',): {
                                         'ratelimit': limiter_5,
                                         'maxsplits': 2}, 
-                    ('tubeload',): {
+                    ('tubeload', 'embedo',): {
                                         'ratelimit': limiter_5, 
                                         'maxsplits': 4},
-                    ('fembed', 'streamtape', 'gayforfans'): {
+                    ('fembed', 'streamtape', 'gayforfans',): {
                         'ratelimit': limiter_5, 'maxsplits': 16}, 
                }
     _MASTER_INIT = False
@@ -488,6 +505,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             _msg_err = repr(e)
             if res and res.status_code == 404:           
                 res.raise_for_status()
+            elif res and res.status_code == 503:
+                raise StatusError503(repr(e))
+            elif not res:
+                raise TimeoutError(repr(e))
             else:
                 raise ExtractorError(_msg_err)                
         finally:                
@@ -587,7 +608,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 else:
                     _decor = getter(_extr_name) or transp
                 
-                @dec_on_exception
+                @dec_on_exception3
+                @dec_on_exception2
                 @_decor
                 def _throttle_isvalid(_url, method="GET"):
                     try:
@@ -654,6 +676,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             #logger.exception(_msg_err)
             if res and res.status_code == 404:           
                 res.raise_for_status()
+            elif res and res.status_code == 503:
+                raise StatusError503(repr(e))
+            elif not res:
+                raise TimeoutError(_msg_err)
             else:
                 raise ExtractorError(_msg_err) 
         finally:                
