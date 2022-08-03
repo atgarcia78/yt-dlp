@@ -78,11 +78,13 @@ class EvoLoadIE(SeleniumInfoExtractor):
     
     IE_NAME = 'evoload'
     _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$/?]+)'
+    
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1']
 
-    @staticmethod
-    def _extract_urls(webpage):
+    # @staticmethod
+    # def _extract_urls(webpage):
        
-        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1',webpage)]
+    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1',webpage)]
     
     @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)

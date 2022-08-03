@@ -45,13 +45,14 @@ class FilemoonIE(SeleniumInfoExtractor):
     IE_NAME = "filemoon"
     _SITE_URL = "https://filemoon.sx/"
     _VALID_URL = r'https?://filemoon\.\w\w/[e,d]/(?P<id>[^&]+)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1']
     
    
     
-    @staticmethod
-    def _extract_urls(webpage):
+    # @staticmethod
+    # def _extract_urls(webpage):
        
-        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1',webpage)]
+    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1',webpage)]
 
     @dec_on_exception
     @limiter_2.ratelimit("filemoon", delay=True)
