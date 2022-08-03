@@ -45,8 +45,14 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     def _login(self):
         
-        username, password = self._get_login_info()
+        res = self._send_request(self._LOGIN_URL, _type="GET")
+        if res and "www.myvidster.com/user/home.php" in str(res.url):
+            self.to_screen("LOGIN already OK")
+            return
         self.report_login()
+        
+        username, password = self._get_login_info()
+        
         if not username or not password:
             self.raise_login_required(
                 'A valid %s account is needed to access this media.'
@@ -71,7 +77,15 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
             res = self._send_request(self._LOGIN_URL, _type="POST", data=data, headers=_headers_post)
             if res and "www.myvidster.com/user/home.php" in str(res.url):
-                self.to_screen("LOGIN OK")                
+                self.to_screen("LOGIN OK")
+                return
+            elif res and "www.myvidster.com/user" in str(res.url):
+                res2 = self._send_request(self._LOGIN_URL, _type="GET")
+                if res2 and "www.myvidster.com/user/home.php" in str(res2.url):
+                    self.to_screen("LOGIN OK")
+                    return
+                else:
+                    raise ExtractorError(f"Login failed: {res2} : {res2.url if res2 else None}")     
             else:
                 raise ExtractorError(f"Login failed: {res} : {res.url if res else None}")
            
@@ -113,14 +127,14 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                         
                 try:
                     self._login()
-                    MyVidsterBaseIE._COOKIES = self._CLIENT.cookies                                        
+                    MyVidsterBaseIE._COOKIES = SeleniumInfoExtractor._CLIENT.cookies                                        
         
                 except Exception as e:
                     self.to_screen(repr(e))                    
                     raise
-                
-            for cookie in MyVidsterBaseIE._COOKIES.jar:
-                self._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
+            else:    
+                for cookie in MyVidsterBaseIE._COOKIES.jar:
+                    SeleniumInfoExtractor._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
                 
     
         
@@ -130,7 +144,7 @@ class MyVidsterIE(MyVidsterBaseIE):
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
     _NETRC_MACHINE = "myvidster"
     
-    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed','tubeload', 'gayforfans', 'embedo']
+    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed', 'gayguytop', 'tubeload', 'gayforfans', 'embedo']
     
     _URLS_CHECKED = []
     
@@ -179,19 +193,22 @@ class MyVidsterIE(MyVidsterBaseIE):
                     ie = self._downloader.get_info_extractor(self._get_ie_key(el))
                     ie._real_initialize()
                     try:
-                        _entry = ie._get_entry(el, check_active=True, msg=pre)
-                        if _entry:
-                            self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_entry}")
-                            return _entry
+                        _ent = ie._get_entry(el, check_active=True, msg=pre)
+                        if _ent:
+                            self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
+                            return _ent
                         else:
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
                     except Exception as e:
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                         
                         
+                elif _extr_name == 'generic':
+                    return el
                 else:
                     if self._is_valid(el, msg=pre):
                         return el
+                
             
             except Exception as e:
                 self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
@@ -208,7 +225,7 @@ class MyVidsterIE(MyVidsterBaseIE):
 
         _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)) if x else (None, None)))
         if not webpage: raise ExtractorError("Couldnt download webpage")
-        if any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken']): raise ExtractorError("Error 404: Page not found or Page broken") 
+        if any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken', 'status=removed']): raise ExtractorError("Error 404: Page not found") 
         
         
         title = try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1]
@@ -272,9 +289,11 @@ class MyVidsterIE(MyVidsterBaseIE):
             
             if isinstance(embedlink_res, dict):
                 embedlink_res.update({'original_url': url})
+                embedlink_res.update(_entry)
                 return embedlink_res
             if isinstance(videolink_res, dict):
                 videolink_res.update({'original_url': url})
+                videolink_res.update(_entry)
                 return videolink_res
             
             if embedlink_res and videolink_res:

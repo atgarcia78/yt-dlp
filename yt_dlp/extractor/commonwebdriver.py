@@ -110,7 +110,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     ('tubeload', 'embedo',): {
                                         'ratelimit': limiter_5, 
                                         'maxsplits': 4},
-                    ('fembed', 'streamtape', 'gayforfans',): {
+                    ('fembed', 'streamtape', 'gayforfans', 'gayguytop',): {
                         'ratelimit': limiter_5, 'maxsplits': 16}, 
                }
     _MASTER_INIT = False
@@ -172,14 +172,19 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classmethod
     def rm_driver(cls, driver):
         
-        tempdir = driver.caps.get('moz:profile')
-        if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
+        tempdir = try_get(driver.caps, lambda x: x.get('moz:profile', None))
+        
+        try:
+            driver.close()
+        except Exception:
+            pass
         
         try:
             driver.quit()
         except Exception:
-            pass
-        finally:
+            pass       
+        finally:            
+            if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
             with SeleniumInfoExtractor._MASTER_LOCK:
                 SeleniumInfoExtractor._MASTER_COUNT -= 1
         
@@ -254,7 +259,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         
         tempdir = tempfile.mkdtemp(prefix='asyncall-') 
-          
+        
+        shutil.rmtree(tempdir, ignore_errors=True) 
         res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
         
         if res != tempdir:
@@ -415,11 +421,12 @@ class SeleniumInfoExtractor(InfoExtractor):
                     
                                         
             
-            if _list_hints: 
+            if _all and _list_hints: 
                 return(_list_hints)
             
             if (time.monotonic() - _started) >= timeout:
-                return
+                if _all: return([])
+                else: return(None,None)
             else:
                 time.sleep(0.5)
                 

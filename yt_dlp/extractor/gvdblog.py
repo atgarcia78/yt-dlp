@@ -73,7 +73,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def getbestvid(self, x, check=True, msg=None):
 
         _x = x if isinstance(x, list) else [x]
-        _x.sort(reverse=True) #tube prior to dood
+        iedood = self._downloader.get_info_extractor('DoodStream')
+        _x.sort(key=lambda y: iedood.suitable(y)) #tube prior to dood
         
         if msg: pre = f'{msg} '
         else: pre = ' '
@@ -92,6 +93,56 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             except Exception as e:
                 self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
+    @staticmethod
+    def get_urls(webpage):    
+
+        #_reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
+        _reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
+        list_urls = [mobj.group('url','ppal', 'ppal2') for mobj in re.finditer(_reg_expr, webpage) if mobj]
+
+        list1 = []
+        _subvideo = []
+        _subvideo2 = []
+        
+        for i,el in enumerate(list_urls):
+            if not el[0]:
+                continue
+            if el[1] or el[2]:
+                if _subvideo:
+                    list1.append(_subvideo)
+                    _subvideo = []
+                if _subvideo2:
+                    _subvideo2.append(el[0])
+                    list1.append(_subvideo2)
+                    _subvideo2 = []
+                else:
+                    _subvideo.append(el[0])
+            else:
+                if _subvideo:
+                    _subvideo.append(el[0])
+                    list1.append(_subvideo)
+                    _subvideo = []
+                else:
+                    if not try_get(list_urls, lambda y: y[i+1]):
+                        list1.append(el[0])
+                    elif try_get(list_urls, lambda y: (y[i+1][1] or y[i+1][2])):
+                        _subvideo2.append(el[0])
+
+        if _subvideo:
+            list1.append(_subvideo)
+        if _subvideo2:
+            list1.append(_subvideo2)
+        return list1
+
+    @staticmethod               
+    def get_info(webpage):
+
+        postid = try_get(re.findall(r"class='related-tag' data-id='(\d+)'", webpage), lambda x: x[0])
+        title = try_get(re.findall(r"title>([^<]+)<", webpage), lambda x: x[0])
+        postdate = try_get(re.findall(r"class='entry-time mi'><time class='published' datetime='[^']+'>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y') if x else None)
+        return(postdate, title, postid)
+            
+    
     def get_entries(self, url, check=True):
         
         self.report_extraction(url)
@@ -99,48 +150,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         try:
 
             
-            def get_urls(webpage):    
-    
-                #_reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
-                _reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
-                list_urls = [mobj.group('url','ppal', 'ppal2') for mobj in re.finditer(_reg_expr, webpage) if mobj]
 
-                list1 = []
-                _subvideo = []
-                
-                for el in list_urls:
-                    if not el[0]:
-                        continue
-                    if el[1] or el[2]:
-                        if _subvideo:
-                            list1.append(_subvideo)
-                            _subvideo = []
-
-                        _subvideo.append(el[0])
-                    else:
-                        if _subvideo:
-                            _subvideo.append(el[0])
-                            list1.append(_subvideo)
-                            _subvideo = []
-                        else:
-                            list1.append(el[0])
-
-                if _subvideo:
-                    list1.append(_subvideo)
-                return list1
-                        
-            def get_info(webpage):
-    
-                postid = try_get(re.findall(r"class='related-tag' data-id='(\d+)'", webpage), lambda x: x[0])
-                title = try_get(re.findall(r"title>([^<]+)<", webpage), lambda x: x[0])
-                postdate = try_get(re.findall(r"class='entry-time mi'><time class='published' datetime='[^']+'>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y') if x else None)
-                return(postdate, title, postid)
-            
             webpage = try_get(self._send_request(url), lambda x: x.text)
             if not webpage: raise ExtractorError("no webpage")
             
-            postdate, title, postid = get_info(webpage)
-            list_candidate_videos = get_urls(webpage)
+            postdate, title, postid = self.get_info(webpage)
+            list_candidate_videos = self.get_urls(webpage)
                 
             if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError("no video info")   
                 
