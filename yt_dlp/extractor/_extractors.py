@@ -2628,7 +2628,7 @@ from .querofoder import QueroFoderIE
 from .videovard import VideovardIE
 from .hulu123 import Hulu123IE
 from .eplayvid import EPlayVidIE
-from .gayguy import GayGuyTopIE
+from .gayguytop import GayGuyTopIE
 from .fembed import FembedIE
 from .fxggxt import FxggxtIE
 from .gaymoviesupport import GayMovieSupportIE
@@ -2641,3 +2641,4 @@ from .pornhat import PornHatIE
 from .xhamster import XHamsterPornStarIE
 from .gaymovies import GayMoviesIE
 from .filemoon import FilemoonIE
+from .pornhits import PornhitsIE
