@@ -95,6 +95,7 @@ updates_key.pem
 AUTHORS
 README.txt
 README.md
+/README.*
 .mailmap
 *.1
 *.bash-completion
