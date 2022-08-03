@@ -19,14 +19,8 @@ from ..utils import (
 
 class YouPornGayIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?youporngay\.com/(?:watch|embed)/(?P<id>\d+)(?:/(?P<display_id>[^/?#&]+))?'
+    _EMBED_REGEX = [r'<iframe[^>]+\bsrc=["\']((?:https?:)?//(?:www\.)?youporngay\.com/embed/\d+)']
     
-    
-
-    @staticmethod
-    def _extract_urls(webpage):
-        return re.findall(
-            r'<iframe[^>]+\bsrc=["\']((?:https?:)?//(?:www\.)?youporngay\.com/embed/\d+)',
-            webpage)
         
     @dec_on_exception
     @limiter_1.ratelimit("yourporngay", delay=True)

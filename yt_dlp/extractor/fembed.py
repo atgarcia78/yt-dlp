@@ -14,6 +14,7 @@ class FembedIE(SeleniumInfoExtractor):
 
     IE_NAME = 'fembed'
     _VALID_URL = r'https?://(?:www\.)?fembed\.com/v/(?P<id>[^\#]+)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1']
 
     @dec_on_exception3 
     @dec_on_exception2
@@ -36,10 +37,10 @@ class FembedIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
-    @staticmethod
-    def _extract_urls(webpage):
+    # @staticmethod
+    # def _extract_urls(webpage):
 
-        return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
+    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
     
     
     def _get_entry(self, url, **kwargs):
