@@ -127,7 +127,7 @@ class EmbedoIE(FastStreamIE):
     
     _SITE_URL = "https://embedo.co"
     
-    IE_NAME = 'embedo'
+    #IE_NAME = 'embedo'
     _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
     _SUBS_TITLE = " - embedo.co"
     
@@ -135,6 +135,6 @@ class HighloadIE(FastStreamIE):
     
     _SITE_URL = "https://highload.to"
     
-    IE_NAME = 'highload'
+    #IE_NAME = 'highload'
     _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _SUBS_TITLE = " - Highload.to"
