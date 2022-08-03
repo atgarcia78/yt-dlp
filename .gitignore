@@ -67,7 +67,7 @@ cookies
 .pytest_cache
 wine-py2exe/
 py2exe.log
-build/
+/build/
 dist/
 zip/
 tmp/
@@ -92,11 +92,14 @@ updates_key.pem
 *.stackdump
 
 # Generated
-AUTHORS
-README.txt
-README.md
+/Collaborators.md
+/Changelog.md
+/CONTRIBUTING.md
+/CONTRIBUTORS
+/AUTHORS
 /README.*
-.mailmap
+/LICENSE
+/.mailmap
 *.1
 *.bash-completion
 *.fish
@@ -104,7 +107,6 @@ README.md
 *.zsh
 *.spec
 test/testdata/sigs/player-*.js
-supportedsites.md
 /supportedsites.md
 # Binary
 /youtube-dl
@@ -121,7 +123,7 @@ yt-dlp.zip
 *.code-workspace
 
 # Lazy extractors
-*/extractor/lazy_extractors.py
+#*/extractor/lazy_extractors.py
 
 # Plugins
 ytdlp_plugins/
