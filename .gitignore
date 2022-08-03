@@ -104,7 +104,7 @@ README.md
 *.spec
 test/testdata/sigs/player-*.js
 supportedsites.md
-
+/supportedsites.md
 # Binary
 /youtube-dl
 /youtube-dlc
