@@ -7,19 +7,27 @@ import time
 
 
 from ..utils import try_get, ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, ec
-
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError
+from urllib.parse import unquote, urlparse
 
 class FembedIE(SeleniumInfoExtractor):
 
     IE_NAME = 'fembed'
-    _VALID_URL = r'https?://(?:www\.)?fembed\.com/v/(?P<id>.+)'
+    _VALID_URL = r'https?://(?:www\.)?fembed\.com/v/(?P<id>[^\#]+)'
 
-    @dec_on_exception
+    @dec_on_exception3 
+    @dec_on_exception2
     @limiter_0_1.ratelimit("fembed", delay=True)
-    def _get_video_info(self, url):        
-        self.write_debug(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)       
+    def _get_video_info(self, url, headers):        
+        
+        self.logger_debug(f"[get_video_info] {url}")
+        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+                            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+                            'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        try:
+            return self.get_info_for_format(url, headers=_headers)
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
         
     @dec_on_exception
@@ -34,7 +42,10 @@ class FembedIE(SeleniumInfoExtractor):
         return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
     
     
-    def _get_entry(self, url, check_active=False, msg=None):
+    def _get_entry(self, url, **kwargs):
+        
+        check_active = kwargs.get('check_active', False)
+        msg = kwargs.get('msg', None)
          
 
         try:
@@ -42,14 +53,14 @@ class FembedIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}{pre}'
             driver = self.get_driver()
             videoid = self._match_id(url)
-            self._send_request(url, driver)            
-            
-            
-            cont = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "loading-container.faplbu")))
-            
+            title = try_get(unquote(url).split('#'), lambda x: x[1].replace(".mp4", ""))
+            self._send_request(_wurl:=(url.split('#')[0].replace('fembed', 'vanfem')), driver)            
+
+            _headers = {'Referer': _wurl.split('v/')[0]}
+
             el_div = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR, 'div'))) 
             
-            self.to_screen(el_div)
+            #self.to_screen(el_div)
             
             for el in el_div:
                             
@@ -59,20 +70,28 @@ class FembedIE(SeleniumInfoExtractor):
                         time.sleep(1)
                     except Exception:
                         break
-
-            if cont:
-                cont.click()
-            else:
-                elobs = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, 'svg')))
-                if elobs:
-                    elobs.click()
+            # cont = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "loading-container.faplbu")))
+            # if cont:
+            #     try:
+            #         cont.click()
+            #     except Exception:
+            #         pass
+            # else:
+            #     elobs = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, 'svg')))
+            #     if elobs:
+            #         try:
+            #             elobs.click()
+            #         except Exception:
+            #             pass
             
-            title = driver.title.replace("Video ", "").replace(".mp4", "").strip().lower()
+            if not title:
+                title = driver.title.replace("Video ", "").replace(".mp4", "").strip().lower()
 
             _formats = []
-            vstr = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "vstr")))
+            
             if (but_resume:=try_get(driver.find_elements(By.CSS_SELECTOR, 'button#resume_no.button'), lambda x: x[0])):
                 but_resume.click()
+            vstr = self.wait_until(driver, 30, ec.presence_of_element_located((By.ID, "vstr")))
             if vstr:
                 vstr.click()            
 
@@ -96,10 +115,11 @@ class FembedIE(SeleniumInfoExtractor):
                 _f = {
                     'format_id': f'http-mp4',
                     'url': _videourl,
+                    'http_headers': _headers,
                     'ext': 'mp4'
                 }
                 if check_active: 
-                    _info_video = self._get_video_info(_videourl)
+                    _info_video = self._get_video_info(_videourl, _headers)
                     if _info_video:
                         _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
                         _formats.append(_f)
@@ -127,11 +147,12 @@ class FembedIE(SeleniumInfoExtractor):
                     _f = {
                         'format_id': f'http-mp4-{_formatid}',
                         'height': int(_formatid[:-1]),
-                        'url': _videourl,                        
+                        'url': _videourl,
+                        'http_headers': _headers,                        
                         'ext': 'mp4'
                     }
                     if check_active: 
-                        _info_video = self._get_video_info(_videourl)
+                        _info_video = self._get_video_info(_videourl, _headers)
                         if _info_video:
                             _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
                             _formats.append(_f)

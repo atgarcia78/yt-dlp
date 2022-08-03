@@ -1052,6 +1052,7 @@
  - **Pornez**
  - **PornFlip**
  - **PornHd**
+ - **pornhits**
  - **PornHub**: [<abbr title="netrc machine"><em>pornhub</em></abbr>] PornHub and Thumbzilla
  - **PornHubPagedVideoList**: [<abbr title="netrc machine"><em>pornhub</em></abbr>]
  - **PornHubPlaylist**: [<abbr title="netrc machine"><em>pornhub</em></abbr>]
