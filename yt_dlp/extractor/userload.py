@@ -7,7 +7,7 @@ import traceback
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError
 
 
 class video_or_error_userload():
@@ -42,11 +42,15 @@ class UserLoadIE(SeleniumInfoExtractor):
     IE_NAME = 'userload'
     _VALID_URL = r'https?://(?:www\.)?userload\.co/(?:embed|e|f)/(?P<id>[^\/$]+)(?:\/|$)'
 
-    @dec_on_exception
+    @dec_on_exception2
+    @dec_on_exception3
     @limiter_15.ratelimit("userload", delay=True)
     def _get_video_info(self, url):        
-        self.write_debug(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)       
+        try:
+            self.logger_debug(f"[get_video_info] {url}")
+            return self.get_info_for_format(url)       
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
         
     @dec_on_exception

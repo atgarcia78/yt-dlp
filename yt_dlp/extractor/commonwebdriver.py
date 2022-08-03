@@ -27,7 +27,7 @@ import copy
 import functools
 import random
 
-from ..utils import int_or_none, try_get
+from ..utils import int_or_none, try_get, classproperty
 from .common import ExtractorError, InfoExtractor
 
 limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
@@ -104,13 +104,13 @@ class SeleniumInfoExtractor(InfoExtractor):
                     ('userload', 'evoload', 'highload',): {
                                                             'ratelimit': limiter_15, 
                                                             'maxsplits': 4},
-                    ('doodstream',): {
+                    ('doodstream','vidoza',): {
                                         'ratelimit': limiter_5,
                                         'maxsplits': 2}, 
                     ('tubeload', 'embedo',): {
                                         'ratelimit': limiter_5, 
                                         'maxsplits': 4},
-                    ('fembed', 'streamtape', 'gayforfans', 'gayguytop',): {
+                    ('fembed', 'streamtape', 'gayforfans', 'gayguytop', 'upstream', 'videobin',): {
                         'ratelimit': limiter_5, 'maxsplits': 16}, 
                }
     _MASTER_INIT = False
@@ -127,6 +127,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         'sec-fetch-user': '?1',
         'upgrade-insecure-requests': '1', 
     }
+    
+    @classproperty
+    def IE_NAME(cls):
+        return cls.__name__[:-2].lower()
     
     @classmethod
     def logger_info(cls, msg):
@@ -475,11 +479,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         return el
     
-    def get_info_for_format(self, url, client=None, headers=None, **kwargs):
+    def get_info_for_format(self, url, **kwargs):
         
         try:
             res = None
             _msg_err = ""
+            client = kwargs.get('client', None)
+            headers = kwargs.get('headers', None)
             if client:
                 res = client.head(url, headers=headers)
             else:
@@ -661,11 +667,15 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.exception(e)
             return False
     
-    def send_http_request(self, url, _type="GET", data=None, headers=None, msg=None):        
+    def send_http_request(self, url, **kwargs):        
         
         try:
             res = ""
             _msg_err = ""
+            _type = kwargs.get('_type', "GET")
+            headers = kwargs.get('headers', None)
+            data = kwargs.get('data', None)
+            msg = kwargs.get('msg', None)
             premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
             if msg: 
                 premsg = f'{msg}{premsg}'           
