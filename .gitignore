@@ -109,8 +109,6 @@ updates_key.pem
 test/testdata/sigs/player-*.js
 /supportedsites.md
 # Binary
-/youtube-dl
-/youtube-dlc
 /yt-dlp
 yt-dlp.zip
 *.exe
