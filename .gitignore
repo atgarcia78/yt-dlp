@@ -94,6 +94,7 @@ updates_key.pem
 # Generated
 AUTHORS
 README.txt
+README.md
 .mailmap
 *.1
 *.bash-completion
@@ -102,6 +103,7 @@ README.txt
 *.zsh
 *.spec
 test/testdata/sigs/player-*.js
+supportedsites.md
 
 # Binary
 /youtube-dl
