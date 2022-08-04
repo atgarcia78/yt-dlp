@@ -102,16 +102,6 @@ class getvideourl():
                 return(_videoid, _vidurl)
             else: return False
                 
-            
-            
-            
-            
-                
-            
-                
-        
-            
-        
 
 class XvidgayIE(SeleniumInfoExtractor):
 
@@ -152,8 +142,7 @@ class XvidgayIE(SeleniumInfoExtractor):
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}{pre}'
             driver = self.get_driver()
-            #videoid = self._match_id(url)
-            #title = try_get(unquote(url).split('#'), lambda x: x[1].replace(".mp4", ""))
+
             self._send_request(url, driver)            
 
             _title = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, 'h1'))), lambda x: x.text)
