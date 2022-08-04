@@ -1,16 +1,11 @@
-from __future__ import unicode_literals
-
 import re
-import sys
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import unquote
 
 
-
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec, HTTPStatusError
 
 
 class get_links_netdna():
@@ -27,12 +22,9 @@ class get_links_netdna():
 
             el_a_list = driver.find_elements(By.XPATH, '//a[contains(@href, "//netdna-storage.com")]')
 
-            # if not el_a_list:
-            #     return False
             self.logger(f"[gets_links_netdna] {el_a_list}")
             
             if (new_len:=len(el_a_list)) > self.old_len:
-                #self.logger(f"[gets_links_netdna] {self.old_len} - {new_len}")
                 self.old_len = new_len
                 return False
             else:
@@ -53,16 +45,20 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             _url = _el.get_attribute('href')
             _tree = _el.find_elements(by=By.XPATH, value="./ancestor-or-self::*")
             _tree.reverse()
-            if any((_el_date:=el.find_elements(by=By.CLASS_NAME, value='date')) for el in _tree):
+            if any((_el_date:=el.find_elements(By.CLASS_NAME, 'date')) for el in _tree):
                 _date = _el_date[0].text
                 if not _list_urls_netdna.get(_url):
                     _list_urls_netdna[_url] = {'dates': [_date]}
                 else:
-                    _list_urls_netdna[_url]['dates'].append(_date)                   
+                    _list_urls_netdna[_url]['dates'].append(_date)
+            if any((_el_h2:=el.find_elements(By.CSS_SELECTOR, 'h2')) for el in _tree):
+                if (_orig_url:=try_get(_el_h2[0].find_elements(By.CSS_SELECTOR, 'a'), lambda x: x[0].get_attribute('href') if x else None)):
+                    _list_urls_netdna[_url]['original_url'] = _orig_url
+                 
 
         ie_netdna = self._downloader.get_info_extractor('NetDNA')
         ie_netdna._real_initialize()
-        _num_workers = min(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS, len(_list_urls_netdna))
+        _num_workers = min(6, len(_list_urls_netdna))
         with ThreadPoolExecutor(thread_name_prefix="ent_netdna", max_workers=_num_workers) as ex:
             futures = {ex.submit(ie_netdna.get_video_info_url, _url): _url for _url in list(_list_urls_netdna.keys())}
         
@@ -94,6 +90,9 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
                 _info_date = try_get(sorted([datetime.strptime(date_str, '%B %d, %Y') for date_str in _list_dates_str]), lambda x: x[0])
                 if _info_date:
                     _ent.update({'release_date': _info_date.strftime('%Y%m%d'), 'release_timestamp': int(_info_date.timestamp())})
+                if (_orig_url:=_item.get('original_url')):
+                    _ent.update({'original_url': _orig_url})
+                    
                 entries.append(_ent)
             except Exception as e:
                 self.to_screen(f'{_url}: {repr(e)}')                
@@ -101,15 +100,13 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
         return entries
     
 
-    #@dec_on_exception
-    #@limiter_1.ratelimit("gaybeeg1", delay=True)
     def _get_entries(self, url):
         
         try:
         
             _driver = self.get_driver()
 
-            self.to_screen(f'[get_entries] {url}')
+            self.logger_debug(f'[get_entries] {url}')
 
             self.send_driver_request(_driver, url)
 
@@ -118,11 +115,11 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             if not el_netdna_list or el_netdna_list == "no entries":
                 raise ExtractorError("No entries")
             else:
-                self.to_screen(f"[{url}] list links: {len(el_netdna_list)}")
+                self.logger_debug(f"[{url}] list links: {len(el_netdna_list)}")
                 return self._get_entries_netdna(el_netdna_list)
             
         except Exception as e:
-            self.to_screen(f'[get_entries][{url}] {repr(e)}')
+            self.report_warning(f'[get_entries][{url}] {repr(e)}')
             
         finally:
             self.rm_driver(_driver)
@@ -141,13 +138,17 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
     @dec_on_exception
     @limiter_1.ratelimit("gaybeeg3", delay=True)
     def get_info_pages(self, url):
-        res = self._CLIENT.get(url)
-        res.raise_for_status()
-        num_pages = try_get(re.findall(r'class="pages">Page 1 of ([\d\,]+)', res.text), lambda x: int(x[0].replace(',',''))) or 1
-        if num_pages == 1: _href = url
-        else: _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', res.text), lambda x: unquote(x[0]))
-        return num_pages, _href
         
+        try:
+            webpage = try_get(self.send_http_request(url), lambda x: x.text if x else None)
+            if not webpage: raise ExtractorError("not webpage")
+            num_pages = try_get(re.findall(r'class="pages">Page 1 of ([\d\,]+)', webpage), lambda x: int(x[0].replace(',',''))) or 1
+            if num_pages == 1: _href = url
+            else: _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', webpage), lambda x: unquote(x[0]))
+            return (num_pages, _href)
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            
     def _real_initialize(self):
         super()._real_initialize()
         
@@ -192,9 +193,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                                    
             self.report_extraction(url)
 
-            
-
-            num_pages, _href = self.get_info_pages(url) 
+            num_pages, _href = try_get(self.get_info_pages(url), lambda x: x if x else (1,url))
 
             self.to_screen(f"Pages to check: {num_pages}")                    
                 
@@ -202,7 +201,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
             
             self.to_screen(list_urls_pages)
             
-            _num_workers = min(SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS, len(list_urls_pages))
+            _num_workers = min(6, len(list_urls_pages))
             
             with ThreadPoolExecutor(thread_name_prefix="gybgpages", max_workers=_num_workers) as ex:
                 futures = {ex.submit(self._get_entries, _url): _url for _url in list_urls_pages}
@@ -214,9 +213,8 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
                     if res:
                         entries += res
                 except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f'[{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')  
-                    #raise ExtractorError(repr(e))
+                    self.report_warning(f"[get_entries] {self._get_url_print(url)}: error - {repr(e)}")
+
 
             if entries:
                 return self.playlist_result(entries, "gaybeegplaylist", "gaybeegplaylist")
@@ -225,8 +223,7 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
         except ExtractorError as e:                 
             raise 
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            self.to_screen(repr(e))            
             raise ExtractorError(repr(e))
 
 
@@ -254,6 +251,5 @@ class GayBeegIE(GayBeegBaseIE):
         except ExtractorError as e:                 
             raise 
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+            self.to_screen(repr(e))            
             raise ExtractorError(repr(e))
