@@ -1,9 +1,5 @@
-from __future__ import unicode_literals
-
 import sys
 import traceback
-import re
-import time
 
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError
@@ -15,9 +11,6 @@ class PornhitsIE(SeleniumInfoExtractor):
     IE_NAME = "pornhits"
     _SITE_URL = "https://www.pornhits.com/"
     _VALID_URL = r'https?://www.pornhits.com/video/(?P<id>\d+)'
-    
-   
-    
 
     @dec_on_exception
     @dec_on_exception2
@@ -47,11 +40,8 @@ class PornhitsIE(SeleniumInfoExtractor):
 
         try:
             
-            self.report_extraction(url) 
-                
+            self.report_extraction(url)
             videoid = self._match_id(url)
-
-            
             driver = self.get_driver(devtools=True)
             
                       

@@ -14,7 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_005, limiter_1
+from .commonwebdriver import dec_on_exception,  dec_on_exception2,  dec_on_exception3, dec_retry_raise, SeleniumInfoExtractor, limiter_0_5, limiter_1, HTTPStatusError, _check_init
 
 
 class fast_forward():     
@@ -41,9 +41,7 @@ class fast_forward():
             return False            
         
         elif "netdna-storage.com" in _curl:
-            # if self.init == True:
-            #     self.init = False
-            #     return False
+
                 
             if 'file not found' in (_title:=driver.title.lower()): 
                 return "Error 404"
@@ -65,31 +63,33 @@ class NetDNAIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(www\.)?netdna-storage\.com/f/[^/]+/(?P<title_url>[^\.]+)\.(?P<ext>[^\.]+)\..*' 
     _DICT_BYTES = {'KB': 1024, 'MB': 1024*1024, 'GB' : 1024*1024*1024}
 
-
-    @dec_on_exception
-    @limiter_0_005.ratelimit("netdna1", delay=True)
-    def _send_request(self, url, _type=None):
+    @dec_on_exception3
+    @dec_on_exception2
+    @limiter_0_5.ratelimit("netdna1", delay=True)
+    def _send_request(self, url):
         
-        if not _type:
-            try:
-                res = NetDNAIE._CLIENT.get(url)
-                try:
-                    res.raise_for_status()
-                except Exception as e:
-                    raise ExtractorError('error 404')
-                
-                if "internal server error" in res.text.lower():
-                    raise ExtractorError("error internal server 404")
-                
-                return res
+        try:                                    
+            res = self.send_http_request(url)   
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            return
             
-            except ExtractorError as e:
-                self.to_screen(f'[send_request][{url}] {str(e)}')
-                return
-            
+        if "internal server error" in res.text.lower():
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - internal server error")
+        else: return res
         
-        elif _type == "GET_INFO":            
+    
+    @dec_on_exception3 
+    @dec_on_exception2
+    @limiter_1.ratelimit("netdna", delay=True)
+    def _get_video_info(self, url):        
+        
+        try:
             return self.get_info_for_format(url, headers={'referer': 'https://netdna-storage.com/'})
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+        
+
         
     @dec_on_exception
     @limiter_1.ratelimit("netdna2", delay=True)
@@ -98,6 +98,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         driver.execute_script("window.stop();")
         driver.get(url)
 
+    
     @dec_on_exception
     def get_format(self, formatid, ext, url, get_info):
         
@@ -106,7 +107,8 @@ class NetDNAIE(SeleniumInfoExtractor):
             if _url:
                 res = {'url': _url}
                 if get_info:
-                    if (_info:=self._send_request(_url, "GET_INFO")): res = _info
+                    if (_info:=self._get_video_info(_url)):
+                        res = _info
                 return res
                 
         
@@ -129,27 +131,28 @@ class NetDNAIE(SeleniumInfoExtractor):
             self.write_debug(repr(e))
             raise       
 
+    @_check_init
     def get_video_info_url(self, url):
         
-        title = _num = _unit = None
+        title = None
+        _num = None
+        _unit = None
         
         try:
             
-            if not self._MASTER_INIT: 
-                super()._real_initialize()
                                     
-            res = self._send_request(url) 
-            if not res: 
+            webpage = try_get(self._send_request(url), lambda x: x.text if x else None)
+            if not webpage: 
                 return({'error': 'webpage nok 404'})
             
-            _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<',res.text)
+            _num_list = re.findall(r'File size: <strong>([^\ ]+)\ ([^\<]+)<', webpage)
             if _num_list:
                 _num = _num_list[0][0].replace(',','.')
                 if _num.count('.') == 2:
                     _num = _num.replace('.','', 1)
                 _num = f"{float(_num):.2f}"
                 _unit = _num_list[0][1]
-            _title_list = re.findall(r'h1 class="h2">([^\.]+).([^\<]+)<',res.text)
+            _title_list = re.findall(r'h1 class="h2">([^\.]+).([^\<]+)<', webpage)
             if _title_list:
                 title = _title_list[0][0].upper().replace("-","_")
                 ext = _title_list[0][1].lower()
@@ -166,69 +169,61 @@ class NetDNAIE(SeleniumInfoExtractor):
         except Exception as e:
             return({'error': repr(e)})     
         
-    def get_entry(self, url, ytdl=None):        
-        
-        
-        if not self._MASTER_INIT: 
-            super()._real_initialize()
-        
+    
+    @_check_init
+    def get_entry(self, url, **kwargs):        
+
         _info_video = self.get_video_info_url(url)
         if (_error:=_info_video.get('error')): raise ExtractorError(_error) 
         _title_search =  _info_video.get('title', '').replace("_",",")
         _id = _info_video.get('id')
-        if not ytdl:
-            ytdl = self._downloader 
-        #para poder obtener la release date hay que buscar el post asociado en gaybeeg
-        if not ytdl: 
-            self.report_warning("not downloader in the extractor, couldnt get modification time info")
-            _info_video.update({'_type': 'url'})
-            return _info_video
-        else:
-            _info = ytdl.extract_info(f"https://gaybeeg.info/?s={_title_search}")
+
+        _info = SeleniumInfoExtractor._YTDL.extract_info(f"https://gaybeeg.info/?s={_title_search}")
         
-            _entries = _info.get('entries')
-            for _entry in _entries:
-                if _entry['id'] == _id:
-                    res = _entry #devuelve el más antiguo
+        _entries = _info.get('entries')
+        for _entry in _entries:
+            if _entry['id'] == _id:
+                res = _entry #devuelve el más antiguo
             
-            return res
+        return res
 
     def _real_initialize(self):
         super()._real_initialize()
     
     def _real_extract(self, url):        
         
-        
         info_video = self.get_video_info_url(url)
         if (_error:=info_video.get('error')): raise ExtractorError(_error)
 
-        count = 0
+        self.report_extraction(url)
         
-        while count < 3:        
         
-            self.report_extraction(f"[{url}] attempt[{count+1}/3]")
+        @dec_retry_raise
+        def _get_entry_video():
+        
             driver = self.get_driver()
             
             try:
 
                 self.url_request(driver, url) #using firefox extension universal bypass to get video straight forward
                 
-                el_res = self.wait_until(driver, 60, fast_forward(url, self.to_screen), poll_freq=4)
+                el_res = self.wait_until(driver, 60, fast_forward(url, self.logger_debug), poll_freq=4)
                 
-                if not el_res:
-                    msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
-                    self.to_screen(msg_error)
-                    count += 1
-                    if count == 3: raise ExtractorError("max attempts to get info")
-                elif el_res in ["Error 404" , "Error addon fast forward"]: raise ExtractorError(el_res)
-                elif el_res != "OK":
-                    msg_error = f"[{url}] attempt[{count+1}/3] Bypass stopped at: {driver.current_url}"
-                    self.to_screen(msg_error)
-                    count += 1
-                    if count == 3: raise ExtractorError("max attempts to get info")
-
+                if el_res != 'OK':
+                    if not el_res:
+                        msg_error = f"[{url}] Bypass stopped at: {driver.current_url}"
+                        self.to_screen(msg_error)
+                    elif el_res in ["Error 404" , "Error addon fast forward"]:
+                        msg_error = f"[{url}] {el_res}"
+                        self.to_screen(msg_error)                
+                    else:
+                        msg_error = f"[{url}] Bypass stopped at: {driver.current_url}"
+                        self.to_screen(msg_error)
+                    
+                    raise ExtractorError(msg_error)
+                
                 else:                        
- 
+
                     entry = None
                     try:                        
                         
@@ -239,23 +234,21 @@ class NetDNAIE(SeleniumInfoExtractor):
                             else:  
                                 if self._downloader.params.get('external_downloader'): _get_info_video = True
                                 else: _get_info_video = False
+                            
                             with ThreadPoolExecutor(thread_name_prefix='fmt_netdna', max_workers=len(el_formats)) as ex:
                                 futures = [ex.submit(self.get_format, _el.text, info_video.get('ext'), _el.get_attribute('href'), _get_info_video) for _el in el_formats]
                                 
                             _formats = []
-                            _reset = False
+
                             for fut in futures:    
                                 try:                                    
-                                    _formats.append(fut.result())
+                                    _res = fut.result()
+                                    if _res: _formats.append(_res)
                                 
                                 except Exception as e:
-                                    msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats {repr(e)}"
+                                    msg_error = f"[{url}] error when getting formats {repr(e)}"
                                     self.to_screen(msg_error)
-                                    count += 1
-                                    if count == 3: raise ExtractorError("max attempts to get info")
-                                    else: _reset = True
-                            
-                            if _reset: continue
+
                             if _formats:    
                                 self._sort_formats(_formats)
                             
@@ -263,7 +256,11 @@ class NetDNAIE(SeleniumInfoExtractor):
                                     'id' : info_video.get('id'),
                                     'title': sanitize_filename(info_video.get('title'),restricted=True),
                                     'formats': _formats,
-                                    'ext' : info_video.get('ext')
+                                    'ext' : info_video.get('ext'),
+                                    'webpage_url': url,
+                                    'extractor': 'netdna',
+                                    'extractor_key': 'NetDNA',
+                                    
                                 }
                                 
                         else:
@@ -272,31 +269,27 @@ class NetDNAIE(SeleniumInfoExtractor):
                                 try:
                                     _video_url = el_download.get_attribute('href')
                                     _formats = {'format_id': 'ORIGINAL', 
-                                                 #'url': _info.get('url'), 
-                                                 'url': _video_url,
-                                                 #'filesize': _info.get('filesize'), 
-                                                 'ext': info_video.get('ext'), 
-                                                 'http_headers': {'Referer': 'https://netdna-storage.com/'}}
+                                                    'url': _video_url,
+                                                    'ext': info_video.get('ext'), 
+                                                    'http_headers': {'Referer': 'https://netdna-storage.com/'}}
                                     if self._downloader.params.get('external_downloader'):
-                                        _info = self._send_request(_video_url, "GET_INFO")
+                                        _info = self._get_video_info(_video_url)
                                         if _info:
                                             _formats.update({'url': _info['url'],'filesize': _info['filesize'] })
-                                    
-                                
+
                                 except Exception as e:
-                                    msg_error = f"[{url}] attempt[{count+1}/3] error when getting formats"
+                                    msg_error = f"[{url}] error when getting formats"
                                     self.to_screen(msg_error)
-                                    count += 1
-                                    if count == 3: raise ExtractorError("max attempts to get info")
-                                    else: continue
-                                    
-                                #_formats = [{'format_id': 'ORIGINAL', 'url': _info.get('url'), 'filesize': _info.get('filesize'), 'ext': info_video.get('ext'), 'http_headers': {'Referer': 'https://netdna-storage.com/'}}]
+    
                                                                 
                                 entry = {
                                     'id' : info_video.get('id'),
                                     'title': sanitize_filename(info_video.get('title'),restricted=True),
                                     'formats':[_formats],
-                                    'ext' : info_video.get('ext')
+                                    'ext' : info_video.get('ext'),
+                                    'webpage_url': url,
+                                    'extractor': 'netdna',
+                                    'extractor_key': 'NetDNA',
                                 } 
                                     
                         if not entry: raise ExtractorError("no video info")
@@ -306,18 +299,18 @@ class NetDNAIE(SeleniumInfoExtractor):
                     
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
-                        self.write_debug(f"{repr(e)}, \n{'!!'.join(lines)}")
-                        raise                    
-                    
-            
+                        self.logger_debug(f"{repr(e)}, \n{'!!'.join(lines)}")
+                        raise
+        
             except ExtractorError:
                 raise
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.write_debug(f"{repr(e)}\n{'!!'.join(lines)}")
+                self.logger_debug(f"{repr(e)}\n{'!!'.join(lines)}")
                 raise ExtractorError(repr(e))                    
             finally:
                 self.rm_driver(driver)
             
-             
+         
+        return _get_entry_video()    
    
