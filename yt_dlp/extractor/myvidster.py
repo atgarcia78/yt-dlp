@@ -542,7 +542,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         
 class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:search:playlist'   
-    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/search/\?(?P<query>.+)'
+    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/search/?\?(?P<query>.+)'
     
     '''
         Inside query, if there is param 'pages', that it is the max number of pages of

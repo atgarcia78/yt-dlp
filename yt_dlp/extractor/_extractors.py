@@ -2512,3 +2512,4 @@ from .upstream import (
     UpstreamIE,
     VideobinIE
 )
+from .xvidgay import XvidgayIE

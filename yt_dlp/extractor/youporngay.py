@@ -19,7 +19,7 @@ from ..utils import (
 
 class YouPornGayIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?youporngay\.com/(?:watch|embed)/(?P<id>\d+)(?:/(?P<display_id>[^/?#&]+))?'
-    _EMBED_REGEX = [r'<iframe[^>]+\bsrc=["\']((?:https?:)?//(?:www\.)?youporngay\.com/embed/\d+)']
+    _EMBED_REGEX = [r'<iframe[^>]+\bsrc=["\'](?P<url>(?:https?:)?//(?:www\.)?youporngay\.com/embed/\d+)']
     
         
     @dec_on_exception
