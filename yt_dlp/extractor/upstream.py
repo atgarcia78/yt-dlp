@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import sys
 import traceback
 
@@ -9,8 +7,6 @@ from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_excepti
 import time
 
 
-
-    
 class trigger_m3u8():
     def __call__(self, driver):
         
@@ -29,14 +25,8 @@ class trigger_m3u8():
         except Exception:
             return False
         
-            
 
-    
-   
-    
 class HLSStream(SeleniumInfoExtractor):
-    
-    
     
 
     def _get_entry(self, url, **kwargs):
@@ -64,10 +54,8 @@ class HLSStream(SeleniumInfoExtractor):
         try:
             
             videoid = self._match_id(url)
-
             
             driver = self.get_driver(devtools=True)
-            
             
             _send_multi_request(url, driver=driver)
 
@@ -146,12 +134,11 @@ class HLSStream(SeleniumInfoExtractor):
 
 class UpstreamIE(HLSStream):
 
-    #IE_NAME = "upstream"
     _SITE_URL = "https://upstream.to/"
     _VALID_URL = r'https?://upstream.to/(?P<id>.+)'
     
 class VideobinIE(HLSStream):
-    #IE_NAME = "videobin"
+    
     _SITE_URL = "https://videobin.co/"
     _VALID_URL = r'https://videobin.co/(?P<id>.+)'
     
