@@ -108,6 +108,7 @@ updates_key.pem
 *.spec
 test/testdata/sigs/player-*.js
 /supportedsites.md
+*.md
 # Binary
 /yt-dlp
 yt-dlp.zip

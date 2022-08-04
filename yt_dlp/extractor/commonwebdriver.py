@@ -110,7 +110,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     ('tubeload', 'embedo',): {
                                         'ratelimit': limiter_5, 
                                         'maxsplits': 4},
-                    ('fembed', 'streamtape', 'gayforfans', 'gayguytop', 'upstream', 'videobin',): {
+                    ('fembed', 'streamtape', 'gayforfans', 'gayguytop', 'upstream', 'videobin', 'xvidgay',): {
                         'ratelimit': limiter_5, 'maxsplits': 16}, 
                }
     _MASTER_INIT = False
