@@ -1,23 +1,17 @@
-from __future__ import unicode_literals
-
 import sys
 import time
 import traceback
 
-
-
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError
 
-
 class video_or_error_userload():
-    def __init__(self, logger):
-        self.logger = logger
+    
     def __call__(self, driver):
         try:
             elimg = driver.find_elements(By.CSS_SELECTOR, "img.image-blocked")
             if elimg:
-                self.logger(f'[userload_url][{driver.current_url[26:]}] error - video doesnt exist')
+                
                 return "error"
             elover = driver.find_elements(By.ID, "videooverlay")
             if elover:
@@ -69,16 +63,14 @@ class UserLoadIE(SeleniumInfoExtractor):
             _videoinfo = None
             driver = self.get_driver()
             self._send_request(url, driver)
-            video_url = self.wait_until(driver, 30, video_or_error_userload(self.to_screen))
+            video_url = self.wait_until(driver, 30, video_or_error_userload())
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
             title = driver.title.replace(".mp4", "").split("|")[0].strip()
             videoid = self._match_id(url)
             
             _format = {
                 'format_id': 'http-mp4',
-                #'url': _info_video['url'],
                 'url': video_url,
-                #'filesize': _info_video['filesize'],
                 'ext': 'mp4'
             }
             
@@ -100,8 +92,6 @@ class UserLoadIE(SeleniumInfoExtractor):
             return _entry_video
             
         except Exception:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise
         finally:
             self.rm_driver(driver)

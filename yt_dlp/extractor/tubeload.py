@@ -1,9 +1,8 @@
-from __future__ import unicode_literals
-
 import time
 import sys
 import traceback
 from urllib.parse import unquote
+import re
 
 from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_0_07, limiter_5, limiter_0_1, limiter_0_5, By, HTTPStatusError
@@ -35,10 +34,6 @@ class TubeloadIE(SeleniumInfoExtractor):
     
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1']
     
-    # @staticmethod
-    # def _extract_urls(webpage):
-    #     #return try_get(re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage), lambda x: x.group('url'))
-    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1',webpage)]
 
     @dec_on_exception3  
     @dec_on_exception2
@@ -71,11 +66,11 @@ class TubeloadIE(SeleniumInfoExtractor):
             _videoinfo = None
             driver = self.get_driver()
             videoid = self._match_id(url)
-            self._send_request(f"https://tubeload.co/e/{videoid}", driver, msg=pre)
+            self._send_request(f"{self._SITE_URL}/e/{videoid}", driver, msg=pre)
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url or video_url == "error404": raise ExtractorError("error404")
-            title = driver.title.replace(" at Tubeload.co","").strip()
-            
+            title = re.sub(r'(?i)(%s.co$)' % self.IE_NAME, '', sanitize_filename(driver.title, restricted=True)).strip('[_,-, ]')
+                        
             _format = {
                 'format_id': 'http-mp4',
                 'url': video_url,               
@@ -93,8 +88,8 @@ class TubeloadIE(SeleniumInfoExtractor):
                 'id' : videoid,
                 'title' : sanitize_filename(title, restricted=True),
                 'formats' : [_format],
-                'extractor_key' : 'Tubeload',
-                'extractor': 'tubeload',
+                'extractor_key' : self.ie_key(),
+                'extractor': self.IE_NAME,
                 'ext': 'mp4',
                 'webpage_url': url
             } 
@@ -102,15 +97,10 @@ class TubeloadIE(SeleniumInfoExtractor):
             return _entry_video
             
         except Exception:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+
             raise
         finally:
             self.rm_driver(driver)
-        
-    
-       
-
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -133,3 +123,11 @@ class TubeloadIE(SeleniumInfoExtractor):
             self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
+class RedloadIE(TubeloadIE):
+    
+    _SITE_URL = "https://redload.co"
+    
+    IE_NAME = 'redload'
+    _VALID_URL = r'https?://(?:www\.)?redload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
+    
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?redload\.co/e/.+?)\1']
