@@ -1528,6 +1528,7 @@ The available fields are:
 -   vbr (numeric): Average video bitrate in KBit/s
 -   fps (numeric): Frame rate
 -   dynamic_range (string): The dynamic range of the video
+-   audio_channels (numeric): The number of audio channels
 -   stretched_ratio (float): width:height of the video's pixels, if not
     square
 -   vcodec (string): Name of the video codec in use
@@ -1926,6 +1927,7 @@ The available fields are:
 -   fps: Framerate of video
 -   hdr: The dynamic range of the video (DV > HDR12 > HDR10+ > HDR10 >
     HLG > SDR)
+-   channels: The number of audio channels
 -   tbr: Total average bitrate in KBit/s
 -   vbr: Average video bitrate in KBit/s
 -   abr: Average audio bitrate in KBit/s
@@ -2273,8 +2275,8 @@ crunchyrollbeta
 -   format: Which stream type(s) to extract. Default is adaptive_hls Eg:
     crunchyrollbeta:format=vo_adaptive_hls
     -   Potentially useful values include adaptive_hls, adaptive_dash,
-        vo_adaptive_hls, vo_adaptive_dash, download_hls, trailer_hls,
-        trailer_dash
+        vo_adaptive_hls, vo_adaptive_dash, download_hls, download_dash,
+        multitrack_adaptive_hls_v2
 -   hardsub: Preference order for which hardsub versions to extract.
     Default is None (no hardsubs). Eg:
     crunchyrollbeta:hardsub=en-US,None

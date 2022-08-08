@@ -229,7 +229,7 @@ class Gay0DayIE(YourPornGodIE):
 class PornHatIE(YourPornGodIE):
     
     IE_NAME = 'pornhat'
-    _VALID_URL = r'https?://(www\.)?pornhat\.com/(?:video|embed)/?(?P<title>[^$/]*)'
+    _VALID_URL = r'https?://(www\.)?pornhat\.com/(?:video|embed)/(?P<title>.+)'
     _SITE_URL = 'https://pornhat.com'
     
 class HomoXXXIE(YourPornGodIE):
