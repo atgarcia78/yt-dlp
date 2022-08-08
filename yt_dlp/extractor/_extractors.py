@@ -2515,7 +2515,11 @@ from .cazzofilm import CazzoFilmIE
 from .yourporngod import (
     YourPornGodIE,
     YourPornGodPlayListIE,
-    OnlyGayVideoIE
+    OnlyGayVideoIE,
+    EbembedIE,
+    Gay0DayIE,
+    PornHatIE,
+    HomoXXXIE
 )
 from .timfuck import TimFuckIE
 from .bbgroup import (
@@ -2598,15 +2602,17 @@ from .highload import (
     EmbedoIE
 )
 from .evoload import EvoLoadIE
-from .gaystream import GayStreamIE
-from .gay0day import Gay0DayIE
+from .gaystream import (
+    GayStreamPWIE,
+    GayStreamEmbedIE
+)
+
 from .gaydelicious import GayDeliciousIE
 from .youporngay import YouPornGayIE
 from .gaymentubexxx import GayMenTubexxxIE
 from .gaythebest import GayTheBestIE
 from .youdbox import YoudBoxIE
 from .gaymaletubes import GayMaleTubesIE
-from .ebembed import EbembedIE
 from .mixdrop import MixDropIE
 from .cockhero import CockHeroIE
 from .gvdblog import (
@@ -2631,7 +2637,6 @@ from .gaypornvideos import GayPornVideosIE
 from .trafficdepot import TrafficDePotIE
 from .porndune import PornDuneIE
 from .streamplay import StreamplayIE
-from .pornhat import PornHatIE
 from .xhamster import XHamsterPornStarIE
 from .gaymovies import GayMoviesIE
 from .filemoon import FilemoonIE

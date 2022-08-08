@@ -13,12 +13,11 @@ import html
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, ec
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError
 
 
 class NakedSwordBaseIE(SeleniumInfoExtractor):
-    IE_NAME = 'nakedsword'
-    IE_DESC = 'nakedsword'
+
     
     _SITE_URL = "https://nakedsword.com/"
     _LOGIN_URL = "https://nakedsword.com/signin"
@@ -45,106 +44,39 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         return _headers
     
     @dec_on_exception
+    @dec_on_exception2
+    @dec_on_exception3
     @limiter_0_1.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, driver=None, _type="GET", data=None, headers=None):
         
         if not driver:
             
             try:
-                #res = NakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
-                #res.raise_for_status()
                 return(self.send_http_request(url, _type=_type, data=data, headers=headers))
-                #return res
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"[send_request] error {repr(e)}\n{'!!'.join(lines)}")
-                raise
+
+            except HTTPStatusError as e:
+                self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         else:
             driver.execute_script("window.stop();")
             driver.get(url)
-        
-    
-    def _login(self):
-        
-        self.report_login()
-        username, password = self._get_login_info()
-        if not username or not password:
-            self.raise_login_required(
-                'A valid %s account is needed to access this media.'
-                % self._NETRC_MACHINE)            
-
-        driver = self.get_driver()
-        try:
-            self._send_request(self._SITE_URL, driver)
-            if driver.current_url == "https://nakedsword.com/members":
-                self.to_screen("Login OK")
-                return driver.get_cookies()
-                
-            self._send_request(self._LOGIN_URL, driver)
             
-            el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
-            el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_password.SignInFormInput.SignInFormPassword")))
-            el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.button.expanded.SignInBtnSubmit")))
-            self.wait_until(driver, 2)
-            el_username.send_keys(username)
-            self.wait_until(driver, 2)
-            el_psswd.send_keys(password)
-            self.wait_until(driver, 2)
-            el_submit.submit()
-            self.wait_until(driver, 60, ec.url_changes(self._LOGIN_URL))
-            if driver.current_url == "https://nakedsword.com/members":
-                self.to_screen("Login OK")
-                return driver.get_cookies()
-            else: raise ExtractorError("login nok")
-        except Exception as e:
-            self.to_screen(repr(e))
-            raise ExtractorError(f"login nok: {repr(e)}")
-        finally:
-            self.rm_driver(driver)
-                    
-   
-    def _real_initialize(self):
-    
-        super()._real_initialize()
-        
-        with NakedSwordBaseIE._LOCK:           
-            if not NakedSwordBaseIE._NSINIT:
-                NakedSwordBaseIE._CLIENT.cookies.set("ns_pfm", "True", "nakedsword.com")
-                
-                if not NakedSwordBaseIE._COOKIES:
-                    try:                        
-                        NakedSwordBaseIE._COOKIES = self._login()
-                        
-                    except Exception as e:
-                        self.to_screen(f"{repr(e)}")
-                        raise
-                
-                for cookie in NakedSwordBaseIE._COOKIES:
-                    if cookie['name'] in ("ns_auth", "ns_pk"):
-                        NakedSwordBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                    
-                NakedSwordBaseIE._NSINIT = True
-        
-  
-    
+
     def _get_info(self, anystr):       
         
         if anystr.startswith('http'):
 
-            res = self._send_request(anystr)
-            if not res: raise ExtractorError("No info for sceneid")
-            else:
-                webpage = res.text
+            webpage = try_get(self._send_request(anystr), lambda x: x.text if x else '')
             
         else:
             webpage = anystr
-            
-        res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", webpage)
-        res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", webpage.replace(" ",""))
-      
-        return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if res and res2 else None)
+        
+        if webpage:   
+            res = re.findall(r"class=\'M(?:i|y)MovieTitle\'[^\>]*\>([^\<]*)<[^\>]*>[^\w]+(Scene[^\<]*)\<", webpage)
+            res2 = re.findall(r"\'SCENEID\'content\=\'([^\']+)\'", webpage.replace(" ",""))
 
-    
+            if res and res2:
+                return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if res and res2 else None)
+
     def get_entries_scenes(self, url, page=None):
         
         entries = []
@@ -155,7 +87,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.report_extraction(f"{premsg} {url}")
             #webpage = self._download_webpage(url, None, None, fatal=False)
             webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]','', html.unescape(x.text)) if x else None)
-            if not webpage: raise ExtractorError("no webpage")
+            
             if webpage:  
                             
                 videos_paths = re.findall(
@@ -165,7 +97,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 if videos_paths:
                     
                     list_urlscenes = [f"{self._SITE_URL}{video}" for video in videos_paths]
-                    self.to_screen(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")               
+                    self.logger_debug(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")               
                     with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 5)) as exe:                                     
                         
                         futures = {exe.submit(self._get_entry, _urlscene, _type="m3u8", msg=premsg): _urlscene for _urlscene in list_urlscenes}
@@ -186,7 +118,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def get_entries_movies(self, url):
         
         entries = []
-        webpage = self._download_webpage(url, None, None, fatal=False)
+        webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]','', html.unescape(x.text)) if x else None)
         if webpage:  
                         
             videos_paths = re.findall(
@@ -213,40 +145,45 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         msg = kwargs.get('msg')
         
         try:
-            premsg = f"[get_entry] {url}"
+            premsg = f"[get_entry][{_type}][{url}]"
             if msg: premsg = f"{msg}{premsg}"
-            #self.report_extraction(f"{premsg}")    
+            self.to_screen(f"{premsg} start to get entry")
+            
             info_video = self._get_info(url)
-            if not info_video: raise ExtractorError("Can't find sceneid")
+            if not info_video: raise ExtractorError(f"{premsg}: error - Can't get video info")
                           
             scene_id = info_video.get('id')
-            if not scene_id: raise ExtractorError("Can't find sceneid")
+            _title = info_video.get('title')
+            
+            premsg = f"{premsg}[{scene_id}][{_title}]"
             
             getstream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id), _type_dict[_type]]) 
                     
-            self.to_screen(f"{premsg} [getstream_url] {getstream_url}")
+            self.logger_debug(f"{premsg} [getstream_url] {getstream_url}")
             info_json = try_get(self._send_request(getstream_url, headers=_headers_json), lambda x: x.json() if x else None)
-            if not info_json: raise ExtractorError("Cant get json")
+            if not info_json: raise ExtractorError(f"{premsg}: error - Cant get json")
             mpd_url = info_json.get("StreamUrl") 
-            if not mpd_url: raise ExtractorError("Can't find url mpd")
-            self.to_screen(f"{premsg} [m3u8_url] {mpd_url}")
-            mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
-            if not mpd_doc: raise ExtractorError("Cant get mpd doc") 
-            if _type == "dash":
-                mpd_doc = self._parse_xml(mpd_doc, None)
-             
-            formats = []               
-            if _type == "m3u8":
-                formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls")
-            elif _type == "dash":
-                formats = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
+            if not mpd_url: raise ExtractorError(f"{premsg}: error - Can't find stream url")
+            #mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
+            #if not mpd_doc: raise ExtractorError(f"{premsg}: error - Cant get mpd doc") 
+            #if _type == "dash":
+            #    mpd_doc = self._parse_xml(mpd_doc, None)
+
+            @dec_on_exception
+            def _extract_formats():               
+                if _type == "m3u8":
+                    return(self._extract_m3u8_formats(mpd_url, scene_id, ext="mp4", m3u8_id="hls", headers=_headers_mpd))
+                elif _type == "dash":
+                    return(self._extract_mpd_formats(mpd_url, scene_id, mpd_id="dash", headers=_headers_mpd))
                 
+            formats = _extract_formats()
+            
             if formats:
                 self._sort_formats(formats)
             
                 _entry = {
                     "id": scene_id,
-                    "title": info_video.get('title'),
+                    "title": _title,
                     "formats": formats,
                     "ext": "mp4",
                     "webpage_url": url,
@@ -260,10 +197,81 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{premsg}: [_type] {_type}  {repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(f'{repr(e)}')
+            raise ExtractorError(f'{premsg}: error - {repr(e)}')
+       
+       
+    def _is_logged(self, driver):
         
+        self._send_request(self._SITE_URL, driver)
+        logged_ok = driver.current_url == "https://nakedsword.com/members"
+        self.to_screen(f"[is_logged] {logged_ok}")
+        return(logged_ok)
+        
+    
+    def _login(self):
+        
+
+        driver = self.get_driver()
+        try:
+            
+            if not self._is_logged(driver):
+
+                self.report_login()
+                username, password = self._get_login_info()
+                if not username or not password:
+                    self.raise_login_required(
+                        'A valid %s account is needed to access this media.'
+                        % self._NETRC_MACHINE)        
+                
+                self._send_request(self._LOGIN_URL, driver)
+                
+                el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
+                el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_password.SignInFormInput.SignInFormPassword")))
+                el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.button.expanded.SignInBtnSubmit")))
+                self.wait_until(driver, 2)
+                el_username.send_keys(username)
+                self.wait_until(driver, 2)
+                el_psswd.send_keys(password)
+                self.wait_until(driver, 2)
+                el_submit.submit()
+                self.wait_until(driver, 60, ec.url_changes(self._LOGIN_URL))
+                if driver.current_url == "https://nakedsword.com/members":
+                    self.to_screen("[login] Login OK")
+                    return driver.get_cookies()
+                else: raise ExtractorError("login nok")
+            
+            else:
+                self.to_screen(f"[login] Already logged")
+                return driver.get_cookies()
+
+        finally:
+            self.rm_driver(driver)
+                    
+   
+    def _real_initialize(self):
+    
+        super()._real_initialize()
+        
+        with NakedSwordBaseIE._LOCK:           
+            if not NakedSwordBaseIE._NSINIT:
+                NakedSwordBaseIE._CLIENT.cookies.set("ns_pfm", "True", "nakedsword.com")
+                
+                if not NakedSwordBaseIE._COOKIES:
+                    try:                        
+                        NakedSwordBaseIE._COOKIES = self._login()
+                        
+                    except Exception as e:
+                        self.report_warning(f"[login] login nok: {repr(e)}")
+                        raise ExtractorError(f"[login] login nok: {repr(e)}")
+                
+                for cookie in NakedSwordBaseIE._COOKIES:
+                    if cookie['name'] in ("ns_auth", "ns_pk"):
+                        NakedSwordBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    
+                NakedSwordBaseIE._NSINIT = True
+        
+  
+    
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedswordscene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
@@ -275,28 +283,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     def _real_extract(self, url):
 
         try:            
-            self.report_extraction(url)
-            
-            # info_video = self._get_info(url)
-            # if not info_video: raise ExtractorError("Can't find sceneid")
-                          
-            # scene_id = info_video.get('id')
-            # if not scene_id: raise ExtractorError("Can't find sceneid")
-            
-            # stream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id)])                                   
-            
-
-            # formats = self._get_formats(url, "/".join([stream_url, "HLS"]), "m3u8")       
-            
-            #self._sort_formats(formats) 
-            
-            # _entry = {
-            #     "id": scene_id,
-            #     "title": info_video.get('title'),
-            #     "formats": formats,
-            #     "ext": "mp4"
-            # }
-            
+            self.report_extraction(url)            
             return self._get_entry(url)
  
         except ExtractorError:
@@ -306,11 +293,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f'{repr(e)}')
             
-            
-        
-        
 
-        
 
 class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'
@@ -323,9 +306,13 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
     def _real_extract(self, url):
 
+        self.report_extraction(url)
+        
         playlist_id, title = self._match_valid_url(url).group('id', 'title')
         
-        webpage = self._download_webpage(url, playlist_id, None, fatal=False)
+        webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]','', html.unescape(x.text)) if x else None)
+        
+        if not webpage: raise ExtractorError("Couldnt get webpage")
 
         pl_title = self._html_search_regex(r'(?s)<title>(?P<title>.*?)<', webpage, 'title', group='title').split(" | ")[1]
 
@@ -338,15 +325,18 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             if res:
                 _id = res.get('id')
                 _title = res.get('title')
-            entry = self.url_result(_urlscene, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
-            entries.append(entry)
+                entry = self.url_result(_urlscene, ie=NakedSwordSceneIE.ie_key(), video_id=_id, video_title=_title)
+                entries.append(entry)
 
-        return {
-            '_type': 'playlist',
-            'id': playlist_id,
-            'title': sanitize_filename(pl_title, True),
-            'entries': entries,
-        }
+        if entries:
+            self.to_screen(f"[get_entries_list][{url}] got entries list OK")
+            return {
+                '_type': 'playlist',
+                'id': playlist_id,
+                'title': sanitize_filename(pl_title, True),
+                'entries': entries,
+            }
+        else: raise ExtractorError("no entries")
 
 class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:mostwatched:playlist"
@@ -364,14 +354,16 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
         list_pages = [(i, f"{self._MOST_WATCHED}{i}") for i in range(1, int(pages) + 1)]
         with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=5) as ex:
             
-            futures = {ex.submit(self.get_entries_scenes, el[1], el[0]): el[0]  for el in list_pages}
+            futures = {ex.submit(self.get_entries_scenes, el[1], el[0]): f"page={el[0]}"  for el in list_pages}
         
         for fut in futures:
             try:
-                entries += fut.result()
+                _res = fut.result()
+                if _res:
+                    entries += _res
+                else: raise ExtractorError("no entries")
             except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+                self.report_warning(f'[{url}][{futures[fut]}] {repr(e)}')  
                 raise ExtractorError(repr(e))
         
         if entries:
@@ -381,6 +373,8 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
                 'title': f"nakedsword:mostwatched:pages:{pages}",
                 'entries': entries,
             }
+        
+        else: raise ExtractorError("no entries")
 
 
 class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
@@ -404,23 +398,26 @@ class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
 
         with ThreadPoolExecutor(max_workers=5) as ex:
             
-            futures = [ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}", i) for i in range(1, int(data['pages']) + 1)]
+            futures = {ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}", i) : f"page={i}" for i in range(1, int(data['pages']) + 1)}
 
         for fut in futures:
             try:
-                entries += fut.result()
+                _res = fut.result()
+                if _res:
+                    entries += _res
+                else: raise ExtractorError("no entries")
             except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')  
+                self.report_warning(f'[{url}][{futures[fut]}] {repr(e)}')  
                 raise ExtractorError(repr(e))
         
-
-        return {
-            '_type': 'playlist',
-            'id': data['id'],
-            'title':  f"NSw{data['typepl'].capitalize()}_{''.join(w.capitalize() for w in data['name'].split('-'))}",
-            'entries': entries,
-        }
+        if entries:
+            return {
+                '_type': 'playlist',
+                'id': data['id'],
+                'title':  f"NSw{data['typepl'].capitalize()}_{''.join(w.capitalize() for w in data['name'].split('-'))}",
+                'entries': entries,
+            }
+        else: raise ExtractorError("no entries")
         
 class NakedSwordPlaylistIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:playlist"
@@ -434,7 +431,7 @@ class NakedSwordPlaylistIE(NakedSwordBaseIE):
 
         entries = []
 
-        webpage = self._download_webpage(url, None, None, fatal=False)
+        webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]','', html.unescape(x.text)) if x else None)
         if webpage: 
 
             if 'SCENE LIST GRID WRAPPER' in webpage:
