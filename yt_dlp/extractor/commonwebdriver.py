@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import shutil
 import sys
 import tempfile
@@ -9,7 +7,7 @@ from queue import Empty, Queue
 from urllib.parse import unquote
 
 import httpx
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, HTTPError, StreamError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
@@ -32,6 +30,10 @@ import random
 from ..utils import int_or_none, try_get, classproperty
 from .common import ExtractorError, InfoExtractor
 
+import logging
+logger = logging.getLogger("Commonwebdriver")
+
+
 limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
 limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
 limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
@@ -46,6 +48,30 @@ limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
+CONFIG_EXTRACTORS = {
+    ('userload', 'evoload', 'highload',): {
+                                            'ratelimit': limiter_15, 
+                                            'maxsplits': 4},
+                ('doodstream','vidoza',): {
+                                            'ratelimit': limiter_5,
+                                            'maxsplits': 2}, 
+                ('tubeload', 'embedo',): {
+                                            'ratelimit': limiter_5, 
+                                            'maxsplits': 4},
+    ('fembed', 'streamtape', 'gayforfans', 
+     'gayguytop', 'upstream', 'videobin', 
+                            'xvidgay',): {
+                                            'ratelimit': limiter_5, 
+                                            'maxsplits': 16},
+            ('odnoklassniki', 'html5', 
+           'gaystreamembed','pornhat', 
+             'yourporngod', 'ebembed', 
+            'gay0day', 'onlygayvideo',
+                            'homoxxx'): {
+                                            'ratelimit': limiter_1, 
+                                            'maxsplits': 16}
+}
+
 def my_jitter(value: float) -> float:
 
     return int(random.uniform(value, value*1.25))
@@ -53,6 +79,12 @@ def my_jitter(value: float) -> float:
 def my_jitter2(value: float) -> float:
 
     return int(random.uniform(value, value*2))
+
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
+dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
+dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 class StatusError503(Exception):
     """Error during info extraction."""
@@ -62,18 +94,7 @@ class StatusError503(Exception):
         super().__init__(msg)
         self.exc_info = sys.exc_info()  # preserve original exception
 
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter2, raise_on_giveup=False, interval=15)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-
-dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
-
-dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
-
-
-import logging
-logger = logging.getLogger("Commonwebdriver")
-
 
 class scroll():
     '''
@@ -99,8 +120,7 @@ def _check_init(func):
         if not SeleniumInfoExtractor._MASTER_INIT:
             self._real_initialize()
         return func(self, *args, **kwargs)
-    return wrapper       
-
+    return wrapper
 
 class SeleniumInfoExtractor(InfoExtractor):
     
@@ -111,33 +131,17 @@ class SeleniumInfoExtractor(InfoExtractor):
     _YTDL = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
-    _CONFIG_REQ = {
-                    ('userload', 'evoload', 'highload',): {
-                                                            'ratelimit': limiter_15, 
-                                                            'maxsplits': 4},
-                    ('doodstream','vidoza',): {
-                                        'ratelimit': limiter_5,
-                                        'maxsplits': 2}, 
-                    ('tubeload', 'embedo',): {
-                                        'ratelimit': limiter_5, 
-                                        'maxsplits': 4},
-                    ('fembed', 'streamtape', 'gayforfans', 'gayguytop', 'upstream', 'videobin', 'xvidgay',): {
-                        'ratelimit': limiter_5, 'maxsplits': 16}, 
-               }
+    _CONFIG_REQ = copy.deepcopy(CONFIG_EXTRACTORS)
     _MASTER_INIT = False
     _MAX_NUM_WEBDRIVERS = 0
     _SERVER_NUM = 0
     
-    _FIREFOX_HEADERS =  {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'accept-encoding': 'gzip, deflate',
-        'accept-language': 'en,es-ES;q=0.5',        
-        'connection': 'keep-alive',        
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'none',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1', 
+    _FIREFOX_HEADERS =  {      
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Pragma': 'no-cache', 
+        'Cache-Control': 'no-cache', 
     }
     
     @classproperty
@@ -166,24 +170,32 @@ class SeleniumInfoExtractor(InfoExtractor):
         ies = SeleniumInfoExtractor._YTDL._ies
         for ie_key, ie in ies.items():
             if ie.suitable(url):
-                extractor = ie
+                _ext_key = ie_key
                 if ie_key == 'Generic': 
                     continue
                 else:                    
                     break
-        return extractor
+
+        return (self._downloader.get_info_extractor(ie_key))
         
-    def _get_ie_name(self, url):    
+    def _get_ie_name(self, url=None):    
         
-        extractor = self._get_extractor(url)        
-        extr_name = extractor.IE_NAME       
-        return extr_name
+        if url:
+            extractor = self._get_extractor(url)        
+            extr_name = extractor.IE_NAME       
+            return extr_name
+        else:
+            return self.IE_NAME
     
-    def _get_ie_key(self, url):    
+    def _get_ie_key(self, url=None):    
         
-        extractor = self._get_extractor(url)        
-        extr_key = extractor.ie_key()        
-        return extr_key
+        if url:
+            extractor = self._get_extractor(url)        
+            extr_key = extractor.ie_key()        
+            return extr_key
+        else:
+            return self.ie_key()
+        
     
     def _get_url_print(self, url):
         if len(url) > 150:
@@ -479,7 +491,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         def getter(x):
         
-            value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x in (kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
+            value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
             if value:
                 return(value['ratelimit'].ratelimit(key_text, delay=True))
         
@@ -517,9 +529,12 @@ class SeleniumInfoExtractor(InfoExtractor):
                 @dec_on_exception3
                 @dec_on_exception2
                 @_decor
-                def _throttle_isvalid(_url, method="GET"):
+                def _throttle_isvalid(_url, short):
                     try:
-                        res = self.send_http_request(_url, _type=method, headers=SeleniumInfoExtractor._FIREFOX_HEADERS, msg=f'[valid]{_pre_str}')
+                        _headers = copy.deepcopy(SeleniumInfoExtractor._FIREFOX_HEADERS)
+                        if short:
+                            _headers.update({'Range': 'bytes=0-100'})
+                        res = self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
                         if not res: 
                             return ""
                         else:
@@ -529,7 +544,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         #logger.exception(repr(e))
                         #return ""
  
-                res = _throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art"), method="HEAD")
+                res = _throttle_isvalid(url, True)
             
                 if res:
                         
@@ -540,7 +555,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         
                     else:
 
-                        webpage = try_get(_throttle_isvalid(url.replace("streamtape.com", "streamtapeadblock.art")), lambda x: html.unescape(x.text) if x else None)
+                        webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
                         if not webpage: 
                             valid = False
                             self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt download webpage')

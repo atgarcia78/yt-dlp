@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec, Keys
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, SeleniumInfoExtractor, limiter_5, By, ec, Keys
 
 
 class video_or_error_streamtape():
@@ -56,7 +56,7 @@ class video_or_error_streamtape():
 class StreamtapeIE(SeleniumInfoExtractor):
 
     IE_NAME = 'streamtape'
-    _VALID_URL = r'https?://(www.)?streamtape\.(?:com|net)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
+    _VALID_URL = r'https?://(www.)?(?:streamtape|streamta)\.(?:com|net|pe)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1']
     
     # @staticmethod
@@ -64,15 +64,21 @@ class StreamtapeIE(SeleniumInfoExtractor):
     #     #return try_get(re.search(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage), lambda x: x.group('url'))
     #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1',webpage)]
 
-    @dec_on_exception
+    @dec_on_exception3
+    @dec_on_exception2
     @limiter_5.ratelimit("streamtape", delay=True)
     def _get_video_info(self, url, headers=None, msg=None):        
         
         if msg: pre = f'{msg}[get_video_info]'
         else: pre = '[get_video_info]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
-        return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 
-                                                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})      
+        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        try:
+            return self.get_info_for_format(url, headers=_headers)
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
     
     @dec_on_exception
     @limiter_5.ratelimit("streamtape", delay=True)
