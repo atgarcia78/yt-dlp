@@ -27,7 +27,7 @@ import copy
 import functools
 import random
 
-from ..utils import int_or_none, try_get, classproperty
+from ..utils import int_or_none, traverse_obj, try_get, classproperty
 from .common import ExtractorError, InfoExtractor
 
 import logging
@@ -55,7 +55,8 @@ CONFIG_EXTRACTORS = {
                 ('doodstream','vidoza',): {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
-                ('tubeload', 'embedo',): {
+                ('tubeload', 'embedo',
+                            'redload',): {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
@@ -165,18 +166,26 @@ class SeleniumInfoExtractor(InfoExtractor):
                 SeleniumInfoExtractor._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
     @_check_init
-    def _get_extractor(self, url):
+    def _get_extractor(self, _args):
 
-        ies = SeleniumInfoExtractor._YTDL._ies
-        for ie_key, ie in ies.items():
-            if ie.suitable(url):
-                _ext_key = ie_key
-                if ie_key == 'Generic': 
-                    continue
-                else:                    
-                    break
+        if _args.startswith('http'):
 
-        return (self._downloader.get_info_extractor(ie_key))
+            ies = SeleniumInfoExtractor._YTDL._ies
+            for ie_key, ie in ies.items():
+                if ie.suitable(_args):
+                    if ie_key == 'Generic': 
+                        continue
+                    else:                    
+                        break
+        else:
+            ie_key = _args       
+        
+        try:
+            if (_extractor:=self._downloader.get_info_extractor(ie_key)):
+                _extractor._real_initialize()
+                return _extractor
+        except Exception as e:
+            self.logger_debug(f"extractor doesnt exist with ie_key {ie_key}")
         
     def _get_ie_name(self, url=None):    
         
@@ -229,6 +238,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _real_initialize(self):
 
+                
         try:  
         
             with SeleniumInfoExtractor._MASTER_LOCK:
@@ -245,13 +255,13 @@ class SeleniumInfoExtractor(InfoExtractor):
                     #no verifciamos nunca el cert
                     SeleniumInfoExtractor._CLIENT_CONFIG.update({'verify': False})
                     
-                    _config = SeleniumInfoExtractor._CLIENT_CONFIG.copy()
+                    _config = copy.deepcopy(SeleniumInfoExtractor._CLIENT_CONFIG)
                     SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], 
                                                                  follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
                     SeleniumInfoExtractor._MASTER_INIT = True
                     
-                    self.logger_debug(SeleniumInfoExtractor._CLIENT.headers)
+                    #self.logger_debug(SeleniumInfoExtractor._CLIENT.headers)
                     
         except Exception as e:
             logger.exception(e)
@@ -373,7 +383,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classmethod
     def rm_driver(cls, driver):
         
-        tempdir = try_get(driver.caps, lambda x: x.get('moz:profile', None))
+        #tempdir = try_get(driver.caps, lambda x: x.get('moz:profile', None))
+        tempdir = traverse_obj(driver.caps, 'moz:profile')
         
         try:
             driver.close()

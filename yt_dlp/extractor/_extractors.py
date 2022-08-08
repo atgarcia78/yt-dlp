@@ -2629,7 +2629,10 @@ from .exporntoons import ExPornToonsIE
 from .gaybingo import GayBingoIE
 from .vodnakedsword import VODNakedSwordMovieIE
 from .thegay import TheGayIE
-from .tubeload import TubeloadIE
+from .tubeload import (
+    TubeloadIE,
+    RedloadIE
+)
 from .querofoder import QueroFoderIE
 from .videovard import VideovardIE
 from .hulu123 import Hulu123IE

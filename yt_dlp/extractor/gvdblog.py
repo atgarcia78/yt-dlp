@@ -2,68 +2,11 @@ import json
 import re
 from datetime import datetime
 
-from ..utils import ExtractorError, try_get, sanitize_filename
+from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1
 
 from concurrent.futures import ThreadPoolExecutor
 
-# class getvideos():
-#     def __call__(self, driver):
-#         el_iframes = driver.find_elements(By.TAG_NAME, "iframe")
-#         videos = []
-#         _subvideos = []
-#         if el_iframes:
-#             for _ifr in el_iframes:
-#                 if _ifr.get_attribute("allowfullscreen"):
-#                     if _ifr.get_attribute("mozallowfullscreen"):
-#                         _subvideos.append(_ifr.get_attribute('src'))
-#                     else:
-#                         _vid = _ifr.get_attribute('src')
-#                         if _subvideos:
-#                             _subvideos.append(_vid)
-#                             videos.append(_subvideos)
-#                             _subvideos = []
-#                         else: videos.append(_vid)
-#         if _subvideos:
-#             if len(_subvideos) == 1: _subvideos = _subvideos[0]
-#             videos.insert(0, _subvideos)        
-#         if not videos: 
-#             return False
-#         return(videos)
-
-            
-# class check_consent():
-#     def __init__(self):
-#         self.init = True
-        
-#     def __call__(self, driver):
-
-#         if self.init:
-#             if (el_ifr:=driver.find_elements(By.ID, "injected-iframe")):
-
-#                 driver.switch_to.frame(el_ifr[0])
-#                 self.init = False
-                
-#             else: return True
-
-#         el_button = driver.find_element(By.CSS_SELECTOR, "a.maia-button.maia-button-primary")
-            
-#         el_button.click()
-#         #time.sleep(2)
-#         driver.switch_to.default_content()
-#         #time.sleep(2)
-#         return True
-
-                
-# class get_infopost():
-#     def __call__(self, driver):
-#         el_postdate = driver.find_element(By.CSS_SELECTOR, ".mi")
-#         if (_text:=el_postdate.text):
-#             postid = try_get(driver.find_element(By.CLASS_NAME, "related-tag"), lambda x: x.get_attribute('data-id'))
-#             title = driver.title
-#             return (_text, title, postid)
-#         else: return False
-        
 class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     def getbestvid(self, x, check=True, msg=None):
@@ -78,7 +21,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         for el in _x:
             #ie = self._downloader.get_info_extractor(ie_key:=self._get_ie_key(el))
             ie = self._get_extractor(el)
-            ie._real_initialize()
+            #ie._real_initialize()
             
             try:
                 _entry = ie._get_entry(el, check_active=check, msg=pre)
@@ -120,9 +63,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     list1.append(_subvideo)
                     _subvideo = []
                 else:
-                    if not try_get(list_urls, lambda y: y[i+1]):
+                    #if not try_get(list_urls, lambda y: y[i+1]):
+                    if i == len(list_urls):
                         list1.append(el[0])
-                    elif try_get(list_urls, lambda y: (y[i+1][1] or y[i+1][2])):
+                    elif traverse_obj(list_urls, (i+1, 1)) or traverse_obj(list_urls, (i+1, 2)):#try_get(list_urls, lambda y: (y[i+1][1] or y[i+1][2])):
                         _subvideo2.append(el[0])
 
         if _subvideo:

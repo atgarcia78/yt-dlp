@@ -164,19 +164,25 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             if not info_json: raise ExtractorError(f"{premsg}: error - Cant get json")
             mpd_url = info_json.get("StreamUrl") 
             if not mpd_url: raise ExtractorError(f"{premsg}: error - Can't find stream url")
-            #mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
-            #if not mpd_doc: raise ExtractorError(f"{premsg}: error - Cant get mpd doc") 
-            #if _type == "dash":
-            #    mpd_doc = self._parse_xml(mpd_doc, None)
+            mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
+            if not mpd_doc: raise ExtractorError(f"{premsg}: error - Cant get mpd doc") 
+            # if _type == "dash":
+            #     mpd_doc = self._parse_xml(mpd_doc, None)
 
-            @dec_on_exception
-            def _extract_formats():               
-                if _type == "m3u8":
-                    return(self._extract_m3u8_formats(mpd_url, scene_id, ext="mp4", m3u8_id="hls", headers=_headers_mpd))
-                elif _type == "dash":
-                    return(self._extract_mpd_formats(mpd_url, scene_id, mpd_id="dash", headers=_headers_mpd))
+            # @dec_on_exception
+            # def _extract_formats():               
+            #     if _type == "m3u8":
+            #         return(self._extract_m3u8_formats(mpd_url, scene_id, ext="mp4", m3u8_id="hls", headers=_headers_mpd))
+            #     elif _type == "dash":
+            #         return(self._extract_mpd_formats(mpd_url, scene_id, mpd_id="dash", headers=_headers_mpd))
                 
-            formats = _extract_formats()
+            # formats = _extract_formats()
+            
+            if _type == "m3u8":
+                formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", m3u8_id="hls", headers=_headers_mpd)
+            # elif _type == "dash":
+            #     formats = self._parse_mpd_formats(mpd_doc, mpd_url, scene_id, mpd_id="dash", headers=_headers_mpd)
+            
             
             if formats:
                 self._sort_formats(formats)
