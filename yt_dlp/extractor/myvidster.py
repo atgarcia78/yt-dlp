@@ -144,8 +144,7 @@ class MyVidsterIE(MyVidsterBaseIE):
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
     _NETRC_MACHINE = "myvidster"
     
-    _CONFIG_EXTR = ['userload', 'evoload', 'highload', 'streamtape', 'doodstream', 'fembed', 'gayguytop', 'tubeload', 'gayforfans', 'embedo']
-    
+        
     _URLS_CHECKED = []
     
     def _already_analysed(self, url1):
@@ -154,7 +153,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                 return url2
             if ((_extr:=self._get_ie_name(unquote(url1))) == self._get_ie_name(unquote(url2))):
                 if _extr != 'generic':
-                    ie = self._downloader.get_info_extractor(self._get_ie_key(unquote(url1)))
+                    #ie = self._downloader.get_info_extractor(self._get_ie_key(unquote(url1)))
+                    ie = self._get_extractor(unquote(url1))
+                    ie._real_initialize()
                     mobj1 = re.search(ie._VALID_URL, url1)
                     mobj2 = re.search(ie._VALID_URL, url2)
                     if mobj1.groupdict() == mobj2.groupdict():
@@ -189,8 +190,14 @@ class MyVidsterIE(MyVidsterBaseIE):
                     
                 
                 _extr_name = self._get_ie_name(el)
-                if _extr_name in self._CONFIG_EXTR: #get entry
-                    ie = self._downloader.get_info_extractor(self._get_ie_key(el))
+                
+                def _check_extr(x):
+                    if (try_get([kt for k in SeleniumInfoExtractor._CONFIG_REQ.keys() if any(x==(kt:=_) for _ in k)], lambda y: y[0])):
+                        return True
+                
+                
+                if _check_extr(_extr_name): #get entry                    
+                    ie = self._get_extractor(el)
                     ie._real_initialize()
                     try:
                         _ent = ie._get_entry(el, check_active=True, msg=pre)
@@ -614,14 +621,17 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         try:            
             
             with ThreadPoolExecutor(max_workers=min(len(list_search_urls), 5)) as exe:
-                futures = [exe.submit(self._get_videos, _urlq) for _urlq in list_search_urls]
+                futures = {exe.submit(self._get_videos, _urlq): _urlq for _urlq in list_search_urls}
                 
             list_videos = []
             for fut in futures:
                 try:
-                    list_videos += fut.result()
+                    _res = fut.result()
+                    if _res:
+                        list_videos += _res
+                    else: raise ExtractorError("no entries")
                 except Exception as e:
-                    self.to_screen(repr(e))
+                    self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
             
             if list_videos:
                 entries = [{'_type':'url', 'url': f'{self._SITE_URL}{video}', 'ie_key': 'MyVidster', 'original_url': url} for video in list_videos]

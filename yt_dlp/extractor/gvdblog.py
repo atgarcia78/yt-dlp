@@ -1,13 +1,9 @@
-from __future__ import unicode_literals
-
 import json
 import re
-import sys
-import traceback
 from datetime import datetime
 
 from ..utils import ExtractorError, try_get, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1, By, scroll
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -80,7 +76,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         else: pre = ' '
        
         for el in _x:
-            ie = self._downloader.get_info_extractor(ie_key:=self._get_ie_key(el))
+            #ie = self._downloader.get_info_extractor(ie_key:=self._get_ie_key(el))
+            ie = self._get_extractor(el)
             ie._real_initialize()
             
             try:
@@ -148,8 +145,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self.report_extraction(url)
 
         try:
-
-            
 
             webpage = try_get(self._send_request(url), lambda x: x.text)
             if not webpage: raise ExtractorError("no webpage")

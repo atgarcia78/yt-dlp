@@ -2,120 +2,134 @@ from __future__ import unicode_literals
 
 import html
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 
-
-from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
-
-
-class get_title_videourl:
-    def __init__(self, name, logger):
-        self.logger = logger
-        self.init = True
-        self.title = None
-        self.name = name
-
-    def __call__(self, driver):
-        try:
-            if self.init:
-                elembed = driver.find_elements(By.CLASS_NAME, "embed-wrap")
-                self.title = driver.title
-                if elembed:
-                    elifr = elembed[0].find_element(By.TAG_NAME, "iframe")
-                    driver.switch_to.frame(elifr)
-                    self.init = False
-                    elifr2_url = try_get(driver.find_elements(By.TAG_NAME, "iframe"), lambda x: x[0].get_attribute('src')) or ""
-                    if '/deleted' in elifr2_url: return "error404"
-
-
-            elplayer = driver.find_element(By.ID, "kt_player")
-            try:
-                elplayer.click()
-                time.sleep(1)
-                video_url = try_get(driver.find_element(By.CSS_SELECTOR, "video.fp-engine"), lambda x: x.get_attribute('src'))
-                if video_url:
-                    return ({'title': self.title, 'url': video_url})
-                else: return False
-            except Exception as e:
-                self.logger(repr(e))
-            finally:
-                if self.name == 'yourporngod':
-                    time.sleep(8)
-                    elplayer.click()
-                else: 
-                    time.sleep(5)
-                    elplayer.click()
-
-        except Exception as e:
-            self.logger(repr(e))
-            raise
+from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, parse_resolution
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError
 
 class YourPornGodIE(SeleniumInfoExtractor):
     
     IE_NAME = 'yourporngod'
-    _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
+    _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/(?:embed|videos)/(?P<id>\d+)(/(?P<title>[^\/\$]+))?'
     _SITE_URL = 'https://yourporngod.com'
     
-    @dec_on_exception
-    @limiter_15.ratelimit("yourporngod", delay=True)   
-    def _get_video_info(self, url):        
+    @dec_on_exception2
+    @dec_on_exception3
+    @limiter_1.ratelimit("yourporngod", delay=True)   
+    def _get_video_info(self, url, headers=None):        
         self.logger_debug(f"[get_video_info] {url}")
-        return self.get_info_for_format(url)       
+        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        try:
+            return self.get_info_for_format(url, headers=_headers)
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
     @dec_on_exception
-    @limiter_15.ratelimit("yourporngod", delay=True)
-    def _send_request(self, url, driver):
-        self.logger_debug(f"[send_request] {url}")   
-        driver.get(url)
+    @dec_on_exception2
+    @dec_on_exception3
+    @limiter_1.ratelimit("yourporngod", delay=True)
+    def _send_request(self, url, driver=None, headers=None):
+        if driver:
+            self.logger_debug(f"[send_request] {url}")   
+            driver.get(url)
+        else:
+            try:
+                return self.send_http_request(url)
+            except HTTPStatusError as e:
+                self.report_warning(f"[send_requests] {self._get_url_print(url)}: error - {repr(e)}")
 
+    
+    def _get_entry(self, url, **kwargs):
+        
+        if self.IE_NAME == "pornhat":
+            _url = url
+            videoid = None
+
+        elif self.IE_NAME == 'homoxxx':
+            
+            videoid = self._match_id(url)
+            _url = url 
+            
+        else:
+            
+            videoid = self._match_id(url)
+            _url = f"{self._SITE_URL}/embed/{videoid}"
+            
+        webpage = try_get(self._send_request(_url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+        flashvars =  self._parse_json(
+                        self._search_regex(
+                            r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'), videoid, transform_source=js_to_json)
+        
+        title = re.sub(r'(?i)(^(hd_video_|sd_video_|video_))|(%s$)|(%s\.mp4)|(.mp4$)' % (self.IE_NAME, self.IE_NAME), '', sanitize_filename(self._html_extract_title(webpage), restricted=True)).strip('[_,-, ]')
+        
+        if not videoid:
+            videoid = flashvars.get('video_id')
+        self.logger_debug(flashvars)
+        
+        url_keys = list(filter(re.compile(r'video_url|video_alt_url\d*').fullmatch, flashvars.keys()))
+        
+        iegen = self._downloader.get_info_extractor('Generic')
+        
+        _headers = {'Referer': _url}
+        
+        formats = []
+        for key in url_keys:
+            if '/get_file/' not in flashvars[key]:
+                continue
+            format_id = flashvars.get(f'{key}_text', key)
+            _format = {
+                'url': (_videourl:=iegen._kvs_getrealurl(flashvars[key], flashvars['license_code'])),
+                'format_id': format_id,
+                'http_headers': _headers,
+                'ext': 'mp4',
+                 
+                **(parse_resolution(format_id) or parse_resolution(flashvars[key]))
+            }
+            
+            _videoinfo = self._get_video_info(_videourl, headers=_headers)
+            _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
+            
+            formats.append(_format)
+            if not formats[-1].get('height'):
+                formats[-1]['quality'] = 1
+                
+        self._sort_formats(formats)
+
+                        
+        entry = {
+            'id' : videoid,
+            'title' : sanitize_filename(title, restricted=True),
+            'formats' : formats,
+            'ext': 'mp4',
+            'extractor': self.IE_NAME,
+            'extractor_key': self.ie_key(),
+            'webpage_url': _url
+            }            
+        return entry
+        
+    
     def _real_initialize(self):
         super()._real_initialize()
     
-    def _real_extract(self, url):        
-              
+    def _real_extract(self, url):
+        
         self.report_extraction(url)
         
-        driver = self.get_driver()
-        try:
-                    
-            self._send_request(url, driver)
- 
-            title, video_url = try_get(self.wait_until(driver, 60, get_title_videourl(self.IE_NAME, self.to_screen)), lambda x: (x['title'], x['url']) if isinstance(x, dict) else ("error", x)) or ("","")                
-            self.to_screen(f"{title} : {video_url}")    
-            if not video_url: raise ExtractorError("No video url")
-            if video_url == "error404": raise ExtractorError("not found 404")
-            
-            _format = {
-                'format_id': 'http', 
-                'url': video_url,
-                'http_headers': {'Referer': self._SITE_URL}, 
-                'ext': 'mp4'}
-            
-            if self._downloader.params.get('external_downloader'):
-                _videoinfo = self._get_video_info(video_url)
-                _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
-            
-            
-            video_id = self._match_id(url)
-            if not title: title = try_get(re.search(self._VALID_URL, url), lambda x: x.group('title').replace("-","_"))
-                    
-            entry = {
-                'id' : video_id,
-                'title' : sanitize_filename(title, restricted=True),
-                'formats' : [_format],
-                'ext': 'mp4'
-                }            
-            return entry
         
-        
-        except Exception as e:
-            self.to_screen(e)
+        try: 
+            
+            return self._get_entry(url)  
+            
+        except ExtractorError:
             raise
-        finally:
-            self.rm_driver(driver)
+        except Exception as e:
+            
+            self.to_screen(f"{repr(e)}")
+            raise ExtractorError(repr(e))
+            
                         
         
 class YourPornGodPlayListIE(SeleniumInfoExtractor):
@@ -131,7 +145,7 @@ class YourPornGodPlayListIE(SeleniumInfoExtractor):
     
     
     @dec_on_exception
-    @limiter_15.ratelimit("yourporngod", delay=True)
+    @limiter_1.ratelimit("yourporngod", delay=True)
     def _send_request(self, url):
         self.logger_debug(f"[send_request] {url}")   
         res = YourPornGodPlayListIE._CLIENT.get(url)
@@ -196,5 +210,33 @@ class YourPornGodPlayListIE(SeleniumInfoExtractor):
         
 class OnlyGayVideoIE(YourPornGodIE):
     IE_NAME = 'onlygayvideo'
-    _VALID_URL = r'https?://(?:www\.)?onlygayvideo\.com/videos/(?P<id>\d+)/(?P<title>[^\/\$]+)'
+    _VALID_URL = r'https?://(?:www\.)?onlygayvideo\.com/(?:embed|videos)/(?P<id>\d+)/(?P<title>[^\/\$]+)'
     _SITE_URL = 'https://onlygayvideo.com'
+    
+class EbembedIE(YourPornGodIE):
+    IE_NAME = 'ebembed'
+    _VALID_URL = r'https?://(www\.)?ebembed\.com/(?:videos|embed)/(?P<id>\d+)/?(?P<title>[^\$]*)$'
+    _SITE_URL = 'https://ebembed.com'
+    
+    
+class Gay0DayIE(YourPornGodIE):
+    
+    IE_NAME = 'gay0day'
+    _VALID_URL = r'https?://(www\.)?gay0day\.com/(.+/)?(?:videos|embed)/(?P<id>\d+)/?(?P<title>[^$/]*)'
+    _SITE_URL = 'https://gay0day.com'
+    
+    
+class PornHatIE(YourPornGodIE):
+    
+    IE_NAME = 'pornhat'
+    _VALID_URL = r'https?://(www\.)?pornhat\.com/(?:video|embed)/?(?P<title>[^$/]*)'
+    _SITE_URL = 'https://pornhat.com'
+    
+class HomoXXXIE(YourPornGodIE):
+    
+    IE_NAME = 'homoxxx'
+    _VALID_URL = r'https?://(www\.)?homo\.xxx/(?:videos|embed)/?(?P<id>[^$/]*)'
+    _SITE_URL = 'https://homo.xxx'
+    
+
+    

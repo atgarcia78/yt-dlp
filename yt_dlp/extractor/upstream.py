@@ -89,7 +89,9 @@ class HLSStream(SeleniumInfoExtractor):
 
             return({ 
                 "id": videoid,
-                "title": sanitize_filename(title, restricted=True),                    
+                "title": sanitize_filename(title, restricted=True),     
+                "extractor": self.IE_NAME,               
+                "extractor_key": self.ie_key(),
                 "formats": _formats,
                 "webpage_url": url,                             
                 "ext": "mp4"})
