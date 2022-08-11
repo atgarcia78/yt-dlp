@@ -2514,7 +2514,6 @@ from .citebeur import CitebeurIE
 from .cazzofilm import CazzoFilmIE
 from .yourporngod import (
     YourPornGodIE,
-    YourPornGodPlayListIE,
     OnlyGayVideoIE,
     EbembedIE,
     Gay0DayIE,
