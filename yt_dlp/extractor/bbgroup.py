@@ -30,7 +30,7 @@ class waitforlogin():
             return False            
         
         if "authorize2" in driver.current_url:
-            self.logger("Authorize2")
+            self.logger("[login] Authorize2")
             el_email = driver.find_element(By.CSS_SELECTOR, "input#email")
             el_lastname = driver.find_element(By.CSS_SELECTOR, "input#last-name")
             el_enter = driver.find_element(By.CSS_SELECTOR, "button")
@@ -41,7 +41,7 @@ class waitforlogin():
             el_enter.click()
             return False
         if "multiple-sessions" in driver.current_url:                
-            self.logger("Abort existent session")
+            self.logger("[login] Abort existent session")
             el_abort = driver.find_element(By.CSS_SELECTOR,"button.std-button")
             el_abort.click()
             return False
@@ -84,7 +84,7 @@ class BBGroupIE(SeleniumInfoExtractor):
         self._send_request(self._LOGIN_URL, driver=driver)
         logged_ok = "LOG OUT" in (try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "ul"))),
                                          lambda x: x.get_attribute('innerHTML').upper()) or "")
-        self.to_screen(f"[is_logged] {logged_ok}")
+        self.logger_debug(f"[is_logged] {logged_ok}")
         return(logged_ok)
         
     
@@ -105,27 +105,24 @@ class BBGroupIE(SeleniumInfoExtractor):
                         'A valid %s account is needed to access this media.'
                         % self._NETRC_MACHINE)
 
-                if (self.wait_until(_driver, 60, waitforlogin(username, password, self.to_screen)) != "OK"):
+                if (self.wait_until(_driver, 60, waitforlogin(username, password, self.logger_debug)) != "OK"):
                     raise ExtractorError("couldnt log in")
             
                 else:
-                    self.to_screen("[login] Login OK")
+                    self.logger_debug("[login] Login OK")
             
-            else: self.to_screen("[login] Already Logged")
+            else: self.logger_debug("[login] Already Logged")
             
             return "OK"
         
         except Exception as e:
-            self.to_screen("[login] Login NOK")
+            self.report_warning("[login] Login NOK")
             return "NOK"
         
     def _real_initialize(self):
         
-        self.logger_debug(f'[real_init] {type(self)}')
         super()._real_initialize()
-                            
-        
-                        
+
         if not type(self)._MAX_PAGE:
         
             try:
@@ -136,7 +133,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                                                         lambda x: int(x[0])) or 50
             
             except Exception as e:
-                self.to_screen(f"error getting MAX_PAGE: {repr(e)}")
+                self.report_warning(f"error getting MAX_PAGE: {repr(e)}")
     
         if not type(self)._COOKIES:
             
@@ -149,7 +146,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                 
                 
             except Exception as e:
-                self.to_screen(f"error getting COOKIES: {repr(e)}")
+                self.report_warning(f"error getting COOKIES: {repr(e)}")
             finally:
                 self.rm_driver(driver)
                     
@@ -200,7 +197,7 @@ class BBGroupIE(SeleniumInfoExtractor):
         try:
             
             pre = f"[extract_entry][page_{pid}]" if pid else f"[extract_entry]"
-            self.to_screen(f"{pre} start for {url}")
+            self.logger_debug(f"{pre} start for {url}")
             
             _driver = None
             
@@ -282,7 +279,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                                                                             entry_protocol="m3u8_native", m3u8_id="hls", headers=headers)
                 
             if not formats_m3u8:
-                raise ExtractorError(f"{pre} Can't find any M3U8 format")
+                raise ExtractorError(f"Can't find any M3U8 format")
 
             self._sort_formats(formats_m3u8)
             
@@ -305,16 +302,15 @@ class BBGroupIE(SeleniumInfoExtractor):
 
         
         except ExtractorError as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            self.report_warning(f"{pre} {repr(e)}")
             #raise
             if '&page' in url or not pid:
                 raise
             else:
-                return self.url_result(f"{url}&page={pid}", ie=self.ie_key().split('AllPages')[0].split('OnePage')[0], webpage_url=url)
+                return self.url_result(f"{url}&page={pid}", ie=self.ie_key().split('AllPages')[0].split('OnePage')[0], webpage_url=url, error=repr(e))
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            self.report_warning(f"{pre} {repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
             with type(self)._MLOCK:
@@ -359,7 +355,6 @@ class BBGroupIE(SeleniumInfoExtractor):
                            for i in range(int(firstpage), _max + 1)}             
             
             for fut in futures:
-                #self.to_screen(f'[page_{futures[fut]}] results')
                 try:
                     res = fut.result()
                     _entries += res        
@@ -399,7 +394,7 @@ class BBGroupIE(SeleniumInfoExtractor):
     def _extract_list(self, plid, allpages=False):
  
         url_pl = f"{self._BASE_URL_PL}{plid}"
-        self.to_screen(f"[page_{plid}] extract list videos")
+        self.logger_debug(f"[page_{plid}] extract list videos")
 
         
         try:
@@ -460,7 +455,6 @@ class BBGroupIE(SeleniumInfoExtractor):
                         with BBGroupIE._SLOCK:
                             BBGroupIE._NUMDRIVERS -= 1
                 type(self)._LOCALQ = Queue()
-                #type(self)._NUMDRIVERS = 0
                 type(self)._NENTRIES = 0
                 
 
@@ -496,9 +490,7 @@ class SketchySexBaseIE(BBGroupIE):
     _MAX_PAGE = None
     
     _COOKIES = None
-   
-    #_NUMDRIVERS = 0
-    
+
     _NENTRIES = 0
     
     _LOCALQ = Queue()
@@ -507,37 +499,6 @@ class SketchySexBaseIE(BBGroupIE):
         
         super()._real_initialize()
     
-class BreederBrosBaseIE(BBGroupIE):
-    _LOGIN_URL = "https://members.breederbros.com"
-    _SITE_URL = "https://www.breederbros.com"
-    _BASE_URL_PL = "https://members.breederbros.com/index.php?page="
-
-    _NETRC_MACHINE = 'fraternityx'
-    
-    _SUFFIX = "BB"
-    
-    _TRAD_FROM_NEW_TO_OLD = {}
-
-    _MLOCK = threading.Lock()
-    
-    _INIT = False
-   
-    _MAX_PAGE = None
-    
-    _COOKIES = None
-   
-    #_NUMDRIVERS = 0
-    
-    _NENTRIES = 0
-    
-   
-    _LOCALQ = Queue()
-    
-    def _real_initialize(self):
-       
-        super()._real_initialize()
-                
-
 class SketchySexIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex'
     IE_DESC = 'sketchysex'
@@ -557,7 +518,6 @@ class SketchySexIE(SketchySexBaseIE):
        
         try: 
             pid, nent = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid'), x.group('nent') or 1))
-            #self.to_screen(f"page: {pid}")
             data = self._extract_from_video_page(url, pid, nent)
             if not data:
                 raise ExtractorError("not any video found")            
@@ -568,8 +528,6 @@ class SketchySexIE(SketchySexBaseIE):
         except ExtractorError:
             raise    
         except Exception as e:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
  
@@ -602,8 +560,6 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
 
@@ -634,10 +590,38 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         
+
+class BreederBrosBaseIE(BBGroupIE):
+    _LOGIN_URL = "https://members.breederbros.com"
+    _SITE_URL = "https://www.breederbros.com"
+    _BASE_URL_PL = "https://members.breederbros.com/index.php?page="
+
+    _NETRC_MACHINE = 'fraternityx'
+    
+    _SUFFIX = "BB"
+    
+    _TRAD_FROM_NEW_TO_OLD = {}
+
+    _MLOCK = threading.Lock()
+    
+    _INIT = False
+   
+    _MAX_PAGE = None
+    
+    _COOKIES = None
+   
+    _NENTRIES = 0
+   
+    _LOCALQ = Queue()
+    
+    def _real_initialize(self):
+       
+        super()._real_initialize()
+                
+
+
 class BreederBrosIE(BreederBrosBaseIE):
     IE_NAME = 'breederbros'
     IE_DESC = 'breederbros'
@@ -657,7 +641,6 @@ class BreederBrosIE(BreederBrosBaseIE):
        
         try: 
             pid, nent = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid'), x.group('nent') or 1))
-            #self.to_screen(f"page: {pid}")
             data = self._extract_from_video_page(url, pid, nent)
             if not data:
                 raise ExtractorError("not any video found")  
@@ -668,8 +651,6 @@ class BreederBrosIE(BreederBrosBaseIE):
         except ExtractorError:
             raise    
         except Exception as e:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
 
@@ -698,14 +679,11 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
                 raise ExtractorError("episodes page not found 404")
             entries = self._extract_list(playlistid)
             if not entries: raise ExtractorError("no video list")
-            #self.to_screen(entries)
             return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
        
         except ExtractorError:
             raise
         except Exception as e:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
             
@@ -741,6 +719,4 @@ class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
