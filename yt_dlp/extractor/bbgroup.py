@@ -391,7 +391,7 @@ class BBGroupIE(SeleniumInfoExtractor):
 
         
 
-    def _extract_list(self, plid, allpages=False):
+    def _extract_list(self, plid, nentr=None, allpages=False):
  
         url_pl = f"{self._BASE_URL_PL}{plid}"
         self.logger_debug(f"[page_{plid}] extract list videos")
@@ -404,7 +404,8 @@ class BBGroupIE(SeleniumInfoExtractor):
             url_list = try_get(re.findall(r'<a href="trailer\.php\?id=(\d+)"',
                                           res.text.replace("\n", "").replace("\t", "")),
                                lambda x: list(({f"{self._LOGIN_URL}/gallery.php?id=" + el:"" for el in x}).keys()))
-
+            if nentr:
+                url_list = url_list[0:nentr]
             self.logger_debug(f'[page_{plid}] {len(url_list)} videos\n[{",".join(url_list)}]')
 
             if not url_list: raise ExtractorError(f'[page_{plid}] no videos for playlist')
@@ -423,6 +424,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                     self.report_warning(f'[page_{plid}] not entry for {futures[fut]} - {repr(e)} \n{"!!".join(lines)}')  
                     #self.report_warning(f'[page_{plid}] not entry for {futures[fut]} - {repr(e)}')
 
+                        
             with ThreadPoolExecutor(thread_name_prefix="ExtrList", max_workers=8) as ex:
                 futures = {ex.submit(self._extract_from_video_page, _url, pid=plid): [i, _url] 
                                 for (i, _url) in enumerate(url_list)}
@@ -535,7 +537,7 @@ class SketchySexIE(SketchySexBaseIE):
 class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     IE_NAME = 'sketchysex:playlist'
     IE_DESC = 'sketchysex:playlist'
-    _VALID_URL = r"https://members\.sketchysex\.com/index\.php(?:\?page=(?P<id>\d+)|$)"
+    _VALID_URL = r"https://members\.sketchysex\.com/index\.php(?:\?page=(?P<id>\d+)(?:&nentries=(?P<nent>\d+))?)?"
 
     def _real_initialize(self):
         with SketchySexBaseIE._MLOCK:
@@ -547,13 +549,13 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        playlistid = re.search(self._VALID_URL, url).group("id") or '1'
-               
+        playlistid, nent = re.search(self._VALID_URL, url).group("id", "nent")
+        if not playlistid: playlistid = '1'       
         try:              
 
             if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid)
+            entries = self._extract_list(playlistid, nentr=int(nent))
             if not entries: raise ExtractorError("no video list")  
             return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
        

@@ -65,7 +65,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
                         self._search_regex(
                             r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'), videoid, transform_source=js_to_json)
         
-        title = re.sub(r'(?i)(^(hd_video_|sd_video_|video_))|(%s$)|(%s\.mp4)|(.mp4$)' % (self.IE_NAME, self.IE_NAME), '', sanitize_filename(self._html_extract_title(webpage), restricted=True)).strip('[_,-, ]')
+        title = re.sub(r'(?i)(^(hd_video_|sd_video_|video_))|(%s$)|(%s\.mp4)|(.mp4$)' % (self.IE_NAME, self.IE_NAME), '', self._html_extract_title(webpage)).strip('[_,-, ]')
         
         if not videoid:
             videoid = flashvars.get('video_id')

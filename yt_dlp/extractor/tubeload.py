@@ -1,10 +1,10 @@
 import time
 import sys
 import traceback
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 import re
 
-from ..utils import ExtractorError, sanitize_filename
+from ..utils import ExtractorError, sanitize_filename, traverse_obj
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_0_07, limiter_5, limiter_0_1, limiter_0_5, By, HTTPStatusError
 
 class getvideourl():
@@ -44,9 +44,14 @@ class TubeloadIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}[get_video_info]'
             else: pre = '[get_video_info]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
+            _host = urlparse(url).netloc
+            if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
+                _sem.acquire(priority=10)                
             return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
         except HTTPStatusError as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+        finally:
+            if _sem: _sem.release()
             
     
     @dec_on_exception
@@ -69,7 +74,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             self._send_request(f"{self._SITE_URL}/e/{videoid}", driver, msg=pre)
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url or video_url == "error404": raise ExtractorError("error404")
-            title = re.sub(r'(?i)(%s.co$)' % self.IE_NAME, '', sanitize_filename(driver.title, restricted=True)).strip('[_,-, ]')
+            title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME, '', driver.title.replace('.mp4','')).strip('[_,-, ]')
                         
             _format = {
                 'format_id': 'http-mp4',

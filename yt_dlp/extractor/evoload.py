@@ -1,14 +1,11 @@
-from __future__ import unicode_literals
-
 import re
 import sys
 import time
 import traceback
+from urllib.parse import unquote, urlparse
 
-
-from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By
-
+from ..utils import ExtractorError, sanitize_filename, try_get, traverse_obj
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError
 
 class video_or_error_evoload():
     def __init__(self, logger):
@@ -45,7 +42,7 @@ class video_or_error_evoload():
 
             else:
                 if _src:=elvid[0].get_attribute("src"):
-                    return _src
+                    return unquote(_src)
                 else:
                     return False
         except Exception as e:
