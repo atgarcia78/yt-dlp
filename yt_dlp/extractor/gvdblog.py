@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import datetime
+import html
 
 from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1
@@ -38,8 +39,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         #_reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
         _reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
-        list_urls = [mobj.group('url','ppal', 'ppal2') for mobj in re.finditer(_reg_expr, webpage) if mobj]
-
+        list_urls = [[mobj.group('url'),mobj.group('ppal'), mobj.group('ppal2')] for mobj in re.finditer(_reg_expr, webpage) if mobj]
+        n_ppal = len([el for el in list_urls if (el[1] or el[2])])
+        n_downloads = len(re.findall(r'<button class="mybutton2">Download\s*</button>', webpage))
+        if n_ppal > n_downloads:
+            for i in range(1, len(list_urls), 2):
+                list_urls[i][1] = None
+                list_urls[i][2] = None
         list1 = []
         _subvideo = []
         _subvideo2 = []
@@ -64,7 +70,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     _subvideo = []
                 else:
                     #if not try_get(list_urls, lambda y: y[i+1]):
-                    if i == len(list_urls):
+                    if i == (len(list_urls) - 1):
                         list1.append(el[0])
                     elif traverse_obj(list_urls, (i+1, 1)) or traverse_obj(list_urls, (i+1, 2)):#try_get(list_urls, lambda y: (y[i+1][1] or y[i+1][2])):
                         _subvideo2.append(el[0])
@@ -90,7 +96,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         try:
 
-            webpage = try_get(self._send_request(url), lambda x: x.text)
+            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
             if not webpage: raise ExtractorError("no webpage")
             
             postdate, title, postid = self.get_info(webpage)

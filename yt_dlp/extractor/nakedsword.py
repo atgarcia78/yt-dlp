@@ -77,7 +77,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             if res and res2:
                 return({'id': res2[0], 'title': sanitize_filename(f'{res[0][0]}_{res[0][1].lower().replace(" ","_")}', restricted=True)} if res and res2 else None)
 
-    def get_entries_scenes(self, url, page=None):
+    def get_entries_scenes(self, url, page=None, func=None):
         
         entries = []
         
@@ -97,19 +97,24 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 if videos_paths:
                     
                     list_urlscenes = [f"{self._SITE_URL}{video}" for video in videos_paths]
-                    self.logger_debug(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")               
-                    with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 5)) as exe:                                     
-                        
-                        futures = {exe.submit(self._get_entry, _urlscene, _type="m3u8", msg=premsg): _urlscene for _urlscene in list_urlscenes}
+                    if func:
+                        list_urlscenes = list(filter(func, list_urlscenes))
+                    
+                    self.logger_debug(f"{premsg} scenes found [{len(list_urlscenes)}]: \n{list_urlscenes}")
+                    
+                    if list_urlscenes:               
+                        with ThreadPoolExecutor(thread_name_prefix="nsgetscenes", max_workers=min(len(list_urlscenes), 10)) as exe:                                     
+                            
+                            futures = {exe.submit(self._get_entry, _urlscene, _type="m3u8", msg=premsg): _urlscene for _urlscene in list_urlscenes}
 
-                    for fut in futures:
-                        try:
-                            _entry = fut.result()
-                            if not _entry: raise ExtractorError("no entry")
-                            _entry.update({'original_url': url})
-                            entries.append(_entry)
-                        except Exception as e:
-                            self.report_warning(f"[get_entries_scenes] {url} - {futures[fut]} error - {repr(e)}")                                             
+                        for fut in futures:
+                            try:
+                                _entry = fut.result()
+                                if not _entry: raise ExtractorError("no entry")
+                                _entry.update({'original_url': url})
+                                entries.append(_entry)
+                            except Exception as e:
+                                self.report_warning(f"[get_entries_scenes] {url} - {futures[fut]} error - {repr(e)}")                                             
     
             return entries
         except Exception as e:
@@ -145,9 +150,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         msg = kwargs.get('msg')
         
         try:
-            premsg = f"[get_entry][{_type}][{url}]"
+            premsg = f"[get_entry]"
             if msg: premsg = f"{msg}{premsg}"
-            self.to_screen(f"{premsg} start to get entry")
+            self.logger_debug(f"{premsg} start to get entry")
             
             info_video = self._get_info(url)
             if not info_video: raise ExtractorError(f"{premsg}: error - Can't get video info")
@@ -210,7 +215,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
         self._send_request(self._SITE_URL, driver)
         logged_ok = driver.current_url == "https://nakedsword.com/members"
-        self.to_screen(f"[is_logged] {logged_ok}")
+        self.logger_debug(f"[is_logged] {logged_ok}")
         return(logged_ok)
         
     
@@ -358,7 +363,7 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
         pages = try_get(re.search(self._VALID_URL, url), lambda x: x.group('pages')) or "1"
         entries = []
         list_pages = [(i, f"{self._MOST_WATCHED}{i}") for i in range(1, int(pages) + 1)]
-        with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=5) as ex:
+        with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=10) as ex:
             
             futures = {ex.submit(self.get_entries_scenes, el[1], el[0]): f"page={el[0]}"  for el in list_pages}
         
@@ -370,7 +375,7 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
                 else: raise ExtractorError("no entries")
             except Exception as e:
                 self.report_warning(f'[{url}][{futures[fut]}] {repr(e)}')  
-                raise ExtractorError(repr(e))
+                #raise ExtractorError(repr(e))
         
         if entries:
             return {
@@ -385,26 +390,57 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
 
 class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:starsstudios:playlist"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?(\?pages=(?P<pages>\d+))?$'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?\?(?P<query>.+)'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
     
+    def _get_last_page(self, _urlqbase):
+        i = 1
+        while(True):
+            webpage = try_get(self._send_request(f"{_urlqbase}{i}"), lambda x: html.unescape(x.text))
+            if "Next Page" in webpage:
+                i += 1
+            else:
+                break
+        return i
     
     def _real_initialize(self):
         super()._real_initialize()
     
     def _real_extract(self, url):     
        
-        
         data = try_get(re.search(self._VALID_URL, url), lambda x: x.groupdict())
-        if not data['pages']: data['pages'] = 1
+        query = data.get('query')        
+        if query:
+            params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+        else:
+            params = {}
+        npages = params.get('pages', '1')
+        if npages != '1':        
+            base_url = url.split("?")[0]
+            base_url_search = f'{base_url}{self._MOST_WATCHED}'
+            last_page = self._get_last_page(base_url_search)
+
+            if npages == 'all': npages = last_page
+            elif (_npages:=int(npages)) > last_page:
+                npages = last_page
+            else:
+                npages = _npages or 1
+        else: npages = 1
         
-        
-        base_url = url.split("?pages")[0]
+        filter_by = params.get('filter_by')
+        if filter_by:
+            tokens_filter = filter_by.split(',')
+            if tokens_filter[0] == 'not':
+                func = lambda x: not(re.search(r'%s' % tokens_filter[1].replace(' ','-'), x, re.IGNORECASE) != None)
+            else:
+                func = lambda x: re.search(r'%s' % tokens_filter[0].replace(' ','-'), x, re.IGNORECASE)
+        else: func = None    
+                
         entries = []
 
-        with ThreadPoolExecutor(max_workers=5) as ex:
+        with ThreadPoolExecutor(max_workers=10) as ex:
             
-            futures = {ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}", i) : f"page={i}" for i in range(1, int(data['pages']) + 1)}
+            futures = {ex.submit(self.get_entries_scenes, f"{base_url}{self._MOST_WATCHED}{i}", i, func) : f"page={i}" for i in range(1, npages + 1)}
 
         for fut in futures:
             try:
@@ -414,7 +450,7 @@ class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
                 else: raise ExtractorError("no entries")
             except Exception as e:
                 self.report_warning(f'[{url}][{futures[fut]}] {repr(e)}')  
-                raise ExtractorError(repr(e))
+                #raise ExtractorError(repr(e))
         
         if entries:
             return {
@@ -836,11 +872,11 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                     if starid: 
                         NakedSwordSearchIE._STARS[starname.lower().replace(' ', '').replace("/", "-")] = starid
                         NakedSwordSearchIE._STARS = {_key: NakedSwordSearchIE._STARS[_key] for _key in sorted(NakedSwordSearchIE._STARS)}
-                        self.to_screen(NakedSwordSearchIE._STARS)
+                        self.logger_debug(NakedSwordSearchIE._STARS)
                         NakedSwordSearchIE.upt_info_conf()
                         return starid
         except Exception as e:
-            self.to_screen(repr(e))
+            self.report_warning(f'[get_starid] {repr(e)}')
         finally:
             self.rm_driver(driver)        
     
@@ -886,12 +922,12 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             if studioid and studioid != 'NotFound':
                 NakedSwordSearchIE._STUDIOS[studioname.lower().replace(' ', '').replace('-', '')] = studioid
                 NakedSwordSearchIE._STUDIOS = {_key: NakedSwordSearchIE._STUDIOS[_key] for _key in sorted(NakedSwordSearchIE._STUDIOS)}
-                self.to_screen(NakedSwordSearchIE._STUDIOS)
+                self.logger_debug(NakedSwordSearchIE._STUDIOS)
                 NakedSwordSearchIE.upt_info_conf()                
                 return studioid
                 
         except Exception as e:
-            self.to_screen(repr(e))
+            self.report_warning(f'[get_studioid] {repr(e)}')
         finally:
             self.rm_driver(driver)
 
@@ -905,7 +941,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                 while True:
                     _pos, _uq = self._urlqueriesqueue.get()
                     if _uq == "KILL": break
-                    self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}] {_uq}')
+                    self.logger_debug(f'[get_scenes][{j}][{_pos}/{self._num}] {_uq}')
                     try:
                         self._send_request(_uq[0], _driver)
                         el_title = self.wait_until(_driver, 2, ec.presence_of_element_located((By.TAG_NAME, "title")))
@@ -933,14 +969,14 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                                 #res.raise_for_status()
                                 res = try_get(self._send_request(_urlsc[0]), lambda x: x.text)
                                 if res:  
-                                    self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} OK is available')
+                                    self.logger_debug(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} OK is available')
                                     self._urlscenesqueue.put_nowait((_urlsc[0], _urlsc[1], _urlsc[2], _n))
                                 else:
-                                    self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} ERROR not available')
+                                    self.logger_debug(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} ERROR not available')
                                
                         
                             except Exception as e:
-                                self.to_screen(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} ERROR {repr(e)}')
+                                self.logger_debug(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} ERROR {repr(e)}')
                         
                         with ThreadPoolExecutor(max_workers=_nw) as _ex:               
                             for _k, _elurl in enumerate(_list_scenes_urls):
@@ -948,15 +984,15 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                     
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f"[get_scenes][{j}][{_pos}/{self._num}]  {repr(e)}\n{'!!'.join(lines)}")
+                        self.logger_debug(f"[get_scenes][{j}][{_pos}/{self._num}]  {repr(e)}\n{'!!'.join(lines)}")
                 
             
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"[get_scenes][{j}] {repr(e)}\n{'!!'.join(lines)}")
+                self.logger_debug(f"[get_scenes][{j}] {repr(e)}\n{'!!'.join(lines)}")
             finally:
                 self.rm_driver(_driver)
-                self.to_screen(f'[get_scenes][{j}] bye') 
+                self.logger_debug(f'[get_scenes][{j}] bye') 
 
         try:
             
@@ -976,7 +1012,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            self.to_screen(repr(e))
+            self.logger_debug(f'[get_scenes] {repr(e)}')
             raise ExtractorError(f"{repr(e)}")
 
     def get_movies_ns(self, urls):
@@ -988,7 +1024,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                 while True:
                     _pos, _uq = self._urlqueriesqueue.get()
                     if _uq == "KILL": break
-                    self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}] {_uq}')
+                    self.logger_debug(f'[get_movies][{j}][{_pos}/{self._num}] {_uq}')
                     try:
                         self._send_request(_uq[0], _driver)
                         el_title = self.wait_until(_driver, 2, ec.presence_of_element_located((By.TAG_NAME, "title")))
@@ -1014,29 +1050,29 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                                 
                                 res = try_get(self._send_request(_urlmv[0]), lambda x: x.text)                                
                                 if res and not 'NakedSword.com | Untitled Page' in res: 
-                                    self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} OK is available')
+                                    self.logger_debug(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} OK is available')
                                     self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))
                                 else:
-                                    self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} ERROR not available')
+                                    self.logger_debug(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} ERROR not available')
                                     
                         
                             except Exception as e:
-                                self.to_screen(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} ERROR {repr(e)}')
+                                self.logger_debug(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} ERROR {repr(e)}')
                         
                         with ThreadPoolExecutor(max_workers=_nw) as _ex:               
                             futures = [_ex.submit(_check_url, _elurl, _k+1) for _k, _elurl in enumerate(_list_movies_urls)]
                     
                     except Exception as e:
                         lines = traceback.format_exception(*sys.exc_info())
-                        self.to_screen(f"[get_movies][{j}][{_pos}/{self._num}]  {repr(e)}\n{'!!'.join(lines)}")
+                        self.logger_debug(f"[get_movies][{j}][{_pos}/{self._num}]  {repr(e)}\n{'!!'.join(lines)}")
                 
             
             except Exception as e:
                 lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"[get_movies][{j}] {repr(e)}\n{'!!'.join(lines)}")
+                self.logger_debug(f"[get_movies][{j}] {repr(e)}\n{'!!'.join(lines)}")
             finally:
                 self.rm_driver(_driver)
-                self.to_screen(f'[get_movies][{j}] bye') 
+                self.logger_debug(f'[get_movies][{j}] bye') 
 
         try:
             
@@ -1056,7 +1092,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            self.to_screen(repr(e))
+            self.logger_debug(f'[get_movies] {repr(e)}')
             raise ExtractorError(f"{repr(e)}")
     
        
@@ -1126,19 +1162,19 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         
 
         url_query = [(f'https://vod.nakedsword.com/gay/search/{content}/page/{page+1}?{stext}criteria={quote(criteria_str)}&viewMode=List', criteria['sort'], page+1) for page in range(maxpages)]
-        self.to_screen(f"url query list[{len(url_query)}]: \n{url_query}")
+        self.logger_debug(f"url query list[{len(url_query)}]: \n{url_query}")
         url_query_str = '\n'.join([f'{unquote(_el[0])}, {_el[0].split("?")[-1]}' for _el in url_query])
-        self.to_screen(f"url query list[{len(url_query)}]: \n{url_query_str}")
+        self.logger_debug(f"url query list[{len(url_query)}]: \n{url_query_str}")
         
 
         try:
             entries = []
             if content == 'scenes':
                 list_res = self.get_scenes_ns(url_query)
-                self.to_screen(list_res)
+                self.logger_debug(list_res)
                 if list_res:
                     list_res_sorted = sorted(list_res, key=lambda x: (NakedSwordSearchIE._SORTBY['scenes'].index(x[1]),x[2], x[3]))
-                    self.to_screen(list_res_sorted)
+                    self.logger_debug(list_res_sorted)
                     list_res_final = []
                     for el in list_res_sorted:
                         if el[0] not in list_res_final: list_res_final.append(el[0])
@@ -1147,10 +1183,10 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             elif content == 'movies':
                 #list_res = list(set(self.get_movies_ns(url_query)))
                 list_res = self.get_movies_ns(url_query)
-                self.to_screen(list_res)
+                self.logger_debug(list_res)
                 if list_res:
                     list_res_sorted = sorted(list_res, key=lambda x: (NakedSwordSearchIE._SORTBY['movies'].index(x[1]),x[2], x[3]))
-                    self.to_screen(list_res_sorted)
+                    self.logger_debug(list_res_sorted)
                     list_res_final = []
                     for el in list_res_sorted:
                         if el[0] not in list_res_final: list_res_final.append(el[0])
@@ -1166,11 +1202,8 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
             
             else: raise ExtractorError("No entries")
         except ExtractorError:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"error {repr(e)}\n{'!!'.join(lines)}")
             raise
         except Exception as e:
-            #self.to_screen(repr(e))
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"error {repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f"{repr(e)}")

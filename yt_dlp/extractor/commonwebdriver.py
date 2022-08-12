@@ -56,7 +56,7 @@ CONFIG_EXTRACTORS = {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
                 ('tubeload', 'embedo',
-                            'redload',): {
+                            'redload', ): {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
