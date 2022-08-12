@@ -1,15 +1,11 @@
-from __future__ import unicode_literals
-
 import sys
 import traceback
 import time
+from urllib.parse import unquote, urlparse
 
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
-
-from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError
+from ..utils import ExtractorError, sanitize_filename, traverse_obj
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError, By
 
 
 class getvideourl():
@@ -25,7 +21,7 @@ class getvideourl():
             except Exception as e:
                 pass
             return False
-        else: return videourl
+        else: return unquote(videourl)
 
 class FastStreamIE(SeleniumInfoExtractor):
     
@@ -44,11 +40,16 @@ class FastStreamIE(SeleniumInfoExtractor):
                             'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                             'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
             
-                self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
                 
+                self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
+                _host = urlparse(url).netloc
+                if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
+                    _sem.acquire(priority=10)   
                 return self.get_info_for_format(_url, headers=_headers)
             except HTTPStatusError as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            finally:
+                if _sem: _sem.release()
     
    
         @dec_on_exception
@@ -67,7 +68,7 @@ class FastStreamIE(SeleniumInfoExtractor):
             _send_request(url, driver)
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url or video_url == "error404": raise ExtractorError("error404")
-            title = driver.title.replace(self._SUBS_TITLE,"").replace(".mp4","").strip()
+            title = driver.title.replace(self._SUBS_TITLE,"").replace(".mp4","").strip('[_,-, ]')
             videoid = self._match_id(url)
             
             _format = {

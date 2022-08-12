@@ -18,7 +18,7 @@ class getvideourl():
         el_video = driver.find_elements(By.TAG_NAME, 'video')
         if not el_video: return False
         if (video_url:=el_video[0].get_attribute('src')):
-            return unquote(video_url)
+            return unquote(video_url).replace("medialatest-cdn.gayforit.eu", "media.gayforit.eu")
         else: return False
         
 
@@ -77,7 +77,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
 
             format_video = {
                 'format_id' : "http-mp4",
-                'url' : _info_video['url'],
+                'url' : _info_video['url'].replace("medialatest-cdn.gayforit.eu", "media.gayforit.eu"),
                 'filesize' : _info_video['filesize'],
                 'http_headers': _headers,
                 'ext' : 'mp4'

@@ -1,8 +1,9 @@
 import sys
 import time
 import traceback
+from urllib.parse import unquote, urlparse
 
-from ..utils import ExtractorError, sanitize_filename, try_get
+from ..utils import ExtractorError, sanitize_filename, traverse_obj
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError
 
 class video_or_error_userload():
@@ -24,7 +25,7 @@ class video_or_error_userload():
             el_vid = driver.find_elements(By.ID, "olvideo_html5_api")
             if el_vid:
                 if _src:=el_vid[0].get_attribute('src'):
-                    return _src
+                    return unquote(_src)
                 else:
                     return False
             else: return False
@@ -35,16 +36,27 @@ class UserLoadIE(SeleniumInfoExtractor):
 
     IE_NAME = 'userload'
     _VALID_URL = r'https?://(?:www\.)?userload\.co/(?:embed|e|f)/(?P<id>[^\/$]+)(?:\/|$)'
-
+    _SITE_URL = 'https://userload.co/'
+    
     @dec_on_exception2
     @dec_on_exception3
     @limiter_15.ratelimit("userload", delay=True)
-    def _get_video_info(self, url):        
+    def _get_video_info(self, url, msg=None):        
         try:
-            self.logger_debug(f"[get_video_info] {url}")
-            return self.get_info_for_format(url)       
+            pre = '[get_video_info]'
+            if msg: pre = f'{msg}{pre}'
+            self.logger_debug(f"{pre} {self._get_url_print(url)}")
+            _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
+                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
+                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+            _host = urlparse(url).netloc
+            if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
+                _sem.acquire(priority=10)   
+            return self.get_info_for_format(url, headers=_headers)       
         except HTTPStatusError as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+        finally:
+            if _sem: _sem.release()
         
         
     @dec_on_exception
@@ -71,7 +83,8 @@ class UserLoadIE(SeleniumInfoExtractor):
             _format = {
                 'format_id': 'http-mp4',
                 'url': video_url,
-                'ext': 'mp4'
+                'ext': 'mp4',
+                'http_headers': {'Referer': self._SITE_URL}
             }
             
             if check_active:

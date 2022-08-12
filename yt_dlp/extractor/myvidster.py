@@ -98,6 +98,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     
     def _login_driver(self, driver):
         
+        driver.get(self._SITE_URL)
         el_sddm = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.ID, 'sddm'))), lambda x: x[0].text) or ''
         if not el_sddm or 'log in' in el_sddm: 
             self.to_screen("Not logged with Selenium/Firefox webdriver. Lets login")
@@ -523,7 +524,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         driver = self.get_driver()
         
         try:
-            driver.get(self._SITE_URL)
+            
             self._login_driver(driver)
             driver.get(url)
             el_posted_videos = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME,'posted_video')))
