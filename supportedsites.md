@@ -903,7 +903,7 @@
  - **NobelPrize**
  - **NoicePodcast**
  - **NonkTube**
- - **NoodleMagazine**
+ - **noodlemagazine**
  - **Noovo**
  - **Normalboots**
  - **NOSNLArticle**
@@ -1057,6 +1057,7 @@
  - **PornHubPlaylist**: [<abbr title="netrc machine"><em>pornhub</em></abbr>]
  - **PornHubUser**: [<abbr title="netrc machine"><em>pornhub</em></abbr>]
  - **PornHubUserVideosUpload**: [<abbr title="netrc machine"><em>pornhub</em></abbr>]
+ - **pornone**
  - **Pornotube**
  - **PornoVoisines**
  - **PornoXO**

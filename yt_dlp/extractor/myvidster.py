@@ -189,6 +189,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                     self.logger_debug(f"{pre}[{self._get_url_print(el)}] already analysed, same result as {url2}")
                     continue
                     
+                if (_id:=try_get(re.findall(r'locotube\.site/pn/\?c\=(\d+)', el), lambda x: x[0])):
+                    el = f'https://thisvid.com/embed/{_id}'
                 
                 _extr_name = self._get_ie_name(el)
                 
@@ -211,9 +213,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                         
                         
-                elif _extr_name == 'generic':
-                    return el
-                elif _extr_name in ['xhamster', 'xhamsterembed']:
+                #elif _extr_name == 'generic':
+                #    return el
+                elif _extr_name in ['xhamster', 'xhamsterembed', 'noodlemagazine']:
                     
                     try:
                         _ent = self._downloader.extract_info(el, download=False)
@@ -652,8 +654,8 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                 
                 return {
                     '_type': 'playlist',
-                    'id': 'myvidster_search_results',
-                    'title': 'myvidster_search_results',
+                    'id': query_str,
+                    'title': 'Search',
                     'entries': entries,
                 }
             
