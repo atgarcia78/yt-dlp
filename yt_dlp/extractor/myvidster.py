@@ -156,7 +156,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if _extr != 'generic':
                     #ie = self._downloader.get_info_extractor(self._get_ie_key(unquote(url1)))
                     ie = self._get_extractor(unquote(url1))
-                    ie._real_initialize()
+                    #ie._real_initialize()
                     mobj1 = re.search(ie._VALID_URL, url1)
                     mobj2 = re.search(ie._VALID_URL, url2)
                     if mobj1.groupdict() == mobj2.groupdict():
@@ -199,7 +199,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
                 if _check_extr(_extr_name): #get entry                    
                     ie = self._get_extractor(el)
-                    ie._real_initialize()
+                    #ie._real_initialize()
                     try:
                         _ent = ie._get_entry(el, check_active=True, msg=pre)
                         if _ent:
@@ -213,6 +213,19 @@ class MyVidsterIE(MyVidsterBaseIE):
                         
                 elif _extr_name == 'generic':
                     return el
+                elif _extr_name in ['xhamster', 'xhamsterembed']:
+                    
+                    try:
+                        _ent = self._downloader.extract_info(el, download=False)
+                        if _ent:
+                            self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
+                            return self._downloader.sanitize_info(_ent)
+                        else:
+                            self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
+                    except Exception as e:
+                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                             
+                        
                 else:
                     if self._is_valid(el, msg=pre):
                         return el
@@ -285,7 +298,7 @@ class MyVidsterIE(MyVidsterBaseIE):
             embedlink_res = None
             videolink_res = None
 
-            embedlink_res = try_get(re.findall(r'reload_video\([\'\"](https://[^\'\"]+)[\'\"]', webpage),
+            embedlink_res = try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage),
                                     lambda x: self.getbestvid(x[0], 'embedlink') if x else None)
             
             if not embedlink_res or isinstance(embedlink_res, str):           

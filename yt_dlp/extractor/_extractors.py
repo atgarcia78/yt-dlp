@@ -2390,7 +2390,8 @@ from .yourporngod import (
     EbembedIE,
     Gay0DayIE,
     PornHatIE,
-    HomoXXXIE
+    HomoXXXIE,
+    ThisVidIE
 )
 from .timfuck import TimFuckIE
 from .bbgroup import (
@@ -2514,7 +2515,11 @@ from .streamplay import StreamplayIE
 from .xhamster import XHamsterPornStarIE
 from .gaymovies import GayMoviesIE
 from .filemoon import FilemoonIE
-from .pornhits import PornhitsIE
+from .pornhits import (
+    PornhitsIE,
+    TxxxIE,
+    HotMovsIE
+)
 from .upstream import (
     UpstreamIE,
     VideobinIE

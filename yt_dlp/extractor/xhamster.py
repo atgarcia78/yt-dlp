@@ -124,6 +124,7 @@ class XHamsterIE(InfoExtractor):
 
     def _real_extract(self, url):
         mobj = self._match_valid_url(url)
+        
         video_id = mobj.group('id') or mobj.group('id_2')
         display_id = mobj.group('display_id') or mobj.group('display_id_2')
 
@@ -369,8 +370,8 @@ class XHamsterIE(InfoExtractor):
 
 
 class XHamsterEmbedIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:.+?\.)?%s/(?:xembed\.php\?video=|embed/)(?P<id>\d+)' % XHamsterIE._DOMAINS
-    _EMBED_REGEX = [r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:www\.)?xhamster\.com/xembed\.php\?video=\d+)\1']
+    _VALID_URL = r'https?://(?:.+?\.)?%s/(?:xembed\.php\?video=|embed/)(?P<id>[^/?#&]+)' % XHamsterIE._DOMAINS
+    _EMBED_REGEX = [r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:www\.)?xhamster\.com/xembed\.php\?video=[^/?#&]+)\1']
     _TEST = {
         'url': 'http://xhamster.com/xembed.php?video=3328539',
         'info_dict': {
