@@ -4,7 +4,7 @@ import tempfile
 import threading
 import time
 from queue import Empty, Queue
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 
 import httpx
 from httpx import HTTPStatusError, HTTPError, StreamError
@@ -68,7 +68,8 @@ CONFIG_EXTRACTORS = {
            'gaystreamembed','pornhat', 
              'yourporngod', 'ebembed', 
             'gay0day', 'onlygayvideo',
-                            'homoxxx'): {
+            'txxx','thegay','homoxxx',
+                            'thisvid',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
 }
@@ -192,9 +193,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         if url:
             extractor = self._get_extractor(url)        
             extr_name = extractor.IE_NAME       
-            return extr_name
+            return extr_name.lower()
         else:
-            return self.IE_NAME
+            return self.IE_NAME.lower()
     
     def _get_ie_key(self, url=None):    
         
@@ -563,9 +564,11 @@ class SeleniumInfoExtractor(InfoExtractor):
                     if res.headers.get('content-type') == "video/mp4":
                         valid = True
                         self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')
-                        
+                    
+                    elif not urlparse(str(res.url)).path:
+                        valid = False
+                        self.logger_debug(f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{valid}')
                     else:
-
                         webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
                         if not webpage: 
                             valid = False

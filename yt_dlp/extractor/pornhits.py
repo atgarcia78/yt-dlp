@@ -1,16 +1,24 @@
 import sys
 import traceback
+import html
+import re
 
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError
 
+class get_title():
+    def __call__(self, driver):
+        if any(_ == driver.title.strip() for _ in  ("TXXX.com", "HotMovs.com")):
+            return False
+        else:
+            return(driver.title)
 
 
 class PornhitsIE(SeleniumInfoExtractor):
 
     IE_NAME = "pornhits"
     _SITE_URL = "https://www.pornhits.com/"
-    _VALID_URL = r'https?://www.pornhits.com/video/(?P<id>\d+)'
+    _VALID_URL = r'https?://(?:www)?.pornhits.com/(?:embed\.php\?id=|video/)(?P<id>\d+)'
 
     @dec_on_exception
     @dec_on_exception2
@@ -39,18 +47,26 @@ class PornhitsIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
 
         try:
-            
-            self.report_extraction(url)
+
             videoid = self._match_id(url)
             driver = self.get_driver(devtools=True)
+
+            if self.IE_NAME == 'pornhits' and 'embed.php' in url:
+                webpage = try_get(self.send_multi_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+                url = try_get(re.findall(r'/video/%s/([^\'\")]+)[\'\"]' % videoid, webpage), lambda x: f'{self._SITE_URL}video/{videoid}/{x[0]}')
+                
             
-                      
+            self.report_extraction(url)    
             
             self.send_multi_request(url, driver)
 
-            title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
-
-            #video_url = self.wait_until(driver, 60, getvideourl())
+            if self.IE_NAME == "pornhits" or ((self.IE_NAME == 'txxx' or self.IE_NAME == 'hotmovs') and '/videos/' in url):
+                title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
+            
+            else:
+                title = self.wait_until(driver, 60, get_title()).replace('Porn Video | HotMovs.com', '').strip()
+                
+                
             
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
             
@@ -94,5 +110,16 @@ class PornhitsIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
+            
+class TxxxIE(PornhitsIE):
+    IE_NAME = "txxx"
+    _SITE_URL = "https://txxx.com/"
+    _VALID_URL = r'https?://txxx.com/(?:embed|videos)/(?P<id>\d+)'
+    
+class HotMovsIE(PornhitsIE):
+    IE_NAME = "hotmovs"
+    _SITE_URL = "https://hotmovs.com/"
+    _VALID_URL = r'https?://hotmovs.com/(?:embed|videos)/(?P<id>\d+)'
+    
 
                     
