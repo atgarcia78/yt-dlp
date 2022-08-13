@@ -2653,3 +2653,4 @@ from .upstream import (
     VideobinIE
 )
 from .xvidgay import XvidgayIE
+from .pornone import PornoneIE

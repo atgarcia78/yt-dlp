@@ -149,7 +149,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             raise ExtractorError(f'{pre} {repr(e)}')
 
 
-    
     @dec_on_exception
     @limiter_0_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, driver=None, msg=None):
@@ -220,6 +219,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         if _category:=params.get('label'):
             urlquery += f"&category={_category}"
+        if _q:=params.get('q'):
+            urlquery += f"&q={_q}"
         _check = True 
         if params.get('check','').lower() == 'no':
             _check = False
@@ -233,6 +234,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), getter)
         if not video_entries: raise ExtractorError("no video entries")
 
+        self.logger_debug(f'[entries result] {len(video_entries)}')
+        
 
         if _nentries > 0:
             video_entries = video_entries[_from-1:_from-1+_nentries]
@@ -272,4 +275,4 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 pass
             
         if not self._entries: raise ExtractorError("no video list")
-        return self.playlist_result(self._entries, f"gvdblog_playlist", f"gvdblog_playlist")
+        return self.playlist_result(self._entries, f'{sanitize_filename(f"{query}", restricted=True)}', f"Search")

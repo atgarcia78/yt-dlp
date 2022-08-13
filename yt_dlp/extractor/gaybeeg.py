@@ -66,10 +66,10 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             try:
                 res = fut.result()
                 if not res:
-                    self.to_screen(f'[get_entries_netdna][{futures[fut]}] no entries')
+                    self.logger_debug(f'[get_entries_netdna][{futures[fut]}] no entries')
                     _list_urls_netdna[futures[fut]].update({'info_video': {}})
                 elif (_errormsg:=res.get('error')):
-                    self.to_screen(f'[get_entries_netdna][{futures[fut]}] ERROR {_errormsg}')
+                    self.logger_debug(f'[get_entries_netdna][{futures[fut]}] ERROR {_errormsg}')
                     _list_urls_netdna[futures[fut]].update({'info_video': {}})
                     
                 else:
@@ -110,7 +110,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
             self.send_driver_request(_driver, url)
 
-            el_netdna_list = self.wait_until(_driver, 60, get_links_netdna(self.to_screen), poll_freq=2)
+            el_netdna_list = self.wait_until(_driver, 60, get_links_netdna(self.logger_debug), poll_freq=2)
 
             if not el_netdna_list or el_netdna_list == "no entries":
                 raise ExtractorError("No entries")
@@ -195,11 +195,11 @@ class GayBeegPlaylistIE(GayBeegBaseIE):
 
             num_pages, _href = try_get(self.get_info_pages(url), lambda x: x if x else (1,url))
 
-            self.to_screen(f"Pages to check: {num_pages}")                    
+            self.logger_debug(f"Pages to check: {num_pages}")                    
                 
             list_urls_pages = [re.sub(r'page/\d+', f'page/{i}', _href) for i in range(1, num_pages+1)]
             
-            self.to_screen(list_urls_pages)
+            self.logger_debug(list_urls_pages)
             
             _num_workers = min(6, len(list_urls_pages))
             
