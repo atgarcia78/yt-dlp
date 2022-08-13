@@ -45,37 +45,43 @@ class BaseKVSIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
         
-        if self.IE_NAME == "pornhat":
-            _url = url
+        if self.IE_NAME == "pornhat":            
             videoid = None
-
-        elif self.IE_NAME == 'homoxxx':
             
+        else:            
             videoid = self._match_id(url)
-            _url = url 
             
-        else:
+        if self.IE_NAME == "homoxxx":
+            url = url.replace('/embed/', '/videos/')
             
-            videoid = self._match_id(url)
-            _url = f"{self._SITE_URL}/embed/{videoid}"
-            
-        
-        webpage = try_get(self._send_request(_url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+        webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
         flashvars =  self._parse_json(
                         self._search_regex(
                             r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'), videoid, transform_source=js_to_json)
         
-        title = re.sub(r'(?i)(^(hd_video_|sd_video_|video_))|(%s$)|(%s\.mp4)|(.mp4$)' % (self.IE_NAME, self.IE_NAME), '', self._html_extract_title(webpage)).strip('[_,-, ]')
         
+        _title = self._html_search_regex(r'<h1>([^<]+)</h1>', webpage, 'title',fatal=False) or self._html_extract_title(webpage)
+        title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME), '', _title).strip('[,-_ ').lower()
+
         if not videoid:
             videoid = flashvars.get('video_id')
+        
         self.logger_debug(flashvars)
+        display_id = self._search_regex(
+                    r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
+                    r'|<link rel="canonical" href="https?://.+/(.+?)/?"\s*/?>)',
+                    webpage, 'display_id', fatal=False
+                )
+        thumbnail = flashvars['preview_url']
+        if thumbnail.startswith('//'):
+            protocol, _, _ = url.partition('/')
+            thumbnail = protocol + thumbnail
         
         url_keys = list(filter(re.compile(r'video_url|video_alt_url\d*').fullmatch, flashvars.keys()))
         
         iegen = self._get_extractor('Generic')
         
-        _headers = {'Referer': _url}
+        _headers = {'Referer': url}
         
         formats = []
         for key in url_keys:
@@ -104,12 +110,14 @@ class BaseKVSIE(SeleniumInfoExtractor):
                         
         entry = {
             'id' : videoid,
+            'display_id' : display_id,
             'title' : sanitize_filename(title, restricted=True),
             'formats' : formats,
             'ext': 'mp4',
+            'thumbnail': thumbnail,
             'extractor': self.IE_NAME,
             'extractor_key': self.ie_key(),
-            'webpage_url': _url
+            'webpage_url': url
             }            
         return entry
         
@@ -167,84 +175,10 @@ class HomoXXXIE(BaseKVSIE):
     _VALID_URL = r'https?://(www\.)?homo\.xxx/(?:videos|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://homo.xxx'
     
+class ThisVidIE(BaseKVSIE):
     
+    IE_NAME = 'thisvid'
+    _VALID_URL = r'https?://(www\.)?thisvid\.com/(?:(embed/(?P<id>\d+))|(videos/.*))'
+    _SITE_URL = 'https://thisvid.com/'
     
-# class YourPornGodPlayListIE(SeleniumInfoExtractor):
-    
-#     IE_NAME = 'yourporngod:playlist'
-#     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/(?:((?P<type1>playlists)/(?P<id>\d+)/(?P<title>[^\/\$]+))|((?P<type3>models)/(?P<model>[^\/\$]+))|((?P<type2>categories)/(?P<categorie>[^\/\$]+)))'
-#     _SEARCH_URL = {"playlists" : "?mode=async&function=get_block&block_id=playlist_view_playlist_view&sort_by=added2fav_date&from=",
-#                    "models" : "?mode=async&function=get_block&block_id=list_videos_common_videos_list&sort_by=video_viewed&from=",
-#                    "categories": "?mode=async&function=get_block&block_id=list_videos_common_videos_list&sort_by=video_viewed&from="}
-#     _REGEX_ENTRIES = {"playlists": r'data-playlist-item\=[\"\']([^\'\"]+)[\'\"]',
-#                       "models": r'item  [\"\']><a href=["\']([^\'\"]+)[\'\"]',
-#                       "categories": r'item  [\"\']><a href=["\']([^\'\"]+)[\'\"]'}
-    
-    
-#     @dec_on_exception
-#     @limiter_1.ratelimit("yourporngod", delay=True)
-#     def _send_request(self, url):
-#         self.logger_debug(f"[send_request] {url}")   
-#         res = YourPornGodPlayListIE._CLIENT.get(url)
-#         res.raise_for_status()
-#         return res
-
-#     def _get_entries(self, url, _type):
-#         res = self._send_request(url)
-#         if res:
-#             webpage = re.sub('[\t\n]', '', html.unescape(res.text))
-#             entries = re.findall(self._REGEX_ENTRIES[_type],webpage)
-#             return entries
-    
-#     def _real_initialize(self):
-#         super()._real_initialize()
-    
-#     def _real_extract(self, url):
-        
-#         self.report_extraction(url)
-#         #playlist_id = self._match_id(url)
-#         _type1, _type2, _type3, _id, _title, _model, _categorie = re.search(self._VALID_URL, url).group('type1','type2','type3','id','title','model','categorie')
-        
-#         _type = _type1 or _type2 or _type3
-                      
-#         self.report_extraction(url)
-        
-#         res = self._send_request(url)        
-#         if not res: raise ExtractorError("couldnt download webpage")
-#         webpage = re.sub('[\t\n]', '', html.unescape(res.text))
-        
-#         mobj = re.findall(r"<title>([^<]+)<", webpage)
-#         title = mobj[0] if mobj else _title or _model or _categorie
-        
-#         playlist_id = _id or _model or _categorie
-
-#         mobj = re.findall(r'\:(\d+)[\"\']>Last', webpage)        
-#         last_page = int(mobj[0]) if mobj else 1
-        
-#         base_url = url + self._SEARCH_URL[_type]        
-        
-#         with ThreadPoolExecutor(max_workers=16) as ex:        
-            
-#             futures = [ex.submit(self._get_entries, base_url + str(i), _type) for i in range(1,last_page+1)]
-                
-#         res = []
-        
-#         for fut in futures:
-#             try:
-#                 res += fut.result()
-#             except Exception as e:
-#                 pass
-            
-#         entries = [self.url_result(_url, ie="YourPornGod") for _url in res]
-        
-#         return {
-#             '_type': 'playlist',
-#             'id': playlist_id,
-#             'title': sanitize_filename(title,restricted=True),
-#             'entries': entries,
-            
-#         }
- 
-    
-
     

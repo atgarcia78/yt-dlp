@@ -1,120 +1,142 @@
-from __future__ import unicode_literals
-
-import re
+import time
 import sys
-import threading
 import traceback
+from urllib.parse import unquote, urlparse
+import re
 
-
-
-from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By
+from ..utils import ExtractorError, sanitize_filename, traverse_obj
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_1, limiter_5, limiter_0_1, limiter_0_5, By, HTTPStatusError
 
 
 class get_videourl():
     
     def __init__(self, _type):
-        self.id = "player-1" if _type == "embed" else "videoplayer"
+        self.id = "player-1"  if _type == "embed" else "videoplayer"
     def __call__(self, driver):
-        el_player = driver.find_elements(By.ID, self.id)
-        if not el_player: return False
-        else:
-            el_video = el_player[0].find_elements(By.TAG_NAME, "video")
-            if not el_video: return False
-            video_url = el_video[0].get_attribute('src')
-            if video_url: 
-                return video_url
-            else: return False
+        el_player = driver.find_element(By.ID, self.id)
+        el_video = el_player.find_element(By.TAG_NAME, "video")
+        video_url = el_video.get_attribute('src')
+        if video_url: 
+            return unquote(video_url)
+        else: return False
 
 class TheGayIE(SeleniumInfoExtractor):
 
     IE_NAME = 'thegay'
-    _VALID_URL = r'https?://(?:www\.)?thegay\.com/(?P<type>(?:embed|videos))/(?P<id>[^\./]+)[\./]'
-    _LOCK = threading.Lock()
+    _VALID_URL = r'https?://(?:www\.)?thegay\.com/(?P<type>(?:embed|videos))/(?P<id>\d+)/?'
+    
 
 
-    def _get_video_info(self, url, headers):        
-        self.logger_debug(f"[get_video_info] {url}")
-        return self.get_info_for_format(url, headers=headers)       
+    @dec_on_exception3  
+    @dec_on_exception2
+    @limiter_1.ratelimit("thegay", delay=True)
+    def _get_video_info(self, url, **kwargs):        
+        
+        msg = kwargs.get('msg',None)
+        headers = kwargs.get('headers', {})
+                
+        try:
+            if msg: pre = f'{msg}[get_video_info]'
+            else: pre = '[get_video_info]'
+            self.logger_debug(f"{pre} {self._get_url_print(url)}")
+            # _host = urlparse(url).netloc
+            # if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
+            #     _sem.acquire(priority=10)                
+            return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-origin', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        except HTTPStatusError as e:
+            self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+        # finally:
+        #     if _sem: _sem.release()      
             
 
-    def _send_request(self,url, driver):
-        self.logger_debug(f"[send_request] {url}")   
-        driver.get(url)
-    
-    
     @dec_on_exception
     @limiter_1.ratelimit("thegay", delay=True)
-    def request_to_host(self, _type, url, driver=None, headers=None):
-    
-        if _type == "video_info":
-            return self._get_video_info(url, headers)
-        elif _type == "url_request":
-            self._send_request(url, driver)
-        elif _type == "client_request":
-            res = self._CLIENT.get(url, headers = {'Referer': 'https://thegay.com/', 'Origin':'https://thegay.com' })
-            res.raise_for_status()
-            return res
-            
-    def scan_for_request(self, _har, _ref, _link):
-                          
-        for entry in _har['log']['entries']:
-                            
-            if entry['pageref'] == _ref:
-                
-                if _link in (_url:=entry['request']['url']):
-                    
-                    #self.write_debug(_url)
-                    #self.write_debug(entry['request']['headers'])                   
-                    
-                    return _url            
+    def _send_request(self, url, **kwargs):        
+        
+        msg = kwargs.get('msg',None)
+        driver = kwargs.get('driver', None)
+        
+        if msg: pre = f'{msg}[send_req]'
+        else: pre = '[send_req]'
+        if driver:
+            self.logger_debug(f"{pre} {self._get_url_print(url)}") 
+            driver.get(url)
 
 
-    def _real_initialize(self):
-        super()._real_initialize()
-    
-    def _real_extract(self, url):        
-        self.report_extraction(url)
-               
-        _type, videoid = re.search(self._VALID_URL, url).groups()
+    def _get_entry(self, url, **kwargs):
+        
+        check_active = kwargs.get('check_active', False)
+        msg = kwargs.get('msg', None)
+         
 
         try:
+            
+            pre = f'[get_entry][{self._get_url_print(url)}]'
+            if msg: pre = f'{msg}{pre}'
+            driver = self.get_driver()
 
-            driver  = self.get_driver()
+            self._send_request(url, driver=driver)     
+            
+            _type, videoid = re.search(self._VALID_URL, url).groups()       
 
-            try:
-
-                self.request_to_host("url_request", url, driver)
-                videourl = self.wait_until(driver, 30, get_videourl(_type))
-                _title = driver.title.replace(" - TheGay.com", "").strip()
-                
-                if not videourl: raise ExtractorError("couldnt find videourl")
-                headers = {'Referer': url}
-                _info_video = self.request_to_host("video_info", videourl, headers)
-                if not _info_video: raise ExtractorError
-                _format = {
-                    'url': _info_video['url'],
-                    'filesize': _info_video['filesize'],
+            videourl = self.wait_until(driver, 30, get_videourl(_type))
+            if not videourl: raise ExtractorError("couldnt find videourl")
+            
+            _title = re.sub(r'(?i)( - %s\..+$)' % self.IE_NAME, '', driver.title.replace('.mp4','')).strip('[_,-, ]')
+            headers = {'Referer': url}
+            
+            _format = {
+                    'url': videourl,                    
                     'format_id': 'http',
                     'ext': 'mp4',
                     'http_headers': headers
-                }
-                return ({ 
-                    "id": videoid,
-                    "title": sanitize_filename(_title, restricted=True),                    
-                    "formats": [_format],
-                    "ext": "mp4"})
+            }
+            if check_active:
+                _videoinfo = self._get_video_info(videourl, headers=headers)
+                if not _videoinfo: raise ExtractorError("error 404: no video info")
+                else:
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
             
-            except ExtractorError as e:
-                raise
-            except Exception as e:                
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-                raise ExtractorError(repr(e))
-            finally:
-                self.rm_driver(driver)                    
-                    
-        except Exception as e:                
+
+            return ({ 
+                "id": videoid,
+                "title": sanitize_filename(_title, restricted=True),                    
+                "formats": [_format],
+                "ext": "mp4",
+                'extractor_key': self.ie_key(),
+                'extractor': self.IE_NAME,
+                'webpage_url': url})
+            
+       
+            
+      
+        
+        except Exception:
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise
+        finally:
+            self.rm_driver(driver)
+    
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:                            
+
+            if self._downloader.params.get('external_downloader'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)  
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
+            self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
+        
+        
