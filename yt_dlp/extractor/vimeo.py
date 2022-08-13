@@ -137,7 +137,7 @@ class VimeoBaseInfoExtractor(InfoExtractor):
             formats.append({
                 'url': video_url,
                 'format_id': 'http-%s' % f.get('quality'),
-                'source_preference': 10,
+                #'source_preference': 10,
                 'width': int_or_none(f.get('width')),
                 'height': int_or_none(f.get('height')),
                 'fps': int_or_none(f.get('fps')),
@@ -163,8 +163,8 @@ class VimeoBaseInfoExtractor(InfoExtractor):
                     if files_type == 'hls':
                         fmts, subs = self._extract_m3u8_formats_and_subtitles(
                             m_url, video_id, 'mp4', live=is_live, m3u8_id=f_id,
-                            note='Downloading %s m3u8 information' % cdn_name,
-                            fatal=False)
+                            preference=10, note='Downloading %s m3u8 information' % cdn_name,
+                            fatal=False)                       
                         formats.extend(fmts)
                         self._merge_subtitles(subs, target=subtitles)
                     elif files_type == 'dash':

@@ -54,11 +54,21 @@ class BaseKVSIE(SeleniumInfoExtractor):
         if self.IE_NAME == "homoxxx":
             url = url.replace('/embed/', '/videos/')
             
-        webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if x else None)
+        
+        display_id = self._search_regex(
+                    r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
+                    r'|<link rel="canonical" href="https?://.+/(.+?)/?"\s*>)',
+                    webpage, 'display_id', fatal=False
+                )
+        
+        webpage = re.sub(r'[\t\n]', '', webpage)
+        
         flashvars =  self._parse_json(
                         self._search_regex(
                             r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'), videoid, transform_source=js_to_json)
         
+        self.logger_debug(flashvars)
         
         _title = self._html_search_regex(r'<h1>([^<]+)</h1>', webpage, 'title',fatal=False) or self._html_extract_title(webpage)
         title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME), '', _title).strip('[,-_ ').lower()
@@ -66,12 +76,8 @@ class BaseKVSIE(SeleniumInfoExtractor):
         if not videoid:
             videoid = flashvars.get('video_id')
         
-        self.logger_debug(flashvars)
-        display_id = self._search_regex(
-                    r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
-                    r'|<link rel="canonical" href="https?://.+/(.+?)/?"\s*/?>)',
-                    webpage, 'display_id', fatal=False
-                )
+        
+        
         thumbnail = flashvars['preview_url']
         if thumbnail.startswith('//'):
             protocol, _, _ = url.partition('/')
@@ -178,7 +184,8 @@ class HomoXXXIE(BaseKVSIE):
 class ThisVidIE(BaseKVSIE):
     
     IE_NAME = 'thisvid'
-    _VALID_URL = r'https?://(www\.)?thisvid\.com/(?:(embed/(?P<id>\d+))|(videos/.*))'
+    _VALID_URL = r'https?://(?:[^\.]+\.)?thisvid\.com/(?:(embed/(?P<id>\d+))|(videos/.*))'
     _SITE_URL = 'https://thisvid.com/'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:[^\.]+\.)?thisvid\.com/embed/(?P<id>\d+))\1']
     
     

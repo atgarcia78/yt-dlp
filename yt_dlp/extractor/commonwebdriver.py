@@ -69,7 +69,7 @@ CONFIG_EXTRACTORS = {
              'yourporngod', 'ebembed', 
             'gay0day', 'onlygayvideo',
             'txxx','thegay','homoxxx',
-                            'thisvid',): {
+                'thisvid', 'pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
 }
@@ -83,7 +83,7 @@ def my_jitter2(value: float) -> float:
     return int(random.uniform(value, value*2))
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=5, jitter=my_jitter2, raise_on_giveup=False, interval=10)
 dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
@@ -522,7 +522,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
 
-            if any(_ in url for _ in ['twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php']):
+            if any(_ in url for _ in ['twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
+                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
                 self.logger_debug(f'[valid]{_pre_str}:False')
                 return False
             elif any(_ in url for _ in ['gayforit.eu/video']):

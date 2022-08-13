@@ -14,7 +14,7 @@ from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5,
 class Mat6TubeIE(SeleniumInfoExtractor):
     IE_NAME = 'mat6tube'
     IE_DESC = 'mat6tube'
-    _VALID_URL = r"https?://(?:www\.)?(?:adult\.)?mat6tube\.com/(?:watch|player)/(?P<id>\d+\_\d+)"
+    _VALID_URL = r"https?://(?:www\.)?(?:adult\.)?mat6tube\.com/(?:watch|player)/(?P<id>[\d_-]+)"
     _SITE_URL = "https://adult.mat6tube.com"
 
     @dec_on_exception
