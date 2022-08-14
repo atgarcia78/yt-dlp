@@ -30,7 +30,7 @@ class GayDeliciousIE(InfoExtractor):
         
         try:
             
-            client = httpx.Client(headers=self.get_param('http_headers'),timeout=60,verify=(not self._downloader.params.get('nocheckcertificate')))
+            client = httpx.Client(headers=self.get_param('http_headers'),timeout=60,verify=(not self.get_param('nocheckcertificate')))
             
             res = client.get(url)
             if res.status_code > 400: raise ExtractorError(f'{url}:{res}')

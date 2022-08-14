@@ -33,7 +33,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                 
             try:
                 
-                #res = httpx.head(url, verify=(not self._downloader.params.get('nocheckcertificate')))
+                #res = httpx.head(url, verify=(not self.get_param('nocheckcertificate')))
                 with HungYoungBritBaseIE._LOCK:
                     res = HungYoungBritBaseIE._CLIENT.head(url)
                 
