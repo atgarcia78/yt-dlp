@@ -1,6 +1,3 @@
-# coding: utf-8
-from __future__ import unicode_literals
-
 import html
 import re
 import sys
@@ -67,7 +64,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 if not webpage or 'this video has been removed' in webpage.lower() or 'this video does not exist' in webpage.lower() : raise ExtractorError("Error 404: no video page info")
                 title = try_get(re.findall(r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title), lambda x: x[0]) 
 
-            self.to_screen(f"[video_url] {video_url}")
+            self.logger_debug(f"[video_url] {video_url}")
             
             _headers = {"Referer" : "https://www.gayforit.eu/"}
             

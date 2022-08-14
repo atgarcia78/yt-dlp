@@ -47,8 +47,9 @@ class TubeloadIE(SeleniumInfoExtractor):
             else: pre = '[get_video_info]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
             _host = urlparse(url).netloc
-            if not (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):  
-                self._downloader.sem.update({_host: (_sem:=PriorityLock())})
+            if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
+                _sem = PriorityLock()
+                self._downloader.params['sem'].update({_host: _sem})
             _sem.acquire(priority=10)                
             return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
         except HTTPStatusError as e:
