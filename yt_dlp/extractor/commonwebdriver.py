@@ -248,6 +248,9 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if not SeleniumInfoExtractor._MASTER_INIT:
                     
                     SeleniumInfoExtractor._YTDL = self._downloader
+                    
+                    SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli
+                    
                     SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
 
                     _headers = copy.deepcopy(SeleniumInfoExtractor._YTDL.params.get('http_headers'))

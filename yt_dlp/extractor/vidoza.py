@@ -119,7 +119,7 @@ class VidozaIE(SeleniumInfoExtractor):
             
         try:
 
-            #if self._downloader.params.get('external_downloader'): _check_active = True
+            #if self.get_param('external_downloader'): _check_active = True
             #else: _check_active = False
             
             _check_active = True
