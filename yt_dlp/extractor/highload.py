@@ -5,7 +5,7 @@ from urllib.parse import unquote, urlparse
 
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError, By
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError, By, PriorityLock
 
 
 class getvideourl():
@@ -43,8 +43,9 @@ class FastStreamIE(SeleniumInfoExtractor):
                 
                 self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
                 _host = urlparse(url).netloc
-                if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
-                    _sem.acquire(priority=10)   
+                if not (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
+                    self._downloader.sem.update({_host: (_sem:=PriorityLock())})
+                _sem.acquire(priority=10)   
                 return self.get_info_for_format(_url, headers=_headers)
             except HTTPStatusError as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
@@ -128,7 +129,7 @@ class EmbedoIE(FastStreamIE):
     
     _SITE_URL = "https://embedo.co"
     
-    #IE_NAME = 'embedo'
+    IE_NAME = 'embedo'
     _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
     _SUBS_TITLE = " - embedo.co"
     
@@ -136,6 +137,6 @@ class HighloadIE(FastStreamIE):
     
     _SITE_URL = "https://highload.to"
     
-    #IE_NAME = 'highload'
+    IE_NAME = 'highload'
     _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _SUBS_TITLE = " - Highload.to"

@@ -1,18 +1,16 @@
-from __future__ import unicode_literals
-
-import html
-import re
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import Lock
 from urllib.parse import unquote
+import html
+import re
 
 
 from ..utils import (ExtractorError, datetime_from_str, get_elements_by_class,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, ec
+from .commonwebdriver import ec, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, By
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -25,22 +23,27 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     _COOKIES = {}
     _RSS = {}
 
- 
-    @dec_on_exception
+    @dec_on_exception3
+    @dec_on_exception2
     @limiter_0_1.ratelimit("myvidster", delay=True)
     def _send_request(self, url, _type="GET", data=None, headers=None):        
-        
-        self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
-        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
+            
+        try:
+            self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
+            return(self.send_http_request(url, _type=_type, data=data, headers=headers))
+        except HTTPStatusError as e:
+            self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
         
             
-
-    @dec_on_exception
+    @dec_on_exception3
+    @dec_on_exception2
     @limiter_0_1.ratelimit("myvidster", delay=True)
     def _get_infovideo(self, url, headers=None):       
         
-        return self.get_info_for_format(url, headers=headers)
-
+        try:
+            return self.get_info_for_format(url, headers=headers)
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
 
     def _login(self):
@@ -137,15 +140,12 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                 for cookie in MyVidsterBaseIE._COOKIES.jar:
                     SeleniumInfoExtractor._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
                 
-    
-        
-
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
     _NETRC_MACHINE = "myvidster"
     
-        
+  
     _URLS_CHECKED = []
     
     def _already_analysed(self, url1):
@@ -201,7 +201,6 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
                 if _check_extr(_extr_name): #get entry                    
                     ie = self._get_extractor(el)
-                    #ie._real_initialize()
                     try:
                         _ent = ie._get_entry(el, check_active=True, msg=pre)
                         if _ent:
@@ -211,11 +210,10 @@ class MyVidsterIE(MyVidsterBaseIE):
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
                     except Exception as e:
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
-                        
-                        
-                #elif _extr_name == 'generic':
-                #    return el
-                elif _extr_name in ['xhamster', 'xhamsterembed', 'noodlemagazine']:
+
+
+                #elif _extr_name in ['xhamster', 'xhamsterembed', 'noodlemagazine']:
+                elif _extr_name != 'generic':
                     
                     try:
                         _ent = self._downloader.extract_info(el, download=False)
@@ -308,7 +306,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                 videolink_res =  try_get(re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage),
                                          lambda x: self.getbestvid(x[0], 'videolink') if x else None)
                     
-            if not embedlink_res and not videolink_res: raise ExtractorError("Error 404: no video urls found")
+            if not embedlink_res and not videolink_res: 
+                raise ExtractorError("Error 404: no video urls found")
             
             if isinstance(embedlink_res, dict):
                 embedlink_res.update({'original_url': url})
@@ -379,10 +378,8 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         try:
 
 
-            
-            res = self._send_request(url)
-            if not res: raise ExtractorError("Couldnt download webpage")
-            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            if not webpage: raise ExtractorError("Couldnt download webpage")
             
             title = try_get(re.findall(r'<title>([\w\s]+)</title>', webpage), lambda x: x[0]) or f"MyVidsterChannel_{channelid}"
             num_videos = try_get(re.findall(r"display_channel\(.*,[\'\"](\d+)[\'\"]\)", webpage), lambda x: x[0]) or 100000
@@ -402,9 +399,8 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 "Accept": "*/*"
             }
 
-            res = self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post)    
-            if not res: raise ExtractorError("Couldnt display channel")
-            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+            webpage = try_get(self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            if not webpage: raise ExtractorError("Couldnt display channel")
 
             el_videos = get_elements_by_class("thumbnail", webpage)
             entries = []
@@ -422,7 +418,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 video_url = try_get(re.findall(r'<a href=\"(/video/[^\"]+)\" class', el), lambda x: f'{self._SITE_URL}{x[0]}')
                 posted_date = try_get(get_elements_by_class("mvp_grid_panel_details", el), lambda x: datetime.strptime(x[0].replace('Posted ', '').strip(), '%B %d, %Y'))
                 if video_url:
-                    #
+                    
                     _entry = {'_type':'url', 'url': video_url, 'ie_key': 'MyVidster', 'original_url': url}
                     if posted_date:
                         _entry.update({'release_date': posted_date.strftime("%Y%m%d"), 'release_timestamp': int(posted_date.timestamp())})
@@ -443,6 +439,109 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
         
+       
+class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
+    IE_NAME = 'myvidster:search:playlist'   
+    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/search/?\?(?P<query>.+)'
+    
+    '''
+        Inside query, if there is param 'pages', that it is the max number of pages of
+        search result that will be evaluated. By default: 5
+    '''
+    
+    _NETRC_MACHINE = "myvidster"
+    _SEARCH_URL = 'https://www.myvidster.com/search/?'
+    
+    def _get_videos(self, _urlq):
+        
+        webpage = try_get(self._send_request(_urlq), lambda x: html.unescape(x.text))
+        if webpage:
+            list_videos =  re.findall(r'<a href="(/vsearch/[^"]+)">', webpage)
+            return list_videos
+       
+    def _get_last_page(self, _urlqbase):
+        i = 1
+        while(True):
+            webpage = try_get(self._send_request(f"{_urlqbase}{i}"), lambda x: html.unescape(x.text))
+            if "next »" in webpage:
+                i += 1
+            else:
+                break
+        return(i-1)
+            
+        
+         
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+    def _real_extract(self, url):
+
+        self.report_extraction(url)        
+
+        query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+        
+        params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+        
+        if not params.get('filter_by'): params['filter_by'] = 'myvidster'
+        if not params.get('cfilter_by'): params['cfilter_by'] = 'all'
+        if not params.get('sortby'): params['sortby'] = 'utc_posted'
+        
+                
+        npages = params.pop('pages', 5)
+        firstpage = params.pop('from', 1)
+        
+        query_str = "&".join([f"{_key}={_val}" for _key, _val in params.items()])
+        base_search_url = f"{self._SEARCH_URL}{query_str}&page="
+        
+        last_page = self._get_last_page(base_search_url)
+        
+        if last_page == 0:
+            raise ExtractorError("no search results")
+        
+        if npages == 'all':
+            _max = last_page
+        else:
+            _max = int(firstpage) + int(npages) - 1
+            if _max > last_page:
+                self.logger_debug(f'[{self._get_url_print(url)}] pages requested > max page website: will check up to max page')
+                _max = last_page
+                
+
+        list_search_urls = [f"{base_search_url}{i}" for i in range(int(firstpage), _max + 1)] 
+        
+        self.to_screen(list_search_urls)
+                
+        try:            
+            
+            with ThreadPoolExecutor(max_workers=min(len(list_search_urls), 5)) as exe:
+                futures = {exe.submit(self._get_videos, _urlq): _urlq for _urlq in list_search_urls}
+                
+            list_videos = []
+            for fut in futures:
+                try:
+                    _res = fut.result()
+                    if _res:
+                        list_videos += _res
+                    else: raise ExtractorError("no entries")
+                except Exception as e:
+                    self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
+            
+            if list_videos:
+                entries = [{'_type':'url', 'url': f'{self._SITE_URL}{video}', 'ie_key': 'MyVidster', 'original_url': url} for video in list_videos]
+                
+                return {
+                    '_type': 'playlist',
+                    'id': query_str,
+                    'title': 'Search',
+                    'entries': entries,
+                }
+            
+        except Exception as e:
+            self.to_screen(repr(e))
+            raise ExtractorError(repr(e))
+
+    
+    
 class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:subs:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/subscriptions/atgarcia'
@@ -562,106 +661,4 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
-        
-class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
-    IE_NAME = 'myvidster:search:playlist'   
-    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/search/?\?(?P<query>.+)'
-    
-    '''
-        Inside query, if there is param 'pages', that it is the max number of pages of
-        search result that will be evaluated. By default: 5
-    '''
-    
-    _NETRC_MACHINE = "myvidster"
-    _SEARCH_URL = 'https://www.myvidster.com/search/?'
-    
-    def _get_videos(self, _urlq):
-        
-        webpage = try_get(self._send_request(_urlq), lambda x: html.unescape(x.text))
-        if webpage:
-            list_videos =  re.findall(r'<a href="(/vsearch/[^"]+)">', webpage)
-            return list_videos
-       
-    def _get_last_page(self, _urlqbase):
-        i = 1
-        while(True):
-            webpage = try_get(self._send_request(f"{_urlqbase}{i}"), lambda x: html.unescape(x.text))
-            if "next »" in webpage:
-                i += 1
-            else:
-                break
-        return(i-1)
-            
-        
-         
-    def _real_initialize(self):
-        super()._real_initialize()
-    
-    def _real_extract(self, url):
-
-        self.report_extraction(url)        
-
-        query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
-        
-        params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
-        
-        if not params.get('filter_by'): params['filter_by'] = 'myvidster'
-        if not params.get('cfilter_by'): params['cfilter_by'] = 'all'
-        if not params.get('sortby'): params['sortby'] = 'utc_posted'
-        
-                
-        npages = params.pop('pages', 5)
-        firstpage = params.pop('from', 1)
-        
-        query_str = "&".join([f"{_key}={_val}" for _key, _val in params.items()])
-        base_search_url = f"{self._SEARCH_URL}{query_str}&page="
-        
-        last_page = self._get_last_page(base_search_url)
-        
-        if last_page == 0:
-            raise ExtractorError("no search results")
-        
-        if npages == 'all':
-            _max = last_page
-        else:
-            _max = int(firstpage) + int(npages) - 1
-            if _max > last_page:
-                self.logger_debug(f'[{self._get_url_print(url)}] pages requested > max page website: will check up to max page')
-                _max = last_page
-                
-
-        list_search_urls = [f"{base_search_url}{i}" for i in range(int(firstpage), _max + 1)] 
-        
-        self.to_screen(list_search_urls)
-                
-        try:            
-            
-            with ThreadPoolExecutor(max_workers=min(len(list_search_urls), 5)) as exe:
-                futures = {exe.submit(self._get_videos, _urlq): _urlq for _urlq in list_search_urls}
-                
-            list_videos = []
-            for fut in futures:
-                try:
-                    _res = fut.result()
-                    if _res:
-                        list_videos += _res
-                    else: raise ExtractorError("no entries")
-                except Exception as e:
-                    self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
-            
-            if list_videos:
-                entries = [{'_type':'url', 'url': f'{self._SITE_URL}{video}', 'ie_key': 'MyVidster', 'original_url': url} for video in list_videos]
-                
-                return {
-                    '_type': 'playlist',
-                    'id': query_str,
-                    'title': 'Search',
-                    'entries': entries,
-                }
-            
-        except Exception as e:
-            self.to_screen(repr(e))
-            raise ExtractorError(repr(e))
-
-    
-    
+ 

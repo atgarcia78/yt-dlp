@@ -2,7 +2,9 @@ import re
 from urllib.parse import unquote, urlparse
 
 from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, traverse_obj
-from .commonwebdriver import dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError
+from .commonwebdriver import (
+    dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
+    limiter_5, HTTPStatusError, PriorityLock)
 
 import html
 import json
@@ -29,9 +31,10 @@ class VidozaIE(SeleniumInfoExtractor):
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
             _host = urlparse(url).netloc
-            if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
-                _sem.acquire(priority=10)   
-            return self.get_info_for_format(url, headers=_headers)       
+            if not (_sem:=traverse_obj(self._downloader.params, ('sem', _host))): 
+                self._downloader.sem.update({_host: (_sem:=PriorityLock())})
+            _sem.acquire(priority=10)   
+            return self.get_info_for_format(url, headers=_headers, **kwargs)       
         except HTTPStatusError as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         finally:

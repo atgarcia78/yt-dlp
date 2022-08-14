@@ -39,15 +39,11 @@ class TheGayIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}[get_video_info]'
             else: pre = '[get_video_info]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
-            # _host = urlparse(url).netloc
-            # if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
-            #     _sem.acquire(priority=10)                
+      
             return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-origin', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
         except HTTPStatusError as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-        # finally:
-        #     if _sem: _sem.release()      
-            
+
 
     @dec_on_exception
     @limiter_1.ratelimit("thegay", delay=True)

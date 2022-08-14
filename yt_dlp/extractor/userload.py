@@ -4,7 +4,10 @@ import traceback
 from urllib.parse import unquote, urlparse
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError
+from .commonwebdriver import (
+    dec_on_exception, dec_on_exception2, dec_on_exception3, 
+    SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError,
+    PriorityLock)
 
 class video_or_error_userload():
     
@@ -50,8 +53,9 @@ class UserLoadIE(SeleniumInfoExtractor):
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
             _host = urlparse(url).netloc
-            if (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):
-                _sem.acquire(priority=10)   
+            if not (_sem:=traverse_obj(self._downloader.params, ('sem', _host))):  
+                self._downloader.sem.update({_host: (_sem:=PriorityLock())})
+            _sem.acquire(priority=10)   
             return self.get_info_for_format(url, headers=_headers)       
         except HTTPStatusError as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")

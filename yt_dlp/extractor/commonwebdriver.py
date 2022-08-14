@@ -11,6 +11,8 @@ from httpx import HTTPStatusError, HTTPError, StreamError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
+from cs.threads import PriorityLock
+
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service
@@ -522,7 +524,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
 
-            if any(_ in url for _ in ['twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
+            if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
                                       'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
                 self.logger_debug(f'[valid]{_pre_str}:False')
                 return False
