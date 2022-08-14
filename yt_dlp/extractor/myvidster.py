@@ -50,7 +50,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         
         res = self._send_request(self._LOGIN_URL, _type="GET")
         if res and "www.myvidster.com/user/home.php" in str(res.url):
-            self.to_screen("LOGIN already OK")
+            self.logger_debug("LOGIN already OK")
             return
         self.report_login()
         
@@ -80,12 +80,12 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
             res = self._send_request(self._LOGIN_URL, _type="POST", data=data, headers=_headers_post)
             if res and "www.myvidster.com/user/home.php" in str(res.url):
-                self.to_screen("LOGIN OK")
+                self.logger_debug("LOGIN OK")
                 return
             elif res and "www.myvidster.com/user" in str(res.url):
                 res2 = self._send_request(self._LOGIN_URL, _type="GET")
                 if res2 and "www.myvidster.com/user/home.php" in str(res2.url):
-                    self.to_screen("LOGIN OK")
+                    self.logger_debug("LOGIN OK")
                     return
                 else:
                     raise ExtractorError(f"Login failed: {res2} : {res2.url if res2 else None}")     
@@ -408,7 +408,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
             if query:
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
-                self.to_screen
                 _first = params.get('first')
                 _last = params.get('last')
                 el_videos = el_videos[int(_first) - 1: int(_last)]
@@ -509,7 +508,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
 
         list_search_urls = [f"{base_search_url}{i}" for i in range(int(firstpage), _max + 1)] 
         
-        self.to_screen(list_search_urls)
+        self.logger_debug(list_search_urls)
                 
         try:            
             

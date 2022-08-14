@@ -40,7 +40,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
             try:
                 return self.send_http_request(url)
             except HTTPStatusError as e:
-                self.report_warning(f"[send_requests] {self._get_url_print(url)}: error - {repr(e)}")
+                self.logger_debug(f"[send_requests] {self._get_url_print(url)}: error - {repr(e)}")
 
 
     def _get_entry(self, url, **kwargs):
@@ -74,8 +74,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
         title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME), '', _title).strip('[,-_ ').lower()
 
         if not videoid:
-            videoid = flashvars.get('video_id')
-        
+            videoid = flashvars.get('video_id')        
         
         
         thumbnail = flashvars['preview_url']
@@ -106,13 +105,13 @@ class BaseKVSIE(SeleniumInfoExtractor):
             _videoinfo = self._get_video_info(_videourl, headers=_headers)
             if _videoinfo:
                 _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
-            
-            formats.append(_format)
-            if not formats[-1].get('height'):
-                formats[-1]['quality'] = 1
-                
+                if not _format.get('height'): _format['quality'] = 1
+                                
+                formats.append(_format)
+          
+        if not formats: raise ExtractorError('no formats')
+        
         self._sort_formats(formats)
-
                         
         entry = {
             'id' : videoid,
@@ -123,8 +122,8 @@ class BaseKVSIE(SeleniumInfoExtractor):
             'thumbnail': thumbnail,
             'extractor': self.IE_NAME,
             'extractor_key': self.ie_key(),
-            'webpage_url': url
-            }            
+            'webpage_url': url}            
+        
         return entry
         
     
@@ -137,11 +136,10 @@ class BaseKVSIE(SeleniumInfoExtractor):
         
         try: 
             return self._get_entry(url)  
-        except ExtractorError:
+        except ExtractorError as e:
             raise
-        except Exception as e:
-            
-            self.to_screen(f"{repr(e)}")
+        except Exception as e:            
+            self.report_warning(f"{repr(e)}")
             raise ExtractorError(repr(e))
             
 
@@ -161,13 +159,11 @@ class EbembedIE(BaseKVSIE):
     _VALID_URL = r'https?://(www\.)?ebembed\.com/(?:videos|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://ebembed.com'
     
-    
 class Gay0DayIE(BaseKVSIE):
     
     IE_NAME = 'gay0day'
     _VALID_URL = r'https?://(www\.)?gay0day\.com/(.+/)?(?:videos|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://gay0day.com'
-    
     
 class PornHatIE(BaseKVSIE):
     

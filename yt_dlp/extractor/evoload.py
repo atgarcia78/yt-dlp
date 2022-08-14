@@ -95,8 +95,9 @@ class EvoLoadIE(SeleniumInfoExtractor):
                         
             _host = urlparse(url).netloc
             
-            if not (_sem:=traverse_obj(self._downloader.params, ('sem', _host))): 
-                self._downloader.sem.update({_host: (_sem:=PriorityLock())})
+            if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
+                _sem = PriorityLock()
+                self._downloader.params['sem'].update({_host: _sem})
             _sem.acquire(priority=10)
             return self.get_info_for_format(url, headers=_headers, **kwargs)    
         
