@@ -4,8 +4,11 @@ import time
 import traceback
 from urllib.parse import unquote, urlparse
 
-from ..utils import ExtractorError, sanitize_filename, try_get, traverse_obj
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError
+from ..utils import (
+    ExtractorError, sanitize_filename, try_get, traverse_obj)
+from .commonwebdriver import (
+    dec_on_exception, SeleniumInfoExtractor,
+    limiter_15, By,HTTPStatusError, PriorityLock)
 
 class video_or_error_evoload():
     def __init__(self, logger):
@@ -78,16 +81,29 @@ class EvoLoadIE(SeleniumInfoExtractor):
     
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1']
 
-    # @staticmethod
-    # def _extract_urls(webpage):
-       
-    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1',webpage)]
     
     @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)
-    def _get_video_info(self, url, *args, **kwargs):        
-        self.logger_debug(f"[get_video_info] {url}")
-        return self.get_info_for_format(url, *args, **kwargs)       
+    def _get_video_info(self, url, **kwargs):        
+         
+        try:            
+            self.logger_debug(f"[get_video_info] {url}")
+            
+            _headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 
+                        'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
+                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+                        
+            _host = urlparse(url).netloc
+            
+            if not (_sem:=traverse_obj(self._downloader.params, ('sem', _host))): 
+                self._downloader.sem.update({_host: (_sem:=PriorityLock())})
+            _sem.acquire(priority=10)
+            return self.get_info_for_format(url, headers=_headers, **kwargs)    
+        
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+        finally:
+            if _sem: _sem.release() 
             
     @dec_on_exception
     @limiter_15.ratelimit("evoload", delay=True)
