@@ -13,7 +13,7 @@ import httpx
 
 from ..utils import (ExtractorError, int_or_none, js_to_json,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception2, dec_on_exception3, dec_on_exception, HTTPStatusError, SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):
@@ -25,13 +25,30 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _LOCK = threading.Lock()    
     _COOKIES = {}
     
-    @dec_on_exception
+    @dec_on_exception3
+    @dec_on_exception2
     @limiter_5.ratelimit("boyfriendtv", delay=True)   
-    def _get_info_for_format(self, *args, **kwargs):
-        return super().get_info_for_format(*args, **kwargs)
-    
-    def _login(self, driver):
+    def _get_info_for_format(self, url, **kwargs):
         
+        _headers = kwargs.get('headers', None)        
+
+        self.logger_debug(f"[get_video_info] {url}")
+        try:
+            return self.get_info_for_format(url, headers=_headers)
+        except HTTPStatusError as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+    
+    
+    
+    @dec_on_exception
+    @limiter_5.ratelimit("boyfriendtv", delay=True)
+    def _send_request(self, url, driver, **kwargs):
+        
+        driver.get(url)
+    
+    
+    
+    def _login(self, driver):        
         
         username, password = self._get_login_info()
         
@@ -41,7 +58,8 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                 % self._NETRC_MACHINE)
         
         self.report_login()
-        driver.get(self._SITE_URL)
+        
+        self._send_request(self._SITE_URL, driver)
         el_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url")))
         if el_login: el_login.click()
         el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#login.form-control")))
@@ -59,14 +77,14 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             if not el_menu: 
                 self.raise_login_required("Invalid username/password")
             else:
-                self.to_screen("Login OK")
+                self.logger_debug("Login OK")
 
 
     def _init_driver(self):        
         
         driver = self.get_driver()
         try:
-            driver.get(self._SITE_URL)
+            self._send_request(self._SITE_URL, driver)
             el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))            
             if not el_menu:
                 
@@ -75,7 +93,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                     for cookie in BoyFriendTVBaseIE._COOKIES:
                         driver.add_cookie(cookie)
                 
-                    driver.get(self._SITE_URL)
+                    self._send_request(self._SITE_URL, driver)
                     el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
                     if not el_menu:
                         self._login(driver)
@@ -83,20 +101,21 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                         return driver
                         
                     else:
-                        self.to_screen(f"Already logged")
+                        self.logger_debug(f"Already logged")
                         return driver                        
                 
             else:
-                self.to_screen(f"Already logged")
+                self.logger_debug(f"Already logged")
                 return driver
             
         except Exception as e:
-            self.to_screen("error when init driver")
+            #self.to_screen("error when init driver")
             self.rm_driver(driver)
             raise            
             
 
     def _real_initialize(self):
+        
         super()._real_initialize()
         
         with BoyFriendTVBaseIE._LOCK:
@@ -105,7 +124,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                 
                 driver = self.get_driver()
                 try:                                        
-                    driver.get(self._SITE_URL)
+                    self._send_request(self._SITE_URL, driver)
                     driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': 'boyfriendtv.com'})
                     self._login(driver)
                     BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
@@ -131,7 +150,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         
         try:
         
-            driver.get(url)
+            self._send_request(self._SITE_URL, driver)
             
             el_vplayer = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "video-player")))            
             el_title = self.wait_until(driver, 10, ec.presence_of_element_located((By.TAG_NAME, "title")))
@@ -139,59 +158,68 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             if "deleted" in _title or "removed" in _title or "page not found" in _title or not el_vplayer:
                 raise ExtractorError("Page not found 404")   
             el_vplayer.click()
+            self.wait_until(driver, 2)
             _title_video = _title.replace(" - BoyFriendTV.com", "").strip()
             _rating = try_get(driver.find_elements(By.CSS_SELECTOR, "div.progress-big.js-rating-title"), lambda x: try_get(x[0].get_attribute('title').strip('%'), lambda y: int(y)))           
             el_html = self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "html")))
             webpage = el_html.get_attribute("outerHTML") 
             jsonstr = try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster',re.sub('[\t\n]','', html.unescape(webpage))), lambda x: x[0])                    
             info_sources = json.loads(js_to_json(jsonstr)) if jsonstr else None
-            el_vplayer.click()
+                                    
             if info_sources:
                 
-                try:
+                el_vplayer.click()
+                self.wait_until(driver, 2)
                     
-                    _formats = []
-                    for _src in info_sources.get('mp4'):
+                _formats = []
+                for _src in info_sources.get('mp4'):
+                    
+                    try:
+                        
+                        _headers = {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
+                        
+                        _format_id = f"http-{_src.get('desc')}"
                         _url = unquote(_src.get('src'))
-                        _info_video = self._get_info_for_format(_url)
+                        _info_video = self._get_info_for_format(_url, headers=_headers)
+                           
                             
                         if not _info_video:
-                            self.to_screen("no info video")
-                            raise ExtractorError('Error 404')
+                            self.logger_debug(f"[{url}][{_format_id}] no video info")
+                            
                         
                         _formats.append({
                             'url': _info_video.get('url'),
-                            'ext': 'mp4',
-                            'format_id': f"http-{_src.get('desc')}",
+                             'ext': 'mp4',
+                            'format_id': _format_id,
                             'resolution': _src.get('desc'),
                             'height': int_or_none(_src.get('desc').lower().replace('p','')),
                             'filesize': _info_video.get('filesize'),
-                            'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
+                            'http_headers': _headers,
                         })
+                    except Exception as e:
+                        lines = traceback.format_exception(*sys.exc_info())
+                        self.logger_debug(f"{repr(e)}\n{'!!'.join(lines)}")
                         
-                    self._sort_formats(_formats)
+                        
+                if not _formats:
                     
-                    return({
-                        'id': self._match_id(url),
-                        'title': sanitize_filename(_title_video, restricted=True),
-                        'formats': _formats,
-                        'ext': 'mp4',
-                        #'original_url': url,
-                        'average_rating': _rating
+                    raise ExtractorError('404 no formats')
+               
+                self._sort_formats(_formats)
+                    
+                return({
+                    'id': self._match_id(url),
+                    'title': sanitize_filename(_title_video, restricted=True),
+                    'formats': _formats,
+                    'ext': 'mp4',
+                    'webpage_url': url,
+                    'average_rating': _rating
+            
+                })
                 
-                    })
-                  
-                   
-                except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-                    raise ExtractorError(repr(e))
-                
-        except ExtractorError:
+        except ExtractorError as e:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
@@ -206,7 +234,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         return self.get_video_entry(url)
 
 class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
-    IE_NAME = 'boyfriendtv:embed'
+    IE_NAME = 'boyfriendtvembed'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/embed/(?:(?P<id>[0-9]+)/|embed.php\?)'
     
     def get_formats_single_video(self, webpage):
@@ -258,35 +286,35 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             
             webpage = re.sub('[\t\n]','', html.unescape(res.text))
             
+            _formats = []
+            
             if 'class="video-container"' in webpage:
                 
                 _title_video = try_get(re.findall(r'<title>([^<]*)</title>', webpage), lambda x: x[0].replace(" - ", "").replace("BoyFriendTv.com", "")) or ""
                 _formats = self.get_formats_single_video(webpage)
-                if _formats:
-                    
-                    for el in _formats: 
-                        el.update({'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}})
-                    
-                    _res = {
-                        'id': videoid,
-                        'title': sanitize_filename(_title_video, restricted=True),                     
-                        'formats': _formats,
-                        'ext': 'mp4'}
-                    
-                                                    
-                    return _res
+                
+            if not _formats: raise ExtractorError("404 no video formats")
+                   
+            for el in _formats: 
+                el.update({'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}})
             
-           
-
+            self._sort_formats(_formats)
+            
+            _res = {
+                'id': videoid,
+                'title': sanitize_filename(_title_video, restricted=True),                     
+                'formats': _formats,
+                'ext': 'mp4'}
+            
+                                            
+            return _res
+            
         except ExtractorError as e:
             raise     
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
-
-
-        
 
 
 class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
@@ -349,7 +377,7 @@ class BoyFriendTVPlayListIE(BoyFriendTVBaseIE):
                 'entries': entries,
             }
             
-        except ExtractorError:
+        except ExtractorError as e:
             raise    
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
