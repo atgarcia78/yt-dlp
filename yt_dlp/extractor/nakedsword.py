@@ -54,7 +54,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             try:
                 return(self.send_http_request(url, _type=_type, data=data, headers=headers))
 
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         else:
             driver.execute_script("window.stop();")

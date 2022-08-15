@@ -42,13 +42,16 @@ class FastStreamIE(SeleniumInfoExtractor):
             
                 
                 self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
-                _host = urlparse(url).netloc
-                if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                    _sem = PriorityLock()
-                    self._downloader.params['sem'].update({_host: _sem})
+                _host = urlparse(url).netloc                
+                
+                with self.get_param('lock'):
+                    if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
+                        _sem = PriorityLock()
+                        self.get_param('sem').update({_host: _sem})
+                    
                 _sem.acquire(priority=10)   
                 return self.get_info_for_format(_url, headers=_headers)
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             finally:
                 if _sem: _sem.release()

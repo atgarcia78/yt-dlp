@@ -7,7 +7,7 @@ from queue import Empty, Queue
 from urllib.parse import unquote, urlparse
 
 import httpx
-from httpx import HTTPStatusError, HTTPError, StreamError
+from httpx import HTTPStatusError, HTTPError, StreamError, ConnectError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
@@ -63,7 +63,7 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
      'gayguytop', 'upstream', 'videobin', 
-                            'xvidgay',): {
+                'gayforiteu', 'xvidgay',): {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 16},
             ('odnoklassniki', 'html5', 
@@ -84,11 +84,6 @@ def my_jitter2(value: float) -> float:
 
     return int(random.uniform(value, value*2))
 
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=5, jitter=my_jitter2, raise_on_giveup=False, interval=10)
-dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
-dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
-dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 class StatusError503(Exception):
     """Error during info extraction."""
@@ -98,7 +93,12 @@ class StatusError503(Exception):
         super().__init__(msg)
         self.exc_info = sys.exc_info()  # preserve original exception
 
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter2, raise_on_giveup=False, interval=15)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=5, jitter=my_jitter2, raise_on_giveup=False, interval=10)
+dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
+dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
+dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 class scroll():
     '''
@@ -129,16 +129,17 @@ def _check_init(func):
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
+    
+    _MASTER_INIT = False
+    
     _MASTER_LOCK = threading.Lock()
-    _QUEUE = Queue()
-    _MASTER_COUNT = 0
+    
     _YTDL = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
     _CONFIG_REQ = copy.deepcopy(CONFIG_EXTRACTORS)
-    _MASTER_INIT = False
-    _MAX_NUM_WEBDRIVERS = 0
-    _SERVER_NUM = 0
+   
+    #_SERVER_NUM = 0
     
     _FIREFOX_HEADERS =  {      
         'Sec-Fetch-Dest': 'document',
@@ -208,55 +209,35 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             return self.ie_key()
         
-    
     def _get_url_print(self, url):
         if len(url) > 150:
             return(f'{url[:140]}...{url[-10:]}')
         else: return url
    
-    def close(self, client=True):
-        
-        while True:
-            try:
-                _driver = SeleniumInfoExtractor._QUEUE.get(block=False)                
-                SeleniumInfoExtractor.rm_driver(_driver)               
-            
-            except Empty:
-                if SeleniumInfoExtractor._YTDL:
-                    SeleniumInfoExtractor._YTDL.to_screen(f'[{self.__class__.__name__[:-2].lower()}] SeleniumInfoExtractor drivers queue empty')
-                break
-            except Exception:
-                pass
-        
-        if client:
-            try:
-                SeleniumInfoExtractor._CLIENT.close()
-                SeleniumInfoExtractor._YTDL.to_screen(f'[{self.__class__.__name__[:-2].lower()}] SeleniumInfoExtradctor httpx client close')
-            except Exception:
-                pass
-        
-        #just in case a selenium extractor is needed after closing its network resources
-        SeleniumInfoExtractor._MASTER_INIT = False
-        self._ready = False
+    def close(self):        
+
+        try:
+            SeleniumInfoExtractor._CLIENT.close()
+        except Exception:
+            pass        
+        SeleniumInfoExtractor._MASTER_INIT = False 
+
 
     def _real_initialize(self):
 
-                
         try:  
         
             with SeleniumInfoExtractor._MASTER_LOCK:
-                if not SeleniumInfoExtractor._MASTER_INIT:
-                    
-                    SeleniumInfoExtractor._YTDL = self._downloader
-                    
-                    SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli
-                    
-                    SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS = SeleniumInfoExtractor._YTDL.params.get('winit', 5)
-
+                if not SeleniumInfoExtractor._MASTER_INIT:                    
+                    SeleniumInfoExtractor._YTDL = self._downloader                    
+                    SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
+                    SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
+                    SeleniumInfoExtractor._YTDL.params['queue'] = Queue()               
                     _headers = copy.deepcopy(SeleniumInfoExtractor._YTDL.params.get('http_headers'))
-
-                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
-                                                                 'headers': _headers, 'follow_redirects': True, 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
+                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 
+                                                                 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
+                                                                 'headers': _headers, 'follow_redirects': True, 
+                                                                 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
                     
                     #no verifciamos nunca el cert
                     SeleniumInfoExtractor._CLIENT_CONFIG.update({'verify': False})
@@ -265,10 +246,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], 
                                                                  follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
-                    SeleniumInfoExtractor._MASTER_INIT = True
-                    
-                    #self.logger_debug(SeleniumInfoExtractor._CLIENT.headers)
-                    
+                    SeleniumInfoExtractor._MASTER_INIT = True                    
+
         except Exception as e:
             logger.exception(e)
 
@@ -276,47 +255,26 @@ class SeleniumInfoExtractor(InfoExtractor):
         """Real extraction process. Redefine in subclasses."""
         raise NotImplementedError('This method must be implemented by subclasses')
         
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, usequeue=False):        
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None):        
 
-        driver = None
-        
-        if usequeue:
-        
-            with SeleniumInfoExtractor._MASTER_LOCK:
-                if SeleniumInfoExtractor._QUEUE._qsize() > 0:
-                    driver = SeleniumInfoExtractor._QUEUE.get()
-                else:    
-                    if SeleniumInfoExtractor._MASTER_COUNT < SeleniumInfoExtractor._MAX_NUM_WEBDRIVERS:
-                        driver = self._get_driver(noheadless, host, port)
-                        SeleniumInfoExtractor._MASTER_COUNT += 1                    
-                    else:
-                        driver = SeleniumInfoExtractor._QUEUE.get(block=True, timeout=600)            
-    
-        else: 
-
-            with SeleniumInfoExtractor._MASTER_LOCK:
-                driver = self._get_driver(noheadless, devtools, host, port)
-                SeleniumInfoExtractor._MASTER_COUNT += 1            
-
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            driver = self._get_driver(noheadless, devtools, host, port)
         return driver
         
-    def _get_driver(self, _noheadless, _devtools, _host, _port):
-        
+    def _get_driver(self, noheadless, devtools, host, port):        
         
         tempdir = tempfile.mkdtemp(prefix='asyncall-') 
-        
         shutil.rmtree(tempdir, ignore_errors=True) 
         res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
-        
         if res != tempdir:
             raise ExtractorError("error when creating profile folder")
         
         opts = FirefoxOptions()
         
-        if not _noheadless:
+        if not noheadless:
             opts.add_argument("--headless")
         
-        if _devtools:
+        if devtools:
             opts.add_argument("--devtools")
             opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
             opts.set_preference("devtools.netmonitor.persistlog", True)
@@ -329,29 +287,28 @@ class SeleniumInfoExtractor(InfoExtractor):
         opts.add_argument("--profile")
         opts.add_argument(tempdir)
         
-        if not _host and not _port:
-            if SeleniumInfoExtractor._YTDL:
-                if (proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy')):
-                    proxy = proxy.replace('https://', '').replace('http://', '')
-                    _host = proxy.split(":")[0]
-                    _port = proxy.split(":")[1]
+        # if not host and not port:
+        #     if SeleniumInfoExtractor._YTDL:
+        #         if (proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy')):
+        #             proxy = proxy.replace('https://', '').replace('http://', '')
+        #             host = proxy.split(":")[0]
+        #             port = proxy.split(":")[1]
                 
-        if _host and _port:
+        if host and port:
             opts.set_preference("network.proxy.type", 1)
-            opts.set_preference("network.proxy.http",_host)
-            opts.set_preference("network.proxy.http_port",int(_port))
-            opts.set_preference("network.proxy.https",_host)
-            opts.set_preference("network.proxy.https_port",int(_port))
-            opts.set_preference("network.proxy.ssl",_host)
-            opts.set_preference("network.proxy.ssl_port",int(_port))
-            opts.set_preference("network.proxy.ftp",_host)
-            opts.set_preference("network.proxy.ftp_port",int(_port))
-            opts.set_preference("network.proxy.socks",_host)
-            opts.set_preference("network.proxy.socks_port",int(_port))
+            opts.set_preference("network.proxy.http",host)
+            opts.set_preference("network.proxy.httpport",int(port))
+            opts.set_preference("network.proxy.https",host)
+            opts.set_preference("network.proxy.httpsport",int(port))
+            opts.set_preference("network.proxy.ssl",host)
+            opts.set_preference("network.proxy.sslport",int(port))
+            opts.set_preference("network.proxy.ftp",host)
+            opts.set_preference("network.proxy.ftpport",int(port))
+            opts.set_preference("network.proxy.socks",host)
+            opts.set_preference("network.proxy.socksport",int(port))
         
         else:
-            opts.set_preference("network.proxy.type", 0)
-            
+            opts.set_preference("network.proxy.type", 0)            
                 
         opts.set_preference("dom.webdriver.enabled", False)
         opts.set_preference("useAutomationExtension", False)
@@ -359,15 +316,13 @@ class SeleniumInfoExtractor(InfoExtractor):
         serv = Service(log_path="/dev/null")
         
         @dec_retry 
-        def return_driver():
-    
+        def return_driver():    
             _driver = None
             try:                
                 _driver = Firefox(service=serv, options=opts)                
                 _driver.maximize_window()                
                 self.wait_until(_driver, 0.5)                
-                return _driver
-                
+                return _driver                
             except Exception as e:  
                 if _driver: 
                     _driver.quit()
@@ -383,32 +338,24 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         return driver
 
-    def put_in_queue(self, driver):
-        SeleniumInfoExtractor._QUEUE.put_nowait(driver)
-
     @classmethod
     def rm_driver(cls, driver):
         
-        #tempdir = try_get(driver.caps, lambda x: x.get('moz:profile', None))
-        tempdir = traverse_obj(driver.caps, 'moz:profile')
-        
+        tempdir = traverse_obj(driver.caps, 'moz:profile')        
         try:
             driver.close()
         except Exception:
-            pass
-        
+            pass        
         try:
             driver.quit()
         except Exception:
             pass       
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
-            with SeleniumInfoExtractor._MASTER_LOCK:
-                SeleniumInfoExtractor._MASTER_COUNT -= 1
+
         
     def scan_for_request(self, driver, _link, _all=False, timeout=60):
 
-       
         def _get_har():
             return (driver.execute_async_script(
                         "HAR.triggerExport().then(arguments[0]);")).get('entries')
@@ -437,22 +384,22 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 time.sleep(0.5)
                 
-    def scan_for_json(self, _driver, _link, _all=False):
+    def scan_for_json(self, _driver, _link, _all=False, timeout=60):
 
-
-        _hints = self.scan_for_request(_driver, _link, _all)
+        _hints = self.scan_for_request(_driver, _link, _all, timeout)
 
         logger.debug(f"[scan_json] {_hints}")
         
+        func_getter = lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else ""            
+        
         if not _all:
-            _info_json = try_get(_hints, lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else "")
+            _info_json = try_get(_hints, func_getter)
             return(_info_json)
         else:            
             if _hints:
-                _list_info_json = []           
-                        
+                _list_info_json = []                        
                 for el in _hints:
-                    _info_json = try_get(el, lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else "")
+                    _info_json = try_get(el, func_getter)
                     if _info_json: 
                         _list_info_json.append(_info_json)
                 
@@ -492,7 +439,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             if res and res.status_code == 404:           
                 res.raise_for_status()
             elif res and res.status_code == 503:
-                raise StatusError503(repr(e))
+                raise StatusError503(repr(e))            
+            elif isinstance(e, ConnectError):
+                if 'errno 61' in _msg_err.lower():
+                    raise
+                else:
+                    raise ExtractorError(_msg_err)
             elif not res:
                 raise TimeoutError(repr(e))
             else:
@@ -557,7 +509,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                             return ""
                         else:
                             return res
-                    except HTTPStatusError as e:
+                    except (HTTPStatusError, ConnectError) as e:
                         self.report_warning(f"[valid]{_pre_str}:{e}")
                         #logger.exception(repr(e))
                         #return ""
@@ -615,15 +567,21 @@ class SeleniumInfoExtractor(InfoExtractor):
                 res.raise_for_status()
                 return res
             else: return ""
-        except Exception as e:
-            
+        except Exception as e:            
             _msg_err = repr(e)
             if res and res.status_code == 404:           
                 res.raise_for_status()
             elif res and res.status_code == 503:
                 raise StatusError503(repr(e))
+            elif isinstance(e, ConnectError):
+                if 'errno 61' in _msg_err.lower():
+                    
+                    raise
+                else:
+                    raise ExtractorError(_msg_err)   
             elif not res:
                 raise TimeoutError(_msg_err)
+                         
             else:
                 raise ExtractorError(_msg_err) 
         finally:                
@@ -634,17 +592,17 @@ class SeleniumInfoExtractor(InfoExtractor):
         
     #     with SeleniumInfoExtractor._MASTER_LOCK:
     #         while True:
-    #             _server_port = 18080 + SeleniumInfoExtractor._SERVER_NUM*1000                 
-    #             _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _server_port})
+    #             _serverport = 18080 + SeleniumInfoExtractor._SERVER_NUM*1000                 
+    #             _server = Server(path="/Users/antoniotorres/Projects/async_downloader/browsermob-proxy-2.1.4/bin/browsermob-proxy", options={'port': _serverport})
     #             try:
     #                 if _server._is_listening():
     #                     SeleniumInfoExtractor._SERVER_NUM += 1
     #                     if SeleniumInfoExtractor._SERVER_NUM == 5: raise Exception("mobproxy max tries")
     #                 else:
     #                     _server.start({"log_path": "/dev", "log_file": "null"})
-    #                     self.to_screen(f"[start_browsermob] start OK on port {_server_port}")
+    #                     self.to_screen(f"[start_browsermob] start OK on port {_serverport}")
     #                     SeleniumInfoExtractor._SERVER_NUM += 1
-    #                     return (_server, _server_port)
+    #                     return (_server, _serverport)
     #             except Exception as e:
     #                 lines = traceback.format_exception(*sys.exc_info())
     #                 self.to_screen(f'[start_browsermob] start error {repr(e)} \n{"!!".join(lines)}')
