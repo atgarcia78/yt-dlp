@@ -70,7 +70,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         try:                                    
             res = self.send_http_request(url)   
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             return
             
@@ -86,7 +86,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         
         try:
             return self.get_info_for_format(url, headers={'referer': 'https://netdna-storage.com/'})
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
 

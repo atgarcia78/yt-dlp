@@ -41,7 +41,7 @@ class TheGayIE(SeleniumInfoExtractor):
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
       
             return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-origin', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
 
 

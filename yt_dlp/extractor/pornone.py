@@ -23,7 +23,7 @@ class PornoneIE(SeleniumInfoExtractor):
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         try:
             return self.get_info_for_format(url, headers=_headers)
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
                 
        
@@ -42,7 +42,7 @@ class PornoneIE(SeleniumInfoExtractor):
         else:
             try:
                 return self.send_http_request(url)
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[send_requests] {self._get_url_print(url)}: error - {repr(e)}")
 
 

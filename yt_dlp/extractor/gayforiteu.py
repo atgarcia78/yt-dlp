@@ -6,15 +6,13 @@ from lzma import PRESET_DEFAULT
 from urllib.parse import unquote
 
 
-
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, SeleniumInfoExtractor, limiter_5, By
 
 class getvideourl():
     def __call__(self, driver):
-        el_video = driver.find_elements(By.TAG_NAME, 'video')
-        if not el_video: return False
-        if (video_url:=el_video[0].get_attribute('src')):
+        el_video = driver.find_element(By.CSS_SELECTOR, 'video')
+        if (video_url:=el_video.get_attribute('src')):
             return unquote(video_url).replace("medialatest-cdn.gayforit.eu", "media.gayforit.eu")
         else: return False
         
@@ -26,17 +24,23 @@ class GayForITEUIE(SeleniumInfoExtractor):
     
     @dec_on_exception
     @limiter_5.ratelimit("gayforiteu", delay=True)
-    def _send_request(self, url, driver):
+    def _send_request(self, url, **kwargs):        
+
+        if (driver:=kwargs.get('driver')):
+            driver.get(url)
         
-        #lets use the native method of InfoExtractor to download the webpage content. HTTPX doesnt work with this site
-        #webpage = self._download_webpage(url, None, note=False)
-        driver.get(url)
-      
+
+    @dec_on_exception3
+    @dec_on_exception2
+    @limiter_5.ratelimit("gayforiteu", delay=True)
+    def _get_video_info(self, url, **kwargs):        
+
+        try:
+            return self.get_info_for_format(url, **kwargs)
+        except (HTTPStatusError, ConnectError) as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             
-    @dec_on_exception
-    @limiter_5.ratelimit("gayforiteu", delay=True)   
-    def get_info_for_format(self, *args, **kwargs):
-        return super().get_info_for_format(*args, **kwargs)
+
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -47,30 +51,26 @@ class GayForITEUIE(SeleniumInfoExtractor):
         driver = self.get_driver()
         try:
             videoid = try_get(re.search(self._VALID_URL, url), lambda x: x.groups()[0] or x.groups()[1])
-            self._send_request(url, driver)
+            self._send_request(url, driver=driver)
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url:
                 raise ExtractorError("no video url")
-            title = try_get(re.findall(r'GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title), lambda x: x[0]) 
-            
-            webpage = html.unescape(driver.page_source)
-            if not webpage or 'this video has been removed' in webpage.lower() or 'this video does not exist' in webpage.lower() : raise ExtractorError("Error 404: no video page info")
-            
-            if not videoid:
-                videoid = try_get(re.findall(r'/(\d+)_', video_url), lambda x: x[0]) or 'not_id'
-            if not title:
-                self._send_request(f"https://www.gayforit.eu/video/{videoid}", driver)
-                webpage = html.unescape(driver.page_source)
-                if not webpage or 'this video has been removed' in webpage.lower() or 'this video does not exist' in webpage.lower() : raise ExtractorError("Error 404: no video page info")
-                title = try_get(re.findall(r'<title>GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title), lambda x: x[0]) 
+           
 
+            title = try_get(driver.find_elements(By.XPATH, "//li[label[text()='Title:']]"), lambda x: x[0].text.split('\n')[1].strip('[ ,_-]'))
+            
+            if not title:
+                title = try_get(re.findall(r'GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title, re.IGNORECASE), lambda x: x[0])         
+
+ 
             self.logger_debug(f"[video_url] {video_url}")
             
             _headers = {"Referer" : "https://www.gayforit.eu/"}
             
-            _info_video = self.get_info_for_format(video_url, headers=_headers)
+            _info_video = self._get_video_info(video_url, headers=_headers)
             
-            if not _info_video: raise ExtractorError("no video info")
+            if not _info_video: 
+                raise ExtractorError("no video info")
 
             format_video = {
                 'format_id' : "http-mp4",
@@ -81,13 +81,16 @@ class GayForITEUIE(SeleniumInfoExtractor):
             }
 
             entry = {
-                'id': videoid,                
+                'id': videoid,
+                'title': sanitize_filename(title.strip(), restricted=True).replace('-',''),
                 'formats': [format_video],
-                'ext': 'mp4'
+                'ext': 'mp4',
+                'webpage_url': url,
+                'extractor': self.IE_NAME,
+                'extractor_key': self.ie_key()
             }
             
-            if title: entry.update({'title': sanitize_filename(title.strip(), restricted=True)})
-            
+                        
             return entry
         
         except ExtractorError:
@@ -95,5 +98,6 @@ class GayForITEUIE(SeleniumInfoExtractor):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}') 
+            raise ExtractorError({repr(e)})
         finally:
             self.rm_driver(driver)

@@ -956,7 +956,7 @@
  - **NobelPrize**
  - **NoicePodcast**
  - **NonkTube**
- - **noodlemagazine**
+ - **NoodleMagazine**
  - **Noovo**
  - **Normalboots**
  - **NOSNLArticle**

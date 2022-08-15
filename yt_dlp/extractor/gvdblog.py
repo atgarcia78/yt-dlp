@@ -6,7 +6,7 @@ import html
 from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed, as_completed
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
 
@@ -139,6 +139,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
             for _el in entries:
                 _el.update(_entryupdate)
+                self.get_param('queue').put_nowait(_el)
             
             return (entries, title, postid)
         
@@ -163,6 +164,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         
     def _real_initialize(self):
         super()._real_initialize()
+
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"
@@ -191,88 +193,114 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         return self.playlist_result(entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
                 
 
-        
+
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"
     _VALID_URL = r'https?://(?:www\.)?gvdblog.com/search\?(?P<query>.+)'
     
     
-    def _real_initialize(self):
-        super()._real_initialize()
-               
-    def _real_extract(self, url):
+    
+    def send_api_search(self, query):
         
         def getter(x):
-
             if not x:
                 return []
             if _jsonstr:=x.group("data"):
                 return json.loads(_jsonstr).get('feed', {}).get('entry', [])
+            
+        
+        _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"
+        
+        self.to_screen(_urlquery)
+                
+        res_search = try_get(self._send_request(_urlquery), lambda x: x.text)        
+        if not res_search: 
+            raise ExtractorError("no search results")
+        video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), getter)
+        if not video_entries: 
+            raise ExtractorError("no video entries")
+        self.logger_debug(f'[entries result] {len(video_entries)}')
+        
+        return video_entries
+
+
+    def get_blog_posts_search(self, url):        
+        
+        query = re.search(self._VALID_URL, url).group('query')
+        
+        params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}        
+        
+        if _category:=params.get('label'):
+            urlquery = f"&category={_category}"
+        if _q:=params.get('q'):
+            urlquery += f"&q={_q}"
+            
+        if params.get('check','').lower() == 'no':
+            self._check = False
+        else: self._check = True
+        
+        post_blog_entries_search = self.send_api_search(urlquery) 
+        
+        _nentries = int(params.get('entries', -1))
+        _from = int(params.get('from', 1))
+        
+        if _nentries > 0:
+            final_entries = post_blog_entries_search[_from-1:_from-1+_nentries]
+        else:
+            final_entries = post_blog_entries_search[_from-1:]
+            
+        return final_entries  
+
+
+    def _get_entries_search(self, url):         
+    
+        
+        blog_posts_list = self.get_blog_posts_search(url)
+        
+        self.logger_debug(f'[blog_post_list] {blog_posts_list}')
+            
+        posts_vid_url = [traverse_obj(post_entry, ('link', -1, 'href')) for post_entry in blog_posts_list]
+        
+        self.logger_debug(f'[posts_vid_url] {posts_vid_url}')
+        
+        self._entries = []
+        
+        with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
+                
+            futures = {ex.submit(self.get_entries, _post_url, check=self._check): _post_url for _post_url in posts_vid_url}       
+
+            for fut in as_completed(futures):
+                try:
+                    if (_res:=try_get(fut.result(), lambda x: x[0])):
+                        self._entries += _res
+                        self.get_param('queue').put_nowait((futures[fut], _res))
+                        
+                    else:
+                        
+                        self.get_param('queue').put_nowait((futures[fut], None))
+                        self.report_warning(f'[get_entries] fails fut {futures[fut]}')
+                except Exception as e:
+                    self.queue.put_nowait((futures[fut], "error"))
+                    self.report_warning(f'[get_entries] fails fut {futures[fut]}')
+           
+        
+        return self._entries
+    
+    
+    def _real_initialize(self):
+        super()._real_initialize()
+               
+    
+    def _real_extract(self, url):
+        
         
         self.report_extraction(url)
         
         query = re.search(self._VALID_URL, url).group('query')
         
-        params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
+        entries =  self._get_entries_search(url)
         
-        urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999"
-        
-        if _category:=params.get('label'):
-            urlquery += f"&category={_category}"
-        if _q:=params.get('q'):
-            urlquery += f"&q={_q}"
-        _check = True 
-        if params.get('check','').lower() == 'no':
-            _check = False
-        
-        _nentries = int(params.get('entries', -1))
-        _from = int(params.get('from', 1))
-        
-        
-        res_search = try_get(self._send_request(urlquery), lambda x: x.text)        
-        if not res_search: raise ExtractorError("no search results")
-        video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), getter)
-        if not video_entries: raise ExtractorError("no video entries")
+        self.logger_debug(entries)
 
-        self.logger_debug(f'[entries result] {len(video_entries)}')
         
-
-        if _nentries > 0:
-            video_entries = video_entries[_from-1:_from-1+_nentries]
-        else:
-            video_entries = video_entries[_from-1:]
-                
-        
-        self._entries = []
-                
-        def get_list_entries(_entry, check):
-            
-            
-            try:
-                
-                videourlpost = _entry['link'][-1]['href']
-                entries, title, postid = self.get_entries(videourlpost, check=check)
-                    
-                if entries:
-                    #self._entries += entries
-                    return entries
-                else:
-                    self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
-            except Exception as e:
-                self.report_warning(f'[{url}][{videourlpost}] couldnt get video from this entry')
-                
-        
-                
-        with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
-                
-            futures = [ex.submit(get_list_entries, _entry, _check) for _entry in video_entries]       
-
-        for fut in futures:
-            try:
-                if entries:=fut.result():
-                    self._entries += entries                
-            except Exception as e:
-                pass
-            
-        if not self._entries: raise ExtractorError("no video list")
-        return self.playlist_result(self._entries, f'{sanitize_filename(f"{query}", restricted=True)}', f"Search")
+        return self.playlist_result(entries, f'{sanitize_filename(query, restricted=True)}', f"Search")

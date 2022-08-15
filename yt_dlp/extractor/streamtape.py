@@ -11,44 +11,28 @@ from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, SeleniumInfoExtractor, limiter_5, By
 
 class video_or_error_streamtape():
-    def __init__(self, logger):
-        self.logger = logger
+    
     def __call__(self, driver):
-        try:
-
-            elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
-            if elover:
-                for _ in range(5):
-                    try:
-                        elover[0].click()
-                        time.sleep(1)
-                    except Exception as e:
-                        break
-            el_vid = driver.find_elements(By.ID, "mainvideo")
-            if el_vid:
-                if _src:=el_vid[0].get_attribute('src'):
-                    return _src
-                else:
-                    return False
-            else: 
-                elbutton = driver.find_elements(By.CSS_SELECTOR, "button.plyr__controls__item")
-                if elbutton:
-                    for _ in range(5):
-                        try:
-                            elbutton[0].click()
-                            time.sleep(1)
-                        except Exception as e:
-                            break
-                elh1 = driver.find_elements(By.TAG_NAME, "h1")
-                if elh1:
-                    errormsg = elh1[0].get_attribute('innerText').strip("!")
-                    self.logger(f'[streamtape_url][{driver.current_url[25:].strip("[ /]")}] error - {errormsg}')
-                    return "error"
-                    
-                return False
-        except Exception as e:
-            return False
-
+  
+        elh1 = driver.find_elements(By.CSS_SELECTOR, "h1")
+        if elh1: #error
+            errormsg = elh1[0].get_attribute('innerText').strip("!")                    
+            return ("error", errormsg)
+        
+        elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
+        if elover:
+            for _ in range(5):
+                try:
+                    elover[0].click()
+                    time.sleep(1)
+                except Exception as e:
+                    break
+            
+        if (el_vid:=driver.find_elements(By.CSS_SELECTOR, "video")):
+            if (_src:=el_vid[0].get_attribute('src')):
+                _title = try_get(driver.find_elements(By.CSS_SELECTOR, 'h2'), lambda x: x[0].text)
+                return (_src, _title)
+        return False
 
 class StreamtapeIE(SeleniumInfoExtractor):
 
@@ -70,7 +54,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         try:
             return self.get_info_for_format(url, headers=_headers)
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
     
     @dec_on_exception
@@ -86,16 +70,17 @@ class StreamtapeIE(SeleniumInfoExtractor):
     def _get_entry(self, url, check_active=False, msg=None):
         try:
             
+            url = url.replace('/e/', '/v/')
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
-            _videoinfo = None
             driver = self.get_driver()
             self._send_request(url, driver, msg=pre)
-            video_url = self.wait_until(driver, 30, video_or_error_streamtape(self.logger_debug))
-            if ((not video_url) or video_url) == 'error': 
+            video_url, _title = try_get(self.wait_until(driver, 30, video_or_error_streamtape()), lambda x: x if x else (None, None))
+            if ((not video_url) or (video_url == 'error')): 
                 raise ExtractorError('Error 404 - video not found')
             
-            title = try_get(driver.title, lambda x: re.sub(r'\.mp4| at Streamtape\.com|amp;', '', x[0], re.IGNORECASE))
+            if not _title:
+                _title = self._html_search_meta(('og:title', 'twitter:title'), driver.page_source, None)
                                         
              
             _format = {
@@ -114,7 +99,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
                 
             _entry_video = {
                 'id' : self._match_id(url),
-                'title' : sanitize_filename(title, restricted=True),
+                'title' : sanitize_filename(_title, restricted=True),
                 'formats' : [_format],
                 'ext': 'mp4',
                 'extractor_key': 'Streamtape',

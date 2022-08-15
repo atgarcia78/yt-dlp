@@ -31,7 +31,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         try:
             self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
             return(self.send_http_request(url, _type=_type, data=data, headers=headers))
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
         
             
@@ -42,7 +42,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         
         try:
             return self.get_info_for_format(url, headers=headers)
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
 
@@ -154,9 +154,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 return url2
             if ((_extr:=self._get_ie_name(unquote(url1))) == self._get_ie_name(unquote(url2))):
                 if _extr != 'generic':
-                    #ie = self._downloader.get_info_extractor(self._get_ie_key(unquote(url1)))
                     ie = self._get_extractor(unquote(url1))
-                    #ie._real_initialize()
                     mobj1 = re.search(ie._VALID_URL, url1)
                     mobj2 = re.search(ie._VALID_URL, url2)
                     if mobj1.groupdict() == mobj2.groupdict():
@@ -212,7 +210,6 @@ class MyVidsterIE(MyVidsterBaseIE):
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
 
 
-                #elif _extr_name in ['xhamster', 'xhamsterembed', 'noodlemagazine']:
                 elif _extr_name != 'generic':
                     
                     try:
@@ -226,11 +223,10 @@ class MyVidsterIE(MyVidsterBaseIE):
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                              
                         
-                else:
+                else: #url generic
                     if self._is_valid(el, msg=pre):
                         return el
                 
-            
             except Exception as e:
                 self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
             finally:
@@ -243,11 +239,9 @@ class MyVidsterIE(MyVidsterBaseIE):
         video_id = self._match_id(url)
         url = url.replace("vsearch", "video")
 
-
         _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)) if x else (None, None)))
         if not webpage: raise ExtractorError("Couldnt download webpage")
         if any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken', 'status=removed']): raise ExtractorError("Error 404: Page not found") 
-        
         
         title = try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1]
         
@@ -257,14 +251,17 @@ class MyVidsterIE(MyVidsterBaseIE):
         else:
             _entry = {}    
 
-
         source_url_res = try_get(re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage), 
                                  lambda x: self.getbestvid(x[0], 'source_url') if x else None) 
-        
-            
+
         if source_url_res:
             
-            if isinstance(source_url_res, str):
+            if isinstance(source_url_res, dict):
+                source_url_res.update({'original_url': url})
+                source_url_res.update(_entry)
+                return source_url_res
+            
+            elif isinstance(source_url_res, str):
                 self.logger_debug(f"source url: {source_url_res}")
             
                 _headers = {'referer': 'https://www.myvidster.com'}
@@ -287,7 +284,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                     'title' : sanitize_filename(title, restricted=True),
                     'formats' : [_format_video],
                     'ext': 'mp4',
-                    'webpage_url': url
+                    'webpage_url': url,
+                    'extractor': self.IE_NAME,
+                    'extractor_key': self.ie_key()
                 })
                 
                 return _entry
@@ -317,6 +316,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                 videolink_res.update({'original_url': url})
                 videolink_res.update(_entry)
                 return videolink_res
+            
+            real_url = None
             
             if embedlink_res and videolink_res:
                 if self._get_ie_name(embedlink_res) != 'generic':
@@ -376,7 +377,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         self.report_extraction(url)
 
         try:
-
 
             webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage: raise ExtractorError("Couldnt download webpage")
