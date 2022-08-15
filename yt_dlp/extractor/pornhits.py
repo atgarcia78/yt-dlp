@@ -35,7 +35,7 @@ class PornhitsIE(SeleniumInfoExtractor):
                     return self.send_http_request(url, headers=headers)
                 else:
                     return self.get_info_for_format(url, headers=headers)
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
 

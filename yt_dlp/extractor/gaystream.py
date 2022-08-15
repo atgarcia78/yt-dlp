@@ -28,7 +28,7 @@ class GayStreamBase(SeleniumInfoExtractor):
                                 
                 return self.send_http_request(url, _type=_type, headers=_hdrs, data=_data)
         
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
     @dec_on_exception3 
@@ -42,7 +42,7 @@ class GayStreamBase(SeleniumInfoExtractor):
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         try:
             return self.get_info_for_format(url, headers=_headers)
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
         

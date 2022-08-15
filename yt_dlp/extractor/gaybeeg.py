@@ -146,7 +146,7 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
             if num_pages == 1: _href = url
             else: _href = try_get(re.findall(r'class="page" title="\d">\d</a><a href="([^"]+)"', webpage), lambda x: unquote(x[0]))
             return (num_pages, _href)
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             
     def _real_initialize(self):

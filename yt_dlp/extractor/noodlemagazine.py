@@ -44,7 +44,7 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
             try:
                 self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
                 return(self.send_http_request(url, headers=headers))
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
                 
         elif _type == 'json':
@@ -57,7 +57,7 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
                 _file = traverse_obj(info_json, ('sources', 0, 'file'))
                 if not _file.startswith('http'): raise ExtractorError('not valid url')
                 else: return info_json 
-            except HTTPStatusError as e:
+            except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             
             

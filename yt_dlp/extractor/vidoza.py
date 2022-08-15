@@ -22,6 +22,7 @@ class VidozaIE(SeleniumInfoExtractor):
     @dec_on_exception3
     @limiter_5.ratelimit("vidoza", delay=True)
     def _get_video_info(self, url, **kwargs):        
+        
         try:
             msg = kwargs.get('msg', None)
             pre = '[get_video_info]'
@@ -30,13 +31,16 @@ class VidozaIE(SeleniumInfoExtractor):
             _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-            _host = urlparse(url).netloc
-            if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                _sem = PriorityLock()
-                self._downloader.params['sem'].update({_host: _sem})
-            _sem.acquire(priority=10)   
+            
+            _host = urlparse(url).netloc            
+            with self.get_param('lock'):
+                if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
+                    _sem = PriorityLock()
+                    self.get_param('sem').update({_host: _sem})                
+            _sem.acquire(priority=10) 
+              
             return self.get_info_for_format(url, headers=_headers, **kwargs)       
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         finally:
             if _sem: _sem.release()
@@ -49,7 +53,7 @@ class VidozaIE(SeleniumInfoExtractor):
         try:
             self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
             return(self.send_http_request(url, **kwargs))
-        except HTTPStatusError as e:
+        except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         
 
