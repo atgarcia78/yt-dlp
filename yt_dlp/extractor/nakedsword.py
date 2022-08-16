@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import json
 import re
 import sys
@@ -10,6 +8,7 @@ from queue import Queue
 from threading import Lock
 from urllib.parse import quote, unquote
 import html
+from datetime import datetime
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
@@ -281,8 +280,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     
                 NakedSwordBaseIE._NSINIT = True
         
-  
-    
+   
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedswordscene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
@@ -304,8 +302,6 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f'{repr(e)}')
             
-
-
 class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[a-zA-Z\d_-]+)/?$"
@@ -380,17 +376,16 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
         if entries:
             return {
                 '_type': 'playlist',
-                'id': f"nakedsword:mostwatched:pages:{pages}",
-                'title': f"nakedsword:mostwatched:pages:{pages}",
+                'id': f'{datetime.now().strftime("%Y%m%d")}',
+                'title': f"Scenes",
                 'entries': entries,
             }
         
         else: raise ExtractorError("no entries")
 
-
 class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:starsstudios:playlist"
-    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)/?\?(?P<query>.+)'
+    _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)(/\?(?P<query>.+))?'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
     
     def _get_last_page(self, _urlqbase):
@@ -414,19 +409,23 @@ class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
             params = { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
         else:
             params = {}
-        npages = params.get('pages', '1')
-        if npages != '1':        
-            base_url = url.split("?")[0]
-            base_url_search = f'{base_url}{self._MOST_WATCHED}'
-            last_page = self._get_last_page(base_url_search)
+     
+        base_url = url.split("?")[0]
+        base_url_search = f'{base_url}{self._MOST_WATCHED}'
+        last_page = self._get_last_page(base_url_search)
 
-            if npages == 'all': npages = last_page
-            elif (_npages:=int(npages)) > last_page:
+        npages = params.get('pages', '1')
+
+        if npages == 'all': 
+            npages = last_page
+        elif npages.isdecimal():
+            _npages = int(npages)
+            if _npages > last_page:
                 npages = last_page
             else:
                 npages = _npages or 1
-        else: npages = 1
-        
+
+      
         filter_by = params.get('filter_by')
         if filter_by:
             tokens_filter = filter_by.split(',')
@@ -456,7 +455,7 @@ class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
             return {
                 '_type': 'playlist',
                 'id': data['id'],
-                'title':  f"NSw{data['typepl'].capitalize()}_{''.join(w.capitalize() for w in data['name'].split('-'))}",
+                'title': f"MWScenes{''.join(w.capitalize() for w in data['name'].split('-'))}",
                 'entries': entries,
             }
         else: raise ExtractorError("no entries")
