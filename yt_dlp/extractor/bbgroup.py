@@ -6,7 +6,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception3, dec_on_exception2, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception3, dec_on_exception2, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError, ConnectError
 
 from queue import Empty, Queue
 

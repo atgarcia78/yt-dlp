@@ -7,7 +7,7 @@ from urllib.parse import unquote
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, SeleniumInfoExtractor, limiter_5, By
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_5, By
 
 class getvideourl():
     def __call__(self, driver):

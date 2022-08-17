@@ -4,7 +4,7 @@ from urllib.parse import unquote, urlparse
 from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, traverse_obj
 from .commonwebdriver import (
     dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_5, HTTPStatusError, PriorityLock)
+    limiter_5, HTTPStatusError, ConnectError, PriorityLock)
 
 import html
 import json

@@ -2,7 +2,7 @@ import html
 import re
 
 from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, parse_resolution
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError
 
 class BaseKVSIE(SeleniumInfoExtractor):
     

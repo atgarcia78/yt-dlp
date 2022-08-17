@@ -7,7 +7,7 @@ import re
 from ..utils import ExtractorError, sanitize_filename, traverse_obj
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_0_5, By, HTTPStatusError, ConnectError, PriorityLock)
+    limiter_0_5, By, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
 
 class getvideourl():
     def __call__(self, driver):
