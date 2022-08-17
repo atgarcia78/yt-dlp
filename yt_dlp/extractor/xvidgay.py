@@ -5,7 +5,7 @@ import time
 
 
 from ..utils import try_get, ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, By, ec, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, By, ec, HTTPStatusError, ConnectError
 import hashlib
 
 class getvideourl():

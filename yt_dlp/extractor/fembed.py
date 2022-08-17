@@ -7,7 +7,7 @@ import time
 
 
 from ..utils import try_get, ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError, ConnectError
 from urllib.parse import unquote, urlparse
 
 class FembedIE(SeleniumInfoExtractor):
