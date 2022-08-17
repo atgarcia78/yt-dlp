@@ -8,7 +8,7 @@ from ..utils import (
     try_get
 )
 import html
-from .commonwebdriver import dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError
+from .commonwebdriver import dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError
 
 
 class NoodleMagazineIE(SeleniumInfoExtractor):

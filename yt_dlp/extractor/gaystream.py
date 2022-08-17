@@ -5,7 +5,7 @@ import html
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get, int_or_none
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError, ConnectError
 
 class GayStreamBase(SeleniumInfoExtractor):
 

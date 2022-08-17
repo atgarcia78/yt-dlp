@@ -13,7 +13,7 @@ import httpx
 
 from ..utils import (ExtractorError, int_or_none, js_to_json,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import dec_on_exception2, dec_on_exception3, dec_on_exception, HTTPStatusError, SeleniumInfoExtractor, limiter_5, By, ec
+from .commonwebdriver import dec_on_exception2, dec_on_exception3, dec_on_exception, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_5, By, ec
 
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):

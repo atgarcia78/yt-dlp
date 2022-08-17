@@ -5,7 +5,7 @@ from urllib.parse import unquote, urlparse
 import re
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_1, limiter_5, limiter_0_1, limiter_0_5, By, HTTPStatusError
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_1, limiter_5, limiter_0_1, limiter_0_5, By, HTTPStatusError, ConnectError
 
 
 class get_videourl():

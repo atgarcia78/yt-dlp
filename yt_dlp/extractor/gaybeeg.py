@@ -5,7 +5,7 @@ from urllib.parse import unquote
 
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec, HTTPStatusError
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec, HTTPStatusError, ConnectError
 
 
 class get_links_netdna():

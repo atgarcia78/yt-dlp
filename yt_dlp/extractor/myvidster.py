@@ -10,7 +10,7 @@ import re
 
 from ..utils import (ExtractorError, datetime_from_str, get_elements_by_class,
                      sanitize_filename, try_get, urljoin)
-from .commonwebdriver import ec, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, By
+from .commonwebdriver import ec, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, ConnectError, By, ConnectError
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -118,6 +118,15 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
             self.wait_until(driver, 60, ec.url_changes("https://www.myvidster.com/user/"))
             if not "www.myvidster.com/user/home.php" in driver.current_url:
                 raise ExtractorError("no logged")
+    
+    def _get_videos(self, _urlq):
+        
+        webpage = try_get(self._send_request(_urlq), lambda x: html.unescape(x.text))
+        if webpage:
+            list_videos =  re.findall(r'<a href="(/vsearch/[^"]+)">', webpage)
+            return list_videos
+    
+    
     
     def _real_initialize(self):
             
@@ -451,12 +460,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     _NETRC_MACHINE = "myvidster"
     _SEARCH_URL = 'https://www.myvidster.com/search/?'
     
-    def _get_videos(self, _urlq):
-        
-        webpage = try_get(self._send_request(_urlq), lambda x: html.unescape(x.text))
-        if webpage:
-            list_videos =  re.findall(r'<a href="(/vsearch/[^"]+)">', webpage)
-            return list_videos
+
        
     def _get_last_page(self, _urlqbase):
         i = 1
@@ -543,9 +547,11 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     
 class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:subs:playlist'   
-    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/subscriptions/atgarcia'
+    _VALID_URL = r'https?://(?:www\.)?myvidster\.com/subscriptions/Atgarcia/?(\?q=(?P<query>.+))'
     _POST_URL = "https://www.myvidster.com/processor.php"
     _NETRC_MACHINE = "myvidster"
+    _SEARCH_URL =  "https://www.myvidster.com/search/?q='%s'&filter_by=user_%s"
+    
     
     def _getter(self, x):
  
@@ -562,6 +568,18 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                         
         except Exception as e:
             self.to_screen(repr(e))
+    
+    
+    def _follow_subs_user(self, username):
+        
+        webpage = try_get(self._send_request(f"https://myvidster.com/profile/{username}"), lambda x: html.unescape(x.text))
+        if webpage:
+            adduserurl = try_get(re.findall(r'name=[\"\']subscribe[\"\']\s+class=[\"\']mybutton[\"\']\s+onClick="window\.location=[\'\"]([^\'\"]+)[\'\"]', webpage), lambda x : f'https://myvidster.com/{x[0]}')
+            if not adduserurl:
+                self.to_screen(f'[follow_subs_user] Already following to {username}')
+            else:
+                res = self._send_request(adduserurl, headers={'Referer': f'https://myvidster.com/profile/{username}'})
+                return (try_get(res, lambda x: 'You are now following this user' in x.text))
     
     
     def _get_rss(self):
@@ -583,25 +601,21 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         }
         
         res = self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
-        #self.to_screen(f'{res.text}\n\n\n\n\n')
         res = self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post)
         if not res: self.to_screen(f'Couldnt get subscriptions')
         else:
-            webpage = re.sub('[\t\n]', '', html.unescape(res.text)).lower()
-            for subwebpage in webpage.split('</div></td></tr><tr><td><div class="border1"><img src="/images/spacer.gif" width="311" height="3" border="0" alt=""></div></td></tr><tr><td><div style="position:relative;"><div style="display: block;height:75px;"><div class="vidthumbnail" style="margin-right:6px;margin-bottom:2px;">'):
-                for line in subwebpage.split("</span><br><div>"):
-                    if not 'atgarcia&action' in line:
-                        rss_link, profile = try_get(re.search(r'<a href="(/subscriptions/atgarcia/[^"]+)".*<a href="/profile/([^"]*)">', line), self._getter) or (None, None)
-                        self.to_screen(f'\t\t{rss_link}:{profile}')
-                        if rss_link: 
-                            if not (MyVidsterBaseIE._RSS.get(profile)):
-                                MyVidsterBaseIE._RSS[profile] = {'user': None, 'collections': [], 'channels': []}
-                            if 'user' in rss_link: 
-                                MyVidsterBaseIE._RSS[profile]['user'] = rss_link
-                            elif 'gallery' in rss_link:
-                                MyVidsterBaseIE._RSS[profile]['collections'].append(rss_link)
-                            elif 'channel' in rss_link:
-                                MyVidsterBaseIE._RSS[profile]['channels'].append(rss_link)
+                        
+            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
+            subwebpages = webpage.split('<div class="vidthumbnail" style="margin-right:6px;margin-bottom:2px;">')
+            for sub in subwebpages[1:]:    
+                username = try_get(re.findall(r'<a href=[\'\"]/profile/([^\'\"]+)[\'\"]', sub), lambda x: x[0])
+                if username:
+                    _subsuser  = try_get(self._query_rss(username), lambda x: x.text)
+                    userid = try_get(re.findall(r'/(?:Atgarcia/user|images/profile)/(\d+)', _subsuser), lambda x: x[0])
+                    channels = re.findall(r'/Atgarcia/channel/(\d+)', _subsuser)
+                    collections = re.findall(r'/Atgarcia/gallery/(\d+)', _subsuser)                    
+                    MyVidsterBaseIE._RSS.update({username: {'userid' : userid, 'channels': channels, 'collections': collections}})
+
                                                                                
 
     def _query_rss(self, q):
@@ -621,15 +635,12 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         
         res = self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
         res = self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post)
-        if res:
-            self.to_screen(res.text)
-            return res
+        return res
         
 
     def _real_initialize(self):
         super()._real_initialize()
         self._get_rss()
-       # self.to_screen(f"\n{MyVidsterBaseIE._RSS}")
         
     def _real_extract(self, url):
         
@@ -638,19 +649,44 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         
         try:
             
-            self._login_driver(driver)
-            driver.get(url)
-            el_posted_videos = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME,'posted_video')))
-            entries = []
-            for el in el_posted_videos:
-                video_url = try_get(el.find_elements(By.TAG_NAME, 'a'), lambda x: x[0].get_attribute('href'))
-                postdate_text = try_get(el.find_elements(By.CLASS_NAME, 'postdate'), lambda x: x[0].text.replace(" by", "").replace(":", ""))
-                if 'Posted' in postdate_text:
-                    postdate = datetime_from_str(f'now+1hour-{postdate_text.replace("Posted", "").replace("ago", "").replace(" ","")}')
-                    entries.append({'_type': 'url_transparent', 'url': video_url, 'release_date': postdate.strftime("%Y%m%d"), 'release_timestamp': int(postdate.timestamp())})
-            if entries:
-                return self.playlist_result(entries, playlist_id='myvidster_rss', playlist_title='myvidster_rss')
-            else: raise ExtractorError("no entries found")
+            query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+            if not query:            
+                
+                self._login_driver(driver)
+                driver.get(url)
+                el_posted_videos = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME,'posted_video')))
+                entries = []
+                for el in el_posted_videos:
+                    video_url = try_get(el.find_elements(By.TAG_NAME, 'a'), lambda x: x[0].get_attribute('href'))
+                    postdate_text = try_get(el.find_elements(By.CLASS_NAME, 'postdate'), lambda x: x[0].text.replace(" by", "").replace(":", ""))
+                    if 'Posted' in postdate_text:
+                        postdate = datetime_from_str(f'now+1hour-{postdate_text.replace("Posted", "").replace("ago", "").replace(" ","")}')
+                        entries.append({'_type': 'url_transparent', 'url': video_url, 'release_date': postdate.strftime("%Y%m%d"), 'release_timestamp': int(postdate.timestamp())})
+                if entries:
+                    return self.playlist_result(entries, playlist_id='myvidster_rss', playlist_title='myvidster_rss')
+                else: raise ExtractorError("no entries found")
+                
+            else:
+                
+                results = []
+                for user, val in MyVidsterBaseIE._RSS.items():
+                    res = self._get_videos(self._SEARCH_URL % (query, val['userid']))
+                    if res:
+                        results += res
+                        
+                if results:
+                     
+                    entries = [{'_type':'url', 'url': f'{self._SITE_URL}{video}', 'ie_key': 'MyVidster', 'original_url': url} for video in results]
+                
+                    return {
+                        '_type': 'playlist',
+                        'id': query,
+                        'title': 'Search',
+                        'entries': entries,
+                    }
+                 
+                else: raise ExtractorError("no entries found")
+                   
         
         except ExtractorError as e:
             self.to_screen(repr(e))

@@ -6,7 +6,7 @@ from urllib.parse import unquote, urlparse
 from ..utils import ExtractorError, sanitize_filename, traverse_obj
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, 
-    SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError,
+    SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError, ConnectError,
     PriorityLock)
 
 class video_or_error_userload():
