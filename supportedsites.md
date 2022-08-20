@@ -1120,7 +1120,6 @@
  - **RCTIPlusSeries**
  - **RCTIPlusTV**
  - **RDS**: RDS.ca
- - **realpythonplaylist**
  - **RedBull**
  - **RedBullEmbed**
  - **RedBullTV**
