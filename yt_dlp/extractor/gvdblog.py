@@ -13,16 +13,14 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def getbestvid(self, x, check=True, msg=None):
 
         _x = x if isinstance(x, list) else [x]
-        iedood = self._downloader.get_info_extractor('DoodStream')
+        iedood = self._get_extractor('DoodStream')
         _x.sort(key=lambda y: iedood.suitable(y)) #tube prior to dood
+
+        pre = ' '
+        if msg: pre = f'{msg}{pre}'       
         
-        if msg: pre = f'{msg} '
-        else: pre = ' '
-       
         for el in _x:
-            #ie = self._downloader.get_info_extractor(ie_key:=self._get_ie_key(el))
             ie = self._get_extractor(el)
-            #ie._real_initialize()
             
             try:
                 _entry = ie._get_entry(el, check_active=check, msg=pre)
@@ -198,8 +196,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"
     _VALID_URL = r'https?://(?:www\.)?gvdblog.com/search\?(?P<query>.+)'
     
-    
-    
+
     def send_api_search(self, query):
         
         def getter(x):
@@ -222,7 +219,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.logger_debug(f'[entries result] {len(video_entries)}')
         
         return video_entries
-
 
     def get_blog_posts_search(self, url):        
         
@@ -250,7 +246,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             final_entries = post_blog_entries_search[_from-1:]
             
         return final_entries  
-
 
     def _get_entries_search(self, url):         
     
