@@ -7,7 +7,7 @@ import re
 import threading
 import html
 #import js2py
-import pyduktape2 as pyduk
+import pyduktape3 as pyduk
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get
 from .commonwebdriver import (
@@ -29,6 +29,7 @@ class TubeloadIE(SeleniumInfoExtractor):
     #_CONTEXT = None
     
     _DUK_CTX = None
+    GET_VURL = None
     
     _LOCK = threading.Lock()
     
@@ -60,7 +61,7 @@ class TubeloadIE(SeleniumInfoExtractor):
     @dec_on_exception
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_0_5.ratelimit("tubeload", delay=True)
+    @limiter_0_5.ratelimit("tubeload_2", delay=True)
     def _send_request(self, url, driver=None, msg=None):        
         
         if msg: pre = f'{msg}[send_req]'
@@ -74,6 +75,14 @@ class TubeloadIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
                 
+    '''
+    def get_vurl(self):
+        _duk_ctx = pyduk.DuktapeContext()
+        jscode = 'function vurl(h,u,n,t,e,r){var _0xc61e=["","split","0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/","slice","indexOf","","",".","pow","reduce","reverse","0"];function _aux(d,e,f){var g=_0xc61e[2][_0xc61e[1]](_0xc61e[0]);var h=g[_0xc61e[3]](0,e);var i=g[_0xc61e[3]](0,f);var j=d[_0xc61e[1]](_0xc61e[0])[_0xc61e[10]]()[_0xc61e[9]](function(a,b,c){if(h[_0xc61e[4]](b)!==-1)return a+=h[_0xc61e[4]](b)*(Math[_0xc61e[8]](e,c))},0);var k=_0xc61e[0];while(j>0){k=i[j%f]+k;j=(j-(j%f))/f}return k||_0xc61e[11]};function _aux2(h,u,n,t,e,r){r="";for(var i=0,len=h.length;i<len;i++){var s="";while(h[i]!==n[e]){s+=h[i];i++}for(var j=0;j<n.length;j++)s=s.replace(new RegExp(n[j],"g"),j);r+=String.fromCharCode(_aux(s,e,10)-t)}return decodeURIComponent(escape(r))};function _aux3(h,u,n,t,e,r){var res1 = _aux2(h,u,n,t,e,r); var faffffeacdda = RegExp("faffffeacdda=([^;]+);").exec(res1)[1];var res3 = faffffeacdda.slice(1,-1);var res = res3.replace("ODRjNjU4YzUwZTE4N2E5YWUwMWE4NjA0OGUwODEwOWE", "");var res2 = res.replace("M2NmM2FiMDIwNDEyZTFjMTRjM2I1NGMyN2NjYTdjOTE=", "");function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}return atob(res2)};return _aux3(h,u,n,t,e,r)};'
+        _duk_ctx.eval_js(jscode)
+        return _duk_ctx.get_global('vurl')
+    '''
+    
     def _get_entry(self, url, check_active=False, msg=None, webpage=None):
         
         def getter(x):
@@ -93,14 +102,15 @@ class TubeloadIE(SeleniumInfoExtractor):
             videoid = self._match_id(url)
             if not webpage:
                 webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}"), lambda x: html.unescape(x.text))
-            if not webpage: raise ExtractorError("error 404")
+            if not webpage: raise ExtractorError("error 404 no webpage")
             args = try_get(re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage), lambda x: getter(x))
             if not args: raise ExtractorError("error extracting video data")
             try:
-                video_url = TubeloadIE._DUK_CTX.get_global('vurl')(*args)      
+                video_url = TubeloadIE.GET_VURL(*args)
+                #video_url = self.get_vurl()(*args) 
             except Exception as e:
-                video_url = None
-            if not video_url: raise ExtractorError("error 404")
+                raise ExtractorError("error 404 no video url")
+            if not video_url: raise ExtractorError("error no video url")
             title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME, '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
                         
             _format = {
@@ -139,9 +149,12 @@ class TubeloadIE(SeleniumInfoExtractor):
             if not TubeloadIE._DUK_CTX:
                 TubeloadIE._DUK_CTX = pyduk.DuktapeContext()
                 jscode = 'function vurl(h,u,n,t,e,r){var _0xc61e=["","split","0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/","slice","indexOf","","",".","pow","reduce","reverse","0"];function _aux(d,e,f){var g=_0xc61e[2][_0xc61e[1]](_0xc61e[0]);var h=g[_0xc61e[3]](0,e);var i=g[_0xc61e[3]](0,f);var j=d[_0xc61e[1]](_0xc61e[0])[_0xc61e[10]]()[_0xc61e[9]](function(a,b,c){if(h[_0xc61e[4]](b)!==-1)return a+=h[_0xc61e[4]](b)*(Math[_0xc61e[8]](e,c))},0);var k=_0xc61e[0];while(j>0){k=i[j%f]+k;j=(j-(j%f))/f}return k||_0xc61e[11]};function _aux2(h,u,n,t,e,r){r="";for(var i=0,len=h.length;i<len;i++){var s="";while(h[i]!==n[e]){s+=h[i];i++}for(var j=0;j<n.length;j++)s=s.replace(new RegExp(n[j],"g"),j);r+=String.fromCharCode(_aux(s,e,10)-t)}return decodeURIComponent(escape(r))};function _aux3(h,u,n,t,e,r){var res1 = _aux2(h,u,n,t,e,r); var faffffeacdda = RegExp("faffffeacdda=([^;]+);").exec(res1)[1];var res3 = faffffeacdda.slice(1,-1);var res = res3.replace("ODRjNjU4YzUwZTE4N2E5YWUwMWE4NjA0OGUwODEwOWE", "");var res2 = res.replace("M2NmM2FiMDIwNDEyZTFjMTRjM2I1NGMyN2NjYTdjOTE=", "");function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}return atob(res2)};return _aux3(h,u,n,t,e,r)};'
-                TubeloadIE._DUK_CTX.eval_js(jscode)
+                TubeloadIE._DUK_CTX.eval_js(jscode)                
+                TubeloadIE.GET_VURL = TubeloadIE._DUK_CTX.get_global('vurl')
+        
+        
                 
-            '''variant with ph, js2py''
+        '''variant with ph, js2py''
             if not TubeloadIE._PH:
                 TubeloadIE._PH = PhantomJSwrapper(self)
             if not TubeloadIE._CONTEXT:
