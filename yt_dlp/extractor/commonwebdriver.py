@@ -480,7 +480,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
 
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
-                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
+                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'thisvidgay.com/wp-content', 'gay-tubes.top/wp-content']):
                 self.logger_debug(f'[valid]{_pre_str}:False')
                 return False
             elif any(_ in url for _ in ['gayforit.eu/video']):

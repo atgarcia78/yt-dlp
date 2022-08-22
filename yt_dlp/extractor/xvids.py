@@ -16,8 +16,8 @@ import time
 
 class XVidsIE(InfoExtractor):
 
-    _IE_NAME = 'xvids:gaytubes'    
-    _VALID_URL = r'https?://(?:www\.)?(?:xvids|gay-tubes)\.(?:gq|cc)/(?P<title>[^\/$]+)(?:\/|$)'
+    _IE_NAME = 'xvids'    
+    _VALID_URL = r'https?://(?:www\.)?xvids\.(?:gq|cc)/(?P<title>[^\/$]+)(?:\/|$)'
    
     
     
