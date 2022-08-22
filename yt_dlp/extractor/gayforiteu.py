@@ -2,12 +2,11 @@ import html
 import re
 import sys
 import traceback
-from lzma import PRESET_DEFAULT
 from urllib.parse import unquote
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_5, By
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_5, By, ec
 
 class getvideourl():
     def __call__(self, driver):
@@ -19,7 +18,8 @@ class getvideourl():
 
 class GayForITEUIE(SeleniumInfoExtractor):
     
-    _VALID_URL = r'https?://(?:www\.)gayforit\.eu/(?:playvideo.php\?vkey\=[^&]+&vid\=(?P<vid>[\w-]+)|video/(?P<id>[\w-]+)|playvideo.php\?vkey\=.+)'
+    _VALID_URL = r'https?://(?:www\.)?gayforit\.eu/(?:(playvideo.php\?vkey\=.+)|(video/(?P<id>\d+)))'
+    _SITE_URL = 'https://gayforit.eu'
 
     
     @dec_on_exception
@@ -41,17 +41,22 @@ class GayForITEUIE(SeleniumInfoExtractor):
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             
 
-    
-    def _real_initialize(self):
-        super()._real_initialize()
-    
-    def _real_extract(self, url):
+    def _get_entry(self, url, **kwargs):
         
-        self.report_extraction(url)
         driver = self.get_driver()
         try:
-            videoid = try_get(re.search(self._VALID_URL, url), lambda x: x.groups()[0] or x.groups()[1])
-            self._send_request(url, driver=driver)
+            
+            _url = url
+            self._send_request(_url, driver=driver)
+            videoid = self._match_id(_url)
+            if not videoid:
+                el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, 'video')))
+                videoid = el_video.get_attribute('poster').split('/')[-1].split('_')[-1].split('.')[0]
+                _url = f'{self._SITE_URL}/video/{videoid}'
+                self.to_screen({_url})
+                driver.delete_all_cookies()
+                self._send_request(_url, driver=driver)
+                                
             video_url = self.wait_until(driver, 30, getvideourl())
             if not video_url:
                 raise ExtractorError("no video url")
@@ -85,7 +90,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 'title': sanitize_filename(title.strip(), restricted=True).replace('-',''),
                 'formats': [format_video],
                 'ext': 'mp4',
-                'webpage_url': url,
+                'webpage_url': _url,
                 'extractor': self.IE_NAME,
                 'extractor_key': self.ie_key()
             }
@@ -95,9 +100,25 @@ class GayForITEUIE(SeleniumInfoExtractor):
         
         except ExtractorError:
             raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}') 
+        except Exception as e:            
             raise ExtractorError({repr(e)})
         finally:
             self.rm_driver(driver)
+        
+
+    
+    def _real_initialize(self):
+        super()._real_initialize()
+    
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+        
+        try: 
+            return self._get_entry(url)  
+        except ExtractorError:
+            raise
+        except Exception as e:            
+            self.to_screen(f"{repr(e)}")
+            raise ExtractorError(repr(e))
+        

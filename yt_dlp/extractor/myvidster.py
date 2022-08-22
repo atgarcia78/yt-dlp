@@ -196,8 +196,12 @@ class MyVidsterIE(MyVidsterBaseIE):
                     self.logger_debug(f"{pre}[{self._get_url_print(el)}] already analysed, same result as {url2}")
                     continue
                     
-                if (_id:=try_get(re.findall(r'locotube\.site/pn/\?c\=(\d+)', el), lambda x: x[0])):
-                    el = f'https://thisvid.com/embed/{_id}'
+                if 'locotube.site/pn' in el:
+                    _id, _id2 = try_get(re.search(r'locotube\.site/pn/\?c\=(?P<id>\d+)(&gfi=(?P<id2>[a-zA-Z0-9\-]+))?', el), lambda x: x.group('id', 'id2') if x else (None, None))
+                    if _id2:
+                        el = f'https://gayforit.eu/playvideo.php?vkey={_id2}'
+                    elif _id:
+                        el = f'https://thisvid.com/embed/{_id}'
                 
                 _extr_name = self._get_ie_name(el)
                 
@@ -341,12 +345,27 @@ class MyVidsterIE(MyVidsterBaseIE):
             self.logger_debug(f"url selected: {real_url}")
             
             if real_url:
-                _entry.update({
-                    '_type': 'url',
-                    'url' : real_url,
-                    'ie_key': self._get_ie_key(real_url)                     
-                })
+                ie = self._get_extractor('Generic')
+                try:
+                    _videoent = ie._real_extract(real_url)
+                except Exception as e:
+                    _videoent = {}
                 
+                if not _videoent:                        
+                    _entry.update({
+                        '_type': 'url',
+                        'url' : real_url,
+                        'ie_key': self._get_ie_key(real_url)                     
+                    })
+                else:
+                    
+                    _entry.update(_videoent)
+                    _entry.update({'webpage_url': url})
+                    webpage = try_get(self._send_request(real_url), lambda x: html.unescape(x[0]))
+                    _title = self._html_search_regex(r'>([^<]+)</h1>', webpage, 'title',fatal=False) or self._html_extract_title(webpage)
+                    if _title:        
+                        _entry.update({'title': sanitize_filename(_title, restricted=True)})
+                    
                 return _entry
                 
             else: 
@@ -417,9 +436,13 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
             if query:
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
-                _first = params.get('first')
-                _last = params.get('last')
-                el_videos = el_videos[int(_first) - 1: int(_last)]
+                _first = params.get('first') or '1'
+                _last = params.get('last') 
+                if _last:
+                    el_videos = el_videos[int(_first) - 1: int(_last)]
+                else:
+                    el_videos = el_videos[int(_first) - 1:]
+                    
             
             
             for el in el_videos:
