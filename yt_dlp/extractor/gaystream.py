@@ -15,18 +15,15 @@ class GayStreamBase(SeleniumInfoExtractor):
     @limiter_1.ratelimit("gaystream", delay=True)
     def _send_multi_request(self, url, **kwargs):
         
-        _driver = kwargs.get('driver', None)
-        _hdrs = kwargs.get('headers', None)
-        _type = kwargs.get('_type', "GET")
-        _data = kwargs.get('data', None)
+        driver = kwargs.get('driver', None)
         
-        if _driver:
-            _driver.execute_script("window.stop();")
-            _driver.get(url)
+        if driver:
+            driver.execute_script("window.stop();")
+            driver.get(url)
         else:
             try:
                                 
-                return self.send_http_request(url, _type=_type, headers=_hdrs, data=_data)
+                return self.send_http_request(url, **kwargs)
         
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
@@ -64,8 +61,7 @@ class GayStreamPWIE(GayStreamBase):
             if not webpage: raise ExtractorError("no video webpage")
             _url_embed = try_get(re.search(r'onclick=[\'\"]document\.getElementById\([\"\']ifr[\"\']\)\.src=[\"\'](?P<eurl>[^\"\']+)[\"\']', webpage), lambda x: x.group('eurl'))
             if not _url_embed: raise ExtractorError("no embed url")
-            ie_embed = self._downloader.get_info_extractor('GayStreamEmbed')
-            ie_embed._real_initialize()                
+            ie_embed = self._get_extractor('GayStreamEmbed')               
             _entry_video = ie_embed._get_entry(_url_embed)
             if not _entry_video:
                 raise ExtractorError("no entry video")

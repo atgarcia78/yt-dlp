@@ -70,7 +70,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
  
             self.logger_debug(f"[video_url] {video_url}")
             
-            _headers = {"Referer" : "https://www.gayforit.eu/"}
+            _headers = {"Referer" : self._SITE_URL + "/"}
             
             _info_video = self._get_video_info(video_url, headers=_headers)
             

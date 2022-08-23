@@ -68,7 +68,7 @@ class XVidsIE(InfoExtractor):
             title = mobj[0] if mobj else url.split("/")[-1]
             
             mobj = re.findall(r'postid-(\d+)',webpage)
-            mobj2 = re.findall(r"shortlink\' href\=\'https://(?:xvids\.gq|gay-tubes\.cc)/\?p\=(\d+)\'",webpage)
+            mobj2 = re.findall(r"shortlink\' href\=\'https://xvids\.gq/\?p\=(\d+)\'",webpage)
             videoid = mobj[0] if mobj else mobj2[0] if mobj2 else "video_id"
             
             mobj = re.findall(r'contentURL\" content="([^\"]+)\"', webpage)
