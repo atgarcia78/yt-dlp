@@ -1,23 +1,23 @@
-import time
 import sys
 import traceback
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 import re
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_15, limiter_1, limiter_5, limiter_0_1, limiter_0_5, By, HTTPStatusError, ConnectError
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1,  By, HTTPStatusError, ConnectError
 
 
-class get_videourl():
-    
-    def __init__(self, _type):
-        self.id = "player-1"  if _type == "embed" else "videoplayer"
+class get_videourl():    
+
     def __call__(self, driver):
-        el_player = driver.find_element(By.ID, self.id)
-        el_video = el_player.find_element(By.TAG_NAME, "video")
+        el_video = driver.find_element(By.CSS_SELECTOR, "video")
         video_url = el_video.get_attribute('src')
-        if video_url: 
-            return unquote(video_url)
+        if video_url:
+            if video_url.startswith('blob'):
+                driver.delete_all_cookies()
+                driver.refresh()
+                return False
+            else: return unquote(video_url)
         else: return False
 
 class TheGayIE(SeleniumInfoExtractor):
@@ -40,7 +40,9 @@ class TheGayIE(SeleniumInfoExtractor):
             else: pre = '[get_video_info]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
       
-            return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-origin', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+            return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': headers['Referer'], 'Sec-Fetch-Dest': 'video', 
+                                                          'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-origin', 
+                                                          'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -71,11 +73,13 @@ class TheGayIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}{pre}'
             driver = self.get_driver()
 
+            driver.delete_all_cookies()
+            
             self._send_request(url, driver=driver)     
             
-            _type, videoid = re.search(self._VALID_URL, url).groups()       
+            videoid = self._match_id(url)  
 
-            videourl = self.wait_until(driver, 30, get_videourl(_type))
+            videourl = self.wait_until(driver, 60, get_videourl())
             if not videourl: raise ExtractorError("couldnt find videourl")
             
             _title = re.sub(r'(?i)( - %s\..+$)' % self.IE_NAME, '', driver.title.replace('.mp4','')).strip('[_,-, ]')
@@ -102,14 +106,10 @@ class TheGayIE(SeleniumInfoExtractor):
                 'extractor_key': self.ie_key(),
                 'extractor': self.IE_NAME,
                 'webpage_url': url})
-            
-       
-            
-      
+
         
         except Exception:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+
             raise
         finally:
             self.rm_driver(driver)

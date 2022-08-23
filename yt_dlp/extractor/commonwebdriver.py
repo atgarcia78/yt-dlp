@@ -58,7 +58,8 @@ CONFIG_EXTRACTORS = {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
                 ('tubeload', 'embedo',
-                            'redload', ): {
+                'thisvidgay','redload',
+                'biguz', 'gaytubes',): {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
@@ -66,12 +67,12 @@ CONFIG_EXTRACTORS = {
                 'gayforiteu', 'xvidgay',): {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 16},
-            ('odnoklassniki', 'html5', 
+          ('odnoklassniki', 'thisvid', 
            'gaystreamembed','pornhat', 
              'yourporngod', 'ebembed', 
             'gay0day', 'onlygayvideo',
             'txxx','thegay','homoxxx',
-                'thisvid', 'pornone',): {
+               'gaygo','pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
 }
@@ -480,7 +481,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
 
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
-                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'thisvidgay.com/wp-content', 'gay-tubes.top/wp-content']):
+                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
                 self.logger_debug(f'[valid]{_pre_str}:False')
                 return False
             elif any(_ in url for _ in ['gayforit.eu/video']):
