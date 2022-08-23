@@ -1,7 +1,4 @@
- # coding: utf-8
-from __future__ import unicode_literals
-
-import re
+ import re
 import random
 import urllib.parse
 import pprint
