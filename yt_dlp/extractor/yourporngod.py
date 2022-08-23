@@ -54,7 +54,12 @@ class BaseKVSIE(SeleniumInfoExtractor):
         if self.IE_NAME == "homoxxx":
             url = url.replace('/embed/', '/videos/')
             
-        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if x else None)
+        _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), html.unescape(x.text)) if x else (None, None)) or (None, None)
+        
+        
+        if not webpage or "/404.php" in _urlh or any(_ in webpage.lower() for _ in ("this video is a private video", "404 / page not found")):
+            raise ExtractorError("404 webpage not found")
+            
         
         display_id = self._search_regex(
                     r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
@@ -70,15 +75,19 @@ class BaseKVSIE(SeleniumInfoExtractor):
         
         self.logger_debug(flashvars)
         
-        _title = self._html_search_regex(r'<h1>([^<]+)</h1>', webpage, 'title',fatal=False) or self._html_extract_title(webpage)
+        if not flashvars:
+            raise ExtractorError("404 video not found")
+            
+        
+        _title = self._html_search_regex((r'<h1>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title',fatal=False) 
         title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME), '', _title).strip('[,-_ ').lower()
 
         if not videoid:
             videoid = flashvars.get('video_id')        
         
         
-        thumbnail = flashvars['preview_url']
-        if thumbnail.startswith('//'):
+        thumbnail = flashvars.get('preview_url')
+        if thumbnail and thumbnail.startswith('//'):
             protocol, _, _ = url.partition('/')
             thumbnail = protocol + thumbnail
         
@@ -114,15 +123,16 @@ class BaseKVSIE(SeleniumInfoExtractor):
         self._sort_formats(formats)
                         
         entry = {
-            'id' : videoid,
-            'display_id' : display_id,
+            'id' : videoid,            
             'title' : sanitize_filename(title, restricted=True),
             'formats' : formats,
-            'ext': 'mp4',
-            'thumbnail': thumbnail,
+            'ext': 'mp4',            
             'extractor': self.IE_NAME,
             'extractor_key': self.ie_key(),
             'webpage_url': url}            
+        
+        if display_id: entry['display_id'] = display_id
+        if thumbnail: entry['thumbnail'] = thumbnail
         
         return entry
         

@@ -2484,7 +2484,6 @@ from .youporngay import YouPornGayIE
 from .gaymentubexxx import GayMenTubexxxIE
 from .gaythebest import GayTheBestIE
 from .youdbox import YoudBoxIE
-from .gaymaletubes import GayMaleTubesIE
 from .mixdrop import MixDropIE
 from .cockhero import CockHeroIE
 from .gvdblog import (
@@ -2529,5 +2528,7 @@ from .pornone import PornoneIE
 from .realpython import RealPythonIE
 from .thisvidgay import (
     ThisvidgayIE,
-    GaytubesIE
+    GaytubesIE,
+    BiguzIE
 )
+from .gaygo import GaygoIE
