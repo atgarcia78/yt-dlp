@@ -1,23 +1,15 @@
-# coding: utf-8
-from __future__ import unicode_literals
-
 import sys
 import traceback
 
-
-
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
-
-
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By
 class get_videourl():
     def __call__(self, driver):
         elvideo = driver.find_elements(By.TAG_NAME, "video")
         if not elvideo: return False
         videourl = elvideo[0].get_attribute('src')
         if not videourl: return False
-        else: return videourl
-        
+        else: return videourl        
 
 class ThatGVideoIE(SeleniumInfoExtractor):
     IE_NAME = 'thatgvideo'
