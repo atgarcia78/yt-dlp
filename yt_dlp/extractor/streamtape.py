@@ -84,7 +84,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
         return _aux()
                     
         
-
+    #not in use
     def _get_entry_drive(self, url, **kwargs):
         
         check_active = kwargs.get('check_active', False)
@@ -141,9 +141,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
         finally:
             self.rm_driver(driver)
     
-    
-    
-    
+
     def _get_entry(self, url, **kwargs):
         
         check_active = kwargs.get('check_active', False)
@@ -157,7 +155,10 @@ class StreamtapeIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
             if not webpage:
                 webpage = try_get(self._send_request(url, msg=pre, lim=limiter_0_1), lambda x: x.text)
+            
+            if not webpage: raise ExtractorError("no webpage")
             el_node = try_get(re.findall(r'var srclink\s+=\s+\$\([\'\"]#([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
+            if not el_node: raise ExtractorError("error when retrieving video url")
             _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])
             try:
                 _res = StreamtapeIE._DUK_CTX.eval_js(_code) 
@@ -202,7 +203,6 @@ class StreamtapeIE(SeleniumInfoExtractor):
         except Exception as e:
             raise
 
-    
     
     def _real_initialize(self):
         
