@@ -65,9 +65,15 @@ class StreamtapeIE(SeleniumInfoExtractor):
         
         driver = kwargs.get('driver', None)
         msg = kwargs.get('msg', None)
-        dec_limiter = kwargs.get('lim', None)
+        lim = kwargs.get('lim', None)
+        if lim:
+            dec = lim.ratelimit("streamtape2", delay=True)
+        else:
+            def transp(func):
+                return func
+            dec = transp
         
-        @dec_limiter.ratelimit("streamtape2", delay=True)
+        @dec
         def _aux():            
             
             if msg: pre = f'{msg}[send_req]'
