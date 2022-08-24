@@ -61,17 +61,23 @@ class TubeloadIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
                 
-    def _get_args(self, webpage):
+    def _get_args(self, webpage, _all=False):
         
         def getter(x):
-            if not x: return
-            args = x[0].split(',')
-            if len(args) != 6: return
-            for i in range(len(args)):
-                if args[i].isdecimal(): args[i] = int(args[i])
-                else: args[i] = args[i].strip('"')
-            return args        
-        
+            if not x: return            
+            _res = []                        
+            for el in x:            
+                _args = el.split(',')
+                if len(_args) != 6: return
+                for i in range(len(_args)):
+                    if _args[i].isdecimal(): _args[i] = int(_args[i])
+                    else: _args[i] = _args[i].strip('"')
+                if not _all:
+                    return _args
+                else:
+                    _res.append(_args)
+            return _res
+            
         args = try_get(re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage), lambda x: getter(x))
         if not args: raise ExtractorError("error extracting video data")
         return args
@@ -145,10 +151,12 @@ class TubeloadIE(SeleniumInfoExtractor):
                 mainjs = try_get(self._send_request('https://tubeload.co/assets/js/main.min.js'), lambda x: x.text)
                 _code = TubeloadIE._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
                 _jscode_1, _var = try_get(re.findall(r'(var res = (\w{12}).replace.*); var decode', _code), lambda x: x[0])
-                TubeloadIE._DUK_CTX.eval_js('function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}')
+                #TubeloadIE._DUK_CTX.eval_js('function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}')
+                TubeloadIE._DUK_CTX.eval_js('function atob(str){return (new TextDecoder().decode(Duktape.dec("base64", str)));}')
                 jscode2 = f'function getvurl(h,u,n,t,e,r){{var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};return atob(res2)}};'
                 
-                TubeloadIE._DUK_CTX.eval_js(jscode2)    
+                TubeloadIE._DUK_CTX.eval_js(jscode2)
+                
 
     def _real_extract(self, url):
         

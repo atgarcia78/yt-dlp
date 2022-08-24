@@ -140,8 +140,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CLIENT = None
     _CONFIG_REQ = copy.deepcopy(CONFIG_EXTRACTORS)
    
-    #_SERVER_NUM = 0
-    
     _FIREFOX_HEADERS =  {      
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
@@ -226,8 +224,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _real_initialize(self):
 
-        try:  
-        
+        try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
                 if not SeleniumInfoExtractor._MASTER_INIT:                    
                     SeleniumInfoExtractor._YTDL = self._downloader                    
@@ -247,14 +244,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                     SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], 
                                                                  follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
-                    SeleniumInfoExtractor._MASTER_INIT = True                    
-
+                    SeleniumInfoExtractor._MASTER_INIT = True
         except Exception as e:
             logger.exception(e)
 
-    def _real_extract(self, url):
-        """Real extraction process. Redefine in subclasses."""
-        raise NotImplementedError('This method must be implemented by subclasses')
         
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None):        
 
@@ -425,16 +418,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             if client:
                 res = client.head(url, headers=headers)
             else:
-                res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)
-            
+                res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)            
             res.raise_for_status()
-
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             if _filesize:
                 return ({'url': _url, 'filesize': _filesize})
-            
-
         except Exception as e:
             _msg_err = repr(e)
             if res and res.status_code == 404:           
@@ -456,28 +445,23 @@ class SeleniumInfoExtractor(InfoExtractor):
     @_check_init
     def _is_valid(self, url, msg=None):
         
-        def transp(func):
-            return func
-        
-        def getter(x):
-        
-            value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
-            if value:
-                return(value['ratelimit'].ratelimit(key_text, delay=True))
-        
         if not url: 
             return False
         
-        _url_str = self._get_url_print(url)
-        
+        _pre_str = f'[{self._get_url_print(url)}]'
         if msg:
-            _pre_str = f'[{msg}]:[{_url_str}]'
-        else:
-            _pre_str = f'[{_url_str}]'
+            _pre_str = f'[{msg}]{_pre_str}'            
             
         self.logger_debug(f'[valid]{_pre_str} start checking')
         
         
+        def transp(func):
+            return func
+        
+        def getter(x):        
+            value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
+            if value:
+                return(value['ratelimit'].ratelimit(key_text, delay=True))
         try:
 
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
@@ -487,7 +471,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             elif any(_ in url for _ in ['gayforit.eu/video']):
                 self.logger_debug(f'[valid]{_pre_str}:True')
                 return True                
-                
             else:  
                 _extr_name = self._get_ie_name(url).lower()
                 if _extr_name in ['xhamster', 'xhamsterembed']:
@@ -512,14 +495,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                             return res
                     except (HTTPStatusError, ConnectError) as e:
                         self.report_warning(f"[valid]{_pre_str}:{e}")
-                        #logger.exception(repr(e))
-                        #return ""
  
                 res = _throttle_isvalid(url, True)
             
-                if res:
-                        
-                        
+                if res:                        
                     if res.headers.get('content-type') == "video/mp4":
                         valid = True
                         self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')
