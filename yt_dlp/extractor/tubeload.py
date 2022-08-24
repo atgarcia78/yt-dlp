@@ -6,7 +6,7 @@ import threading
 import html
 import pyduktape3 as pyduk
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
+from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_call, try_get, get_domain, try_call
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
     limiter_0_5, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
@@ -147,7 +147,7 @@ class TubeloadIE(SeleniumInfoExtractor):
                 _jscode_1, _var = try_get(re.findall(r'(var res = (\w{12}).replace.*); var decode', _code), lambda x: x[0])
                 TubeloadIE._DUK_CTX.eval_js('function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}')
                 jscode2 = f'function getvurl(h,u,n,t,e,r){{var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};return atob(res2)}};'
-                #self.logger_debug(jscode2)
+                
                 TubeloadIE._DUK_CTX.eval_js(jscode2)    
 
     def _real_extract(self, url):
