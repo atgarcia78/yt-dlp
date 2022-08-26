@@ -1,12 +1,12 @@
 import sys
 import traceback
-from urllib.parse import unquote
+from urllib.parse import urlparse, unquote
 import re
 import threading
 import html
 import pyduktape3 as pyduk
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_call, try_get, get_domain, try_call
+from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, try_call
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
     limiter_0_5, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
@@ -24,30 +24,33 @@ class TubeloadIE(SeleniumInfoExtractor):
     @dec_on_exception3  
     @dec_on_exception2
     @limiter_0_5.ratelimit("tubeload", delay=True)
+    #@_limit
     def _get_video_info(self, url, msg=None):        
         
         try:
             if msg: pre = f'{msg}[get_video_info]'
             else: pre = '[get_video_info]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
-            _host = get_domain(url)
+            _host = urlparse(url).netloc
             
             with self.get_param('lock'):
                 if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
                     _sem = PriorityLock()
                     self.get_param('sem').update({_host: _sem})
                 
-            _sem.acquire(priority=10)                
-            return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+            #_sem.acquire(priority=10)                
+            with _sem.priority(1):
+                return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-        finally:
-            if _sem: _sem.release()
+        # finally:
+        #     if _sem: _sem.release()
             
     @dec_on_exception
     @dec_on_exception3
     @dec_on_exception2
     @limiter_0_5.ratelimit("tubeload2", delay=True)
+    #@_limit
     def _send_request(self, url, driver=None, msg=None):        
         
         if msg: pre = f'{msg}[send_req]'

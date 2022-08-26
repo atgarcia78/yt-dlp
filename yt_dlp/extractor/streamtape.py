@@ -68,10 +68,8 @@ class StreamtapeIE(SeleniumInfoExtractor):
         lim = kwargs.get('lim', None)
         if lim:
             dec = lim.ratelimit("streamtape2", delay=True)
-        else:
-            def transp(func):
-                return func
-            dec = transp
+        else:            
+            dec = limiter_1.ratelimit("streamtape2", delay=True)
         
         @dec
         def _aux():            

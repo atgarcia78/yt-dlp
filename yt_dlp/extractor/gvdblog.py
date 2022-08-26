@@ -2,11 +2,11 @@ import json
 import re
 from datetime import datetime
 import html
-
-from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
+import itertools
+from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1
 
-from concurrent.futures import ThreadPoolExecutor, as_completed, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
 
@@ -33,9 +33,14 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
     @staticmethod
-    def get_urls(webpage):    
+    def get_urls(post):
+        
+        if isinstance(post, str):
+            webpage = post
+            
+        else:
+            webpage = traverse_obj(post, ('content', '$t'))
 
-        #_reg_expr = r'<iframe allowfullscreen="true"(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
         _reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
         list_urls = [[mobj.group('url'),mobj.group('ppal'), mobj.group('ppal2')] for mobj in re.finditer(_reg_expr, webpage) if mobj]
         n_ppal = len([el for el in list_urls if (el[1] or el[2])])
@@ -67,10 +72,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     list1.append(_subvideo)
                     _subvideo = []
                 else:
-                    #if not try_get(list_urls, lambda y: y[i+1]):
                     if i == (len(list_urls) - 1):
                         list1.append(el[0])
-                    elif traverse_obj(list_urls, (i+1, 1)) or traverse_obj(list_urls, (i+1, 2)):#try_get(list_urls, lambda y: (y[i+1][1] or y[i+1][2])):
+                    elif traverse_obj(list_urls, (i+1, 1)) or traverse_obj(list_urls, (i+1, 2)):
                         _subvideo2.append(el[0])
 
         if _subvideo:
@@ -80,27 +84,39 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         return list1
 
     @staticmethod               
-    def get_info(webpage):
+    def get_info(post):
 
-        postid = try_get(re.findall(r"class='related-tag' data-id='(\d+)'", webpage), lambda x: x[0])
-        title = try_get(re.findall(r"title>([^<]+)<", webpage), lambda x: x[0])
-        postdate = try_get(re.findall(r"class='entry-time mi'><time class='published' datetime='[^']+'>([^<]+)<", webpage), lambda x: datetime.strptime(x[0], '%B %d, %Y') if x else None)
-        return(postdate, title, postid)
+        if isinstance(post, str):
             
+            postid = try_get(re.findall(r"class='related-tag' data-id='(\d+)'", post), lambda x: x[0])
+            title = try_get(re.findall(r"title>([^<]+)<", post), lambda x: x[0])
+            postdate = try_get(re.findall(r"class='entry-time mi'><time class='published' datetime='[^']+'>([^<]+)<", post), lambda x: datetime.strptime(x[0], '%B %d, %Y') if x else None)
+            return(postdate, title, postid)
+            
+        else:
+            postid = traverse_obj(post, ('id', '$t'), default="").split('post-')[-1]
+            title = traverse_obj(post, ('title', '$t'))
+            postdate = datetime.fromisoformat(traverse_obj(post, ('published', '$t')).split('T')[0])
+            return(postdate, title, postid)
     
-    def get_entries(self, url, check=True):
+    def get_entries_from_blog_post(self, post, check=True):
         
-        self.report_extraction(url)
+        if isinstance(post, str):
+            url = post
+            self.report_extraction(url)
+            post = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+            if not post: raise ExtractorError("no webpage")
+            
+        else:
+            url = traverse_obj(post, ('link', -1, 'href'))
+            self.report_extraction(url)
 
         try:
-
-            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
-            if not webpage: raise ExtractorError("no webpage")
             
-            postdate, title, postid = self.get_info(webpage)
-            list_candidate_videos = self.get_urls(webpage)
+            postdate, title, postid = self.get_info(post)
+            list_candidate_videos = self.get_urls(post)
                 
-            if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError("no video info")   
+            if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError(f"[{url} no video info")   
                 
             pre = f'[get_entries]:{self._get_url_print(url)}'
             
@@ -137,7 +153,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
             for _el in entries:
                 _el.update(_entryupdate)
-                self.get_param('queue').put_nowait(_el)
+               
             
             return (entries, title, postid)
         
@@ -185,7 +201,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
                
     def _real_extract(self, url):
         
-        entries, title, postid = self.get_entries(url)
+        entries, title, postid = self.get_entries_from_blog_post(url)
         if not entries: raise ExtractorError("no videos")
             
         return self.playlist_result(entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
@@ -226,8 +242,14 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}        
         
-        if _category:=params.get('label'):
-            urlquery = f"&category={_category}"
+        urlquery = ""
+        
+        if _upt_max:=params.get('updated-max'):
+            urlquery += f"&updated-max={_upt_max}T23:59:59"
+        if _upt_min:=params.get('updated-min'):
+            urlquery += f"&updated-min={_upt_min}T00:00:00"
+        if _category:=(params.get('label') or params.get('category')):
+            urlquery += f"&category={_category}"
         if _q:=params.get('q'):
             urlquery += f"&q={_q}"
             
@@ -236,6 +258,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         else: self._check = True
         
         post_blog_entries_search = self.send_api_search(urlquery) 
+        
+        if (_upto:=params.get('upto')):
+            _upto = datetime.fromisoformat(_upto)
+            post_blog_entries_search = list(filter(lambda x: datetime.fromisoformat(traverse_obj(x, ('updated', '$t')).split('T')[0]) >= _upto, post_blog_entries_search))
         
         _nentries = int(params.get('entries', -1))
         _from = int(params.get('from', 1))
@@ -247,7 +273,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             
         return final_entries  
 
-    def _get_entries_search(self, url):         
+    
+    def get_entries_search(self, url):         
     
         
         blog_posts_list = self.get_blog_posts_search(url)
@@ -258,28 +285,39 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         self.logger_debug(f'[posts_vid_url] {posts_vid_url}')
         
-        self._entries = []
+        _entries = []
         
         with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
                 
-            futures = {ex.submit(self.get_entries, _post_url, check=self._check): _post_url for _post_url in posts_vid_url}       
+            futures = {ex.submit(self.get_entries_from_blog_post, _post_blog, check=self._check): _post_url for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}       
 
-            for fut in as_completed(futures):
-                try:
-                    if (_res:=try_get(fut.result(), lambda x: x[0])):
-                        self._entries += _res
-                        self.get_param('queue').put_nowait((futures[fut], _res))
-                        
-                    else:
-                        
-                        self.get_param('queue').put_nowait((futures[fut], None))
-                        self.report_warning(f'[get_entries] fails fut {futures[fut]}')
-                except Exception as e:
-                    self.queue.put_nowait((futures[fut], "error"))
+              
+        for fut in futures:
+            try:
+                
+                if (_res:=try_get(fut.result(), lambda x: x[0])):
+                    _entries += _res
+                else:                    
+                    
                     self.report_warning(f'[get_entries] fails fut {futures[fut]}')
-           
+            except Exception as e:                
+                self.report_warning(f'[get_entries] fails fut {futures[fut]}')
         
-        return self._entries
+        def get_list_interl(res):
+            _dict = {}
+            for ent in res:
+                _key = get_domain(ent['formats'][0]['url'])
+                if not _dict.get(_key): _dict[_key] = [ent]
+                else: _dict[_key].append(ent)
+            
+            self.to_screen(f'[get_entries] {len(list(_dict.keys()))} different hosts, longest with {len(max(list(_dict.values()), key=len))} entries')
+            _interl = []
+            for el in list(itertools.zip_longest(*list(_dict.values()))):
+                _interl.extend([_el for _el in el if _el])
+            return _interl   
+        
+        
+        return get_list_interl(_entries)
     
     
     def _real_initialize(self):
@@ -293,7 +331,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         query = re.search(self._VALID_URL, url).group('query')
         
-        entries =  self._get_entries_search(url)
+        entries =  self.get_entries_search(url)
         
         self.logger_debug(entries)
 

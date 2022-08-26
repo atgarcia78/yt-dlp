@@ -3,7 +3,6 @@ import sys
 import tempfile
 import threading
 import time
-from queue import Empty, Queue
 from urllib.parse import unquote, urlparse
 
 import httpx
@@ -60,12 +59,12 @@ CONFIG_EXTRACTORS = {
                 ('tubeload', 'embedo',
                 'thisvidgay','redload',
                 'biguz', 'gaytubes',): {
-                                            'ratelimit': limiter_5, 
+                                            'ratelimit': limiter_0_5, 
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
      'gayguytop', 'upstream', 'videobin', 
                 'gayforiteu', 'xvidgay',): {
-                                            'ratelimit': limiter_5, 
+                                            'ratelimit': limiter_1, 
                                             'maxsplits': 16},
           ('odnoklassniki', 'thisvid', 
            'gaystreamembed','pornhat', 
@@ -126,6 +125,26 @@ def _check_init(func):
             self._real_initialize()
         return func(self, *args, **kwargs)
     return wrapper
+
+def transp(func):
+    return func
+        
+def getter(x):
+        
+    value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
+    if value:
+        return(value['ratelimit'].ratelimit(key_text, delay=True))
+    else:
+        return transp
+
+def _limit(func):
+    @functools.wraps(func)  
+    def wrapper(self, *args, **kwargs):
+        decor = getter(self.IE_NAME)
+        with decor:
+            return func(self, *args, **kwargs)
+    return wrapper
+    
 
 class SeleniumInfoExtractor(InfoExtractor):
     
@@ -230,7 +249,6 @@ class SeleniumInfoExtractor(InfoExtractor):
                     SeleniumInfoExtractor._YTDL = self._downloader                    
                     SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
                     SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
-                    SeleniumInfoExtractor._YTDL.params['queue'] = Queue()               
                     _headers = copy.deepcopy(SeleniumInfoExtractor._YTDL.params.get('http_headers'))
                     SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 
                                                                  'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
@@ -455,13 +473,13 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.logger_debug(f'[valid]{_pre_str} start checking')
         
         
-        def transp(func):
-            return func
+        # def transp(func):
+        #     return func
         
-        def getter(x):        
-            value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
-            if value:
-                return(value['ratelimit'].ratelimit(key_text, delay=True))
+        # def getter(x):        
+        #     value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
+        #     if value:
+        #         return(value['ratelimit'].ratelimit(key_text, delay=True))
         try:
 
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
