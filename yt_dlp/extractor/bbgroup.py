@@ -143,10 +143,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                 if (self._login(driver) == "OK"):
                     type(self)._COOKIES = driver.get_cookies()
                 else: raise Exception("login nok")
-                
-                
-            except Exception as e:
-                self.report_warning(f"error getting COOKIES: {repr(e)}")
+
             finally:
                 self.rm_driver(driver)
                     
@@ -166,6 +163,7 @@ class BBGroupIE(SeleniumInfoExtractor):
                     return _driver
                 else:
                     self.rm_driver(_driver)
+                    raise ExtractorError("login failed")
             #return(_driver, self._login(_driver))
         
 
