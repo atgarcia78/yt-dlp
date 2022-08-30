@@ -273,7 +273,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             
         return final_entries  
 
-    def _iter_get_entries_search(self, url):
+    def iter_get_entries_search(self, url):
         blog_posts_list = self.get_blog_posts_search(url)
         
         self.logger_debug(f'[blog_post_list] {blog_posts_list}')
@@ -343,7 +343,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         query = re.search(self._VALID_URL, url).group('query')
         
-        entries =  self.get_entries_search(url)
+        if "iter=yes" in query:
+            entries = self.iter_get_entries_search(url)
+        
+        else:
+            entries =  self.get_entries_search(url)
         
         self.logger_debug(entries)
 
