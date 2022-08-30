@@ -273,6 +273,18 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             
         return final_entries  
 
+    def _iter_get_entries_search(self, url):
+        blog_posts_list = self.get_blog_posts_search(url)
+        
+        self.logger_debug(f'[blog_post_list] {blog_posts_list}')
+            
+        posts_vid_url = [traverse_obj(post_entry, ('link', -1, 'href')) for post_entry in blog_posts_list]
+        
+        self.logger_debug(f'[posts_vid_url] {posts_vid_url}')
+        
+        for _post_blog in blog_posts_list:
+            yield self.get_entries_from_blog_post(_post_blog)
+        
     
     def get_entries_search(self, url):         
     
