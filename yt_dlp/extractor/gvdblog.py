@@ -3,8 +3,9 @@ import re
 from datetime import datetime
 import html
 import itertools
+from unicodedata import decimal
 from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, get_domain
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_5, limiter_0_1
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, ConnectError
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -165,6 +166,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
 
     @dec_on_exception
+    @dec_on_exception3
+    @dec_on_exception2
     @limiter_0_1.ratelimit("gvdblog", delay=True)
     def _send_request(self, url, driver=None, msg=None):
         
@@ -174,7 +177,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if driver:
             driver.get(url)
         else:
-            return(self.send_http_request(url))
+            try:                
+                return self.send_http_request(url)                
+            except (HTTPStatusError, ConnectError) as e:
+                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
         
     def _real_initialize(self):
         super()._real_initialize()
