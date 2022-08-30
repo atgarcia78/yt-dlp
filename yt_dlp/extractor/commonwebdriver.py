@@ -137,14 +137,6 @@ def getter(x):
     else:
         return transp
 
-def _limit(func):
-    @functools.wraps(func)  
-    def wrapper(self, *args, **kwargs):
-        decor = getter(self.IE_NAME)
-        with decor:
-            return func(self, *args, **kwargs)
-    return wrapper
-    
 
 class SeleniumInfoExtractor(InfoExtractor):
     
