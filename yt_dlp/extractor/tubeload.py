@@ -24,7 +24,6 @@ class TubeloadIE(SeleniumInfoExtractor):
     @dec_on_exception3  
     @dec_on_exception2
     @limiter_0_5.ratelimit("tubeload", delay=True)
-    #@_limit
     def _get_video_info(self, url, msg=None):        
         
         try:
@@ -50,7 +49,6 @@ class TubeloadIE(SeleniumInfoExtractor):
     @dec_on_exception3
     @dec_on_exception2
     @limiter_0_5.ratelimit("tubeload2", delay=True)
-    #@_limit
     def _send_request(self, url, driver=None, msg=None):        
         
         if msg: pre = f'{msg}[send_req]'
