@@ -1,7 +1,7 @@
 import re
 from urllib.parse import unquote, urlparse
 
-from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, traverse_obj
+from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, traverse_obj, get_domain
 from .commonwebdriver import (
     dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
     limiter_5, HTTPStatusError, ConnectError, PriorityLock)
@@ -32,7 +32,7 @@ class VidozaIE(SeleniumInfoExtractor):
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
             
-            _host = urlparse(url).netloc            
+            _host = get_domain(url)            
             with self.get_param('lock'):
                 if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
                     _sem = PriorityLock()

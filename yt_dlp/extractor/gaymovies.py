@@ -1,14 +1,11 @@
 import re
 import sys
 import traceback
-from concurrent.futures import ThreadPoolExecutor
-
-
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
+from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By
+
+import html
 
 
 class get_episodes():
@@ -62,7 +59,7 @@ class GayMoviesIE(SeleniumInfoExtractor):
                 
                 extr = extr.lower()
                 if extr in ['streamtape', 'fembed']:
-                    webpage = try_get(self._send_request(_wurl), lambda x: x.text)
+                    webpage = try_get(self._send_request(_wurl), lambda x: html.unescape(x.text))
                     if webpage:                                    
                         _vurl = try_get(re.findall(r'responsive-embed-item" src="([^"]+)"', webpage), lambda x: x[0])
                         if _vurl:

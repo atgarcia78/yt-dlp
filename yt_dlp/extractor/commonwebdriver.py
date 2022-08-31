@@ -23,8 +23,6 @@ import re
 import html
 import json
 
-
-import copy
 import functools
 import random
 
@@ -149,7 +147,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     _YTDL = None
     _CLIENT_CONFIG = {}
     _CLIENT = None
-    _CONFIG_REQ = copy.deepcopy(CONFIG_EXTRACTORS)
+    _CONFIG_REQ = CONFIG_EXTRACTORS.copy()
    
     _FIREFOX_HEADERS =  {      
         'Sec-Fetch-Dest': 'document',
@@ -196,6 +194,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         try:
             if (_extractor:=self._downloader.get_info_extractor(ie_key)):
+                _extractor._ready = False
                 _extractor._real_initialize()
                 return _extractor
         except Exception as e:
@@ -227,37 +226,59 @@ class SeleniumInfoExtractor(InfoExtractor):
     def close(self):        
 
         try:
-            SeleniumInfoExtractor._CLIENT.close()
+            self._CLIENT.close()
         except Exception:
             pass        
-        SeleniumInfoExtractor._MASTER_INIT = False 
+        
 
+    def initialize(self):
+        """Initializes an instance (authentication, etc)."""
+        self._printed_messages = set()
+        self._initialize_geo_bypass({
+            'countries': self._GEO_COUNTRIES,
+            'ip_blocks': self._GEO_IP_BLOCKS,
+        })
+        
+        self._initialize_pre_login()
+        if self.supports_login():
+            username, password = self._get_login_info()
+            if username:
+                self._perform_login(username, password)
+        elif self.get_param('username') and False not in (self.IE_DESC, self._NETRC_MACHINE):
+            self.report_warning(f'Login with password is not supported for this website. {self._login_hint("cookies")}')
+        self._real_initialize()
+        
 
     def _real_initialize(self):
 
         try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
-                if not SeleniumInfoExtractor._MASTER_INIT:                    
+                if not SeleniumInfoExtractor._MASTER_INIT or all([SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):                    
                     SeleniumInfoExtractor._YTDL = self._downloader                    
-                    SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
+                    if not SeleniumInfoExtractor._YTDL.params.get('sem'):
+                        SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
                     SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
-                    _headers = copy.deepcopy(SeleniumInfoExtractor._YTDL.params.get('http_headers'))
-                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 
-                                                                 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
-                                                                 'headers': _headers, 'follow_redirects': True, 
-                                                                 'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
-                    
-                    #no verifciamos nunca el cert
-                    SeleniumInfoExtractor._CLIENT_CONFIG.update({'verify': False})
-                    _proxy  = SeleniumInfoExtractor._YTDL.params.get('proxy')
-                    if _proxy:
-                        SeleniumInfoExtractor._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
-                    else:
-                        SeleniumInfoExtractor._CLIENT_CONFIG.update({'proxies': None})
-                    _config = copy.deepcopy(SeleniumInfoExtractor._CLIENT_CONFIG)
-                    SeleniumInfoExtractor._CLIENT = httpx.Client(proxies=_config.get('proxies'), timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
                     SeleniumInfoExtractor._MASTER_INIT = True
+                    
+                _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
+                    
+                self._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 
+                                                                'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
+                                                                'headers': _headers, 'follow_redirects': True, 
+                                                                'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
+                
+                #no verifciamos nunca el cert
+                self._CLIENT_CONFIG.update({'verify': False})
+                _proxy  = SeleniumInfoExtractor._YTDL.params.get('proxy')
+                if _proxy:
+                    self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
+                else:
+                    self._CLIENT_CONFIG.update({'proxies': None})
+                _config = self._CLIENT_CONFIG.copy()
+                self._CLIENT = httpx.Client(proxies=_config.get('proxies'), timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+                    
+                    
         except Exception as e:
             logger.exception(e)
 
@@ -431,7 +452,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if client:
                 res = client.head(url, headers=headers)
             else:
-                res = SeleniumInfoExtractor._CLIENT.head(url, headers=headers)            
+                res = self._CLIENT.head(url, headers=headers)            
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
@@ -498,7 +519,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 @_decor
                 def _throttle_isvalid(_url, short):
                     try:
-                        _headers = copy.deepcopy(SeleniumInfoExtractor._FIREFOX_HEADERS)
+                        _headers = SeleniumInfoExtractor._FIREFOX_HEADERS.copy()
                         if short:
                             _headers.update({'Range': 'bytes=0-100'})
                         res = self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
@@ -554,8 +575,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             if msg: 
                 premsg = f'{msg}{premsg}'           
 
-            req = SeleniumInfoExtractor._CLIENT.build_request(_type, url, data=data, headers=headers)
-            res = SeleniumInfoExtractor._CLIENT.send(req)
+            req = self._CLIENT.build_request(_type, url, data=data, headers=headers)
+            res = self._CLIENT.send(req)
             if res:
                 res.raise_for_status()
                 return res

@@ -966,7 +966,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                                 
                                 #res = NakedSwordSearchIE._CLIENT.get(_urlsc[0])
                                 #res.raise_for_status()
-                                res = try_get(self._send_request(_urlsc[0]), lambda x: x.text)
+                                res = try_get(self._send_request(_urlsc[0]), lambda x: html.unescape(x.text))
                                 if res:  
                                     self.logger_debug(f'[get_scenes][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlsc[0]} OK is available')
                                     self._urlscenesqueue.put_nowait((_urlsc[0], _urlsc[1], _urlsc[2], _n))
@@ -1047,7 +1047,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
                         def _check_url(_urlmv, _n):
                             try:
                                 
-                                res = try_get(self._send_request(_urlmv[0]), lambda x: x.text)                                
+                                res = try_get(self._send_request(_urlmv[0]), lambda x: html.unescape(x.text))                                
                                 if res and not 'NakedSword.com | Untitled Page' in res: 
                                     self.logger_debug(f'[get_movies][{j}][{_pos}/{self._num}][check_url][{_n}/{_size}] {_urlmv[0]} OK is available')
                                     self._urlmoviesqueue.put_nowait((_urlmv[0], _urlmv[1], _urlmv[2], _n))

@@ -52,7 +52,7 @@ class UserLoadIE(SeleniumInfoExtractor):
             _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-            _host = urlparse(url).netloc
+            _host = get_domain(url)
             
             with self.get_param('lock'):
                 if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
