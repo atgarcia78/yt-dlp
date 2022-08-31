@@ -1,12 +1,12 @@
 import sys
 import traceback
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 import re
 import threading
 import html
 import pyduktape3 as pyduk
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, try_call
+from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
     limiter_0_5, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
@@ -30,7 +30,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}[get_video_info]'
             else: pre = '[get_video_info]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
-            _host = urlparse(url).netloc
+            _host = get_domain(url)
             
             with self.get_param('lock'):
                 if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
@@ -85,7 +85,7 @@ class TubeloadIE(SeleniumInfoExtractor):
         
     
     def get_videourl(self, *args):
-        return TubeloadIE._DUK_CTX.get_global('getvurl')(*args)
+        return self._DUK_CTX.get_global('getvurl')(*args)
         
     
     def _get_entry(self, url, **kwargs):     
@@ -142,21 +142,24 @@ class TubeloadIE(SeleniumInfoExtractor):
 
 
 
-    def _real_initialize(self):
-        super()._real_initialize()
+    def _real_initialize(self):        
         with TubeloadIE._LOCK:
-            if not TubeloadIE._DUK_CTX:
-                TubeloadIE._DUK_CTX = pyduk.DuktapeContext()
+            if all([self._DUK_CTX, self._YTDL, self._YTDL != self._downloader]):
+                self._DUK_CTX = None
+                
+            super()._real_initialize()
+            if not self._DUK_CTX:
+                self._DUK_CTX = pyduk.DuktapeContext()
                 jscode1 = 'function deofus(h,u,n,t,e,r){var _data=["","split","0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/","slice","indexOf","","",".","pow","reduce","reverse","0"];function _aux(d,e,f){var g=_data[2][_data[1]](_data[0]);var h=g[_data[3]](0,e);var i=g[_data[3]](0,f);var j=d[_data[1]](_data[0])[_data[10]]()[_data[9]](function(a,b,c){if(h[_data[4]](b)!==-1)return a+=h[_data[4]](b)*(Math[_data[8]](e,c))},0);var k=_data[0];while(j>0){k=i[j%f]+k;j=(j-(j%f))/f}return k||_data[11]};function _aux2(h,u,n,t,e,r){r="";for(var i=0,len=h.length;i<len;i++){var s="";while(h[i]!==n[e]){s+=h[i];i++}for(var j=0;j<n.length;j++)s=s.replace(new RegExp(n[j],"g"),j);r+=String.fromCharCode(_aux(s,e,10)-t)};return decodeURIComponent(escape(r))};return _aux2(h,u,n,t,e,r)};'
-                TubeloadIE._DUK_CTX.eval_js(jscode1)
+                self._DUK_CTX.eval_js(jscode1)
                 mainjs = try_get(self._send_request('https://tubeload.co/assets/js/main.min.js'), lambda x: x.text)
-                _code = TubeloadIE._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
+                _code = self._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
                 _jscode_1, _var = try_get(re.findall(r'(var res = (\w{12}).replace.*); var decode', _code), lambda x: x[0])
-                #TubeloadIE._DUK_CTX.eval_js('function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}')
-                TubeloadIE._DUK_CTX.eval_js('function atob(str){return (new TextDecoder().decode(Duktape.dec("base64", str)));}')
+                #self._DUK_CTX.eval_js('function atob(str){return Buffer.prototype.toString.call(Duktape.dec("base64", str));}')
+                self._DUK_CTX.eval_js('function atob(str){return (new TextDecoder().decode(Duktape.dec("base64", str)));}')
                 jscode2 = f'function getvurl(h,u,n,t,e,r){{var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};return atob(res2)}};'
                 
-                TubeloadIE._DUK_CTX.eval_js(jscode2)
+                self._DUK_CTX.eval_js(jscode2)
                 
 
     def _real_extract(self, url):

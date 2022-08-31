@@ -51,7 +51,7 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
             
             try:
                 self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
-                SeleniumInfoExtractor._CLIENT.cookies.clear(domain=".noodlemagazine.com", path="/")
+                self._CLIENT.cookies.clear(domain=".noodlemagazine.com", path="/")
                 res = self.send_http_request(url, headers=headers)
                 info_json = res.json()
                 _file = traverse_obj(info_json, ('sources', 0, 'file'))

@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 import html
 import itertools
-from unicodedata import decimal
 from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, ConnectError
 
@@ -228,7 +227,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             if not x:
                 return []
             if _jsonstr:=x.group("data"):
-                return json.loads(_jsonstr).get('feed', {}).get('entry', [])
+                return traverse_obj(json.loads(_jsonstr), ('feed', 'entry'), default=[])
+            else: return []
             
         
         _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"

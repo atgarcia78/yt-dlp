@@ -4,33 +4,34 @@ import threading
 import time
 import traceback
 import pyduktape3 as pyduk
+import html
 
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_5, limiter_0_1, limiter_1, By
 
-class video_or_error_streamtape():
+# class video_or_error_streamtape():
     
-    def __call__(self, driver):
+#     def __call__(self, driver):
   
-        elh1 = driver.find_elements(By.CSS_SELECTOR, "h1")
-        if elh1: #error
-            errormsg = elh1[0].get_attribute('innerText').strip("!")                    
-            return ("error", errormsg)
+#         elh1 = driver.find_elements(By.CSS_SELECTOR, "h1")
+#         if elh1: #error
+#             errormsg = elh1[0].get_attribute('innerText').strip("!")                    
+#             return ("error", errormsg)
         
-        elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
-        if elover:
-            for _ in range(5):
-                try:
-                    elover[0].click()
-                    time.sleep(1)
-                except Exception as e:
-                    break
+#         elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
+#         if elover:
+#             for _ in range(5):
+#                 try:
+#                     elover[0].click()
+#                     time.sleep(1)
+#                 except Exception as e:
+#                     break
             
-        if (el_vid:=driver.find_elements(By.CSS_SELECTOR, "video")):
-            if (_src:=el_vid[0].get_attribute('src')):
-                _title = try_get(driver.find_elements(By.CSS_SELECTOR, 'h2'), lambda x: x[0].text)
-                return (_src, _title)
-        return False
+#         if (el_vid:=driver.find_elements(By.CSS_SELECTOR, "video")):
+#             if (_src:=el_vid[0].get_attribute('src')):
+#                 _title = try_get(driver.find_elements(By.CSS_SELECTOR, 'h2'), lambda x: x[0].text)
+#                 return (_src, _title)
+#         return False
 
 class StreamtapeIE(SeleniumInfoExtractor):
 
@@ -88,62 +89,62 @@ class StreamtapeIE(SeleniumInfoExtractor):
         return _aux()
                     
         
-    #not in use
-    def _get_entry_drive(self, url, **kwargs):
+    # #not in use
+    # def _get_entry_drive(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
-        msg = kwargs.get('msg', None)
+    #     check_active = kwargs.get('check_active', False)
+    #     msg = kwargs.get('msg', None)
         
-        try:
+    #     try:
             
-            url = url.replace('/e/', '/v/')
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
-            driver = self.get_driver()
-            self._send_request(url, driver=driver, msg=pre, lim=limiter_5)
-            for _ in range(3):
-                video_url, _title = try_get(self.wait_until(driver, 15, video_or_error_streamtape()), lambda x: x if x else (None, None))
-                if (video_url == 'error'): 
-                    raise ExtractorError('Error 404 - video not found')
-                elif video_url: break
-                else:
-                    driver.execute_script("window.stop();")
-                    self._send_request(url, driver=driver, msg=pre)
+    #         url = url.replace('/e/', '/v/')
+    #         pre = f'[get_entry][{self._get_url_print(url)}]'
+    #         if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
+    #         driver = self.get_driver()
+    #         self._send_request(url, driver=driver, msg=pre, lim=limiter_5)
+    #         for _ in range(3):
+    #             video_url, _title = try_get(self.wait_until(driver, 15, video_or_error_streamtape()), lambda x: x if x else (None, None))
+    #             if (video_url == 'error'): 
+    #                 raise ExtractorError('Error 404 - video not found')
+    #             elif video_url: break
+    #             else:
+    #                 driver.execute_script("window.stop();")
+    #                 self._send_request(url, driver=driver, msg=pre)
             
-            if not _title:
-                _title = self._html_search_meta(('og:title', 'twitter:title'), driver.page_source, None)
+    #         if not _title:
+    #             _title = self._html_search_meta(('og:title', 'twitter:title'), driver.page_source, None)
                                         
              
-            _format = {
-                'format_id': 'http-mp4',
-                'url': video_url,
-                'ext': 'mp4',
-                'http_headers': {'Referer': url}
-            }
+    #         _format = {
+    #             'format_id': 'http-mp4',
+    #             'url': video_url,
+    #             'ext': 'mp4',
+    #             'http_headers': {'Referer': url}
+    #         }
             
             
-            if check_active:
-                _videoinfo = self._get_video_info(video_url, headers= {'Referer': url}, msg=pre)
-                if not _videoinfo: 
-                    raise ExtractorError("error 404: no video info")
-                _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
+    #         if check_active:
+    #             _videoinfo = self._get_video_info(video_url, headers= {'Referer': url}, msg=pre)
+    #             if not _videoinfo: 
+    #                 raise ExtractorError("error 404: no video info")
+    #             _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
                 
-            _entry_video = {
-                'id' : self._match_id(url),
-                'title' : sanitize_filename(_title, restricted=True),
-                'formats' : [_format],
-                'ext': 'mp4',
-                'extractor_key': 'Streamtape',
-                'extractor': 'streamtape',
-                'webpage_url': url
-            }            
+    #         _entry_video = {
+    #             'id' : self._match_id(url),
+    #             'title' : sanitize_filename(_title, restricted=True),
+    #             'formats' : [_format],
+    #             'ext': 'mp4',
+    #             'extractor_key': 'Streamtape',
+    #             'extractor': 'streamtape',
+    #             'webpage_url': url
+    #         }            
             
-            return _entry_video
+    #         return _entry_video
             
-        except Exception as e:
-            raise
-        finally:
-            self.rm_driver(driver)
+    #     except Exception as e:
+    #         raise
+    #     finally:
+    #         self.rm_driver(driver)
     
 
     def _get_entry(self, url, **kwargs):
@@ -158,14 +159,14 @@ class StreamtapeIE(SeleniumInfoExtractor):
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
             if not webpage:
-                webpage = try_get(self._send_request(url, msg=pre, lim=limiter_0_1), lambda x: x.text)
+                webpage = try_get(self._send_request(url, msg=pre, lim=limiter_0_1), lambda x: html.unescape(x.text))
             
             if not webpage: raise ExtractorError("no webpage")
             el_node = try_get(re.findall(r'var srclink\s+=\s+\$\([\'\"]#([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
             if not el_node: raise ExtractorError("error when retrieving video url")
             _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])
             try:
-                _res = StreamtapeIE._DUK_CTX.eval_js(_code) 
+                _res = self._DUK_CTX.eval_js(_code) 
                 
             except Exception as e:
                 raise ExtractorError("error video url")
@@ -210,10 +211,12 @@ class StreamtapeIE(SeleniumInfoExtractor):
     
     def _real_initialize(self):
         
-        super()._real_initialize()
         with StreamtapeIE._LOCK:
-            if not StreamtapeIE._DUK_CTX:
-                StreamtapeIE._DUK_CTX = pyduk.DuktapeContext()
+            if all([self._DUK_CTX, self._YTDL, self._YTDL != self._downloader]):
+                self._DUK_CTX = None
+            super()._real_initialize()            
+            if not self._DUK_CTX:
+                self._DUK_CTX = pyduk.DuktapeContext()
         
     
     def _real_extract(self, url):

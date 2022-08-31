@@ -1,12 +1,11 @@
 import sys
 import traceback
-import re
 import time
 
 
 from ..utils import try_get, ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError, ConnectError
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 class FembedIE(SeleniumInfoExtractor):
 
@@ -35,10 +34,6 @@ class FembedIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
-    # @staticmethod
-    # def _extract_urls(webpage):
-
-    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?fembed\.com/v/.+?)\1',webpage)]
     
     
     def _get_entry(self, url, **kwargs):
