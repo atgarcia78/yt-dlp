@@ -19,7 +19,7 @@ class FxggxtIE(SeleniumInfoExtractor):
     def _send_request(self, url):        
         
         self.logger_debug(f"[send_request] {url}") 
-        res = self._CLIENT.get(url)
+        res = self.send_http_request(url)                
         return res
     
     def _real_initialize(self):

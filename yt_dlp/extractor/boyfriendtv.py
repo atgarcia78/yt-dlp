@@ -277,7 +277,7 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             else: _url = url
             
                         
-            res = self._CLIENT.get(_url)            
+            res = self.send_http_request(_url)
             
             if not videoid:   
                 videoid = self._match_id(str(res.url))

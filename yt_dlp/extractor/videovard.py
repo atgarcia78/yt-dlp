@@ -54,8 +54,7 @@ class VideovardIE(SeleniumInfoExtractor):
             driver.get(url)
         else:
             if not _type:
-                res = self._CLIENT.get(url, headers=headers)
-                res.raise_for_status()
+                res = self.send_http_request(url, headers=headers)                
                 return res
             else:
                 return self.get_info_for_format(url, headers=headers)       
