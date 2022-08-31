@@ -146,7 +146,7 @@ class PhantomJSwrapper:
             if 'path' not in cookie:
                 cookie['path'] = '/'
             if 'domain' not in cookie:
-                cookie['domain'] = compat_urlparse.urlparse(url).netloc
+                cookie['domain'] = compat_urlparse.get_domain(url)
         with open(self._TMP_FILES['cookies'].name, 'wb') as f:
             f.write(json.dumps(cookies).encode('utf-8'))
 

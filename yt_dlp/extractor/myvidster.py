@@ -144,21 +144,20 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
             
         with MyVidsterBaseIE._LOCK:
             
-            if not self._MASTER_INIT:
-                super()._real_initialize()
+            super()._real_initialize()
             
             if not MyVidsterBaseIE._COOKIES:
                         
                 try:
                     self._login()
-                    MyVidsterBaseIE._COOKIES = SeleniumInfoExtractor._CLIENT.cookies                                        
+                    MyVidsterBaseIE._COOKIES = self._CLIENT.cookies                                        
         
                 except Exception as e:
                     self.to_screen(repr(e))                    
                     raise
             else:    
                 for cookie in MyVidsterBaseIE._COOKIES.jar:
-                    SeleniumInfoExtractor._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
+                    self._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
                 
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'

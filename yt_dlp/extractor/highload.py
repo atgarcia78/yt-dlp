@@ -42,7 +42,7 @@ class FastStreamIE(SeleniumInfoExtractor):
             
                 
                 self.logger_debug(f"[get_video_info] {self._get_url_print(_url)}")
-                _host = urlparse(url).netloc                
+                _host = get_domain(url)                
                 
                 with self.get_param('lock'):
                     if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 

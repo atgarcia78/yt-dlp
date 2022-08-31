@@ -1,5 +1,5 @@
 import re
-
+import html
 
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1
 from ..utils import (
@@ -66,7 +66,7 @@ class YouPornGayIE(SeleniumInfoExtractor):
         self._sort_formats(formats)
 
         webpage = try_get(self._send_request(
-            'http://www.youporngay.com/watch/%s' % video_id), lambda x: x.text)
+            'http://www.youporngay.com/watch/%s' % video_id), lambda x: html.unquote(x.text))
 
         if not webpage: raise ExtractorError('no webpage')
         title = self._html_search_regex(
