@@ -42,8 +42,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         else:
             webpage = traverse_obj(post, ('content', '$t'))
 
-        _reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
-        list_urls = [[mobj.group('url'),mobj.group('ppal'), mobj.group('ppal2')] for mobj in re.finditer(_reg_expr, webpage) if mobj]
+        #_reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
+        #list_urls = [[mobj.group('url'),mobj.group('ppal'), mobj.group('ppal2')] for mobj in re.finditer(_reg_expr, webpage) if mobj]
+        #_mobj = [{el[0]:el[1].strip('"') for _el in l1.split(' ') if len(el:=_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>', webpage) if any(_ in l1 for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""'])]
+        #list_urls = [[item.get('src'), item.get('mozallowfullscreen'), item.get('allow') == 'autoplay'] for item in _mobj]
+        list_urls = [[item.get('src'), item.get('mozallowfullscreen'), item.get('allow') == 'autoplay'] for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1.split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>', webpage) if any(_ in l1 for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""'])]]
         n_ppal = len([el for el in list_urls if (el[1] or el[2])])
         n_downloads = len(re.findall(r'<button class="mybutton2">Download\s*</button>', webpage))
         if n_ppal > n_downloads:

@@ -35,15 +35,12 @@ class GayMovieSupportIE(SeleniumInfoExtractor):
     
     @dec_on_exception
     @limiter_1.ratelimit("gaymoviesupport", delay=True)
-    def request_to_host(self, _type, *args, **kwargs):
+    def request_to_host(self, _type, url, **kwargs):
     
         if _type == "video_info":
-            return self._get_video_info(*args)
-        elif _type == "url_request":
-            self._send_request(*args)
+            return self._get_video_info(url)
         elif _type == "post":
-            res = self._CLIENT.post(*args, **kwargs)
-            res.raise_for_status()
+            res = self.send_http_request(url, "POST", **kwargs)                        
             return(res.json())    
     
     def _real_initialize(self):

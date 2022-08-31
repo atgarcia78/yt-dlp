@@ -61,7 +61,6 @@ class ThatGVideoIE(SeleniumInfoExtractor):
                             'format_id' : "http-mp4",
                             'url' : _info.get('url'),
                             'filesize' : _info.get('filesize'),
-                            'http_headers': SeleniumInfoExtractor._CLIENT_CONFIG['headers'],
                             'ext': "mp4"
                         }
                     
