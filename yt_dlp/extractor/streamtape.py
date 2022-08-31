@@ -7,31 +7,31 @@ import pyduktape3 as pyduk
 import html
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_5, limiter_0_1, limiter_1, By
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_0_1, limiter_1, By
 
-# class video_or_error_streamtape():
+class video_or_error_streamtape():
     
-#     def __call__(self, driver):
+    def __call__(self, driver):
   
-#         elh1 = driver.find_elements(By.CSS_SELECTOR, "h1")
-#         if elh1: #error
-#             errormsg = elh1[0].get_attribute('innerText').strip("!")                    
-#             return ("error", errormsg)
+        elh1 = driver.find_elements(By.CSS_SELECTOR, "h1")
+        if elh1: #error
+            errormsg = elh1[0].get_attribute('innerText').strip("!")                    
+            return ("error", errormsg)
         
-#         elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
-#         if elover:
-#             for _ in range(5):
-#                 try:
-#                     elover[0].click()
-#                     time.sleep(1)
-#                 except Exception as e:
-#                     break
+        elover = driver.find_elements(By.CLASS_NAME, "play-overlay")
+        if elover:
+            for _ in range(5):
+                try:
+                    elover[0].click()
+                    time.sleep(1)
+                except Exception as e:
+                    break
             
-#         if (el_vid:=driver.find_elements(By.CSS_SELECTOR, "video")):
-#             if (_src:=el_vid[0].get_attribute('src')):
-#                 _title = try_get(driver.find_elements(By.CSS_SELECTOR, 'h2'), lambda x: x[0].text)
-#                 return (_src, _title)
-#         return False
+        if (el_vid:=driver.find_elements(By.CSS_SELECTOR, "video")):
+            if (_src:=el_vid[0].get_attribute('src')):
+                _title = try_get(driver.find_elements(By.CSS_SELECTOR, 'h2'), lambda x: x[0].text)
+                return (_src, _title)
+        return False
 
 class StreamtapeIE(SeleniumInfoExtractor):
 
