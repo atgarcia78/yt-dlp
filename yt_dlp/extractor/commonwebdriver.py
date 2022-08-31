@@ -34,7 +34,7 @@ from .common import ExtractorError, InfoExtractor
 import logging
 logger = logging.getLogger("Commonwebdriver")
 
-
+limiter_non = Limiter(RequestRate(10000, 0))
 limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
 limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
 limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
@@ -59,7 +59,7 @@ CONFIG_EXTRACTORS = {
                 ('tubeload', 'embedo',
                 'thisvidgay','redload',
                 'biguz', 'gaytubes',): {
-                                            'ratelimit': limiter_0_5, 
+                                            'ratelimit': limiter_1, 
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
      'gayguytop', 'upstream', 'videobin', 
@@ -249,10 +249,13 @@ class SeleniumInfoExtractor(InfoExtractor):
                     
                     #no verifciamos nunca el cert
                     SeleniumInfoExtractor._CLIENT_CONFIG.update({'verify': False})
-                    
+                    _proxy  = SeleniumInfoExtractor._YTDL.params.get('proxy')
+                    if _proxy:
+                        SeleniumInfoExtractor._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
+                    else:
+                        SeleniumInfoExtractor._CLIENT_CONFIG.update({'proxies': None})
                     _config = copy.deepcopy(SeleniumInfoExtractor._CLIENT_CONFIG)
-                    SeleniumInfoExtractor._CLIENT = httpx.Client(timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], 
-                                                                 follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+                    SeleniumInfoExtractor._CLIENT = httpx.Client(proxies=_config.get('proxies'), timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
                     SeleniumInfoExtractor._MASTER_INIT = True
         except Exception as e:

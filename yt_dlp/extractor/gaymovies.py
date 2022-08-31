@@ -34,8 +34,7 @@ class GayMoviesIE(SeleniumInfoExtractor):
         if driver:
             driver.get(url)
         else:
-            res = self._CLIENT.get(url)
-            res.raise_for_status()
+            res = self.send_http_request(url)                
             return res
         
         

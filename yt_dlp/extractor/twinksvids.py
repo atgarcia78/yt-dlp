@@ -20,7 +20,8 @@ class TwinksVidsIE(SeleniumInfoExtractor):
         
         _url_str = self._get_url_print(url)
         self.logger_debug(f"[send_request] {_url_str}") 
-        res = self._CLIENT.get(url)
+        res = self.send_http_request(url)                
+                
         return res
     
     @dec_on_exception
