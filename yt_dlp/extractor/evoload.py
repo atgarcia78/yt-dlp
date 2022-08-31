@@ -2,13 +2,14 @@ import re
 import sys
 import time
 import traceback
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 from ..utils import (
-    ExtractorError, sanitize_filename, try_get, traverse_obj)
+    ExtractorError, sanitize_filename, try_get, traverse_obj, get_domain)
 from .commonwebdriver import (
     dec_on_exception, SeleniumInfoExtractor,
-    limiter_15, By,HTTPStatusError, PriorityLock)
+    limiter_15, By, HTTPStatusError, PriorityLock,
+    ConnectError, dec_on_exception2, dec_on_exception3)
 
 class video_or_error_evoload():
     def __init__(self, logger):
@@ -81,8 +82,8 @@ class EvoLoadIE(SeleniumInfoExtractor):
     
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1']
 
-    
-    @dec_on_exception
+    @dec_on_exception2
+    @dec_on_exception3
     @limiter_15.ratelimit("evoload", delay=True)
     def _get_video_info(self, url, **kwargs):        
          
@@ -120,7 +121,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
         try:
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}{pre}'
-            _videoinfo = None
+            
             driver = self.get_driver()
             self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
             video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
