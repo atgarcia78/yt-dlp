@@ -257,6 +257,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             urlquery += f"&updated-max={_upt_max}T23:59:59"
         if _upt_min:=params.get('updated-min'):
             urlquery += f"&updated-min={_upt_min}T00:00:00"
+        if _upt:=params.get('updated'):
+            urlquery += f"&updated-min={_upt}T00:00:00" + f"&updated-max={_upt}T23:59:59"
         if _category:=(params.get('label') or params.get('category')):
             urlquery += f"&category={_category}"
         if _q:=params.get('q'):
