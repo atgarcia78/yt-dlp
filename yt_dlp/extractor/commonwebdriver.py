@@ -286,6 +286,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None):        
 
         with SeleniumInfoExtractor._MASTER_LOCK:
+            if not host and (_proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy')):
+                host, port = (urlparse(_proxy).netloc).split(':')
             driver = self._get_driver(noheadless, devtools, host, port)
         return driver
         
