@@ -1,10 +1,10 @@
 import sys
 import traceback
 import time
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj
+from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError, ConnectError, By, PriorityLock
 
 
