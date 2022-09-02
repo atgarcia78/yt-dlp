@@ -254,9 +254,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
                 if not SeleniumInfoExtractor._MASTER_INIT or all([SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):                    
-                    SeleniumInfoExtractor._YTDL = self._downloader                    
+                    if SeleniumInfoExtractor._YTDL:
+                        self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params['sem']
+                    SeleniumInfoExtractor._YTDL = self._downloader                
                     if not SeleniumInfoExtractor._YTDL.params.get('sem'):
                         SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
+                    
                     SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
                     
                     SeleniumInfoExtractor._MASTER_INIT = True
