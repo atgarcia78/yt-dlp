@@ -37,13 +37,13 @@ class TubeloadIE(SeleniumInfoExtractor):
                     _sem = PriorityLock()
                     self.get_param('sem').update({_host: _sem})
                 
-            #_sem.acquire(priority=10)                
+                         
             with _sem.priority(1):
                 return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+            
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-        # finally:
-        #     if _sem: _sem.release()
+
             
     @dec_on_exception
     @dec_on_exception3
