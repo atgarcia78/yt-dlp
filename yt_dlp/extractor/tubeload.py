@@ -123,7 +123,7 @@ class TubeloadIE(SeleniumInfoExtractor):
                 _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo: raise ExtractorError("error 404: no video info")
                 else:
-                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
 
             _entry_video = {
                 'id' : videoid,

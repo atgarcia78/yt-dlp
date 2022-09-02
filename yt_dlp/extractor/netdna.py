@@ -175,7 +175,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         _title_search =  _info_video.get('title', '').replace("_",",")
         _id = _info_video.get('id')
 
-        _info = SeleniumInfoExtractor._YTDL.extract_info(f"https://gaybeeg.info/?s={_title_search}")
+        _info = self._YTDL.extract_info(f"https://gaybeeg.info/?s={_title_search}")
         
         _entries = _info.get('entries')
         for _entry in _entries:

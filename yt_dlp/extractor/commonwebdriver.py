@@ -145,8 +145,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     _MASTER_LOCK = threading.Lock()
     
     _YTDL = None
-    _CLIENT_CONFIG = {}
-    _CLIENT = None
     _CONFIG_REQ = CONFIG_EXTRACTORS.copy()
    
     _FIREFOX_HEADERS =  {      
@@ -256,30 +254,28 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if not SeleniumInfoExtractor._MASTER_INIT or all([SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):                    
                     if SeleniumInfoExtractor._YTDL:
                         self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params['sem']
+                        self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params['lock']
                     SeleniumInfoExtractor._YTDL = self._downloader                
                     if not SeleniumInfoExtractor._YTDL.params.get('sem'):
                         SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
-                    
-                    SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
+                    if not SeleniumInfoExtractor._YTDL.params.get('lock'):
+                        SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
                     
                     SeleniumInfoExtractor._MASTER_INIT = True
                     
                 _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
                     
-                self._CLIENT_CONFIG.update({'timeout': httpx.Timeout(20), 
+                self._CLIENT_CONFIG = {'timeout': httpx.Timeout(20), 
                                                                 'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
                                                                 'headers': _headers, 'follow_redirects': True, 
-                                                                'verify': not SeleniumInfoExtractor._YTDL.params.get('nocheckcertificate', False)})
+                                                                'verify': False, 'proxies': None}
                 
-                #no verifciamos nunca el cert
-                self._CLIENT_CONFIG.update({'verify': False})
                 _proxy  = SeleniumInfoExtractor._YTDL.params.get('proxy')
                 if _proxy:
                     self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
-                else:
-                    self._CLIENT_CONFIG.update({'proxies': None})
+
                 _config = self._CLIENT_CONFIG.copy()
-                self._CLIENT = httpx.Client(proxies=_config.get('proxies'), timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+                self._CLIENT = httpx.Client(proxies=_config['proxies'], timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
                     
         except Exception as e:
@@ -461,8 +457,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
+            _accept_ranges = any([res.headers.get('accept-ranges'), res.headers.get('content-range')])
             if _filesize:
-                return ({'url': _url, 'filesize': _filesize})
+                return ({'url': _url, 'filesize': _filesize, 'accept_ranges': _accept_ranges})
         except Exception as e:
             _msg_err = repr(e)
             if res and res.status_code == 404:           
