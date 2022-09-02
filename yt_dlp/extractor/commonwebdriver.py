@@ -217,13 +217,11 @@ class SeleniumInfoExtractor(InfoExtractor):
             return(f'{url[:140]}...{url[-10:]}')
         else: return url
    
-    def close(self):        
-
+    def close(self):
         try:
             self._CLIENT.close()
         except Exception:
             pass        
-        
 
     def initialize(self):
         """Initializes an instance (authentication, etc)."""
@@ -241,7 +239,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         elif self.get_param('username') and False not in (self.IE_DESC, self._NETRC_MACHINE):
             self.report_warning(f'Login with password is not supported for this website. {self._login_hint("cookies")}')
         self._real_initialize()
-        
 
     def _real_initialize(self):
 
@@ -257,9 +254,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
                     if not SeleniumInfoExtractor._YTDL.params.get('lock'):
                         SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
-                    
-                    
-                    
+
                 _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
                     
                 self._CLIENT_CONFIG = {
@@ -288,7 +283,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None):        
 
         with SeleniumInfoExtractor._MASTER_LOCK:
-            if not host and (_proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy')):
+            if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
                 host, port = (urlparse(_proxy).netloc).split(':')
             driver = self._get_driver(noheadless, devtools, host, port)
         return driver
@@ -379,7 +374,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
-        
     def scan_for_request(self, driver, _link, _all=False, timeout=60):
 
         def _get_har():
