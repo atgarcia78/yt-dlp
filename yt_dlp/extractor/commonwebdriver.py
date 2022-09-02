@@ -47,6 +47,29 @@ limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
+def my_jitter(value: float) -> float:
+
+    return int(random.uniform(value, value*1.25))
+
+def my_jitter2(value: float) -> float:
+
+    return int(random.uniform(value, value*2))
+
+class StatusError503(Exception):
+    """Error during info extraction."""
+
+    def __init__(self, msg):
+        
+        super().__init__(msg)
+        self.exc_info = sys.exc_info()  # preserve original exception
+
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter2, raise_on_giveup=False, interval=15)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=5, jitter=my_jitter2, raise_on_giveup=False, interval=10)
+dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
+dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
+dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+
 CONFIG_EXTRACTORS = {
     ('userload', 'evoload', 'highload',): {
                                             'ratelimit': limiter_15, 
@@ -74,29 +97,6 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 16}
 }
 
-def my_jitter(value: float) -> float:
-
-    return int(random.uniform(value, value*1.25))
-
-def my_jitter2(value: float) -> float:
-
-    return int(random.uniform(value, value*2))
-
-
-class StatusError503(Exception):
-    """Error during info extraction."""
-
-    def __init__(self, msg):
-        
-        super().__init__(msg)
-        self.exc_info = sys.exc_info()  # preserve original exception
-
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter2, raise_on_giveup=False, interval=15)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=5, jitter=my_jitter2, raise_on_giveup=False, interval=10)
-dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
-dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
-dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 class scroll():
     '''
@@ -119,32 +119,28 @@ class scroll():
 def _check_init(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        if not SeleniumInfoExtractor._MASTER_INIT:
-            self._real_initialize()
+        self._real_initialize()
         return func(self, *args, **kwargs)
     return wrapper
 
-def transp(func):
-    return func
-        
 def getter(x):
-        
-    value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
-    if value:
-        return(value['ratelimit'].ratelimit(key_text, delay=True))
-    else:
-        return transp
+    
+    if x != 'generic':    
+        value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
+        if value:
+            return(value['ratelimit'].ratelimit(key_text, delay=True))
+    
+    return limiter_non.ratelimit("nonlimit", delay=True)
 
 
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
     
-    _MASTER_INIT = False
-    
     _MASTER_LOCK = threading.Lock()
     
     _YTDL = None
+    
     _CONFIG_REQ = CONFIG_EXTRACTORS.copy()
    
     _FIREFOX_HEADERS =  {      
@@ -251,7 +247,8 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
-                if not SeleniumInfoExtractor._MASTER_INIT or all([SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):                    
+                if not SeleniumInfoExtractor._YTDL or SeleniumInfoExtractor._YTDL != self._downloader:                    
+                    
                     if SeleniumInfoExtractor._YTDL:
                         self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params['sem']
                         self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params['lock']
@@ -261,21 +258,27 @@ class SeleniumInfoExtractor(InfoExtractor):
                     if not SeleniumInfoExtractor._YTDL.params.get('lock'):
                         SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
                     
-                    SeleniumInfoExtractor._MASTER_INIT = True
+                    
                     
                 _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
                     
-                self._CLIENT_CONFIG = {'timeout': httpx.Timeout(20), 
-                                                                'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
-                                                                'headers': _headers, 'follow_redirects': True, 
-                                                                'verify': False, 'proxies': None}
+                self._CLIENT_CONFIG = {
+                    'timeout': httpx.Timeout(20), 
+                    'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
+                    'headers': _headers,
+                    'follow_redirects': True,
+                    'verify': False,
+                    'proxies': None}
                 
-                _proxy  = SeleniumInfoExtractor._YTDL.params.get('proxy')
-                if _proxy:
+                if _proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy'):
                     self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
 
                 _config = self._CLIENT_CONFIG.copy()
-                self._CLIENT = httpx.Client(proxies=_config['proxies'], timeout=_config['timeout'], limits=_config['limits'], headers=_config['headers'], follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+                
+                self._CLIENT = httpx.Client(
+                    proxies=_config['proxies'], timeout=_config['timeout'], 
+                    limits=_config['limits'], headers=_config['headers'],
+                    follow_redirects=_config['follow_redirects'], verify=_config['verify'])
                     
                     
         except Exception as e:
@@ -316,12 +319,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         opts.add_argument("--profile")
         opts.add_argument(tempdir)
         
-        # if not host and not port:
-        #     if SeleniumInfoExtractor._YTDL:
-        #         if (proxy:=SeleniumInfoExtractor._YTDL.params.get('proxy')):
-        #             proxy = proxy.replace('https://', '').replace('http://', '')
-        #             host = proxy.split(":")[0]
-        #             port = proxy.split(":")[1]
                 
         if host and port:
             opts.set_preference("network.proxy.type", 1)
@@ -491,13 +488,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.logger_debug(f'[valid]{_pre_str} start checking')
         
         
-        # def transp(func):
-        #     return func
-        
-        # def getter(x):        
-        #     value, key_text = try_get([(v,kt) for k,v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x==(kt:=_) for _ in k)], lambda y: y[0]) or ("","") 
-        #     if value:
-        #         return(value['ratelimit'].ratelimit(key_text, delay=True))
+
         try:
 
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
@@ -511,10 +502,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _extr_name = self._get_ie_name(url).lower()
                 if _extr_name in ['xhamster', 'xhamsterembed']:
                     return True
-                if _extr_name == 'generic':
-                    _decor = transp
                 else:
-                    _decor = getter(_extr_name) or transp
+                    _decor = getter(_extr_name)
                 
                 @dec_on_exception3
                 @dec_on_exception2
