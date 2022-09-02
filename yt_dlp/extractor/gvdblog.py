@@ -294,7 +294,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.logger_debug(f'[posts_vid_url] {posts_vid_url}')
         
         for _post_blog in blog_posts_list:
-            yield self.get_entries_from_blog_post(_post_blog)
+            yield try_get(self.get_entries_from_blog_post(_post_blog), lambda x: x[0][0])
         
     
     def get_entries_search(self, url):         
