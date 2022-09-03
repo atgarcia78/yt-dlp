@@ -12,7 +12,15 @@ from datetime import datetime
 
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError, ConnectError
+from .commonwebdriver import (
+    dec_on_exception, 
+    dec_on_exception2, 
+    dec_on_exception3, 
+    SeleniumInfoExtractor, 
+    limiter_0_1, By, 
+    ec, 
+    HTTPStatusError, 
+    ConnectError)
 
 
 class NakedSwordBaseIE(SeleniumInfoExtractor):
@@ -26,7 +34,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _LOCK = Lock()
     _COOKIES = {}
 
-    
 
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
@@ -37,8 +44,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         
             value = extra.get(key) if extra.get(key) else self._CLIENT_CONFIG['headers'].get(key.lower())
             if value:
-                _headers[key.lower()] = value
-      
+                _headers[key.lower()] = value      
         
         return _headers
     
@@ -58,8 +64,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         else:
             driver.execute_script("window.stop();")
             driver.get(url)
-            
 
+    def _get_last_page(self, _urlqbase):
+        i = 1
+        while(True):
+            webpage = try_get(self._send_request(f"{_urlqbase}{i}"), lambda x: html.unescape(x.text))
+            if "Next Page" in webpage:
+                i += 1
+            else:
+                break
+        return i
+                
     def _get_info(self, anystr):       
         
         if anystr.startswith('http'):
@@ -195,15 +210,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             raise ExtractorError(f'{premsg}: error - {repr(e)}')
        
-       
     def _is_logged(self, driver):
         
         self._send_request(self._SITE_URL, driver)
-        logged_ok = driver.current_url == "https://nakedsword.com/members"
+        logged_ok = "https://nakedsword.com/members" in driver.current_url
         self.logger_debug(f"[is_logged] {logged_ok}")
-        return(logged_ok)
+        return logged_ok
         
-    
     def _login(self):
         
 
@@ -243,7 +256,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         finally:
             self.rm_driver(driver)
                     
-   
     def _real_initialize(self):
     
         with NakedSwordBaseIE._LOCK:  
@@ -265,12 +277,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
                     
 
-        
-   
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedswordscene'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)/?$"
-
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -292,7 +301,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[a-zA-Z\d_-]+)/?$"
     _MOVIES_URL = "https://nakedsword.com/movies/"
-
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -329,13 +337,14 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                 'title': sanitize_filename(pl_title, True),
                 'entries': entries,
             }
-        else: raise ExtractorError("no entries")
+        
+        else: 
+            raise ExtractorError("no entries")
 
 class NakedSwordMostWatchedIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:mostwatched:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/most-watched(\?pages=(?P<pages>\d+))?'
     _MOST_WATCHED = 'https://nakedsword.com/most-watched?content=Scenes&page='
-    
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -345,8 +354,7 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
         pages = try_get(re.search(self._VALID_URL, url), lambda x: x.group('pages')) or "1"
         entries = []
         list_pages = [(i, f"{self._MOST_WATCHED}{i}") for i in range(1, int(pages) + 1)]
-        with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=10) as ex:
-            
+        with ThreadPoolExecutor(thread_name_prefix="nakedsword", max_workers=10) as ex:            
             futures = {ex.submit(self.get_entries_scenes, el[1], el[0]): f"page={el[0]}"  for el in list_pages}
         
         for fut in futures:
@@ -357,7 +365,6 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
                 else: raise ExtractorError("no entries")
             except Exception as e:
                 self.report_warning(f'[{url}][{futures[fut]}] {repr(e)}')  
-                #raise ExtractorError(repr(e))
         
         if entries:
             return {
@@ -367,22 +374,13 @@ class NakedSwordMostWatchedIE(NakedSwordBaseIE):
                 'entries': entries,
             }
         
-        else: raise ExtractorError("no entries")
+        else: 
+            raise ExtractorError("no entries")
 
 class NakedSwordStarsStudiosIE(NakedSwordBaseIE):
     IE_NAME = "nakedsword:starsstudios:playlist"
     _VALID_URL = r'https?://(?:www\.)?nakedsword.com/(?P<typepl>(?:stars|studios))/(?P<id>[\d]+)/(?P<name>[a-zA-Z\d_-]+)(/\?(?P<query>.+))?'
     _MOST_WATCHED = "?content=Scenes&sort=MostWatched&page="
-    
-    def _get_last_page(self, _urlqbase):
-        i = 1
-        while(True):
-            webpage = try_get(self._send_request(f"{_urlqbase}{i}"), lambda x: html.unescape(x.text))
-            if "Next Page" in webpage:
-                i += 1
-            else:
-                break
-        return i
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -1078,8 +1076,7 @@ class NakedSwordSearchIE(NakedSwordBaseIE):
         except Exception as e:
             self.logger_debug(f'[get_movies] {repr(e)}')
             raise ExtractorError(f"{repr(e)}")
-    
-       
+
     def _real_initialize(self):
         super()._real_initialize()
         conf = NakedSwordSearchIE.get_info_conf()

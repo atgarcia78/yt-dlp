@@ -166,8 +166,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             if not el_node: raise ExtractorError("error when retrieving video url")
             _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])
             try:
-                _res = self._DUK_CTX.eval_js(_code) 
-                
+                _res = StreamtapeIE._DUK_CTX.eval_js(_code)                
             except Exception as e:
                 raise ExtractorError("error video url")
             
@@ -212,11 +211,11 @@ class StreamtapeIE(SeleniumInfoExtractor):
     def _real_initialize(self):
         
         with StreamtapeIE._LOCK:
-            if all([self._DUK_CTX, self._YTDL, self._YTDL != self._downloader]):
-                self._DUK_CTX = None
+            if all([StreamtapeIE._DUK_CTX, self._YTDL, self._YTDL != self._downloader]):
+                StreamtapeIE._DUK_CTX = None
             super()._real_initialize()            
-            if not self._DUK_CTX:
-                self._DUK_CTX = pyduk.DuktapeContext()
+            if not StreamtapeIE._DUK_CTX:
+                StreamtapeIE._DUK_CTX = pyduk.DuktapeContext()
         
     
     def _real_extract(self, url):
