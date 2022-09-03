@@ -119,7 +119,8 @@ class scroll():
 def _check_init(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        self._real_initialize()
+        if not self._CLIENT:
+            self._real_initialize()
         return func(self, *args, **kwargs)
     return wrapper
 
