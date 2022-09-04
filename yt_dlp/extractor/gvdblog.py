@@ -2,19 +2,20 @@ import json
 import re
 from datetime import datetime
 import html
-import itertools
-from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, get_domain
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, ConnectError
+from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
+from .commonwebdriver import (
+    dec_on_exception, dec_on_exception2, dec_on_exception3, 
+    SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, ConnectError)
 
 from concurrent.futures import ThreadPoolExecutor
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
 
-    def getbestvid(self, x, check=True, msg=None):
+    def get_video_entry(self, x, check=True, msg=None):
 
         _x = x if isinstance(x, list) else [x]
         iedood = self._get_extractor('DoodStream')
-        _x.sort(key=lambda y: iedood.suitable(y)) #tube prior to dood
+        _x.sort(key=lambda y: iedood.suitable(y)) #any video prior to dood
 
         pre = ' '
         if msg: pre = f'{msg}{pre}'       
@@ -36,15 +37,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_urls(post):
         
         if isinstance(post, str):
-            webpage = post
-            
+            webpage = post            
         else:
             webpage = traverse_obj(post, ('content', '$t'))
-
-        #_reg_expr = r'<iframe (?:(allowfullscreen="true")|(allow="(?P<ppal2>autoplay)" allowfullscreen=""))(?:([^>]+mozallowfullscreen="(?P<ppal>true)"[^>]+)|[^>]+)src=[\"\'](?P<url>[^\'\"]+)[\"\']'
-        #list_urls = [[mobj.group('url'),mobj.group('ppal'), mobj.group('ppal2')] for mobj in re.finditer(_reg_expr, webpage) if mobj]
-        #_mobj = [{el[0]:el[1].strip('"') for _el in l1.split(' ') if len(el:=_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>', webpage) if any(_ in l1 for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""'])]
-        #list_urls = [[item.get('src'), item.get('mozallowfullscreen'), item.get('allow') == 'autoplay'] for item in _mobj]
+            
         list_urls = [[item.get('src'), item.get('mozallowfullscreen'), item.get('allow') == 'autoplay'] for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1.split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>', webpage) if any(_ in l1 for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""'])]]
         n_ppal = len([el for el in list_urls if (el[1] or el[2])])
         n_downloads = len(re.findall(r'<button class="mybutton2">Download\s*</button>', webpage))
@@ -126,7 +122,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             entries = []
             if (_len:=len(list_candidate_videos)) > 1:
                 with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl", max_workers=min(len(list_candidate_videos), 5)) as exe:
-                    futures = {exe.submit(self.getbestvid, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
+                    futures = {exe.submit(self.get_video_entry, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
                 
                 
                 for fut in futures:
@@ -139,7 +135,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 
             elif _len == 1:
                 try:
-                    _entry = self.getbestvid(list_candidate_videos[0], check=check, msg=pre)
+                    _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=pre)
                     if _entry:
                         entries.append(_entry)
                 except Exception as e:
@@ -156,8 +152,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
             for _el in entries:
                 _el.update(_entryupdate)
-               
-            
+
             return (entries, title, postid)
         
         except ExtractorError as e:                 
@@ -191,18 +186,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"
     _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html'
-    _TESTS = [{
-        'url': 'https://www.gvdblog.com/2022/06/aingeru-solo.html',
-        'info_dict': {
-            'id': '4577767402561614008', 
-            'title': 'Aingeru_Solo_Part_1',
-        },
-        'playlist_mincount': 5,
-        'params': {
-            'skip_download': True,
-        }
-    }]
-    
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -215,11 +198,9 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         return self.playlist_result(entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
                 
 
-
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"
     _VALID_URL = r'https?://(?:www\.)?gvdblog.com/search\?(?P<query>.+)'
-    
 
     def send_api_search(self, query):
         
@@ -297,8 +278,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         for _post_blog in blog_posts_list:
             yield try_get(self.get_entries_from_blog_post(_post_blog), lambda x: x[0][0])
-        
-    
+
     def get_entries_search(self, url):         
     
         
@@ -328,30 +308,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             except Exception as e:                
                 self.report_warning(f'[get_entries] fails fut {futures[fut]}')
         
-        #mejor hacer el entrelazado de hosts en la parte del DL, no desde el extractor
-        # def get_list_interl(res):
-        #     _dict = {}
-        #     for ent in res:
-        #         _key = get_domain(ent['formats'][0]['url'])
-        #         if not _dict.get(_key): _dict[_key] = [ent]
-        #         else: _dict[_key].append(ent)
-            
-        #     self.to_screen(f'[get_entries] {len(list(_dict.keys()))} different hosts, longest with {len(max(list(_dict.values()), key=len))} entries')
-        #     _interl = []
-        #     for el in list(itertools.zip_longest(*list(_dict.values()))):
-        #         _interl.extend([_el for _el in el if _el])
-        #     return _interl   
-        
-        
-        # return get_list_interl(_entries)
+
         
         return _entries
-    
-    
+ 
     def _real_initialize(self):
         super()._real_initialize()
-               
-    
+
     def _real_extract(self, url):
         
         
