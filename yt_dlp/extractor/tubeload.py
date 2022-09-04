@@ -151,7 +151,7 @@ class TubeloadIE(SeleniumInfoExtractor):
 
     def _real_initialize(self):        
         with TubeloadIE._LOCK:
-            if all([TubeloadIE._DUK_CTX, self._YTDL, self._YTDL != self._downloader]):
+            if all([TubeloadIE._DUK_CTX, SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):
                 TubeloadIE._DUK_CTX = None
                 
             super()._real_initialize()
@@ -197,6 +197,8 @@ class TubeloadIE(SeleniumInfoExtractor):
             self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         
+
+
 class RedloadIE(TubeloadIE):
     
     _SITE_URL = "https://redload.co"
