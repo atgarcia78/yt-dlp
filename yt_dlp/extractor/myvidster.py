@@ -59,7 +59,6 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
-
     def _login(self):
         
         res = self._send_request(self._LOGIN_URL, _type="GET")
@@ -111,8 +110,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         except Exception as e:            
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
-            
-    
+
     def _login_driver(self, driver):
         
         driver.get(self._SITE_URL)
@@ -384,7 +382,6 @@ class MyVidsterIE(MyVidsterBaseIE):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}') 
             raise ExtractorError("No video info")
         
-
 class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:channel:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/channel/(?P<id>\d+)/?(?P<title>\w+)?(\?(?P<query>.+))?'
@@ -465,7 +462,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
         
-       
 class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:search:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/search/?\?(?P<query>.+)'
@@ -561,8 +557,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
 
-    
-    
 class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:subs:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/subscriptions/Atgarcia/?(\?q=(?P<query>.+))'
@@ -634,7 +628,6 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                     collections = re.findall(r'/Atgarcia/gallery/(\d+)', _subsuser)                    
                     MyVidsterBaseIE._RSS.update({username: {'userid' : userid, 'channels': channels, 'collections': collections}})
 
-                                                                               
 
     def _query_rss(self, q):
         info = {
@@ -651,7 +644,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             "Accept": "*/*"
         }
         
-        res = self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
+        self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
         res = self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post)
         return res
         
