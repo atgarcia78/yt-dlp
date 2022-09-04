@@ -253,12 +253,14 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         urlquery = ""
         
-        if _upt_max:=params.get('updated-max'):
-            urlquery += f"&updated-max={_upt_max}T23:59:59"
-        if _upt_min:=params.get('updated-min'):
-            urlquery += f"&updated-min={_upt_min}T00:00:00"
+        # if _upt_max:=params.get('updated-max'):
+        #     urlquery += f"&updated-max={_upt_max}T23:59:59"
+        # if _upt_min:=params.get('updated-min'):
+        #     urlquery += f"&updated-min={_upt_min}T00:00:00"
         if _upt:=params.get('updated'):
-            urlquery += f"&updated-max={_upt}T23:59:59" + f"&updated-min={_upt}T00:00:00"
+            urlquery += f"&updated-max={_upt}T23:59:59&updated-min={_upt}T00:00:00&orderby=updated"
+        if _publ:=params.get('published'):
+            urlquery += f"&published-max={_publ}T23:59:59&published-min={_publ}T00:00:00&orderby=published"
         if _category:=(params.get('label') or params.get('category')):
             urlquery += f"&category={_category}"
         if _q:=params.get('q'):
@@ -270,9 +272,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         post_blog_entries_search = self.send_api_search(urlquery) 
         
-        if (_upto:=params.get('upto')):
-            _upto = datetime.fromisoformat(_upto)
-            post_blog_entries_search = list(filter(lambda x: datetime.fromisoformat(traverse_obj(x, ('updated', '$t')).split('T')[0]) >= _upto, post_blog_entries_search))
+        # if (_upto:=params.get('upto')):
+        #     _upto = datetime.fromisoformat(_upto)
+        #     post_blog_entries_search = list(filter(lambda x: datetime.fromisoformat(traverse_obj(x, ('updated', '$t')).split('T')[0]) >= _upto, post_blog_entries_search))
         
         _nentries = int(params.get('entries', -1))
         _from = int(params.get('from', 1))
@@ -326,21 +328,24 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             except Exception as e:                
                 self.report_warning(f'[get_entries] fails fut {futures[fut]}')
         
-        def get_list_interl(res):
-            _dict = {}
-            for ent in res:
-                _key = get_domain(ent['formats'][0]['url'])
-                if not _dict.get(_key): _dict[_key] = [ent]
-                else: _dict[_key].append(ent)
+        #mejor hacer el entrelazado de hosts en la parte del DL, no desde el extractor
+        # def get_list_interl(res):
+        #     _dict = {}
+        #     for ent in res:
+        #         _key = get_domain(ent['formats'][0]['url'])
+        #         if not _dict.get(_key): _dict[_key] = [ent]
+        #         else: _dict[_key].append(ent)
             
-            self.to_screen(f'[get_entries] {len(list(_dict.keys()))} different hosts, longest with {len(max(list(_dict.values()), key=len))} entries')
-            _interl = []
-            for el in list(itertools.zip_longest(*list(_dict.values()))):
-                _interl.extend([_el for _el in el if _el])
-            return _interl   
+        #     self.to_screen(f'[get_entries] {len(list(_dict.keys()))} different hosts, longest with {len(max(list(_dict.values()), key=len))} entries')
+        #     _interl = []
+        #     for el in list(itertools.zip_longest(*list(_dict.values()))):
+        #         _interl.extend([_el for _el in el if _el])
+        #     return _interl   
         
         
-        return get_list_interl(_entries)
+        # return get_list_interl(_entries)
+        
+        return _entries
     
     
     def _real_initialize(self):
