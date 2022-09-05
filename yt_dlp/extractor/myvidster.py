@@ -1,5 +1,4 @@
-import sys
-import traceback
+
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import Lock
@@ -378,9 +377,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         except ExtractorError as e:
             raise 
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}') 
-            raise ExtractorError("No video info")
+            raise ExtractorError(repr(e))
         
 class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:channel:playlist'   
