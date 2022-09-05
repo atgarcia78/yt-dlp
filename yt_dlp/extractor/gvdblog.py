@@ -9,9 +9,13 @@ from .commonwebdriver import (
 
 from concurrent.futures import ThreadPoolExecutor
 
+import logging
+
+logger = logging.getLogger('GVDBlog')
+
 class GVDBlogBaseIE(SeleniumInfoExtractor):
 
-    def get_video_entry(self, x, check=True, msg=None):
+    def get_entry_video(self, x, check=True, msg=None):
 
         _x = x if isinstance(x, list) else [x]
         iedood = self._get_extractor('DoodStream')
@@ -122,7 +126,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             entries = []
             if (_len:=len(list_candidate_videos)) > 1:
                 with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl", max_workers=min(len(list_candidate_videos), 5)) as exe:
-                    futures = {exe.submit(self.get_video_entry, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
+                    futures = {exe.submit(self.get_entry_video, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
                 
                 
                 for fut in futures:
@@ -158,7 +162,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         except ExtractorError as e:                 
             raise 
         except Exception as e:
-            self.report_warning(f'{pre} {repr(e)}')  
+            logger.exception(f'{pre} {repr(e)}')  
             raise ExtractorError(f'{pre} {repr(e)}')
 
 
@@ -303,10 +307,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 if (_res:=try_get(fut.result(), lambda x: x[0])):
                     _entries += _res
                 else:                    
-                    
-                    self.report_warning(f'[get_entries] fails fut {futures[fut]}')
+                    logger.error(f'[get_entries] no entry, fails fut {futures[fut]}')
             except Exception as e:                
-                self.report_warning(f'[get_entries] fails fut {futures[fut]}')
+                logger.exception(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
         
 
         
