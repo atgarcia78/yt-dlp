@@ -158,26 +158,26 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     @classmethod
     def logger_info(cls, msg):
-        if SeleniumInfoExtractor._YTDL:
-            if (_logger:=SeleniumInfoExtractor._YTDL.params.get('logger')):
+        if cls._YTDL:
+            if (_logger:=cls._YTDL.params.get('logger')):
                 _logger.info(f"[{cls.__name__[:-2].lower()}]{msg}")
             else:
-                SeleniumInfoExtractor._YTDL.to_screen(f"[{cls.__name__[:-2].lower()}]{msg}")
+                cls._YTDL.to_screen(f"[{cls.__name__[:-2].lower()}]{msg}")
         
     @classmethod       
     def logger_debug(cls, msg):
-        if SeleniumInfoExtractor._YTDL:
-            if (_logger:=SeleniumInfoExtractor._YTDL.params.get('logger')):
+        if cls._YTDL:
+            if (_logger:=cls._YTDL.params.get('logger')):
                 _logger.debug(f"[debug+][{cls.__name__[:-2].lower()}]{msg}")
             else:
-                SeleniumInfoExtractor._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
+                cls._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
     @_check_init
     def _get_extractor(self, _args):
 
         if _args.startswith('http'):
 
-            ies = SeleniumInfoExtractor._YTDL._ies
+            ies = self._YTDL._ies
             for ie_key, ie in ies.items():
                 if ie.suitable(_args):
                     if ie_key == 'Generic': 
@@ -248,6 +248,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if not SeleniumInfoExtractor._YTDL or SeleniumInfoExtractor._YTDL != self._downloader:                    
                     
                     if SeleniumInfoExtractor._YTDL:
+                        logger.debug("Cambio de ytdl")
                         self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params['sem']
                         self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params['lock']
                     SeleniumInfoExtractor._YTDL = self._downloader                
