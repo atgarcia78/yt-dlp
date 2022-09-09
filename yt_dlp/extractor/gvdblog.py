@@ -18,8 +18,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entry_video(self, x, check=True, msg=None):
 
         _x = x if isinstance(x, list) else [x]
-        iedood = self._get_extractor('DoodStream')
-        _x.sort(key=lambda y: iedood.suitable(y)) #any video prior to dood
+        #iedood = self._downloader.get_info_extractor('DoodStream')
+        #_x.sort(key=lambda y: iedood.suitable(y)) #any video prior to dood
+        _x.sort(reverse=True)
 
         pre = ' '
         if msg: pre = f'{msg}{pre}'       
@@ -37,57 +38,99 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             except Exception as e:
                 self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
-    @staticmethod
-    def get_urls(post):
+    
+    def get_urls(self, post):
         
         if isinstance(post, str):
             webpage = post            
         else:
             webpage = traverse_obj(post, ('content', '$t'))
             
-        list_urls = [[item.get('src'), item.get('mozallowfullscreen'), item.get('allow') == 'autoplay'] for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1.split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>', webpage) if any(_ in l1 for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""'])]]
-        n_ppal = len([el for el in list_urls if (el[1] or el[2])])
-        n_downloads = len(re.findall(r'<button class="mybutton2">Download\s*</button>', webpage))
-        if n_ppal > n_downloads:
-            for i in range(1, len(list_urls), 2):
-                list_urls[i][1] = None
-                list_urls[i][2] = None
-        list1 = []
-        _subvideo = []
-        _subvideo2 = []
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(Download\s*)</button>', webpage) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'Download' in l1[1]]]
         
-        for i,el in enumerate(list_urls):
-            if not el[0]:
-                continue
-            if el[1] or el[2]:
-                if _subvideo:
-                    list1.append(_subvideo)
-                    _subvideo = []
-                if _subvideo2:
-                    _subvideo2.append(el[0])
-                    list1.append(_subvideo2)
-                    _subvideo2 = []
-                else:
-                    _subvideo.append(el[0])
+        iedood = self._downloader.get_info_extractor('DoodStream')
+        n_videos = list_urls.count(None)
+        n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
+        if n_videos and n_videos_dood and n_videos == n_videos_dood:
+            _final_urls = list_urls
+        
+        else:
+            _final_urls = []
+            _pass = 0
+            for i in range(len(list_urls)):
+                if _pass:
+                    _pass -= 1
+                    continue
+                if list_urls[i] and iedood.suitable(list_urls[i]):
+                    if i == (len(list_urls) - 1):
+                        _final_urls.append(list_urls[i])
+                        _final_urls.append(None)
+                    else:
+                        j = 1
+                        _temp = []
+                        while True:
+                            if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
+                                _temp.append(list_urls[i+j])
+                                j += 1
+                                if j + i == len(list_urls): break
+                            else: break
+                        if _temp:
+                            _final_urls.extend(_temp)
+                            _pass = len(_temp)
+                        if not list_urls[i+j]:
+                            _pass += 1
+                        _final_urls.append(list_urls[i])
+                        _final_urls.append(None)
+                        
+                elif list_urls[i] and not iedood.suitable(list_urls[i]):
+
+                    _temp = []
+                    if i < len(list_urls):
+                        j = 1
+                        while True:
+                            if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
+                                _temp.append(list_urls[i+j])
+                                j += 1
+                                if j + i == len(list_urls):
+                                    j -= 1
+                                    break
+                            else: break
+                    _final_urls.append(list_urls[i])
+                    if _temp:
+                        _final_urls.extend(_temp)
+                        _pass = len(_temp)
+                    if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
+                        _final_urls.append(list_urls[i+j])
+                        _final_urls.append(None)
+                        _pass += 1 
+        
+        
+        # _final_urls = []
+        # for i,el in enumerate(list_urls):
+        #     _final_urls.append(el)
+        #     if el and iedood.suitable(el):
+        #         if i == (len(list_urls) - 1):
+        #             _final_urls.append(None)
+        #         else:
+        #             if list_urls[i+1] and iedood.suitable(list_urls[i+1]):
+        #                 _final_urls.append(None)
+
+        
+        _subvideo = []
+        list1 = []
+        for el in _final_urls:
+            if el:
+                _subvideo.append(el)
             else:
                 if _subvideo:
-                    _subvideo.append(el[0])
+                    _subvideo.sort(reverse=True)
                     list1.append(_subvideo)
                     _subvideo = []
-                else:
-                    if i == (len(list_urls) - 1):
-                        list1.append(el[0])
-                    elif traverse_obj(list_urls, (i+1, 1)) or traverse_obj(list_urls, (i+1, 2)):
-                        _subvideo2.append(el[0])
-
-        if _subvideo:
-            list1.append(_subvideo)
-        if _subvideo2:
-            list1.append(_subvideo2)
+        
         return list1
 
-    @staticmethod               
-    def get_info(post):
+                   
+    def get_info(self, post):
 
         if isinstance(post, str):
             
