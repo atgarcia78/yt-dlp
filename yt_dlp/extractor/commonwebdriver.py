@@ -51,9 +51,6 @@ def my_jitter(value: float) -> float:
 
     return int(random.uniform(value, value*1.25))
 
-def my_jitter2(value: float) -> float:
-
-    return int(random.uniform(value, value*2))
 
 class StatusError503(Exception):
     """Error during info extraction."""
@@ -64,8 +61,8 @@ class StatusError503(Exception):
         self.exc_info = sys.exc_info()  # preserve original exception
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter2, raise_on_giveup=False, interval=15)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=5, jitter=my_jitter2, raise_on_giveup=False, interval=10)
+dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
 dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
@@ -80,7 +77,7 @@ CONFIG_EXTRACTORS = {
                 ('tubeload', 'embedo',
                 'thisvidgay','redload',
                 'biguz', 'gaytubes',): {
-                                            'ratelimit': limiter_1, 
+                                            'ratelimit': limiter_0_1, 
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
      'gayguytop', 'upstream', 'videobin', 

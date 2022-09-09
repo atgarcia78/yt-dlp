@@ -5,70 +5,61 @@ import re
 import threading
 import html
 import pyduktape3 as pyduk
+from pathlib import Path
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_0_5, limiter_5, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
-
-import logging
-
-logger = logging.getLogger("tubeload")
+    limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
 
 
-class TubeloadIE(SeleniumInfoExtractor):
+class BaseloadIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'tubeload'    
-    _SITE_URL = "https://tubeload.co"
-    _VALID_URL = r'https?://(?:www\.)?tubeload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1']
-    
-    #_DUK_CTX = None
-
-    
-    _LOCK = threading.Lock()
-    
-    
+    @dec_on_exception
     @dec_on_exception3  
     @dec_on_exception2
-    @limiter_0_5.ratelimit("tubeload", delay=True)
     def _get_video_info(self, url, msg=None):        
         
-        try:
-            if msg: pre = f'{msg}[get_video_info]'
-            else: pre = '[get_video_info]'
-            self.logger_debug(f"{pre} {self._get_url_print(url)}")
-            _host = get_domain(url)
-            
-            with self.get_param('lock'):
-                if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                    _sem = PriorityLock()
-                    self.get_param('sem').update({_host: _sem})
+        with limiter_0_1.ratelimit(self.IE_NAME, delay=True):
+            try:
+                if msg: pre = f'{msg}[get_video_info]'
+                else: pre = '[get_video_info]'
+                self.logger_debug(f"{pre} {self._get_url_print(url)}")
+                _host = get_domain(url)
                 
-                         
-            with _sem.priority(1):
-                return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
-            
-        except (HTTPStatusError, ConnectError) as e:
-            self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+                with self.get_param('lock'):
+                    if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
+                        _sem = PriorityLock()
+                        self.get_param('sem').update({_host: _sem})
+                    
+                            
+                with _sem.priority(1):
+                    return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+                
+            except (HTTPStatusError, ConnectError) as e:
+                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
 
             
     @dec_on_exception
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_0_5.ratelimit("tubeload2", delay=True)
-    def _send_request(self, url, driver=None, msg=None):        
+    def _send_request(self, url, **kwargs):       
         
-        if msg: pre = f'{msg}[send_req]'
-        else: pre = '[send_req]'
-        self.logger_debug(f"{pre} {self._get_url_print(url)}") 
-        if driver:
-            driver.get(url)
-        else:
-            try:                
-                return self.send_http_request(url)                
-            except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+        driver = kwargs.get('driver', None)
+        msg = kwargs.get('msg', None)
+        headers = kwargs.get('headers', None)
+        
+        with limiter_0_1.ratelimit(f'{self.IE_NAME}2', delay=True):
+            if msg: pre = f'{msg}[send_req]'
+            else: pre = '[send_req]'
+            self.logger_debug(f"{pre} {self._get_url_print(url)}") 
+            if driver:
+                driver.get(url)
+            else:
+                try:                
+                    return self.send_http_request(url, headers=headers)                
+                except (HTTPStatusError, ConnectError) as e:
+                    self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
                 
     def _get_args(self, webpage, _all=False):
         
@@ -108,7 +99,7 @@ class TubeloadIE(SeleniumInfoExtractor):
             if not webpage: raise ExtractorError("error 404 no webpage")
                       
             try:
-                self.init_ctx()
+                self.init_ctx(f"{self._SITE_URL}/e/{videoid}")
                 args = self._get_args(webpage)
                 video_url = self.get_videourl(*args)
             except pyduk.JSError as e:
@@ -116,7 +107,10 @@ class TubeloadIE(SeleniumInfoExtractor):
                 lines = traceback.format_exception(*sys.exc_info())
                 self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
                 self._real_initialize()
-                self.init_ctx()
+                webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}"), lambda x: html.unescape(x.text))
+                if not webpage: raise ExtractorError("error 404 no webpage")
+                args = self._get_args(webpage)                
+                self.init_ctx(f"{self._SITE_URL}/e/{videoid}")
                 try:
                     video_url = self.get_videourl(*args)                    
                 except Exception as e:
@@ -157,14 +151,11 @@ class TubeloadIE(SeleniumInfoExtractor):
 
 
     def _real_initialize(self):        
-        # with TubeloadIE._LOCK:
-            
-        #     super()._real_initialize()
-        #     self.init_ctx()
+
         super()._real_initialize()
             
     
-    def init_ctx(self):
+    def init_ctx(self, url):
         
         self._DUK_CTX = pyduk.DuktapeContext()
         
@@ -176,10 +167,21 @@ class TubeloadIE(SeleniumInfoExtractor):
         self._DUK_CTX.eval_js(jscode_atob)
         
         #initial conf data
+            
+        _headers_mainjs = {    
+            'Referer': url,
+            'Sec-Fetch-Dest': 'script',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
 
-        mainjs = try_get(self._send_request('https://tubeload.co/assets/js/main.min.js'), lambda x: x.text) 
 
-                
+        mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text) 
+            
+        if not mainjs:
+            raise ExtractorError("couldnt get mainjs")
         _code = self._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
         _jscode_1, _var = try_get(re.findall(r'(var res = ([^\.]+)\.replace.*); var decode', _code), lambda x: x[0])
         
@@ -190,33 +192,7 @@ class TubeloadIE(SeleniumInfoExtractor):
         self.get_videourl = self._DUK_CTX.get_global('getvurl')
         
         self.jscode_final = f'function getvurl(h,u,n,t,e,r){{{jscode_deofus}var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};{jscode_atob};return atob(res2)}};'
-           
-        # with TubeloadIE._LOCK:
-        
-        #     TubeloadIE._DUK_CTX = pyduk.DuktapeContext()
-            
-        #     #helper functions: deofus, atob
-        #     jscode_deofus = 'function deofus(h,u,n,t,e,r){var _data=["","split","0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/","slice","indexOf","","",".","pow","reduce","reverse","0"];function _aux(d,e,f){var g=_data[2][_data[1]](_data[0]);var h=g[_data[3]](0,e);var i=g[_data[3]](0,f);var j=d[_data[1]](_data[0])[_data[10]]()[_data[9]](function(a,b,c){if(h[_data[4]](b)!==-1)return a+=h[_data[4]](b)*(Math[_data[8]](e,c))},0);var k=_data[0];while(j>0){k=i[j%f]+k;j=(j-(j%f))/f}return k||_data[11]};function _aux2(h,u,n,t,e,r){r="";for(var i=0,len=h.length;i<len;i++){var s="";while(h[i]!==n[e]){s+=h[i];i++}for(var j=0;j<n.length;j++)s=s.replace(new RegExp(n[j],"g"),j);r+=String.fromCharCode(_aux(s,e,10)-t)};return decodeURIComponent(escape(r))};return _aux2(h,u,n,t,e,r)};'                
-        #     jscode_atob = 'function atob(str){return (new TextDecoder().decode(Duktape.dec("base64", str)))}'
-            
-        #     TubeloadIE._DUK_CTX.eval_js(jscode_deofus)
-        #     TubeloadIE._DUK_CTX.eval_js(jscode_atob)
-            
-        #     #initial conf data
-
-        #     mainjs = try_get(self._send_request('https://tubeload.co/assets/js/main.min.js'), lambda x: x.text) 
-    
-                    
-        #     _code = TubeloadIE._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
-        #     _jscode_1, _var = try_get(re.findall(r'(var res = ([^\.]+)\.replace.*); var decode', _code), lambda x: x[0])
-            
-        #     jscode = f'function getvurl(h,u,n,t,e,r){{var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};return atob(res2)}};'
-            
-        #     TubeloadIE._DUK_CTX.eval_js(jscode)
-            
-        #     self.get_videourl = TubeloadIE._DUK_CTX.get_global('getvurl')
-            
-        #     self.jscode_final = f'function getvurl(h,u,n,t,e,r){{{jscode_deofus}var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};{jscode_atob};return atob(res2)}};'
+   
 
     def _real_extract(self, url):
         
@@ -237,12 +213,16 @@ class TubeloadIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         
 
+class TubeloadIE(BaseloadIE):
+    
+    IE_NAME = 'tubeload'    
+    _SITE_URL = "https://tubeload.co"
+    _VALID_URL = r'https?://(?:www\.)?tubeload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1']
 
-class RedloadIE(TubeloadIE):
+class RedloadIE(BaseloadIE):
     
-    _SITE_URL = "https://redload.co"
-    
+    _SITE_URL = "https://redload.co"    
     IE_NAME = 'redload'
-    _VALID_URL = r'https?://(?:www\.)?redload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
-    
+    _VALID_URL = r'https?://(?:www\.)?redload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'    
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?redload\.co/e/.+?)\1']
