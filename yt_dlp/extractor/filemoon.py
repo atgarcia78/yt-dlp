@@ -1,62 +1,40 @@
 import sys
 import traceback
 import re
-import time
+import pyduktape3 as pyduk
+import json
 
-from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_2, By, ec
-
-
-class gettitle_trigger_m3u8():
-    def __call__(self, driver):
-        
-        vdiv = driver.find_elements(By.CSS_SELECTOR, "div")
-
-        try:
-            
-            while True:
-                try:
-                    vdiv[-1].click()
-                    time.sleep(1)
-                except Exception:
-                    break
-            
-            while True:
-                try:
-                    vdiv[-2].click()
-                    time.sleep(1)
-                except Exception:
-                    break
-            
-            vpl = driver.find_element(By.ID, "vplayer")
-            vpl.click()            
-            vpl.click()
-
-            return driver.find_element(By.TAG_NAME, "h3").get_attribute('innerText')
-
-        except Exception as e:
-            return False
+from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, js_to_json, decode_packed_codes
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, HTTPStatusError, ConnectError
 
 
 class FilemoonIE(SeleniumInfoExtractor):
 
     IE_NAME = "filemoon"
     _SITE_URL = "https://filemoon.sx/"
-    _VALID_URL = r'https?://filemoon\.\w\w/[e,d]/(?P<id>[^&]+)'
+    _VALID_URL = r'https?://filemoon\.\w\w/[e,d]/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1']
     
     @dec_on_exception
-    @limiter_2.ratelimit("filemoon", delay=True)
-    def send_multi_request(self, url, driver=None, _type=None, headers=None):
+    @dec_on_exception3
+    @dec_on_exception2
+    def _send_request(self, url, **kwargs):       
         
-        if driver:
-            driver.get(url)
-        else:
-            if not _type:
-                res = self.send_http_request(url, headers=headers)                
-                return res
+        driver = kwargs.get('driver', None)
+        msg = kwargs.get('msg', None)
+        headers = kwargs.get('headers', None)
+        
+        with limiter_2.ratelimit(f'{self.IE_NAME}', delay=True):
+            if msg: pre = f'{msg}[send_req]'
+            else: pre = '[send_req]'
+            self.logger_debug(f"{pre} {self._get_url_print(url)}") 
+            if driver:
+                driver.get(url)
             else:
-                return self.get_info_for_format(url, headers=headers)       
+                try:                
+                    return self.send_http_request(url, headers=headers)                
+                except (HTTPStatusError, ConnectError) as e:
+                    self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")    
 
 
     def _real_initialize(self):
@@ -64,55 +42,85 @@ class FilemoonIE(SeleniumInfoExtractor):
         super()._real_initialize()        
 
                 
-    def _real_extract(self, url):
-
-        try:
-            
-            self.report_extraction(url) 
-                
-            videoid = self._match_id(url)
-
-            driver = self.get_driver(devtools=True)
-            
-            _formats = None            
-            
-            self.send_multi_request(_wurl:=(url.replace('/e/', '/d/').replace('filemoon.to', 'filemoon.sx')), driver)
-
-            title = self.wait_until(driver, 60, gettitle_trigger_m3u8())
-            
-            _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
-                                
-            m3u8_url, m3u8_doc = self.scan_for_request(driver, f"master.m3u8")
-            if m3u8_url and m3u8_doc:
-                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-
-            if _formats: self._sort_formats(_formats)
-            else:
-                raise ExtractorError(f"[{url}] Couldnt find any video format")
-
-                
-            for _format in _formats:
-                if (_head:=_format.get('http_headers')):
-                    _head.update(_headers)
-                else:
-                    _format.update({'http_headers': _headers})   
-
-            return({ 
-                "id": videoid,
-                "title": sanitize_filename(title, restricted=True),                    
-                "formats": _formats,
-                "webpage_url": _wurl,                             
-                "ext": "mp4"})
-            
-
+    def _get_entry(self, url, **kwargs):
         
-        except ExtractorError as e:
-            raise
-        except Exception as e:                
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-            raise ExtractorError(repr(e))
-        finally:
-            self.rm_driver(driver)
+        videoid = self._match_id(url)
+                
+        #_duk_ctx = pyduk.DuktapeContext()
+        
+        _wurl = f"{self._SITE_URL}/d/{videoid}"
+        webpage = try_get(self._send_request(_wurl), lambda x: re.sub('[\t\n]', '', x.text))
+        
+        if not webpage:
+            raise ExtractorError("no webpage")
+        
+        #sign = try_get(re.findall(r'</main><script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage), lambda x: x[0])
+        
+        packed = self._search_regex(r'<script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage, 'packed code')
+        
+        #if not sign:
+        #    raise ExtractorError("couldnt find js function")
+        
+        #jscode = "var res =" + sign +";res"
+        
+        #try:
+        #    _webpage = _duk_ctx.eval_js(jscode)
+        #except Exception as e:
+        #    self.report_warning(repr(e))
+        #    _webpage = None
+        
+        #if not _webpage:
+        #    raise ExtractorError("error executing js")
+        
+        if not packed:
+            raise ExtractorError("couldnt find js function")            
+        
+        unpacked = decode_packed_codes(packed)
+        
+        #options = try_get(re.search(r'setup\s*\((?P<options>[^;]+);', _webpage), lambda x: json.loads(js_to_json(x.group('options')[:-1].replace('Class()','Class'))) if x else None) 
+        
+        #options = try_get(re.search(r'player.setup\((?P<options>[^\)]+)\)', unpacked), lambda x: json.loads(js_to_json(x.group('options').replace("\\",""))) if x else None)
+        
+        #m3u8_url = traverse_obj(options, ('sources', 0, 'file'))
+        
+        m3u8_url = try_get(re.search(r'file:"(?P<url>[^"]+)"', unpacked), lambda x: x.group('url'))
+        
+        if not m3u8_url:
+            raise ExtractorError("couldnt find m3u8 url")
+        
+        _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
+        
+        formats = self._extract_m3u8_formats(m3u8_url, videoid, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls", headers=_headers)
+        
+        if formats: self._sort_formats(formats)
+        else:
+            raise ExtractorError(f"[{url}] Couldnt find any video format")
+        
+        for _format in formats:            
+            _format.update({'http_headers': _headers})   
 
-                    
+        title = self._html_extract_title(webpage)
+        
+        return({ 
+            "id": videoid,
+            "title": sanitize_filename(title, restricted=True).replace("Watch_", ""),                    
+            "formats": formats,
+            "webpage_url": _wurl,                             
+            "ext": "mp4"})
+    
+
+            
+    def _real_extract(self, url):
+        
+        self.report_extraction(url)
+
+        try:  
+            return self._get_entry(url)  
+            
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))
+
