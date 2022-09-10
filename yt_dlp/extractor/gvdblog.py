@@ -18,8 +18,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entry_video(self, x, check=True, msg=None):
 
         _x = x if isinstance(x, list) else [x]
-        #iedood = self._downloader.get_info_extractor('DoodStream')
-        #_x.sort(key=lambda y: iedood.suitable(y)) #any video prior to dood
         _x.sort(reverse=True)
 
         pre = ' '
@@ -46,13 +44,15 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         else:
             webpage = traverse_obj(post, ('content', '$t'))
             
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(Download\s*)</button>', webpage) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'Download' in l1[1]]]
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(Download\s*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower()]]
         
         iedood = self._downloader.get_info_extractor('DoodStream')
         n_videos = list_urls.count(None)
         n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
+        if not n_videos_dood: n_videos_dood = len(list_urls) - n_videos
         if n_videos and n_videos_dood and n_videos == n_videos_dood:
             _final_urls = list_urls
+        
         
         else:
             _final_urls = []
@@ -85,7 +85,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 elif list_urls[i] and not iedood.suitable(list_urls[i]):
 
                     _temp = []
-                    if i < len(list_urls):
+                    if i < (len(list_urls) - 1):
                         j = 1
                         while True:
                             if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
@@ -95,14 +95,15 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                                     j -= 1
                                     break
                             else: break
+                    
                     _final_urls.append(list_urls[i])
                     if _temp:
                         _final_urls.extend(_temp)
                         _pass = len(_temp)
-                    if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
-                        _final_urls.append(list_urls[i+j])
-                        _final_urls.append(None)
-                        _pass += 1 
+                        if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
+                            _final_urls.append(list_urls[i+j])
+                            _final_urls.append(None)
+                            _pass += 1 
         
         
         # _final_urls = []
@@ -251,27 +252,31 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def send_api_search(self, query):
         
-        def getter(x):
-            if not x:
-                return []
-            if _jsonstr:=x.group("data"):
-                return traverse_obj(json.loads(_jsonstr), ('feed', 'entry'), default=[])
-            else: return []
+        try:
             
         
-        _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"
-        
-        self.to_screen(_urlquery)
-                
-        res_search = try_get(self._send_request(_urlquery), lambda x: x.text)        
-        if not res_search: 
-            raise ExtractorError("no search results")
-        video_entries = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), getter)
-        if not video_entries: 
-            raise ExtractorError("no video entries")
-        self.logger_debug(f'[entries result] {len(video_entries)}')
-        
-        return video_entries
+            _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"
+            
+            self.to_screen(_urlquery)
+                    
+            res_search = try_get(self._send_request(_urlquery), lambda x: x.text.replace(',,',','))        
+            if not res_search: 
+                raise ExtractorError("no search results")
+            
+            data = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), lambda x: x.group('data'))
+            
+            self.logger_debug(f'[entries result] {data}')
+            
+            info_json = json.loads(data)
+
+            video_entries = traverse_obj(info_json, ('feed', 'entry'))
+            if not video_entries: 
+                raise ExtractorError("no video entries")
+            self.logger_debug(f'[entries result] {len(video_entries)}')
+            
+            return video_entries
+        except Exception as e:
+            logger.exception(repr(e))
 
     def get_blog_posts_search(self, url):        
         
@@ -281,10 +286,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         urlquery = ""
         
-        # if _upt_max:=params.get('updated-max'):
-        #     urlquery += f"&updated-max={_upt_max}T23:59:59"
-        # if _upt_min:=params.get('updated-min'):
-        #     urlquery += f"&updated-min={_upt_min}T00:00:00"
         if _upt:=params.get('updated'):
             urlquery += f"&updated-max={_upt}T23:59:59&updated-min={_upt}T00:00:00&orderby=updated"
         if _publ:=params.get('published'):
@@ -300,9 +301,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         post_blog_entries_search = self.send_api_search(urlquery) 
         
-        # if (_upto:=params.get('upto')):
-        #     _upto = datetime.fromisoformat(_upto)
-        #     post_blog_entries_search = list(filter(lambda x: datetime.fromisoformat(traverse_obj(x, ('updated', '$t')).split('T')[0]) >= _upto, post_blog_entries_search))
         
         _nentries = int(params.get('entries', -1))
         _from = int(params.get('from', 1))
