@@ -4,7 +4,7 @@ import re
 
 from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, traverse_obj, url_basename, base_url
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, limiter_5, HTTPStatusError, ConnectError, PriorityLock)
+    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, limiter_5, HTTPStatusError, ConnectError, Lock)
 
 class ThisvidgayIE(SeleniumInfoExtractor):
     
@@ -29,16 +29,14 @@ class ThisvidgayIE(SeleniumInfoExtractor):
             
             with self.get_param('lock'):
                 if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                    _sem = PriorityLock()
+                    _sem = Lock()
                     self.get_param('sem').update({_host: _sem})
                 
-            _sem.acquire(priority=10)     
-            
-            return self.get_info_for_format(url, headers=_headers)
+            with _sem:                 
+                return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
-        finally:
-            if _sem: _sem.release()         
+                 
        
         
     @dec_on_exception

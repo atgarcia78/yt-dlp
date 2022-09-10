@@ -1,6 +1,5 @@
 import re
 import sys
-import threading
 import time
 import traceback
 import pyduktape3 as pyduk
@@ -39,9 +38,9 @@ class StreamtapeIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(www.)?(?:streamtape|streamta)\.(?:com|net|pe)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1']
     
-    _DUK_CTX = None
+    #_DUK_CTX = None
     
-    _LOCK = threading.Lock()    
+    #_LOCK = threading.Lock()    
 
     @dec_on_exception3
     @dec_on_exception2
@@ -108,7 +107,8 @@ class StreamtapeIE(SeleniumInfoExtractor):
             if not el_node: raise ExtractorError("error when retrieving video url")
             _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])
             try:
-                _res = StreamtapeIE._DUK_CTX.eval_js(_code)                
+                _duk_ctx = pyduk.DuktapeContext()
+                _res = _duk_ctx.eval_js(_code)                
             except Exception as e:
                 raise ExtractorError("error video url")
             
@@ -152,13 +152,13 @@ class StreamtapeIE(SeleniumInfoExtractor):
     
     def _real_initialize(self):
         
-        with StreamtapeIE._LOCK:
-            if all([StreamtapeIE._DUK_CTX, SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):
-                StreamtapeIE._DUK_CTX = None
-            super()._real_initialize()            
-            if not StreamtapeIE._DUK_CTX:
-                StreamtapeIE._DUK_CTX = pyduk.DuktapeContext()
-        
+        # with StreamtapeIE._LOCK:
+        #     if all([StreamtapeIE._DUK_CTX, SeleniumInfoExtractor._YTDL, SeleniumInfoExtractor._YTDL != self._downloader]):
+        #         StreamtapeIE._DUK_CTX = None
+        #     super()._real_initialize()            
+        #     if not StreamtapeIE._DUK_CTX:
+        #         StreamtapeIE._DUK_CTX = pyduk.DuktapeContext()
+        super()._real_initialize()
     
     def _real_extract(self, url):
         
