@@ -10,7 +10,7 @@ from pathlib import Path
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, ConnectError, PriorityLock)
+    limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, ConnectError, Lock)
 
 
 class BaseloadIE(SeleniumInfoExtractor):
@@ -29,11 +29,11 @@ class BaseloadIE(SeleniumInfoExtractor):
                 
                 with self.get_param('lock'):
                     if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                        _sem = PriorityLock()
+                        _sem = Lock()
                         self.get_param('sem').update({_host: _sem})
                     
                             
-                with _sem.priority(1):
+                with _sem:
                     return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
                 
             except (HTTPStatusError, ConnectError) as e:
@@ -106,19 +106,24 @@ class BaseloadIE(SeleniumInfoExtractor):
                 #error when something changes in network, dontknowwhy
                 lines = traceback.format_exception(*sys.exc_info())
                 self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
+                video_url = None
+            
+            if not video_url:
+            
                 self._real_initialize()
                 webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}"), lambda x: html.unescape(x.text))
                 if not webpage: raise ExtractorError("error 404 no webpage")
-                args = self._get_args(webpage)                
-                self.init_ctx(f"{self._SITE_URL}/e/{videoid}")
                 try:
+                    args = self._get_args(webpage)                
+                    self.init_ctx(f"{self._SITE_URL}/e/{videoid}", force=True)
                     video_url = self.get_videourl(*args)                    
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
                     self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
                     raise ExtractorError("error 404 no video url")
                 
-            if not video_url: raise ExtractorError("error no video url")
+                if not video_url: raise ExtractorError("error no video url")
+            
             title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME, '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
                         
             _format = {
@@ -155,13 +160,18 @@ class BaseloadIE(SeleniumInfoExtractor):
         super()._real_initialize()
             
     
-    def init_ctx(self, url):
+    def init_ctx(self, url, force=False):
         
         self._DUK_CTX = pyduk.DuktapeContext()
         
         #helper functions: deofus, atob
         jscode_deofus = 'function deofus(h,u,n,t,e,r){var _data=["","split","0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/","slice","indexOf","","",".","pow","reduce","reverse","0"];function _aux(d,e,f){var g=_data[2][_data[1]](_data[0]);var h=g[_data[3]](0,e);var i=g[_data[3]](0,f);var j=d[_data[1]](_data[0])[_data[10]]()[_data[9]](function(a,b,c){if(h[_data[4]](b)!==-1)return a+=h[_data[4]](b)*(Math[_data[8]](e,c))},0);var k=_data[0];while(j>0){k=i[j%f]+k;j=(j-(j%f))/f}return k||_data[11]};function _aux2(h,u,n,t,e,r){r="";for(var i=0,len=h.length;i<len;i++){var s="";while(h[i]!==n[e]){s+=h[i];i++}for(var j=0;j<n.length;j++)s=s.replace(new RegExp(n[j],"g"),j);r+=String.fromCharCode(_aux(s,e,10)-t)};return decodeURIComponent(escape(r))};return _aux2(h,u,n,t,e,r)};'                
         jscode_atob = 'function atob(str){return (new TextDecoder().decode(Duktape.dec("base64", str)))}'
+        
+        '''
+        def atob(str):
+            return(base64.b64decode(str).decode('iso-8859-1'))
+        '''
         
         self._DUK_CTX.eval_js(jscode_deofus)
         self._DUK_CTX.eval_js(jscode_atob)
@@ -177,9 +187,12 @@ class BaseloadIE(SeleniumInfoExtractor):
             'Cache-Control': 'no-cache',
         }
 
-
-        mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text) 
-            
+        # mainjs = self.cache.load(self.IE_NAME, 'mainjs')
+        # if force or not mainjs:
+        #     mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text) 
+        #     self.cache.store(self.IE_NAME, 'mainjs', mainjs)
+        
+        mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text)
         if not mainjs:
             raise ExtractorError("couldnt get mainjs")
         _code = self._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))

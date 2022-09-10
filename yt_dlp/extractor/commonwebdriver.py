@@ -1,7 +1,7 @@
 import shutil
 import sys
 import tempfile
-import threading
+
 import time
 from urllib.parse import unquote, urlparse
 
@@ -10,7 +10,7 @@ from httpx import HTTPStatusError, HTTPError, StreamError, ConnectError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
-from cs.threads import PriorityLock
+from threading import Lock
 
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
@@ -135,7 +135,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
     
-    _MASTER_LOCK = threading.Lock()
+    _MASTER_LOCK = Lock()
     
     _YTDL = None
     
