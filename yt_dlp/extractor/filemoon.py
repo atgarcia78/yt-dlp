@@ -1,8 +1,8 @@
 import sys
 import traceback
 import re
-import pyduktape3 as pyduk
-import json
+#import pyduktape3 as pyduk
+#import json
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, js_to_json, decode_packed_codes
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, HTTPStatusError, ConnectError

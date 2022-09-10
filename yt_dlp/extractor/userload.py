@@ -7,7 +7,7 @@ from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, 
     SeleniumInfoExtractor, limiter_15, By, ec, HTTPStatusError, ConnectError,
-    PriorityLock)
+    Lock)
 
 class video_or_error_userload():
     
@@ -56,15 +56,14 @@ class UserLoadIE(SeleniumInfoExtractor):
             
             with self.get_param('lock'):
                 if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                    _sem = PriorityLock()
+                    _sem = Lock()
                     self.get_param('sem').update({_host: _sem})
                 
-            _sem.acquire(priority=10)   
-            return self.get_info_for_format(url, headers=_headers)       
+            with _sem:   
+                return self.get_info_for_format(url, headers=_headers)       
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
-        finally:
-            if _sem: _sem.release()
+        
         
         
     @dec_on_exception
