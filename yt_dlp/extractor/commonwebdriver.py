@@ -81,7 +81,7 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 4},
     ('fembed', 'streamtape', 'gayforfans', 
      'gayguytop', 'upstream', 'videobin', 
-                'gayforiteu', 'xvidgay',): {
+'gayforiteu', 'xvidgay', 'boyfriendtv',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16},
           ('odnoklassniki', 'thisvid', 
