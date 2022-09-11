@@ -2463,6 +2463,8 @@ from .boyfriendtv import (
     BoyFriendTVIE,
     BoyFriendTVEmbedIE,
     BoyFriendTVPlayListIE,
+    BoyFriendTVProfileFavIE,
+    BoyFriendTVSearchIE
 )
 from .gayforiteu import GayForITEUIE
 from .manpornxxx import ManPornXXXIE
