@@ -97,65 +97,12 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             else:
                 self.logger_debug("Login OK")
 
-    def _init_client(self):
-        self._CLIENT.cookies.set(name='rta_terms_accepted', value='true', domain='.boyfriendtv.com')
-        res = self._send_request(self._LOGIN_URL)
-        if not res:
-            self.logger_debug(f"couldnt get login page")
-            self._init_driver()            
-        elif 'login' in str(res.url):
-            self._init_driver()
-        else:
-            self.logger_debug(f"Already logged")
-            
-
-    def _init_driver(self):        
-        
-        driver = self.get_driver()
-        self._send_request(self._SITE_URL, driver)
-        driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': '.boyfriendtv.com'})
-        driver.add_cookie({'name': 'videosPerRow', 'value': '5', 'domain': '.boyfriendtv.com'})
-        try:
-            self._send_request(self._LOGIN_URL, driver)
-            if 'login' in driver.current_url:
-                
-                with BoyFriendTVBaseIE._LOCK:
-                    
-                    for cookie in BoyFriendTVBaseIE._COOKIES:
-                        driver.add_cookie(cookie)
-                
-                    self._send_request(self._LOGIN_URL, driver)
-                    if 'login' in driver.current_url:
-                        self._login(driver)
-                        
-                        
-                    else:
-                        self.logger_debug(f"Already logged")
-                                            
-                
-            else:
-                self.logger_debug(f"Already logged")
-            
-            BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
-            for cookie in BoyFriendTVBaseIE._COOKIES:
-            
-                self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-            return driver
-            
-        except Exception as e:
-            #self.to_screen("error when init driver")
-            self.rm_driver(driver)
-            raise            
-            
-
     def _real_initialize(self):
         
         super()._real_initialize()
         
-        with BoyFriendTVBaseIE._LOCK:
-            
-            if not BoyFriendTVBaseIE._COOKIES:
-                
+        with BoyFriendTVBaseIE._LOCK:            
+            if not BoyFriendTVBaseIE._COOKIES:                
                 driver = self.get_driver()
                 try:                                        
                     self._send_request(self._SITE_URL, driver)
@@ -163,7 +110,6 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                     driver.add_cookie({'name': 'videosPerRow', 'value': '5', 'domain': '.boyfriendtv.com'})
                     self._login(driver)
                     BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
-
                 except Exception as e:
                     self.to_screen("error when login")                    
                     raise
@@ -183,9 +129,6 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         self.report_extraction(url)
 
         try:        
-            #webpage = None
-            #self._init_client()
-            
             webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
             if not webpage:
                 raise ExtractorError("no webpage")
@@ -223,8 +166,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                     if not _info_video:
                         self.logger_debug(f"[{url}][{_format_id}] no video info")
                     else:
-                        _format.update({'url': _info_video.get('url'),'filesize': _info_video.get('filesize')})
-                        
+                        _format.update({'url': _info_video.get('url'),'filesize': _info_video.get('filesize')})                        
                     
                     _formats.append(_format)
                 except Exception as e:
@@ -354,32 +296,29 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         
         try:
             logger.debug(f"page: {url_page}")
-            driver = self._init_driver()
-            self._send_request(url_page, driver)
-            el_videos = self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, self._CSS_SEL)))
+            webpage = try_get(self._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
             entries = []
             if el_videos:
                 for el in el_videos:
                     try:
-                        (_thumb, _title, _url) = try_get(el.find_elements(By.CSS_SELECTOR, 'a'), lambda x: (try_get(x[0].find_elements(By.TAG_NAME, 'img'), lambda y: (y[0].get_attribute('src'), y[0].get_attribute('alt'),x[0].get_attribute('href').rsplit("/", 1)[0])))) or ("", "", "")
-                        if 'img/removed-video' in _thumb or not _url: 
+                        thumb, title, url, rating  = try_get(re.search(r'href="(?P<url>[^"]+)".*src="(?P<thumb>[^"]+)" alt="(?P<title>[^"]+)".*green" title="(?P<rat>\d+)%', el), lambda x: (x.group('thumb'), x.group('title'), urljoin(self._SITE_URL, x.group('url').rsplit("/", 1)[0]), try_get(x.group('rat'), lambda y: int(y) if y.isdecimal() else 0)) if x else ("", "", "", ""))
+                        if 'img/removed-video' in thumb or not url: 
                             continue
-                        _rating = try_get(el.find_elements(By.CSS_SELECTOR, 'div.progress-small.js-rating-title.green'), lambda x: try_get(x[0].text.strip('%'), lambda y: int(y) if y.isdecimal() else 0))
                                               
-                        if _rating and (_rating < _min_rating): 
+                        if rating and (rating < _min_rating): 
                             continue
-                        if _title and _q:
-                            if not any(_.lower() in _title.lower() for _ in _q):
+                        if title and _q:
+                            if not any(_.lower() in title.lower() for _ in _q):
                                 continue
-                        entries.append(self.url_result(_url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, _url), lambda x: x.group('id')), video_title=sanitize_filename(_title, restricted=True), average_rating=_rating, original_url=url_page.strip('/').rsplit('/',1)[0]))
+                        entries.append(self.url_result(url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, url), lambda x: x.group('id')), video_title=sanitize_filename(title, restricted=True), average_rating=rating, original_url=url_page.strip('/').rsplit('/',1)[0]))
                     except Exception as e:
                         logger.exception(repr(e))
                         
             return(entries)
         except Exception as e:
             logger.exception(repr(e))
-        finally:
-            self.rm_driver(driver)
+
         
     def _real_initialize(self):
         super()._real_initialize()
@@ -391,19 +330,21 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         if query:
             params =  { el.split('=')[0]: el.split('=')[1] for el in mobj.group('query').split('&')}
         else: params = {}
-        driver = self._init_driver()
-        try:        
-            self.to_screen(self._BASE_URL % playlist_id)
+        
+        try:
+            _sq = try_get(params.get('sort'), lambda x: f'?sort={x}' if x else "")        
+            self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
             self.to_screen(params)
-            self._send_request(self._BASE_URL % playlist_id, driver)
-            
-            _title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "h1"))), lambda x: x.text.splitlines()[0])
+            webpage = try_get(self._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
             _min_rating = int(params.get('rating', 0))
             _q = try_get(params.get('q'), lambda x: x.split(','))
-            last_page = try_get(driver.find_elements(By.CSS_SELECTOR, "a.rightKey"), lambda x: try_get(re.search(r'(?P<last>\d+)/?$', x[-1].get_attribute('href')), lambda y: int(y.group('last')))) or 1
+            last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "") 
+            last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
             self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
-            with ThreadPoolExecutor(thread_name_prefix='bftvlist', max_workers=8) as ex:
-                futures = {ex.submit(self._get_entries_page, self._BASE_URL % playlist_id + str(page+1), _min_rating, _q): page for page in range(last_page)}
+            
+            with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
+                futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q): page for page in range(last_page)}
             
             _entries = []
             
@@ -419,6 +360,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                     
             if not _entries: raise ExtractorError("cant find any video")
             
+
             return {
                 '_type': 'playlist',
                 'id': playlist_id,
@@ -432,8 +374,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))            
-        finally:
-            self.rm_driver(driver)
+
       
     
 
@@ -441,21 +382,23 @@ class BoyFriendTVSearchIE(BoyFriendTVPLBaseIE):
     IE_NAME = 'boyfriendtv:playlist:search'
     IE_DESC = 'boyfriendtv:playlist:search'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/search/(?P<playlist_id>[^/?$]*)/?(\?(?P<query>.+))?'
-    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}search/%s/'
-    _CSS_SEL = "li.js-pop.thumb-item.videospot.inrow5" 
+    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}search/%s/%d'
+    #_CSS_SEL = "li.js-pop.thumb-item.videospot.inrow5"
+    _CSS_SEL = "js-pop thumb-item videospot inrow5"  
 
 class BoyFriendTVProfileFavIE(BoyFriendTVPLBaseIE):
     IE_NAME = 'boyfriendtv:playlist:profilefav'
     IE_DESC = 'boyfriendtv:playlist:profilefav'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/profiles/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
-    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}profiles/%s/videos/favorites/?page='
-    _CSS_SEL = "li.js-pop.thumb-item.videospot" 
-
+    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}profiles/%s/videos/favorites/?page=%d'
+    #_CSS_SEL = "li.js-pop.thumb-item.videospot" 
+    _CSS_SEL = "js-pop thumb-item videospot"
 
 class BoyFriendTVPlayListIE(BoyFriendTVPLBaseIE):
     IE_NAME = 'boyfriendtv:playlist'
     IE_DESC = 'boyfriendtv:playlist'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
-    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}playlists/%s/'
-    _CSS_SEL = "li.playlist-video-thumb.thumb-item.videospot"
+    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}playlists/%s/%d'
+    #_CSS_SEL = "li.playlist-video-thumb.thumb-item.videospot"
+    _CSS_SEL = "playlist-video-thumb thumb-item videospot"
 
