@@ -12,7 +12,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ..utils import (ExtractorError, int_or_none, js_to_json,
                      sanitize_filename, try_get, urljoin, get_domain, traverse_obj)
-from .commonwebdriver import dec_on_exception2, dec_on_exception3, dec_on_exception, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_2,limiter_5, By, ec
+from .commonwebdriver import (dec_on_exception2, dec_on_exception3, dec_on_exception, 
+                              HTTPStatusError, ConnectError, SeleniumInfoExtractor,
+                              limiter_2, limiter_5, By, ec)
 
 import logging
 logger = logging.getLogger('bftv')
@@ -49,8 +51,6 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
     
-    
-    
     @dec_on_exception
     @dec_on_exception3
     @dec_on_exception2
@@ -64,8 +64,6 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                 return self.send_http_request(url, **kwargs)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
-    
-    
     
     def _login(self, driver):        
         
@@ -197,8 +195,6 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             self.logger_debug(f"[{url}] error \n{webpage}")
             raise ExtractorError(repr(e))
 
-
-
     def _real_initialize(self):
         super()._real_initialize()
     
@@ -206,6 +202,112 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 
         return self.get_video_entry(url)
 
+
+class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
+
+    def _get_entries_page(self, url_page, _min_rating, _q):
+        
+        try:
+            logger.debug(f"page: {url_page}")
+            webpage = try_get(self._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
+            entries = []
+            if el_videos:
+                for el in el_videos:
+                    try:
+                        thumb, title, url, rating  = try_get(re.search(r'href="(?P<url>[^"]+)".*src="(?P<thumb>[^"]+)" alt="(?P<title>[^"]+)".*green" title="(?P<rat>\d+)%', el), lambda x: (x.group('thumb'), x.group('title'), urljoin(self._SITE_URL, x.group('url').rsplit("/", 1)[0]), try_get(x.group('rat'), lambda y: int(y) if y.isdecimal() else 0)) if x else ("", "", "", ""))
+                        if 'img/removed-video' in thumb or not url: 
+                            continue
+                                              
+                        if rating and (rating < _min_rating): 
+                            continue
+                        if title and _q:
+                            if not any(_.lower() in title.lower() for _ in _q):
+                                continue
+                        entries.append(self.url_result(url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, url), lambda x: x.group('id')), video_title=sanitize_filename(title, restricted=True), average_rating=rating, original_url=url_page.strip('/').rsplit('/',1)[0]))
+                    except Exception as e:
+                        logger.exception(repr(e))
+                        
+            return(entries)
+        except Exception as e:
+            logger.exception(repr(e))
+
+    def _real_initialize(self):
+        super()._real_initialize()
+        
+    def _real_extract(self, url):
+        mobj = re.match(self._VALID_URL, url)
+        playlist_id = mobj.group('playlist_id')
+        query = mobj.group('query')
+        if query:
+            params =  { el.split('=')[0]: el.split('=')[1] for el in mobj.group('query').split('&')}
+        else: params = {}
+        
+        try:
+            _sq = try_get(params.get('sort'), lambda x: f'?sort={x}' if x else "")        
+            self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
+            self.to_screen(params)
+            webpage = try_get(self._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
+            _min_rating = int(params.get('rating', 0))
+            _q = try_get(params.get('q'), lambda x: x.split(','))
+            last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "") 
+            last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
+            self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
+            
+            with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
+                futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q): page for page in range(last_page)}
+            
+            _entries = []
+            
+            for fut in futures:
+                try:
+                    if _ent:=fut.result():
+                        _entries.extend(_ent)                       
+                    else:
+                        self.report_warning(f"[{url}][page {futures[fut]}] no entries")                 
+                except Exception as e:
+                    self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
+                     
+                    
+            if not _entries: raise ExtractorError("cant find any video")
+            
+
+            return {
+                '_type': 'playlist',
+                'id': playlist_id,
+                'title': sanitize_filename(_title, restricted=True),
+                'entries': _entries,
+            }
+            
+        except ExtractorError as e:
+            raise    
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))            
+
+class BoyFriendTVSearchIE(BoyFriendTVPLBaseIE):
+    IE_NAME = 'boyfriendtv:playlist:search'
+    IE_DESC = 'boyfriendtv:playlist:search'
+    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/search/(?P<playlist_id>[^/?$]*)/?(\?(?P<query>.+))?'
+    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}search/%s/%d'
+    _CSS_SEL = "js-pop thumb-item videospot inrow5"  
+
+class BoyFriendTVProfileFavIE(BoyFriendTVPLBaseIE):
+    IE_NAME = 'boyfriendtv:playlist:profilefav'
+    IE_DESC = 'boyfriendtv:playlist:profilefav'
+    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/profiles/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
+    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}profiles/%s/videos/favorites/?page=%d'
+    _CSS_SEL = "js-pop thumb-item videospot"
+
+class BoyFriendTVPlayListIE(BoyFriendTVPLBaseIE):
+    IE_NAME = 'boyfriendtv:playlist'
+    IE_DESC = 'boyfriendtv:playlist'
+    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
+    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}playlists/%s/%d'
+    _CSS_SEL = "playlist-video-thumb thumb-item videospot"
+    
 class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtvembed'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/embed/(?:(?P<id>[0-9]+)/|embed.php\?)'
@@ -226,7 +328,6 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
                     'url': _info_video.get('url'),
                     'ext': 'mp4',
                     'format_id': f"http-{_src.get('desc')}",
-                    'resolution': _src.get('desc'),
                     'height': int_or_none(_src.get('desc').lower().replace('p','')),
                     'filesize': _info_video.get('filesize'),
                     
@@ -290,115 +391,4 @@ class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
             raise ExtractorError(repr(e))
 
 
-class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
-
-    def _get_entries_page(self, url_page, _min_rating, _q):
-        
-        try:
-            logger.debug(f"page: {url_page}")
-            webpage = try_get(self._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-            el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
-            entries = []
-            if el_videos:
-                for el in el_videos:
-                    try:
-                        thumb, title, url, rating  = try_get(re.search(r'href="(?P<url>[^"]+)".*src="(?P<thumb>[^"]+)" alt="(?P<title>[^"]+)".*green" title="(?P<rat>\d+)%', el), lambda x: (x.group('thumb'), x.group('title'), urljoin(self._SITE_URL, x.group('url').rsplit("/", 1)[0]), try_get(x.group('rat'), lambda y: int(y) if y.isdecimal() else 0)) if x else ("", "", "", ""))
-                        if 'img/removed-video' in thumb or not url: 
-                            continue
-                                              
-                        if rating and (rating < _min_rating): 
-                            continue
-                        if title and _q:
-                            if not any(_.lower() in title.lower() for _ in _q):
-                                continue
-                        entries.append(self.url_result(url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, url), lambda x: x.group('id')), video_title=sanitize_filename(title, restricted=True), average_rating=rating, original_url=url_page.strip('/').rsplit('/',1)[0]))
-                    except Exception as e:
-                        logger.exception(repr(e))
-                        
-            return(entries)
-        except Exception as e:
-            logger.exception(repr(e))
-
-        
-    def _real_initialize(self):
-        super()._real_initialize()
-        
-    def _real_extract(self, url):
-        mobj = re.match(self._VALID_URL, url)
-        playlist_id = mobj.group('playlist_id')
-        query = mobj.group('query')
-        if query:
-            params =  { el.split('=')[0]: el.split('=')[1] for el in mobj.group('query').split('&')}
-        else: params = {}
-        
-        try:
-            _sq = try_get(params.get('sort'), lambda x: f'?sort={x}' if x else "")        
-            self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
-            self.to_screen(params)
-            webpage = try_get(self._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-            _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
-            _min_rating = int(params.get('rating', 0))
-            _q = try_get(params.get('q'), lambda x: x.split(','))
-            last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "") 
-            last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
-            self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
-            
-            with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
-                futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q): page for page in range(last_page)}
-            
-            _entries = []
-            
-            for fut in futures:
-                try:
-                    if _ent:=fut.result():
-                        _entries.extend(_ent)                       
-                    else:
-                        self.report_warning(f"[{url}][page {futures[fut]}] no entries")                 
-                except Exception as e:
-                    self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
-                     
-                    
-            if not _entries: raise ExtractorError("cant find any video")
-            
-
-            return {
-                '_type': 'playlist',
-                'id': playlist_id,
-                'title': sanitize_filename(_title, restricted=True),
-                'entries': _entries,
-            }
-            
-        except ExtractorError as e:
-            raise    
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))            
-
-      
-    
-
-class BoyFriendTVSearchIE(BoyFriendTVPLBaseIE):
-    IE_NAME = 'boyfriendtv:playlist:search'
-    IE_DESC = 'boyfriendtv:playlist:search'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/search/(?P<playlist_id>[^/?$]*)/?(\?(?P<query>.+))?'
-    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}search/%s/%d'
-    #_CSS_SEL = "li.js-pop.thumb-item.videospot.inrow5"
-    _CSS_SEL = "js-pop thumb-item videospot inrow5"  
-
-class BoyFriendTVProfileFavIE(BoyFriendTVPLBaseIE):
-    IE_NAME = 'boyfriendtv:playlist:profilefav'
-    IE_DESC = 'boyfriendtv:playlist:profilefav'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/profiles/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
-    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}profiles/%s/videos/favorites/?page=%d'
-    #_CSS_SEL = "li.js-pop.thumb-item.videospot" 
-    _CSS_SEL = "js-pop thumb-item videospot"
-
-class BoyFriendTVPlayListIE(BoyFriendTVPLBaseIE):
-    IE_NAME = 'boyfriendtv:playlist'
-    IE_DESC = 'boyfriendtv:playlist'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
-    _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}playlists/%s/%d'
-    #_CSS_SEL = "li.playlist-video-thumb.thumb-item.videospot"
-    _CSS_SEL = "playlist-video-thumb thumb-item videospot"
 
