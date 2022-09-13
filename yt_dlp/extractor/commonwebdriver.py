@@ -55,10 +55,11 @@ def my_jitter(value: float) -> float:
 class StatusError503(Exception):
     """Error during info extraction."""
 
-    def __init__(self, msg):
+    def __init__(self, msg, exc_info=None):
         
         super().__init__(msg)
-        self.exc_info = sys.exc_info()  # preserve original exception
+
+        self.exc_info = exc_info()
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
