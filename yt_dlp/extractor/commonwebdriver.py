@@ -101,10 +101,15 @@ class scroll():
         To use as a predicate in the webdriver waits to scroll down to the end of the page
         when the page has an infinite scroll where it is adding new elements dynamically
     '''
-    def __init__(self, wait_time):
+    def __init__(self, wait_time=2):
         self.wait_time = wait_time
         
     def __call__(self, driver):
+        el_footer = driver.find_elements(By.CSS_SELECTOR, "div#footer")
+        if el_footer:
+            driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer[0].location)
+            return True
+        
         last_height = driver.execute_script("return document.body.scrollHeight")
         time_start = time.monotonic()
         while((time.monotonic() - time_start) <= self.wait_time):
