@@ -223,7 +223,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                         _ent = self._downloader.extract_info(el, download=False)
                         if _ent:
                             self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
-                            return self._downloader.sanitize_info(_ent)
+                            return _ent
                         else:
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
                     except Exception as e:

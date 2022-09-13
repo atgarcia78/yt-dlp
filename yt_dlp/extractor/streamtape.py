@@ -37,10 +37,6 @@ class StreamtapeIE(SeleniumInfoExtractor):
     IE_NAME = 'streamtape'
     _VALID_URL = r'https?://(www.)?(?:streamtape|streamta)\.(?:com|net|pe)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1']
-    
-    #_DUK_CTX = None
-    
-    #_LOCK = threading.Lock()    
 
     @dec_on_exception3
     @dec_on_exception2
@@ -106,6 +102,9 @@ class StreamtapeIE(SeleniumInfoExtractor):
             el_node = try_get(re.findall(r'var srclink\s+=\s+\$\([\'\"]#([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
             if not el_node: raise ExtractorError("error when retrieving video url")
             _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])
+            
+           
+            
             try:
                 _duk_ctx = pyduk.DuktapeContext()
                 _res = _duk_ctx.eval_js(_code)                
