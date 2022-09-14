@@ -2,10 +2,9 @@ import sys
 import traceback
 from urllib.parse import unquote
 import re
-import threading
 import html
 import pyduktape3 as pyduk
-from pathlib import Path
+
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
@@ -187,11 +186,6 @@ class BaseloadIE(SeleniumInfoExtractor):
             'Cache-Control': 'no-cache',
         }
 
-        # mainjs = self.cache.load(self.IE_NAME, 'mainjs')
-        # if force or not mainjs:
-        #     mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text) 
-        #     self.cache.store(self.IE_NAME, 'mainjs', mainjs)
-        
         mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text)
         if not mainjs:
             raise ExtractorError("couldnt get mainjs")
