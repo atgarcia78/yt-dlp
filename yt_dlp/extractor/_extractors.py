@@ -2589,7 +2589,6 @@ from .bbgroup import (
 from .youngbastards import YoungBastardsIE
 from .boyfriendtv import (
     BoyFriendTVIE,
-    BoyFriendTVEmbedIE,
     BoyFriendTVPlayListIE,
     BoyFriendTVProfileFavIE,
     BoyFriendTVSearchIE

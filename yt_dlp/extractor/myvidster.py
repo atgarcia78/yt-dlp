@@ -47,7 +47,6 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
         
-            
     @dec_on_exception3
     @dec_on_exception2
     @limiter_0_1.ratelimit("myvidster", delay=True)
@@ -163,7 +162,6 @@ class MyVidsterIE(MyVidsterBaseIE):
 
     _URLS_CHECKED = []
             
-    
     def getbestvid(self, x, msg=None):
 
         pre = f"[getbestvid]"
@@ -238,8 +236,6 @@ class MyVidsterIE(MyVidsterBaseIE):
             finally:
                 MyVidsterIE._URLS_CHECKED.append(el)
                 
-
-
     def _get_entry(self, url, **args):
         
         video_id = self._match_id(url)
@@ -362,11 +358,9 @@ class MyVidsterIE(MyVidsterBaseIE):
             else: 
                 raise ExtractorError("url video not found")
         
-
     def _real_initialize(self):
         super()._real_initialize()
         
-    
     def _real_extract(self, url):
 
         self.report_extraction(url)
@@ -471,8 +465,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     _NETRC_MACHINE = "myvidster"
     _SEARCH_URL = 'https://www.myvidster.com/search/?'
     
-
-       
     def _get_last_page(self, _urlqbase):
         i = 1
         while(True):
@@ -483,8 +475,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                 break
         return(i-1)
             
-        
-         
     def _real_initialize(self):
         super()._real_initialize()
     
@@ -500,7 +490,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         if not params.get('cfilter_by'): params['cfilter_by'] = 'all'
         if not params.get('sortby'): params['sortby'] = 'utc_posted'
         
-                
         npages = params.pop('pages', 5)
         firstpage = params.pop('from', 1)
         
@@ -520,7 +509,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                 self.logger_debug(f'[{self._get_url_print(url)}] pages requested > max page website: will check up to max page')
                 _max = last_page
                 
-
         list_search_urls = [f"{base_search_url}{i}" for i in range(int(firstpage), _max + 1)] 
         
         self.logger_debug(list_search_urls)
@@ -561,7 +549,6 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     _NETRC_MACHINE = "myvidster"
     _SEARCH_URL =  "https://www.myvidster.com/search/?q='%s'&filter_by=user_%s"
     
-    
     def _getter(self, x):
  
         try:
@@ -578,7 +565,6 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
     
-    
     def _follow_subs_user(self, username):
         
         webpage = try_get(self._send_request(f"https://myvidster.com/profile/{username}"), lambda x: html.unescape(x.text))
@@ -589,7 +575,6 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             else:
                 res = self._send_request(adduserurl, headers={'Referer': f'https://myvidster.com/profile/{username}'})
                 return (try_get(res, lambda x: 'You are now following this user' in x.text))
-    
     
     def _get_rss(self):
 
@@ -625,7 +610,6 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                     collections = re.findall(r'/Atgarcia/gallery/(\d+)', _subsuser)                    
                     MyVidsterBaseIE._RSS.update({username: {'userid' : userid, 'channels': channels, 'collections': collections}})
 
-
     def _query_rss(self, q):
         info = {
             'action' : 'query_subscriptions',
@@ -645,7 +629,6 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         res = self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post)
         return res
         
-
     def _real_initialize(self):
         super()._real_initialize()
         self._get_rss()
