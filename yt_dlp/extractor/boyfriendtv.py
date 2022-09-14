@@ -120,14 +120,18 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
 class BoyFriendTVIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv'
-    _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/videos/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
+    _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/(?:videos|embed)/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
 
     def get_video_entry(self, url):
         
-        self.report_extraction(url)
+        videoid = self._match_id(url)
+        
+        _san_url = urljoin(self._SITE_URL, f'videos/{videoid}')
+        
+        self.report_extraction(_san_url)
 
         try:        
-            webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+            webpage = try_get(self._send_request(_san_url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
             if not webpage:
                 raise ExtractorError("no webpage")
             
@@ -143,7 +147,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 raise ExtractorError("no video sources")                        
 
             _formats = []
-            _headers = {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}
+            _headers = {'Referer': (urlp:=urlparse(_san_url)).scheme + "//" + urlp.netloc + "/"}
             for _src in info_sources.get('mp4'):
                 
                 try:
@@ -179,11 +183,11 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             self._sort_formats(_formats)
                 
             return({
-                'id': self._match_id(url),
+                'id': videoid,
                 'title': sanitize_filename(_title, restricted=True),
                 'formats': _formats,
                 'ext': 'mp4',
-                'webpage_url': url,
+                'webpage_url': _san_url,
                 'average_rating': _rating
         
             })
@@ -200,11 +204,24 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
     
     def _real_extract(self, url):
                 
-        return self.get_video_entry(url)
+                
+        try:        
+            return self.get_video_entry(url)        
+        except ExtractorError as e:
+            raise    
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))  
 
 
 class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
 
+    def _get_last_page(self, webpage):
+        last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "") 
+        last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
+        return last_page
+    
     def _get_entries_page(self, url_page, _min_rating, _q):
         
         try:
@@ -232,54 +249,57 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         except Exception as e:
             logger.exception(repr(e))
 
+    def _get_entries(self, url):
+        
+        playlist_id, query = try_get(re.match(self._VALID_URL, url), lambda x: x.group('playlist_id', 'query'))
+        if query:
+            params =  { el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+        else: params = {}
+
+        _sq = try_get(params.get('sort'), lambda x: f'?sort={x}' if x else "")        
+        self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
+        self.to_screen(params)
+        webpage = try_get(self._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+        _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
+        _min_rating = int(params.get('rating', 0))
+        _q = try_get(params.get('q'), lambda x: x.split(','))
+        
+        last_page = self._get_last_page(webpage)
+        
+        self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
+        
+        with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
+            futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q): page for page in range(last_page)}
+        
+        _entries = []
+        
+        for fut in futures:
+            try:
+                if _ent:=fut.result():
+                    _entries.extend(_ent)                       
+                else:
+                    self.report_warning(f"[{url}][page {futures[fut]}] no entries")                 
+            except Exception as e:
+                self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
+
+        if not _entries: raise ExtractorError("cant find any video")
+
+        return {
+            '_type': 'playlist',
+            'id': playlist_id,
+            'title': sanitize_filename(_title, restricted=True),
+            'entries': _entries,
+        }
+        
     def _real_initialize(self):
         super()._real_initialize()
         
     def _real_extract(self, url):
-        mobj = re.match(self._VALID_URL, url)
-        playlist_id = mobj.group('playlist_id')
-        query = mobj.group('query')
-        if query:
-            params =  { el.split('=')[0]: el.split('=')[1] for el in mobj.group('query').split('&')}
-        else: params = {}
         
-        try:
-            _sq = try_get(params.get('sort'), lambda x: f'?sort={x}' if x else "")        
-            self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
-            self.to_screen(params)
-            webpage = try_get(self._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-            _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
-            _min_rating = int(params.get('rating', 0))
-            _q = try_get(params.get('q'), lambda x: x.split(','))
-            last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "") 
-            last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
-            self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
-            
-            with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
-                futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q): page for page in range(last_page)}
-            
-            _entries = []
-            
-            for fut in futures:
-                try:
-                    if _ent:=fut.result():
-                        _entries.extend(_ent)                       
-                    else:
-                        self.report_warning(f"[{url}][page {futures[fut]}] no entries")                 
-                except Exception as e:
-                    self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
-                     
-                    
-            if not _entries: raise ExtractorError("cant find any video")
-            
-
-            return {
-                '_type': 'playlist',
-                'id': playlist_id,
-                'title': sanitize_filename(_title, restricted=True),
-                'entries': _entries,
-            }
-            
+        self.report_extraction(url)
+        
+        try:            
+            return self._get_entries(url)
         except ExtractorError as e:
             raise    
         except Exception as e:
@@ -307,88 +327,6 @@ class BoyFriendTVPlayListIE(BoyFriendTVPLBaseIE):
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
     _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}playlists/%s/%d'
     _CSS_SEL = "playlist-video-thumb thumb-item videospot"
-    
-class BoyFriendTVEmbedIE(BoyFriendTVBaseIE):
-    IE_NAME = 'boyfriendtvembed'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/embed/(?:(?P<id>[0-9]+)/|embed.php\?)'
-    
-    def get_formats_single_video(self, webpage):
-        
-        jsonstr = try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster', webpage), lambda x: x[0])      
-        info_sources = json.loads(js_to_json(jsonstr)) if jsonstr else None
-        
-        if info_sources:
-            
-            _formats = []
-            
-            for _src in info_sources.get('mp4'):
-                _url = unquote(_src.get('src'))
-                _info_video = self._get_info_for_format(_url) 
-                _formats.append({
-                    'url': _info_video.get('url'),
-                    'ext': 'mp4',
-                    'format_id': f"http-{_src.get('desc')}",
-                    'height': int_or_none(_src.get('desc').lower().replace('p','')),
-                    'filesize': _info_video.get('filesize'),
-                    
-                })
-                
-            if _formats:
-                self._sort_formats(_formats)
-                return _formats
-            
-
-    def _real_initialize(self):
-        super()._real_initialize()
-    
-    def _real_extract(self, url):
-        
-        self.report_extraction(url)
-        
-        try:
-            if not (videoid:=self._match_id(url)):
-                _url_embed = httpx.URL(url)
-                _params_dict = dict(_url_embed.params.items())
-                _url = f"https://{_url_embed.host}/embed/{_params_dict.get('m')}/{_params_dict.get('h')}"
-            else: _url = url
-            
-                        
-            res = self.send_http_request(_url)
-            
-            if not videoid:   
-                videoid = self._match_id(str(res.url))
-            
-            webpage = re.sub('[\t\n]','', html.unescape(res.text))
-            
-            _formats = []
-            
-            if 'class="video-container"' in webpage:
-                
-                _title_video = try_get(re.findall(r'<title>([^<]*)</title>', webpage), lambda x: x[0].replace(" - ", "").replace("BoyFriendTv.com", "")) or ""
-                _formats = self.get_formats_single_video(webpage)
-                
-            if not _formats: raise ExtractorError("404 no video formats")
-                   
-            for el in _formats: 
-                el.update({'http_headers': {'Referer': (urlp:=urlparse(url)).scheme + "//" + urlp.netloc + "/"}})
-            
-            self._sort_formats(_formats)
-            
-            _res = {
-                'id': videoid,
-                'title': sanitize_filename(_title_video, restricted=True),                     
-                'formats': _formats,
-                'ext': 'mp4'}
-            
-                                            
-            return _res
-            
-        except ExtractorError as e:
-            raise     
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
-
+ 
 
 
