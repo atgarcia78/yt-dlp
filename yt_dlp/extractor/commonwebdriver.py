@@ -257,6 +257,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         logger.debug("Cambio de ytdl")
                         self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params['sem']
                         self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params['lock']
+                        self._downloader.params['routing_table'] = SeleniumInfoExtractor._YTDL.params['routing_table']
                     SeleniumInfoExtractor._YTDL = self._downloader                
                     if not SeleniumInfoExtractor._YTDL.params.get('sem'):
                         SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
