@@ -75,22 +75,25 @@ CONFIG_EXTRACTORS = {
                 ('doodstream','vidoza',): {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
-                ('tubeload', 'embedo',
-                'thisvidgay','redload',
-                'biguz', 'gaytubes',): {
+                  ('tubeload', 'embedo',
+                 'thisvidgay','redload',
+                   'biguz', 'gaytubes',): {
                                             'ratelimit': limiter_0_1, 
                                             'maxsplits': 4},
-    ('fembed', 'streamtape', 'gayforfans', 
-     'gayguytop', 'upstream', 'videobin', 
-'gayforiteu', 'xvidgay', 'boyfriendtv',): {
+                        ('boyfriendtv',): {'ratelimit': limiter_0_1, 
+                                            'maxsplits': 16},
+                ('fembed', 'streamtape',
+              'gayforfans', 'gayguytop',
+                 'upstream', 'videobin',
+               'gayforiteu', 'xvidgay',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16},
-          ('odnoklassniki', 'thisvid', 
-           'gaystreamembed','pornhat', 
-             'yourporngod', 'ebembed', 
-            'gay0day', 'onlygayvideo',
-            'txxx','thegay','homoxxx',
-               'gaygo','pornone',): {
+            ('odnoklassniki', 'thisvid',
+             'gaystreamembed','pornhat',
+               'yourporngod', 'ebembed',
+              'gay0day', 'onlygayvideo',
+              'txxx','thegay','homoxxx',
+                     'gaygo','pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
 }
@@ -438,7 +441,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         
         return el 
     
-    @_check_init
+    #@_check_init
     def get_info_for_format(self, url, **kwargs):
         
         try:
@@ -551,7 +554,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.exception(e)
             return False
     
-    @_check_init
+    #@_check_init
     def send_http_request(self, url, **kwargs):        
         
         try:
