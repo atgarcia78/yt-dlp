@@ -14,7 +14,7 @@ from ..utils import (ExtractorError, int_or_none, js_to_json,
                      sanitize_filename, try_get, urljoin, get_domain, traverse_obj)
 from .commonwebdriver import (dec_on_exception2, dec_on_exception3, dec_on_exception, 
                               HTTPStatusError, ConnectError, SeleniumInfoExtractor,
-                              limiter_2, limiter_5, By, ec)
+                              limiter_0_1, By, ec)
 
 import logging
 logger = logging.getLogger('bftv')
@@ -30,7 +30,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_2.ratelimit("boyfriendtv", delay=True)   
+    @limiter_0_1.ratelimit("boyfriendtv", delay=True)   
     def _get_info_for_format(self, url, **kwargs):
         
         try:
@@ -54,7 +54,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     @dec_on_exception
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_2.ratelimit("boyfriendtv2", delay=True)
+    @limiter_0_1.ratelimit("boyfriendtv2", delay=True)
     def _send_request(self, url, driver=None, **kwargs):
         
         if driver:
@@ -128,7 +128,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         
         _san_url = urljoin(self._SITE_URL, f'videos/{videoid}')
         
-        self.report_extraction(_san_url)
+        
 
         try:        
             webpage = try_get(self._send_request(_san_url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
@@ -142,13 +142,21 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             _rating = try_get(re.search(r'class="progress-big js-rating-title" title="(?P<rat>\d+)%"', webpage), lambda x: int(x.group('rat')))
 
             info_sources = try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster', webpage), lambda x: json.loads(js_to_json(x[0])))                    
-           
+            
             if not info_sources:
-                raise ExtractorError("no video sources")                        
+                raise ExtractorError("no video sources")
+            
+            if not info_sources.get('mp4'):
+                raise ExtractorError("no mp4 video sources")
+                
+            
+            mp4_sources = sorted(info_sources.get('mp4'), key=lambda x: int(x.get('desc',"0p")[:-1]), reverse=True)
+           
+                                  
 
             _formats = []
             _headers = {'Referer': (urlp:=urlparse(_san_url)).scheme + "//" + urlp.netloc + "/"}
-            for _src in info_sources.get('mp4'):
+            for i,_src in enumerate(mp4_sources):
                 
                 try:
 
@@ -163,12 +171,13 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                         'http_headers': _headers,
                     }                      
                     
-                    _info_video = self._get_info_for_format(_url, headers=_headers)
-                                                
-                    if not _info_video:
-                        self.logger_debug(f"[{url}][{_format_id}] no video info")
-                    else:
-                        _format.update({'url': _info_video.get('url'),'filesize': _info_video.get('filesize')})                        
+                    if i==0:
+                        _info_video = self._get_info_for_format(_url, headers=_headers)
+                                                    
+                        if not _info_video:
+                            self.logger_debug(f"[{url}][{_format_id}] no video info")
+                        else:
+                            _format.update({'url': _info_video.get('url'),'filesize': _info_video.get('filesize')})                        
                     
                     _formats.append(_format)
                 except Exception as e:
@@ -188,7 +197,9 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 'formats': _formats,
                 'ext': 'mp4',
                 'webpage_url': _san_url,
-                'average_rating': _rating
+                'average_rating': _rating,
+                'extractor_key' : self.ie_key(),
+                'extractor': self.IE_NAME,
         
             })
                 
@@ -204,7 +215,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
     
     def _real_extract(self, url):
                 
-                
+        self.report_extraction(url)       
         try:        
             return self.get_video_entry(url)        
         except ExtractorError as e:
@@ -222,13 +233,14 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
         return last_page
     
-    def _get_entries_page(self, url_page, _min_rating, _q):
+    def _get_entries_page(self, url_page, _min_rating, _q, page, orig_url):
         
         try:
             logger.debug(f"page: {url_page}")
             webpage = try_get(self._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
             entries = []
+            urls = []
             if el_videos:
                 for el in el_videos:
                     try:
@@ -241,15 +253,29 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                         if title and _q:
                             if not any(_.lower() in title.lower() for _ in _q):
                                 continue
-                        entries.append(self.url_result(url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, url), lambda x: x.group('id')), video_title=sanitize_filename(title, restricted=True), average_rating=rating, original_url=url_page.strip('/').rsplit('/',1)[0]))
+                        #entries.append(self.url_result(url, ie=BoyFriendTVIE.ie_key(), video_id=try_get(re.search(BoyFriendTVIE._VALID_URL, url), lambda x: x.group('id')), video_title=sanitize_filename(title, restricted=True), average_rating=rating, original_url=url_page.strip('/').rsplit('/',1)[0]))
+                        urls.append(url)
                     except Exception as e:
                         logger.exception(repr(e))
-                        
-            return(entries)
+            if urls:
+                ie_bf = self._get_extractor("BoyFriendTV")
+                with ThreadPoolExecutor(thread_name_prefix=f'bftventries{page}') as ex:
+                    futures = {ex.submit(ie_bf.get_video_entry, _url): _url for _url in urls}
+                for fut in futures:
+                    try:
+                        if (_ent:=fut.result()):
+                            _ent.update({'original_url': orig_url})
+                            entries.append(_ent)                       
+                        else:
+                            self.report_warning(f"[{url_page}][{futures[fut]}] no entry")                 
+                    except Exception as e:
+                        self.report_warning(f"[{url_page}][{futures[fut]}] {repr(e)}")
+                if entries:                    
+                    return(entries)
         except Exception as e:
             logger.exception(repr(e))
 
-    def _get_entries(self, url):
+    def _get_playlist(self, url):
         
         playlist_id, query = try_get(re.match(self._VALID_URL, url), lambda x: x.group('playlist_id', 'query'))
         if query:
@@ -269,13 +295,13 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
         
         with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
-            futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q): page for page in range(last_page)}
+            futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page+1)), _min_rating, _q, page, url): page for page in range(last_page)}
         
         _entries = []
         
         for fut in futures:
             try:
-                if _ent:=fut.result():
+                if (_ent:=fut.result()):
                     _entries.extend(_ent)                       
                 else:
                     self.report_warning(f"[{url}][page {futures[fut]}] no entries")                 
@@ -283,13 +309,9 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                 self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
 
         if not _entries: raise ExtractorError("cant find any video")
+        
+        return self.playlist_result(_entries, playlist_id, sanitize_filename(_title, restricted=True))
 
-        return {
-            '_type': 'playlist',
-            'id': playlist_id,
-            'title': sanitize_filename(_title, restricted=True),
-            'entries': _entries,
-        }
         
     def _real_initialize(self):
         super()._real_initialize()
@@ -299,7 +321,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         self.report_extraction(url)
         
         try:            
-            return self._get_entries(url)
+            return self._get_playlist(url)
         except ExtractorError as e:
             raise    
         except Exception as e:
