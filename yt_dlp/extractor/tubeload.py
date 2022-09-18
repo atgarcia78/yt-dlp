@@ -78,7 +78,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             return _res
             
         args = try_get(re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage), lambda x: getter(x))
-        if not args: raise ExtractorError("error extracting video data")
+        if not args: raise ExtractorError("error extracting video args")
         return args
         
     
@@ -96,10 +96,10 @@ class BaseloadIE(SeleniumInfoExtractor):
             if not webpage:
                 webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}"), lambda x: html.unescape(x.text))
             if not webpage: raise ExtractorError("error 404 no webpage")
+            args = self._get_args(webpage)
                       
-            try:
-                self.init_ctx(f"{self._SITE_URL}/e/{videoid}")
-                args = self._get_args(webpage)
+            try:                
+                self.init_ctx(f"{self._SITE_URL}/e/{videoid}")                
                 video_url = self.get_videourl(*args)
             except pyduk.JSError as e:
                 #error when something changes in network, dontknowwhy
@@ -110,10 +110,10 @@ class BaseloadIE(SeleniumInfoExtractor):
             if not video_url:
             
                 self._real_initialize()
-                webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}"), lambda x: html.unescape(x.text))
-                if not webpage: raise ExtractorError("error 404 no webpage")
+                #webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}"), lambda x: html.unescape(x.text))
+                #if not webpage: raise ExtractorError("error 404 no webpage")
                 try:
-                    args = self._get_args(webpage)                
+                    #args = self._get_args(webpage)                
                     self.init_ctx(f"{self._SITE_URL}/e/{videoid}", force=True)
                     video_url = self.get_videourl(*args)                    
                 except Exception as e:
@@ -159,7 +159,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         super()._real_initialize()
             
     
-    def get_mainjs(self):
+    def get_mainjs(self, url, **kwargs):
         _headers_mainjs = {    
             'Referer': url,
             'Sec-Fetch-Dest': 'script',
@@ -189,17 +189,17 @@ class BaseloadIE(SeleniumInfoExtractor):
         
         #initial conf data
             
-        _headers_mainjs = {    
-            'Referer': url,
-            'Sec-Fetch-Dest': 'script',
-            'Sec-Fetch-Mode': 'no-cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
-        }
+        # _headers_mainjs = {    
+        #     'Referer': url,
+        #     'Sec-Fetch-Dest': 'script',
+        #     'Sec-Fetch-Mode': 'no-cors',
+        #     'Sec-Fetch-Site': 'same-origin',
+        #     'Pragma': 'no-cache',
+        #     'Cache-Control': 'no-cache',
+        # }
 
         #mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text)
-        mainjs = self.get_mainjs()
+        mainjs = self.get_mainjs(url, force=force)
         if not mainjs:
             raise ExtractorError("couldnt get mainjs")
         _code = self._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
