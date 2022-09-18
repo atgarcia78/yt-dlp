@@ -159,6 +159,18 @@ class BaseloadIE(SeleniumInfoExtractor):
         super()._real_initialize()
             
     
+    def get_mainjs(self):
+        _headers_mainjs = {    
+            'Referer': url,
+            'Sec-Fetch-Dest': 'script',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
+
+        return(try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text))
+    
     def init_ctx(self, url, force=False):
         
         self._DUK_CTX = pyduk.DuktapeContext()
@@ -186,7 +198,8 @@ class BaseloadIE(SeleniumInfoExtractor):
             'Cache-Control': 'no-cache',
         }
 
-        mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text)
+        #mainjs = try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text)
+        mainjs = self.get_mainjs()
         if not mainjs:
             raise ExtractorError("couldnt get mainjs")
         _code = self._DUK_CTX.get_global('deofus')(*self._get_args(mainjs))
