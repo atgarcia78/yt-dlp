@@ -113,14 +113,15 @@ class scroll():
             driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer[0].location)
             return True
         
-        last_height = driver.execute_script("return document.body.scrollHeight")
-        time_start = time.monotonic()
-        while((time.monotonic() - time_start) <= self.wait_time):
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height: return True
-        else: return False
+        else:
+            last_height = driver.execute_script("return document.body.scrollHeight")
+            time_start = time.monotonic()
+            while((time.monotonic() - time_start) <= self.wait_time):
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height: return True
+            else: return False
  
 def _check_init(func):
     @functools.wraps(func)
