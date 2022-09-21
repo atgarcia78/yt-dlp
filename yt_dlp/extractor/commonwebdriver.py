@@ -70,7 +70,7 @@ dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, 
 
 CONFIG_EXTRACTORS = {
     ('userload', 'evoload', 'highload',): {
-                                            'ratelimit': limiter_15, 
+                                            'ratelimit': limiter_5, 
                                             'maxsplits': 4},
                 ('doodstream','vidoza',): {
                                             'ratelimit': limiter_5,
@@ -179,7 +179,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 cls._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
-    @_check_init
+    #@_check_init
     def _get_extractor(self, _args):
 
         if _args.startswith('http'):
@@ -289,7 +289,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception as e:
             logger.exception(e)
 
-        
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None):        
 
         with SeleniumInfoExtractor._MASTER_LOCK:
@@ -479,7 +478,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:                
             self.logger_debug(f"[get_info_for_format][{self._get_url_print(url)}] {res}:{_msg_err}")   
 
-    @_check_init
+    #@_check_init
     def _is_valid(self, url, msg=None):
         
         if not url: 
