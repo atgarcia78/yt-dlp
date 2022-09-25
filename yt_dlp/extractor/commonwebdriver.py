@@ -555,6 +555,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.exception(e)
             return False
     
+    def _get_ip_origin(self):
+        return(try_get(self.send_http_request("https://api.ipify.org?format=json"), lambda x: x.json().get('ip') if x else ''))
+    
     #@_check_init
     def send_http_request(self, url, **kwargs):        
         
