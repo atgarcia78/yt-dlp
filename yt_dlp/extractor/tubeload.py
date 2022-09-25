@@ -9,12 +9,12 @@ import pyduktape3 as pyduk
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, ConnectError, Lock)
+    limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, StatusStop, Lock)
 
 
 class BaseloadIE(SeleniumInfoExtractor):
 
-    @dec_on_exception
+    
     @dec_on_exception3  
     @dec_on_exception2
     def _get_video_info(self, url, msg=None):        
@@ -33,18 +33,21 @@ class BaseloadIE(SeleniumInfoExtractor):
                     
                             
                 with _sem:
+                    if ((_stop:=self.get_param('stop')) and _stop.is_set()):
+                        self.logger_debug(f"{pre} {self._get_url_print(url)}: stop")
+                        raise StatusStop(f"{pre} {self._get_url_print(url)}")                    
                     return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
                 
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
 
             
-    @dec_on_exception
+    
     @dec_on_exception3
     @dec_on_exception2
     def _send_request(self, url, **kwargs):       
         
-        driver = kwargs.get('driver', None)
+        
         msg = kwargs.get('msg', None)
         headers = kwargs.get('headers', None)
         
@@ -52,13 +55,14 @@ class BaseloadIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}[send_req]'
             else: pre = '[send_req]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}") 
-            if driver:
-                driver.get(url)
-            else:
-                try:                
-                    return self.send_http_request(url, headers=headers)                
-                except (HTTPStatusError, ConnectError) as e:
-                    self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+            if ((_stop:=self.get_param('stop')) and _stop.is_set()):
+                self.logger_debug(f"{pre} {self._get_url_print(url)}: stop")
+                raise StatusStop(f"{pre} {self._get_url_print(url)}")
+                
+            try:                
+                return self.send_http_request(url, headers=headers)                
+            except (HTTPStatusError, ConnectError) as e:
+                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
                 
     def _get_args(self, webpage, _all=False):
         
@@ -168,8 +172,9 @@ class BaseloadIE(SeleniumInfoExtractor):
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache',
         }
-
+        
         return(try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text))
+            
     
     def init_ctx(self, url, force=False):
         
@@ -228,8 +233,8 @@ class BaseloadIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
+            #lines = traceback.format_exception(*sys.exc_info())
+            #self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
         
 
