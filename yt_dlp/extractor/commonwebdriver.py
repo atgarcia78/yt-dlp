@@ -10,7 +10,7 @@ from httpx import HTTPStatusError, HTTPError, StreamError, ConnectError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
-from threading import Lock
+from threading import Lock, Event
 
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
@@ -59,7 +59,16 @@ class StatusError503(Exception):
         
         super().__init__(msg)
 
-        self.exc_info = exc_info()
+        self.exc_info = exc_info
+        
+class StatusStop(Exception):
+    """Error during info extraction."""
+
+    def __init__(self, msg, exc_info=None):
+        
+        super().__init__(msg)
+
+        self.exc_info = exc_info
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
@@ -256,14 +265,17 @@ class SeleniumInfoExtractor(InfoExtractor):
                     
                     if SeleniumInfoExtractor._YTDL:
                         logger.debug("Cambio de ytdl")
-                        self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params['sem']
-                        self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params['lock']
-                        self._downloader.params['routing_table'] = SeleniumInfoExtractor._YTDL.params['routing_table']
+                        self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params.get('sem')
+                        self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params.get('lock')
+                        self._downloader.params['stop'] = SeleniumInfoExtractor._YTDL.params.get('stop')
+                        self._downloader.params['routing_table'] = SeleniumInfoExtractor._YTDL.params.get('routing_table')
                     SeleniumInfoExtractor._YTDL = self._downloader                
                     if not SeleniumInfoExtractor._YTDL.params.get('sem'):
                         SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
                     if not SeleniumInfoExtractor._YTDL.params.get('lock'):
                         SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
+                    if not SeleniumInfoExtractor._YTDL.params.get('stop'):
+                        SeleniumInfoExtractor._YTDL.params['stop'] = Event()
 
                 _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
                     
