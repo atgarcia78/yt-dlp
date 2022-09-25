@@ -44,7 +44,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         else:
             webpage = traverse_obj(post, ('content', '$t'))
             
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(Download\s*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower()]]
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or 'angle' in l1[2].lower()]]
         
         iedood = self._downloader.get_info_extractor('DoodStream')
         n_videos = list_urls.count(None)
