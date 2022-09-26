@@ -179,6 +179,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     
             self.logger_debug(f"{premsg} [getstream_url] {getstream_url}")
             info_json = try_get(self._send_request(getstream_url, headers=_headers_json), lambda x: x.json() if x else None)
+            self.logger_debug(f"{premsg} [getstream_url] {info_json}")
             if not info_json: raise ExtractorError(f"{premsg}: error - Cant get json")
             mpd_url = info_json.get("StreamUrl") 
             if not mpd_url: raise ExtractorError(f"{premsg}: error - Can't find stream url")
@@ -217,10 +218,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         self.logger_debug(f"[is_logged] {logged_ok}")
         return logged_ok
         
-    def _login(self):
+    def _login(self, driver=None):
         
-
-        driver = self.get_driver()
+        rem = False
+        if not driver:
+            driver = self.get_driver()
+            rem = True
         try:
             
             if not self._is_logged(driver):
@@ -237,11 +240,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_login.SignInFormInput.SignInFormUsername")))
                 el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input#SignIn_password.SignInFormInput.SignInFormPassword")))
                 el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.button.expanded.SignInBtnSubmit")))
-                self.wait_until(driver, 2)
+                self.wait_until(driver, 0.5)
                 el_username.send_keys(username)
-                self.wait_until(driver, 2)
+                self.wait_until(driver, 0.5)
                 el_psswd.send_keys(password)
-                self.wait_until(driver, 2)
+                self.wait_until(driver, 0.5)
                 el_submit.submit()
                 self.wait_until(driver, 60, ec.url_changes(self._LOGIN_URL))
                 if driver.current_url == "https://nakedsword.com/members":
@@ -254,7 +257,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 return driver.get_cookies()
 
         finally:
-            self.rm_driver(driver)
+            if rem: self.rm_driver(driver)
                     
     def _real_initialize(self):
     
