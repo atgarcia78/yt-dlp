@@ -1,8 +1,9 @@
 import sys
 import traceback
 import re
-#import pyduktape3 as pyduk
-#import json
+import pyduktape3 as pyduk
+import json
+import html
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, js_to_json, decode_packed_codes
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, HTTPStatusError, ConnectError
@@ -46,44 +47,53 @@ class FilemoonIE(SeleniumInfoExtractor):
         
         videoid = self._match_id(url)
                 
-        #_duk_ctx = pyduk.DuktapeContext()
         
-        _wurl = f"{self._SITE_URL}/d/{videoid}"
-        webpage = try_get(self._send_request(_wurl), lambda x: re.sub('[\t\n]', '', x.text))
+        
+        _wurl = f"{self._SITE_URL}d/{videoid}"
+        webpage = try_get(self._send_request(_wurl), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
         
         if not webpage:
             raise ExtractorError("no webpage")
         
-        #sign = try_get(re.findall(r'</main><script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage), lambda x: x[0])
         
         packed = self._search_regex(r'<script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage, 'packed code')
-        
-        #if not sign:
-        #    raise ExtractorError("couldnt find js function")
-        
-        #jscode = "var res =" + sign +";res"
-        
-        #try:
-        #    _webpage = _duk_ctx.eval_js(jscode)
-        #except Exception as e:
-        #    self.report_warning(repr(e))
-        #    _webpage = None
-        
-        #if not _webpage:
-        #    raise ExtractorError("error executing js")
-        
         if not packed:
             raise ExtractorError("couldnt find js function")            
         
-        unpacked = decode_packed_codes(packed)
+        try:
+            unpacked = decode_packed_codes(packed)
         
-        #options = try_get(re.search(r'setup\s*\((?P<options>[^;]+);', _webpage), lambda x: json.loads(js_to_json(x.group('options')[:-1].replace('Class()','Class'))) if x else None) 
+            m3u8_url = try_get(re.search(r'file:"(?P<url>[^"]+)"', unpacked), lambda x: x.group('url'))
         
-        #options = try_get(re.search(r'player.setup\((?P<options>[^\)]+)\)', unpacked), lambda x: json.loads(js_to_json(x.group('options').replace("\\",""))) if x else None)
+        except Exception as e:
+            self.to_screen("Change to pyduk")
+            _duk_ctx = pyduk.DuktapeContext()
+            sign = try_get(re.findall(r'</main><script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage), lambda x: x[0])
         
-        #m3u8_url = traverse_obj(options, ('sources', 0, 'file'))
+            if not sign:
+               raise ExtractorError("couldnt find js function")
         
-        m3u8_url = try_get(re.search(r'file:"(?P<url>[^"]+)"', unpacked), lambda x: x.group('url'))
+            jscode = "var res =" + sign +";res"
+        
+            try:
+                _webpage = _duk_ctx.eval_js(jscode)
+            except Exception as e:
+                self.report_warning(repr(e))
+                _webpage = None
+        
+            if not _webpage:
+            
+                raise ExtractorError("error executing js")
+        
+
+        
+            options = try_get(re.search(r'setup\s*\((?P<options>[^;]+);', _webpage), lambda x: json.loads(js_to_json(x.group('options')[:-1].replace('Class()','Class'))) if x else None) 
+            
+            #options = try_get(re.search(r'player.setup\((?P<options>[^\)]+)\)', unpacked), lambda x: json.loads(js_to_json(x.group('options').replace("\\",""))) if x else None)
+            
+            m3u8_url = traverse_obj(options, ('sources', 0, 'file'))
+        
+        
         
         if not m3u8_url:
             raise ExtractorError("couldnt find m3u8 url")
