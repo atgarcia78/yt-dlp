@@ -152,7 +152,7 @@ def getter(x):
 
 class SeleniumInfoExtractor(InfoExtractor):
     
-    _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/ln3i0v51.default-release'
+    _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
     
     _MASTER_LOCK = Lock()
     
