@@ -122,7 +122,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv'
     _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/(?:videos|embed)/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
 
-    def get_video_entry(self, url):
+    def _get_entry(self, url, *args, **kwargs):
         
         videoid = self._match_id(url)
         
@@ -217,7 +217,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 
         self.report_extraction(url)       
         try:        
-            return self.get_video_entry(url)        
+            return self._get_entry(url)        
         except ExtractorError as e:
             raise    
         except Exception as e:
@@ -260,7 +260,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
             if urls:
                 ie_bf = self._get_extractor("BoyFriendTV")
                 with ThreadPoolExecutor(thread_name_prefix=f'bftventries{page}') as ex:
-                    futures = {ex.submit(ie_bf.get_video_entry, _url): _url for _url in urls}
+                    futures = {ex.submit(ie_bf._get_entry, _url): _url for _url in urls}
                 for fut in futures:
                     try:
                         if (_ent:=fut.result()):
