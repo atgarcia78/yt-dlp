@@ -172,11 +172,14 @@ class YouPornIE(InfoExtractor):
                 return []
             return re.findall(r'<a[^>]+href=[^>]+>([^<]+)', tag_box)
 
-        categories = extract_tag_box(
-            r'(?s)Categories:.*?</[^>]+>(.+?)</div>', 'categories')
-        tags = extract_tag_box(
-            r'(?s)Tags:.*?</div>\s*<div[^>]+class=["\']tagBoxContent["\'][^>]*>(.+?)</div>',
-            'tags')
+        # categories = extract_tag_box(
+        #     r'(?s)Categories:.*?</[^>]+>(.+?)</div>', 'categories')
+        # tags = extract_tag_box(
+        #     r'(?s)Tags:.*?</div>\s*<div[^>]+class=["\']tagBoxContent["\'][^>]*>(.+?)</div>',
+        #     'tags')
+
+        categories = re.findall(r'data-espnode="category_tag"[^>]+href=[^>]+>([^<]+)', webpage)
+        tags = re.findall(r'data-espnode="(?:porntag_tag|pornstar_tag)"[^>]+href=[^>]+>([^<]+)', webpage)
 
         data = self._search_json_ld(webpage, video_id, expected_type='VideoObject', fatal=False)
         data.pop('url', None)
