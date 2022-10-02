@@ -12,6 +12,8 @@ from ..utils import (
     ExtractorError
 )
 
+from urllib.parse import unquote
+
 
 
 
@@ -35,40 +37,50 @@ class YouPornGayIE(SeleniumInfoExtractor):
         video_id = mobj.group('id')
         display_id = mobj.group('display_id') or video_id
 
-        definitions = try_get(self._send_request(
-            'https://www.youporngay.com/api/video/media_definitions/%s/' % video_id,
-            headers={'referer': url}), lambda x: x.json())
-        if not definitions: raise ExtractorError("no video info")
+        urlh, webpage = try_get(self._send_request(
+            f'https://www.youporngay.com/watch/{video_id}'), lambda x: (str(x.url), html.unescape(re.sub('[\t\n]', '', x.text))))
+
+        if not webpage: raise ExtractorError('no webpage')
+
+        res = try_get(self._send_request(
+            f'https://www.youporngay.com/api/video/media_definitions/{video_id}/',
+            headers={'Referer':  urlh}), lambda x: x)
+                    
+        if not res: raise ExtractorError("no video info")
         formats = []
+
+        self.logger_debug(res.text)
+
+        definitions = res.json()
+
+        self.logger_debug(definitions)
+
+        _headers = {'Referer': 'https://www.youporngay.com/', 'Origin': 'https://www.youporngay.com'}
         for definition in definitions:
             if not isinstance(definition, dict):
                 continue
-            video_url = url_or_none(definition.get('videoUrl'))
+            video_url = url_or_none(unquote(definition.get('videoUrl')))
             if not video_url:
                 continue
-            f = {
-                'url': video_url,
-                'filesize': int_or_none(definition.get('videoSize')),
-            }
-            height = int_or_none(definition.get('quality'))
+            if not definition.get('format') == 'hls': continue
 
-            mobj = re.search(r'(?P<height>\d{3,4})[pP]_(?P<bitrate>\d+)[kK]_\d+', video_url)
-            if mobj:
-                if not height:
-                    height = int(mobj.group('height'))
-                bitrate = int(mobj.group('bitrate'))
-                f.update({
-                    'format_id': '%dp-%dk' % (height, bitrate),
-                    'tbr': bitrate,
-                })
-            f['height'] = height
-            formats.append(f)
+            if isinstance(definition.get('quality'), list):
+
+                formats = self._extract_m3u8_formats(video_url + '&=', video_id, 'mp4', 'm3u8_native', m3u8_id='hls', headers=_headers, fatal=False)
+
+
+        if not formats: raise ExtractorError("no formats")
+        for f in formats:
+            f['http_headers'] = _headers
+            f['url'] += '&='
+            f['manifest_url'] += '&='
+        self.logger_debug(formats)
+
         self._sort_formats(formats)
+        
 
-        webpage = try_get(self._send_request(
-            'http://www.youporngay.com/watch/%s' % video_id), lambda x: html.unquote(x.text))
 
-        if not webpage: raise ExtractorError('no webpage')
+        
         title = self._html_search_regex(
             r'(?s)<div[^>]+class=["\']watchVideoTitle[^>]+>(.+?)</div>',
             webpage, 'title', fatal=False, default=None) or self._og_search_title(
@@ -90,10 +102,10 @@ class YouPornGayIE(SeleniumInfoExtractor):
             r'(?s)<div[^>]+class=["\']submitByLink["\'][^>]*>(.+?)</div>',
             webpage, 'uploader', fatal=False)
         upload_date = unified_strdate(self._html_search_regex(
-            [r'UPLOADED:\s*<span>([^<]+)',
+            [r'UPLOADED:</label><span>([^<]+)',
              r'Date\s+[Aa]dded:\s*<span>([^<]+)',
              r'(?s)<div[^>]+class=["\']videoInfo(?:Date|Time)["\'][^>]*>(.+?)</div>'],
-            webpage, 'upload date', fatal=False))
+            webpage, 'upload date', default=None, fatal=False, flags=re.IGNORECASE))
 
         age_limit = self._rta_search(webpage)
 
@@ -107,17 +119,9 @@ class YouPornGayIE(SeleniumInfoExtractor):
             r'>All [Cc]omments? \(([\d,.]+)\)',
             webpage, 'comment count', fatal=False, default=None))
 
-        def extract_tag_box(regex, title):
-            tag_box = self._search_regex(regex, webpage, title,fatal=False, default=None)
-            if not tag_box:
-                return []
-            return re.findall(r'<a[^>]+href=[^>]+>([^<]+)', tag_box)
 
-        categories = extract_tag_box(
-            r'(?s)Categories:.*?</[^>]+>(.+?)</div>', 'categories')
-        tags = extract_tag_box(
-            r'(?s)Tags:.*?</div>\s*<div[^>]+class=["\']tagBoxContent["\'][^>]*>(.+?)</div>',
-            'tags')
+        categories = re.findall(r'data-espnode="category_tag"[^>]+href=[^>]+>([^<]+)', webpage)
+        tags = re.findall(r'data-espnode="category_tag"[^>]+href=[^>]+>([^<]+)', webpage)
 
         return {
             'id': video_id,
@@ -134,4 +138,5 @@ class YouPornGayIE(SeleniumInfoExtractor):
             'tags': tags,
             'age_limit': age_limit,
             'formats': formats,
+            'ext': 'mp4'
         }
