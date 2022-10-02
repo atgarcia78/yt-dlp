@@ -102,7 +102,8 @@ CONFIG_EXTRACTORS = {
                'yourporngod', 'ebembed',
               'gay0day', 'onlygayvideo',
               'txxx','thegay','homoxxx',
-            'youporn','gaygo','pornone',): {
+        'youporngay', 'youporn','gaygo',
+                            'pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
 }
