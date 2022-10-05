@@ -336,23 +336,26 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.logger_debug(f'[posts_vid_url] {posts_vid_url}')
         
         _entries = []
-        
-        with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
-                
-            futures = {ex.submit(self.get_entries_from_blog_post, _post_blog, check=self._check): _post_url for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}       
 
-              
-        for fut in futures:
-            try:
-                
-                if (_res:=try_get(fut.result(), lambda x: x[0])):
-                    _entries += _res
-                else:                    
-                    logger.error(f'[get_entries] no entry, fails fut {futures[fut]}')
-            except Exception as e:                
-                logger.exception(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
+        if not self.get_param('extract_flat'):
         
+            with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
+                    
+                futures = {ex.submit(self.get_entries_from_blog_post, _post_blog, check=self._check): _post_url for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}       
 
+                
+            for fut in futures:
+                try:
+                    
+                    if (_res:=try_get(fut.result(), lambda x: x[0])):
+                        _entries += _res
+                    else:                    
+                        logger.error(f'[get_entries] no entry, fails fut {futures[fut]}')
+                except Exception as e:                
+                    logger.exception(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
+        
+        else:
+            _entries = [self.url_result(url, ie=GVDBlogPostIE.ie_key()) for url in posts_vid_url]
         
         return _entries
  
