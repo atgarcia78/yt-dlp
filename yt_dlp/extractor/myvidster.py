@@ -182,9 +182,14 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
                 if "?thumb=http" in el:
                     continue
-                
+
                 if el in MyVidsterIE._URLS_CHECKED:
                     self.logger_debug(f"{pre}[{self._get_url_print(el)}] already analysed")
+                    continue
+
+                if any(_ in el for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
+                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'player.vimeo.com/video']):
+                    self.logger_debug(f"{pre}[{self._get_url_print(el)}] url not valid")
                     continue
                     
                 if 'locotube.site/pn' in el:
