@@ -44,7 +44,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         else:
             webpage = traverse_obj(post, ('content', '$t'))
             
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or 'angle' in l1[2].lower()]]
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<|>(\s*Part[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or any([_ in l1[2].lower() for _ in ['angle', 'part']])]]
         
         iedood = self._downloader.get_info_extractor('DoodStream')
         n_videos = list_urls.count(None)
@@ -100,10 +100,16 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     if _temp:
                         _final_urls.extend(_temp)
                         _pass = len(_temp)
+                        '''
                         if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
                             _final_urls.append(list_urls[i+j])
                             _final_urls.append(None)
-                            _pass += 1 
+                            _pass += 1
+                        '''
+                    if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
+                        _final_urls.append(list_urls[i+j])
+                        _final_urls.append(None)
+                        _pass += 1 
         
         
         # _final_urls = []
@@ -206,7 +212,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         except ExtractorError as e:                 
             raise 
         except Exception as e:
-            logger.exception(f'{pre} {repr(e)}')  
+            logger.debug(f'{pre} {repr(e)}')  
             raise ExtractorError(f'{pre} {repr(e)}')
 
 
@@ -257,7 +263,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
             _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"
             
-            self.to_screen(_urlquery)
+            self.logger_debug(_urlquery)
                     
             res_search = try_get(self._send_request(_urlquery), lambda x: x.text.replace(',,',','))        
             if not res_search: 
@@ -267,6 +273,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             
             self.logger_debug(f'[entries result] {data}')
             
+            if not data:
+                raise ExtractorError("no video entries")
             info_json = json.loads(data)
 
             video_entries = traverse_obj(info_json, ('feed', 'entry'))
@@ -276,7 +284,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             
             return video_entries
         except Exception as e:
-            logger.exception(repr(e))
+            logger.debug(repr(e))
+            raise
 
     def get_blog_posts_search(self, url):        
         
@@ -350,9 +359,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     if (_res:=try_get(fut.result(), lambda x: x[0])):
                         _entries += _res
                     else:                    
-                        logger.error(f'[get_entries] no entry, fails fut {futures[fut]}')
+                        logger.warning(f'[get_entries] no entry, fails fut {futures[fut]}')
                 except Exception as e:                
-                    logger.exception(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
+                    logger.warning(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
         
         else:
             _entries = [self.url_result(url, ie=GVDBlogPostIE.ie_key()) for url in posts_vid_url]
