@@ -56,7 +56,7 @@ class GayGuyTopIE(SeleniumInfoExtractor):
         
         try:
             
-            if self.get_param('external_downloader'): _check_active = True
+            if not self.get_param('embed'): _check_active = True
             else: _check_active = False
 
             return self._get_entry(url, check_active=_check_active)             

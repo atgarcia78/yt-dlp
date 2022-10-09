@@ -229,7 +229,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                         if el_formats:
                             if len(el_formats) > 1: _get_info_video = True
                             else:  
-                                if self.get_param('external_downloader'): _get_info_video = True
+                                if not self.get_param('embed'): _get_info_video = True
                                 else: _get_info_video = False
                             
                             with ThreadPoolExecutor(thread_name_prefix='fmt_netdna', max_workers=len(el_formats)) as ex:
@@ -269,7 +269,7 @@ class NetDNAIE(SeleniumInfoExtractor):
                                                     'url': _video_url,
                                                     'ext': info_video.get('ext'), 
                                                     'http_headers': {'Referer': 'https://netdna-storage.com/'}}
-                                    if self.get_param('external_downloader'):
+                                    if not self.get_param('embed'):
                                         _info = self._get_video_info(_video_url)
                                         if _info:
                                             _formats.update({'url': _info['url'],'filesize': _info['filesize'] })
