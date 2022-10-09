@@ -337,7 +337,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         _entries = []
 
-        if not self.get_param('extract_flat'):
+        if self.get_param('embed') or not self.get_param('extract_flat'):
         
             with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
                     
@@ -364,9 +364,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def _real_extract(self, url):
         
-        
         self.report_extraction(url)
-        
+
         query = re.search(self._VALID_URL, url).group('query')
         
         if "iter=yes" in query:
