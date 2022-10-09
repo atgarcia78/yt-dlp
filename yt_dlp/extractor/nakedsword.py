@@ -203,7 +203,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     "extractor": 'nakedswordscene'
                 }
             
-                self.to_screen(f"{premsg}: OK got entry")
+                self.logger_debug(f"{premsg}: OK got entry")
                 return _entry
             
         except ExtractorError:
@@ -333,7 +333,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                 entries.append(entry)
 
         if entries:
-            self.to_screen(f"[get_entries_list][{url}] got entries list OK")
+            self.logger_debug(f"[get_entries_list][{url}] OK got entries list")
             return {
                 '_type': 'playlist',
                 'id': playlist_id,
