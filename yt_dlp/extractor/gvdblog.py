@@ -5,7 +5,7 @@ import html
 from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, 
-    SeleniumInfoExtractor, limiter_0_1, HTTPStatusError, ConnectError)
+    SeleniumInfoExtractor, limiter_0_1, limiter_0_5, HTTPStatusError, ConnectError)
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -14,6 +14,7 @@ import logging
 logger = logging.getLogger('GVDBlog')
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
+    _SLOW_DOWN = False
 
     def get_entry_video(self, x, check=True, msg=None):
 
@@ -164,6 +165,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             url = traverse_obj(post, ('link', -1, 'href'))
             self.report_extraction(url)
 
+        if GVDBlogBaseIE._SLOW_DOWN:
+            check = False
+        
         try:
             
             postdate, title, postid = self.get_info(post)
@@ -216,22 +220,25 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             raise ExtractorError(f'{pre} {repr(e)}')
 
 
-    @dec_on_exception
+    #@dec_on_exception
     @dec_on_exception3
-    @dec_on_exception2
-    @limiter_0_1.ratelimit("gvdblog", delay=True)
-    def _send_request(self, url, driver=None, msg=None):
+    @dec_on_exception2    
+    def _send_request(self, url, **kwargs):
         
+        driver = kwargs.get('driver', None)
+        msg = kwargs.get('msg', None)        
         if msg: pre = f'{msg}[send_req]'
-        else: pre = '[send_req]'
-        self.logger_debug(f"{pre} {self._get_url_print(url)}") 
-        if driver:
-            driver.get(url)
-        else:
-            try:                
-                return self.send_http_request(url)                
-            except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+        else: pre = '[send_req]'        
+        _limiter = limiter_0_5 if GVDBlogBaseIE._SLOW_DOWN else limiter_0_1
+        with _limiter.ratelimit("gvdblog", delay=True):
+            self.logger_debug(f"{pre} {self._get_url_print(url)}")
+            if driver:
+                driver.get(url)
+            else:
+                try:                
+                    return self.send_http_request(url)                
+                except (HTTPStatusError, ConnectError) as e:
+                    self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
         
     def _real_initialize(self):
         super()._real_initialize()
@@ -255,6 +262,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"
     _VALID_URL = r'https?://(?:www\.)?gvdblog.com/search\?(?P<query>.+)'
+    
 
     def send_api_search(self, query):
         
@@ -318,7 +326,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             final_entries = post_blog_entries_search[_from-1:_from-1+_nentries]
         else:
             final_entries = post_blog_entries_search[_from-1:]
-            
+
+        if final_entries and len(final_entries) > 50: 
+            GVDBlogBaseIE._SLOW_DOWN = True
+            self._check = False
+
         return final_entries  
 
     def iter_get_entries_search(self, url):
@@ -348,6 +360,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
         if self.get_param('embed') or not self.get_param('extract_flat'):
         
+            
             with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
                     
                 futures = {ex.submit(self.get_entries_from_blog_post, _post_blog, check=self._check): _post_url for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}       

@@ -25,6 +25,8 @@ from .commonwebdriver import (
     By, 
     ConnectError)
 
+_URL_NOT_VALID = ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed','xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'player.vimeo.com/video']
+
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
 
@@ -187,8 +189,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     self.logger_debug(f"{pre}[{self._get_url_print(el)}] already analysed")
                     continue
 
-                if any(_ in el for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
-                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'player.vimeo.com/video']):
+                if any(_ in el for _ in _URL_NOT_VALID):
                     self.logger_debug(f"{pre}[{self._get_url_print(el)}] url not valid")
                     continue
                     
