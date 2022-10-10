@@ -153,6 +153,12 @@ class BaseKVSIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
             
 
+class TwinkVideosIE(BaseKVSIE):
+    IE_NAME = 'twinkvideos'
+    _VALID_URL = r'https?://(?:www\.)?twinkvideos\.com/videos/(?P<id>\d+)'
+    _SITE_URL = 'https://twinkvideos.com'
+
+
 class YourPornGodIE(BaseKVSIE):
     
     IE_NAME = 'yourporngod'

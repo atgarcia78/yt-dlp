@@ -2513,6 +2513,7 @@ from .machofactory import MachoFactoryIE
 from .citebeur import CitebeurIE
 from .cazzofilm import CazzoFilmIE
 from .yourporngod import (
+    TwinkVideosIE,
     YourPornGodIE,
     OnlyGayVideoIE,
     EbembedIE,
