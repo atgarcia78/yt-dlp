@@ -127,7 +127,8 @@ class BaseloadIE(SeleniumInfoExtractor):
                 
                 if not video_url: raise ExtractorError("error no video url")
             
-            title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME, '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
+            
+            title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME.replace('+CACHE',''), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
                         
             _format = {
                 'format_id': 'http-mp4',

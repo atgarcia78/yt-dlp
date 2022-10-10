@@ -85,6 +85,7 @@ CONFIG_EXTRACTORS = {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
                   ('tubeload', 'embedo',
+     'tubeload+cache', 'tubeload+CACHE',
                  'thisvidgay','redload',
                    'biguz', 'gaytubes',): {
                                             'ratelimit': limiter_0_1, 
