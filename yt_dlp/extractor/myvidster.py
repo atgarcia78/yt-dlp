@@ -25,7 +25,9 @@ from .commonwebdriver import (
     By, 
     ConnectError)
 
-_URL_NOT_VALID = ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed','xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'player.vimeo.com/video']
+_URL_NOT_VALID = [  'rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 
+                    'twinkvideos.com/embed','xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 
+                    'pornone.com/embed/', 'player.vimeo.com/video']
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -160,8 +162,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
-    _NETRC_MACHINE = "myvidster"
-
+    
     _URLS_CHECKED = []
             
     def getbestvid(self, x, msg=None):
@@ -467,8 +468,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         Inside query, if there is param 'pages', that it is the max number of pages of
         search result that will be evaluated. By default: 5
     '''
-    
-    _NETRC_MACHINE = "myvidster"
+
     _SEARCH_URL = 'https://www.myvidster.com/search/?'
     
     def _get_last_page(self, _urlqbase):
@@ -552,7 +552,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:subs:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/subscriptions/Atgarcia/?(\?q=(?P<query>.+))'
     _POST_URL = "https://www.myvidster.com/processor.php"
-    _NETRC_MACHINE = "myvidster"
+    
     _SEARCH_URL =  "https://www.myvidster.com/search/?q='%s'&filter_by=user_%s"
     
     def _getter(self, x):
