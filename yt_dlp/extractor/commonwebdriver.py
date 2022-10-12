@@ -78,13 +78,13 @@ dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=1
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 CONFIG_EXTRACTORS = {
-    ('userload', 'evoload', 'highload',): {
+                ('userload', 'evoload',): {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 4},
                 ('doodstream','vidoza',): {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
-                  ('tubeload', 'embedo',
+      ('highload', 'tubeload', 'embedo',
      'tubeload+cache', 'tubeload+CACHE',
                  'thisvidgay','redload',
                    'biguz', 'gaytubes',): {
