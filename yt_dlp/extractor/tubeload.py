@@ -3,7 +3,7 @@ import traceback
 from urllib.parse import unquote
 import re
 import html
-import pyduktape3 as pyduk
+import pyduktape2 as pyduk
 
 
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain

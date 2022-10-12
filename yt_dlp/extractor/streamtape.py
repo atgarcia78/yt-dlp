@@ -2,7 +2,7 @@ import re
 import sys
 import time
 import traceback
-import pyduktape3 as pyduk
+import pyduktape2 as pyduk
 import html
 
 from ..utils import ExtractorError, sanitize_filename, try_get
