@@ -1,7 +1,7 @@
 import sys
 import traceback
 import re
-import pyduktape3 as pyduk
+import pyduktape2 as pyduk
 import json
 import html
 
