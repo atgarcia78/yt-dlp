@@ -10,6 +10,10 @@ from httpx import HTTPStatusError, HTTPError, StreamError, ConnectError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
+import ssl
+import socket
+import cchardet as chardet
+
 from threading import Lock, Event
 
 from selenium.webdriver import Firefox, FirefoxOptions
@@ -571,6 +575,121 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def _get_ip_origin(self):
         return(try_get(self.send_http_request("https://api.ipify.org?format=json"), lambda x: x.json().get('ip') if x else ''))
+    
+
+    def socket_http(self, hostname: str, port: int, path: str, http_version: str, method: str, user_agent: str, max_limit: int):
+    
+        logger.debug(
+            f'Connecting to {hostname}:{port}, send {method} {path} {http_version} request')
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # connect the client
+        client.connect((hostname, port))
+
+        # ssl wrap the socket
+        if port == 443:
+            context = ssl.create_default_context()
+            client = context.wrap_socket(client, server_hostname=hostname)
+
+        accept = self._CLIENT_CONFIG['headers']['Accept']
+        accept_language = self._CLIENT_CONFIG['headers']['Accept-Language']
+        accept_encoding = self._CLIENT_CONFIG['headers']['Accept-Encoding']
+
+        _cmd = f"{method} {path} HTTP/{http_version}\r\nHost: {hostname}\r\nUser-Agent: {user_agent}\r\nAccept: {accept}\r\nAccept-Language: {accept_language}\r\n\r\n"
+
+        logger.debug(_cmd)
+
+        client.send(_cmd.encode())
+
+        # receive some data
+        buffer_size = 4096
+        response = b''
+        while True:
+            data = client.recv(buffer_size)
+            #data = client.recv()
+            logger.debug(f'receiving {len(data)} bytes data...')
+            if data:
+                response += data
+            #if any([b'</script><style>' in response, not data, len(response) > max_limit]):
+            if any([b'</script><style>' in response, not data]):
+                client.close()
+                break
+        logger.debug(response)
+        encoding = chardet.detect(response)['encoding']
+        logger.debug(encoding)
+        return response.decode(encoding)
+
+    def socket_http_request(self, url, **kwargs):
+
+        try:
+            res = ""
+            _msg_err = ""
+            headers = kwargs.get('headers', None)
+            msg = kwargs.get('msg', None)
+            premsg = f'[stream_http_request][{self._get_url_print(url)}]'
+            if msg: 
+                premsg = f'{msg}{premsg}'            
+            max_limit = kwargs.get('max_limit', None)
+            
+            # use urlparse to parse the url, return ParseResult
+            parsedResult = urlparse(url)
+            scheme, hostname, port, path = parsedResult.scheme, parsedResult.hostname, parsedResult.port, parsedResult.path
+            # check if scheme is http or https
+            if scheme != 'http' and scheme != 'https':
+                logger.error(f'{url} is not a valid url, only support http or https')
+                return
+            # nomalize port if port is not specified
+            port = port if port else 80 if parsedResult.scheme == 'http' else 443
+            path = path if path else '/'
+            http_version = "1.0"
+            method = "GET"
+            user_agent = self._CLIENT_CONFIG['headers']['User-Agent'] 
+            return self.socket_http(hostname, port, path, http_version, method, user_agent, max_limit)
+
+        except Exception as e:            
+            _msg_err = repr(e)
+            logger.exception(_msg_err)
+            raise
+
+    
+    def stream_http_request(self, url, **kwargs):
+        try:
+            res = ""
+            _msg_err = ""
+            _type = kwargs.get('_type', "GET")
+            headers = kwargs.get('headers', None)
+            #data = kwargs.get('data', None)
+            msg = kwargs.get('msg', None)
+            premsg = f'[stream_http_request][{self._get_url_print(url)}][{_type}]'
+            if msg: 
+                premsg = f'{msg}{premsg}'           
+
+            with self._CLIENT.stream("GET", url, headers=headers) as res:
+                res.raise_for_status()
+                _res = ""
+                for chunk in res.iter_text(chunk_size=16384):
+                    if chunk:
+                        _res += chunk
+                        if '</script><style>' in _res: break
+                return _res
+           
+        except Exception as e:            
+            _msg_err = repr(e)
+            if res and res.status_code == 404:           
+                res.raise_for_status()
+            elif res and res.status_code == 503:
+                raise StatusError503(repr(e))
+            elif isinstance(e, ConnectError):
+                if 'errno 61' in _msg_err.lower():                    
+                    raise
+                else:
+                    raise ExtractorError(_msg_err)   
+            elif not res:
+                raise TimeoutError(_msg_err)                         
+            else:
+                raise ExtractorError(_msg_err) 
+        finally:                
+            self.logger_debug(f"{premsg} {res}:{_msg_err}")        
+
     
     #@_check_init
     def send_http_request(self, url, **kwargs):        
