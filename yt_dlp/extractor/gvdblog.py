@@ -16,7 +16,12 @@ logger = logging.getLogger('GVDBlog')
 class GVDBlogBaseIE(SeleniumInfoExtractor):
     _SLOW_DOWN = False
 
-    def get_entry_video(self, x, check=True, msg=None):
+    def get_entry_video(self, x, **kwargs):
+        
+        check = kwargs.get('check', True)
+        msg = kwargs.get('msg', None)
+        
+       
 
         _x = x if isinstance(x, list) else [x]
         _x.sort(reverse=True)
@@ -153,8 +158,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             postdate = datetime.fromisoformat(traverse_obj(post, ('published', '$t')).split('T')[0])
             return(postdate, title, postid)
     
-    def get_entries_from_blog_post(self, post, check=True):
-        
+    def get_entries_from_blog_post(self, post, **kwargs):
+
+        check = kwargs.get('check', True)
+       
+
         if isinstance(post, str):
             url = post
             self.report_extraction(url)

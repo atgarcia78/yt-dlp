@@ -73,7 +73,10 @@ class UserLoadIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}") 
         driver.get(url)
     
-    def _get_entry(self, url, check_active=False, msg=None):
+    def _get_entry(self, url, **kwargs):
+        
+        check_active = kwargs.get('check_active', False)
+        msg = kwargs.get('msg', None)
         
         try:
             
