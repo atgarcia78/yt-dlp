@@ -6,13 +6,10 @@ import html
 import pyduktape2 as pyduk
 
 
-
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
     limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, StatusStop, Lock)
-
-
 
 
 class BaseloadIE(SeleniumInfoExtractor):
@@ -98,7 +95,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         check_active = kwargs.get('check_active', False)
         msg = kwargs.get('msg', None)
         webpage = kwargs.get('webpage', None)
-        max_limit = kwargs.get('max_limit', 16384)
+        max_limit = kwargs.get('max_limit', True)
         #max_limit = kwargs.get('max_limit', None)
 
         try:
