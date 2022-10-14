@@ -625,7 +625,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             _msg_err = ""
             headers = kwargs.get('headers', None)
             msg = kwargs.get('msg', None)
-            premsg = f'[stream_http_request][{self._get_url_print(url)}]'
+            premsg = f'[socket_http_request][{self._get_url_print(url)}]'
             if msg: 
                 premsg = f'{msg}{premsg}'            
             max_limit = kwargs.get('max_limit', None)
@@ -653,15 +653,11 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def stream_http_request(self, url, **kwargs):
         try:
-            res = ""
-            _msg_err = ""
             _type = kwargs.get('_type', "GET")
             headers = kwargs.get('headers', None)
-            #data = kwargs.get('data', None)
             msg = kwargs.get('msg', None)
             premsg = f'[stream_http_request][{self._get_url_print(url)}][{_type}]'
-            if msg: 
-                premsg = f'{msg}{premsg}'           
+            if msg: premsg = f'{msg}{premsg}'           
 
             with self._CLIENT.stream("GET", url, headers=headers) as res:
                 res.raise_for_status()
@@ -670,7 +666,9 @@ class SeleniumInfoExtractor(InfoExtractor):
                     if chunk:
                         _res += chunk
                         if '</script><style>' in _res: break
-                return _res
+                
+            if not _res: return ""
+            else: return _res
            
         except Exception as e:            
             _msg_err = repr(e)
@@ -682,21 +680,17 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if 'errno 61' in _msg_err.lower():                    
                     raise
                 else:
-                    raise ExtractorError(_msg_err)   
-            elif not res:
-                raise TimeoutError(_msg_err)                         
+                    raise ExtractorError(_msg_err)
+            elif not _res: 
+                raise TimeoutError(_msg_err)
             else:
                 raise ExtractorError(_msg_err) 
         finally:                
             self.logger_debug(f"{premsg} {res}:{_msg_err}")        
 
-    
-    #@_check_init
+
     def send_http_request(self, url, **kwargs):        
-        
         try:
-            res = ""
-            _msg_err = ""
             _type = kwargs.get('_type', "GET")
             headers = kwargs.get('headers', None)
             data = kwargs.get('data', None)
@@ -718,14 +712,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             elif res and res.status_code == 503:
                 raise StatusError503(repr(e))
             elif isinstance(e, ConnectError):
-                if 'errno 61' in _msg_err.lower():
-                    
+                if 'errno 61' in _msg_err.lower():                    
                     raise
                 else:
                     raise ExtractorError(_msg_err)   
             elif not res:
                 raise TimeoutError(_msg_err)
-                         
             else:
                 raise ExtractorError(_msg_err) 
         finally:                
