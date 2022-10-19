@@ -10,9 +10,6 @@ from httpx import HTTPStatusError, HTTPError, StreamError, ConnectError
 from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
 
-import ssl
-import socket
-import cchardet as chardet
 
 from threading import Lock, Event
 
@@ -576,9 +573,86 @@ class SeleniumInfoExtractor(InfoExtractor):
     def _get_ip_origin(self):
         return(try_get(self.send_http_request("https://api.ipify.org?format=json"), lambda x: x.json().get('ip') if x else ''))
     
+    def stream_http_request(self, url, **kwargs):
+        try:
+            msg = kwargs.get('msg', None)
+            chunk_size = kwargs.get('chunk_size', 16384)
+            premsg = f'[stream_http_request][{self._get_url_print(url)}]'
+            if msg: premsg = f'{msg}{premsg}'           
+            res = None
+            _msg_err = ""
+            with self._CLIENT.stream("GET", url, **kwargs) as res:
+                res.raise_for_status()
+                _res = ""
+                for chunk in res.iter_text(chunk_size=chunk_size):
+                    if chunk:
+                        _res += chunk
+                        if '</script><style>' in _res: break
+
+            if not _res: return ""
+            else: return _res
+           
+        except Exception as e:            
+            _msg_err = repr(e)
+            if res and res.status_code == 404:           
+                res.raise_for_status()
+            elif res and res.status_code == 503:
+                raise StatusError503(repr(e))
+            elif isinstance(e, ConnectError):
+                if 'errno 61' in _msg_err.lower():                    
+                    raise
+                else:
+                    raise ExtractorError(_msg_err)
+            elif not _res: 
+                raise TimeoutError(_msg_err)
+            else:
+                raise ExtractorError(_msg_err) 
+        finally:                
+            self.logger_debug(f"{premsg} {res}:{_msg_err}")        
+
+
+    def send_http_request(self, url, **kwargs):        
+        try:
+            _type = kwargs.get('_type', "GET")
+            headers = kwargs.get('headers', None)
+            data = kwargs.get('data', None)
+            msg = kwargs.get('msg', None)
+            premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
+            if msg: 
+                premsg = f'{msg}{premsg}'           
+
+            res = None
+            _msg_err = ""
+            req = self._CLIENT.build_request(_type, url, data=data, headers=headers)
+            res = self._CLIENT.send(req)
+            if res:
+                res.raise_for_status()                
+                return res
+            else: return ""
+        except Exception as e:            
+            _msg_err = repr(e)
+            if res and res.status_code == 404:           
+                res.raise_for_status()
+            elif res and res.status_code == 503:
+                raise StatusError503(repr(e))
+            elif isinstance(e, ConnectError):
+                if 'errno 61' in _msg_err.lower():                    
+                    raise
+                else:
+                    raise ExtractorError(_msg_err)   
+            elif not res:
+                raise TimeoutError(_msg_err)
+            else:
+                raise ExtractorError(_msg_err) 
+        finally:                
+            self.logger_debug(f"{premsg} {req}:{res}:{_msg_err}")
 
     def socket_http(self, hostname: str, port: int, path: str, http_version: str, method: str, user_agent: str, max_limit: int):
     
+        import ssl
+        import socket
+        import cchardet as chardet
+
         logger.debug(
             f'Connecting to {hostname}:{port}, send {method} {path} {http_version} request')
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -651,74 +725,3 @@ class SeleniumInfoExtractor(InfoExtractor):
             raise
 
     
-    def stream_http_request(self, url, **kwargs):
-        try:
-            _type = kwargs.get('_type', "GET")
-            headers = kwargs.get('headers', None)
-            msg = kwargs.get('msg', None)
-            premsg = f'[stream_http_request][{self._get_url_print(url)}][{_type}]'
-            if msg: premsg = f'{msg}{premsg}'           
-
-            with self._CLIENT.stream("GET", url, headers=headers) as res:
-                res.raise_for_status()
-                _res = ""
-                for chunk in res.iter_text(chunk_size=16384):
-                    if chunk:
-                        _res += chunk
-                        if '</script><style>' in _res: break
-                
-            if not _res: return ""
-            else: return _res
-           
-        except Exception as e:            
-            _msg_err = repr(e)
-            if res and res.status_code == 404:           
-                res.raise_for_status()
-            elif res and res.status_code == 503:
-                raise StatusError503(repr(e))
-            elif isinstance(e, ConnectError):
-                if 'errno 61' in _msg_err.lower():                    
-                    raise
-                else:
-                    raise ExtractorError(_msg_err)
-            elif not _res: 
-                raise TimeoutError(_msg_err)
-            else:
-                raise ExtractorError(_msg_err) 
-        finally:                
-            self.logger_debug(f"{premsg} {res}:{_msg_err}")        
-
-
-    def send_http_request(self, url, **kwargs):        
-        try:
-            _type = kwargs.get('_type', "GET")
-            headers = kwargs.get('headers', None)
-            data = kwargs.get('data', None)
-            msg = kwargs.get('msg', None)
-            premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
-            if msg: 
-                premsg = f'{msg}{premsg}'           
-
-            req = self._CLIENT.build_request(_type, url, data=data, headers=headers)
-            res = self._CLIENT.send(req)
-            if res:
-                res.raise_for_status()
-                return res
-            else: return ""
-        except Exception as e:            
-            _msg_err = repr(e)
-            if res and res.status_code == 404:           
-                res.raise_for_status()
-            elif res and res.status_code == 503:
-                raise StatusError503(repr(e))
-            elif isinstance(e, ConnectError):
-                if 'errno 61' in _msg_err.lower():                    
-                    raise
-                else:
-                    raise ExtractorError(_msg_err)   
-            elif not res:
-                raise TimeoutError(_msg_err)
-            else:
-                raise ExtractorError(_msg_err) 
-        finally:                
-            self.logger_debug(f"{premsg} {res}:{_msg_err}")
