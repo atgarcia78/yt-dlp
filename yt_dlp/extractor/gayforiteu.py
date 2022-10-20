@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger("gayforiteu")
 
-class getvideourl():
+class getvideourl:
     def __call__(self, driver):
         el_video = driver.find_element(By.CSS_SELECTOR, 'video')
         if (video_url:=el_video.get_attribute('src')):
@@ -61,7 +61,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 driver.delete_all_cookies()
                 self._send_request(_url, driver=driver)
                                 
-            video_url = self.wait_until(driver, 30, getvideourl())
+            video_url = self.wait_until(driver, 30, getvideourl)
          
             if not video_url:
                 raise ExtractorError("no video url")           

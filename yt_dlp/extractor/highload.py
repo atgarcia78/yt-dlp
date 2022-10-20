@@ -8,7 +8,7 @@ from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, limiter_0_1, HTTPStatusError, ConnectError, By, Lock
 
 
-class getvideourl():
+class getvideourl:
     def __call__(self, driver):
 
         el_video = driver.find_element(By.ID, "faststream_html5_api")
@@ -70,7 +70,7 @@ class FastStreamIE(SeleniumInfoExtractor):
         
         try:
             _send_request(url, driver)
-            video_url = self.wait_until(driver, 30, getvideourl())
+            video_url = self.wait_until(driver, 30, getvideourl)
             if not video_url or video_url == "error404": raise ExtractorError("error404")
             title = driver.title.replace(self._SUBS_TITLE,"").replace(".mp4","").strip('[_,-, ]')
             videoid = self._match_id(url)

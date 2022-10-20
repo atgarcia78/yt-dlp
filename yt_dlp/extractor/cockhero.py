@@ -7,7 +7,7 @@ from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_10, By, ec
 
 
-class get_videourl_title():
+class get_videourl_title:
     
     def __call__(self, driver):
 
@@ -51,7 +51,7 @@ class CockHeroIE(SeleniumInfoExtractor):
             video_id = self._match_id(url) 
             self._send_request(driver, url)
             
-            el = self.wait_until(driver, 30, get_videourl_title())                
+            el = self.wait_until(driver, 30, get_videourl_title)                
                 
             if not el: raise ExtractorError("No video url")
             

@@ -111,7 +111,7 @@ CONFIG_EXTRACTORS = {
 }
 
 
-class scroll():
+class scroll:
     '''
         To use as a predicate in the webdriver waits to scroll down to the end of the page
         when the page has an infinite scroll where it is adding new elements dynamically

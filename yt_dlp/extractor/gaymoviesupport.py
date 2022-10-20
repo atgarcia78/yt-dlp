@@ -7,7 +7,7 @@ from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
-class get_videourl():
+class get_videourl:
     def __call__(self, driver):
         elcont = driver.find_element(By.CSS_SELECTOR, "html")
         elcont.click()
@@ -66,7 +66,7 @@ class GayMovieSupportIE(SeleniumInfoExtractor):
                 
             videojson = self.request_to_host("post", f"https://gaymoviesupport.cf/api/source/{videoid}", data=_data, headers=_headers)
 
-            #video_url = self.wait_until(driver, 30, get_videourl())
+            #video_url = self.wait_until(driver, 30, get_videourl)
 
             if videojson.get('data'):
                 self.to_screen(videojson['data'])

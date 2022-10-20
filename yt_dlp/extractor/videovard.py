@@ -7,7 +7,7 @@ from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_2, By, ec
 
 
-class getvideourl():
+class getvideourl:
     def __call__(self, driver):
         vpl = driver.find_element(By.ID, "vplayer")
         vid = driver.find_element(By.TAG_NAME, "video")
@@ -78,11 +78,11 @@ class VideovardIE(SeleniumInfoExtractor):
             
             _formats = None            
             
-            self.send_multi_request(_wurl:=(url.replace('/e/', '/v/').replace('videovard.to', 'videovard.sx')), driver)
+            self.send_multi_request(_wurl:=(url.replace('/e/', '/v/').replace('videovard.to', 'videovard.sx')), driver=driver)
 
             title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
 
-            video_url = self.wait_until(driver, 60, getvideourl())
+            video_url = self.wait_until(driver, 60, getvideourl)
             
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
                                 
