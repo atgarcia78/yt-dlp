@@ -11,7 +11,7 @@ from ..utils import ExtractorError, int_or_none, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
-class get_videourl():
+class get_videourl:
     def __call__(self, driver):
         elvideo = driver.find_elements(By.CSS_SELECTOR, "video#player")
         if not elvideo: return False
@@ -61,7 +61,7 @@ class GayBingoIE(SeleniumInfoExtractor):
         try: 
             self.url_request(driver, url)
             
-            m3u8_url = self.wait_until(driver, 60, get_videourl())
+            m3u8_url = self.wait_until(driver, 60, get_videourl)
             
             if m3u8_url:
                 self.to_screen(m3u8_url)

@@ -11,7 +11,7 @@ from .commonwebdriver import (
     limiter_15, By, HTTPStatusError, Lock,
     ConnectError, dec_on_exception2, dec_on_exception3)
 
-class video_or_error_evoload():
+class video_or_error_evoload:
     def __init__(self, logger):
         self.logger = logger
         self.init = True
@@ -52,7 +52,7 @@ class video_or_error_evoload():
         except Exception as e:
             return False
 
-class get_title():
+class get_title:
     def __call__(self, driver):
         
         el = driver.find_elements(by=By.CSS_SELECTOR, value="h3")        
@@ -133,7 +133,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
             }
             
             self._send_request(url.split('?')[0].replace('/e/', '/v/'), driver)
-            _title =  self.wait_until(driver, 30, get_title()) 
+            _title =  self.wait_until(driver, 30, get_title) 
             videoid = self._match_id(url.split('?')[0])        
 
             if check_active:

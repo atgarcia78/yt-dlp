@@ -6,7 +6,7 @@ import traceback
 from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
 
-class getvideourl():
+class getvideourl:
     def __call__(self, driver):
         el_video = driver.find_element(By.ID, "vjsplayer_html5_api")
         if not (_videourl:=el_video.get_attribute('src')):
@@ -58,7 +58,7 @@ class YoudBoxIE(SeleniumInfoExtractor):
 
             self.request_to_host("url_request", driver, _url)
 
-            video_url = self.wait_until(driver, 60, getvideourl()) 
+            video_url = self.wait_until(driver, 60, getvideourl) 
 
             if not video_url: raise ExtractorError("no video url")            
             title = driver.title.replace("mp4", "").replace("Download", "").replace("download", "").strip()

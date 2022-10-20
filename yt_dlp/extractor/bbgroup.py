@@ -11,7 +11,7 @@ from .commonwebdriver import dec_on_exception, dec_on_exception3, dec_on_excepti
 from queue import Empty, Queue
 
 
-class waitforlogin():
+class waitforlogin:
     def __init__(self, username, password, logger):
         self.username = username
         self.password = password

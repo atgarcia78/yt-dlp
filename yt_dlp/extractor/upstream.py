@@ -7,7 +7,7 @@ from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_excepti
 import time
 
 
-class trigger_m3u8():
+class trigger_m3u8:
     def __call__(self, driver):
         
         el_poster = driver.find_element(By.CSS_SELECTOR, 'div.player-poster.clickable')
@@ -62,7 +62,7 @@ class HLSStream(SeleniumInfoExtractor):
             title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
 
             if self.IE_NAME == 'videobin':
-                self.wait_until(driver, 60, trigger_m3u8())
+                self.wait_until(driver, 60, trigger_m3u8)
             
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
             

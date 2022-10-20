@@ -7,7 +7,7 @@ from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1,  By, HTTPStatusError, ConnectError
 
 
-class get_videourl():    
+class get_videourl:    
 
     def __call__(self, driver):
         el_video = driver.find_element(By.CSS_SELECTOR, "video")
@@ -79,7 +79,7 @@ class TheGayIE(SeleniumInfoExtractor):
             
             videoid = self._match_id(url)  
 
-            videourl = self.wait_until(driver, 60, get_videourl())
+            videourl = self.wait_until(driver, 60, get_videourl)
             if not videourl: raise ExtractorError("couldnt find videourl")
             
             _title = re.sub(r'(?i)( - %s\..+$)' % self.IE_NAME, '', driver.title.replace('.mp4','')).strip('[_,-, ]')

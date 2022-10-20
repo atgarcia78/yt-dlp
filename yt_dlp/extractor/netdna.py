@@ -14,7 +14,7 @@ from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception,  dec_on_exception2,  dec_on_exception3, dec_retry_raise, SeleniumInfoExtractor, limiter_0_5, limiter_1, HTTPStatusError, ConnectError, _check_init
 
 
-class fast_forward():     
+class fast_forward:     
     def __init__(self, orig, logger):
         self.url_orig = orig
         self.logger = logger

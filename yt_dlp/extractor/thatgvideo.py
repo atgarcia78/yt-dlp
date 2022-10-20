@@ -3,7 +3,7 @@ import traceback
 
 from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By
-class get_videourl():
+class get_videourl:
     def __call__(self, driver):
         elvideo = driver.find_elements(By.TAG_NAME, "video")
         if not elvideo: return False
@@ -49,7 +49,7 @@ class ThatGVideoIE(SeleniumInfoExtractor):
   
             self.request_to_host("url_request", driver, url) 
 
-            video_url = self.wait_until(driver, 30, get_videourl())
+            video_url = self.wait_until(driver, 30, get_videourl)
 
             if video_url:
                 self.to_screen(video_url)

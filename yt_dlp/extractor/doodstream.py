@@ -101,7 +101,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
             _url = f'https://dood.to/e/{video_id}'
             self._send_request(_url, driver=driver, msg=pre)
 
-            video_url = self.wait_until(driver, 30, getvideourl())
+            video_url = self.wait_until(driver, 30, getvideourl)
             if not video_url: raise ExtractorError("couldnt get videourl")
             
             title = try_get(driver.title, lambda x: x.replace(' - DoodStream', '')) 

@@ -6,7 +6,7 @@ import re
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError, ConnectError
 
-class get_title():
+class get_title:
     def __call__(self, driver):
         if any(_ == driver.title.strip() for _ in  ("TXXX.com", "HotMovs.com")):
             return False
@@ -64,7 +64,7 @@ class PornhitsIE(SeleniumInfoExtractor):
                 title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
             
             else:
-                title = self.wait_until(driver, 60, get_title()).replace('Porn Video | HotMovs.com', '').strip()
+                title = self.wait_until(driver, 60, get_title).replace('Porn Video | HotMovs.com', '').strip()
                 
                 
             
