@@ -8,7 +8,7 @@ import re
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, By
 
-class getvideourl():
+class getvideourl:
     def __init__(self, logger):
         self.logger = logger
     

@@ -8,7 +8,7 @@ from ..utils import try_get, ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, By, ec, HTTPStatusError, ConnectError
 import hashlib
 
-class getvideourl():
+class getvideourl:
     def __call__(self,driver):
         el_ifr = driver.find_element(By.CSS_SELECTOR, 'iframe')
         _type_player_id = try_get(re.search(r'play.php\?id=(?P<id>.+)', el_ifr.get_attribute('src')), lambda x: x.group('id') if x else None)
@@ -146,7 +146,7 @@ class XvidgayIE(SeleniumInfoExtractor):
             self._send_request(url, driver)            
 
             _title = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, 'h1'))), lambda x: x.text)
-            _videoid, _videourl = self.wait_until(driver, 60, getvideourl())
+            _videoid, _videourl = self.wait_until(driver, 60, getvideourl)
             
             if not _videourl: raise ExtractorError('no videourl')
         
