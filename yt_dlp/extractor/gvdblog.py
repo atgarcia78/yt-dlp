@@ -43,24 +43,32 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
     
-    def get_urls(self, post):
+    def get_urls(self, post, msg=None):
         
         if isinstance(post, str):
             webpage = post            
         else:
             webpage = traverse_obj(post, ('content', '$t'))
             
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<|>(\s*Part[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or any([_ in l1[2].lower() for _ in ['angle', 'part']])]]
+        #list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<|>(\s*Part[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or 'angle' in l1[2].lower() or 'part' in l1[3].lower()]]
+
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or (l1[1] and not 'Subtitle' in l1[1])]]
         
         iedood = self._downloader.get_info_extractor('DoodStream')
+        iehigh = self._downloader.get_info_extractor('Highload')
         n_videos = list_urls.count(None)
         n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
-        if not n_videos_dood: n_videos_dood = len(list_urls) - n_videos
+        if not n_videos_dood: 
+            n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
+            if not n_videos_dood:
+                n_videos_dood = len(list_urls) - n_videos
         if n_videos and n_videos_dood and n_videos == n_videos_dood:
             _final_urls = list_urls
-        
-        
+                
         else:
+            _pre = "[get_urls]"
+            if msg: _pre += f"[{msg}]"
+            self.report_warning(f"{_pre} please check urls extracted: {list_urls}")
             _final_urls = []
             _pass = 0
             for i in range(len(list_urls)):
@@ -179,7 +187,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         try:
             
             postdate, title, postid = self.get_info(post)
-            list_candidate_videos = self.get_urls(post)
+            list_candidate_videos = self.get_urls(post, msg=url)
                 
             if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError(f"[{url} no video info")   
                 
@@ -254,14 +262,24 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"
-    _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html'
+    _VALID_URL = r'https?://(www\.)?gvdblog\.com/\d{4}/\d+/.+\.html(\?(?P<query>.+))?'
 
     def _real_initialize(self):
         super()._real_initialize()
                
     def _real_extract(self, url):
         
-        entries, title, postid = self.get_entries_from_blog_post(url)
+        query = re.search(self._VALID_URL, url).group('query')
+        
+        if query:
+            params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
+
+            if params.get('check','').lower() == 'no':
+                _check = False
+            else: _check = True
+        
+        else: _check = True
+        entries, title, postid = self.get_entries_from_blog_post(url, check=_check)
         if not entries: raise ExtractorError("no videos")
             
         return self.playlist_result(entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
@@ -320,12 +338,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if _q:=params.get('q'):
             urlquery += f"&q={_q}"
             
-        if params.get('check','').lower() == 'no':
-            self._check = False
-        else: self._check = True
         
         post_blog_entries_search = self.send_api_search(urlquery) 
-        
         
         _nentries = int(params.get('entries', -1))
         _from = int(params.get('from', 1))
@@ -335,14 +349,15 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         else:
             final_entries = post_blog_entries_search[_from-1:]
 
-        if final_entries and len(final_entries) > 50: 
-            GVDBlogBaseIE._SLOW_DOWN = True
-            self._check = False
 
         return final_entries  
 
-    def iter_get_entries_search(self, url):
+    def iter_get_entries_search(self, url, check=True):
         blog_posts_list = self.get_blog_posts_search(url)
+        
+        if len(blog_posts_list) > 50: 
+            GVDBlogBaseIE._SLOW_DOWN = True
+            check = False
         
         self.logger_debug(f'[blog_post_list] {blog_posts_list}')
             
@@ -351,12 +366,15 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.logger_debug(f'[posts_vid_url] {posts_vid_url}')
         
         for _post_blog in blog_posts_list:
-            yield try_get(self.get_entries_from_blog_post(_post_blog), lambda x: x[0][0])
+            yield try_get(self.get_entries_from_blog_post(_post_blog, check=check), lambda x: x[0][0])
 
-    def get_entries_search(self, url):         
+    def get_entries_search(self, url, check=True):         
     
-        
         blog_posts_list = self.get_blog_posts_search(url)
+
+        if len(blog_posts_list) > 50: 
+            GVDBlogBaseIE._SLOW_DOWN = True
+            check = False
         
         self.logger_debug(f'[blog_post_list] {blog_posts_list}')
             
@@ -366,12 +384,12 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         _entries = []
 
-        if self.get_param('embed') or not self.get_param('extract_flat'):
+        if self.get_param('embed') or (self.get_param('extract_flat','') != 'in_playlist'):
         
             
             with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
                     
-                futures = {ex.submit(self.get_entries_from_blog_post, _post_blog, check=self._check): _post_url for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}       
+                futures = {ex.submit(self.get_entries_from_blog_post, _post_blog, check=check): _post_url for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}       
 
                 
             for fut in futures:
@@ -385,24 +403,31 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     logger.warning(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
         
         else:
-            _entries = [self.url_result(url, ie=GVDBlogPostIE.ie_key()) for url in posts_vid_url]
+            _entries = [self.url_result(url if check else f"{url}?check=no", ie=GVDBlogPostIE.ie_key()) for url in posts_vid_url]
         
         return _entries
  
     def _real_initialize(self):
         super()._real_initialize()
+        
 
     def _real_extract(self, url):
         
         self.report_extraction(url)
 
         query = re.search(self._VALID_URL, url).group('query')
+
+        params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
         
-        if "iter=yes" in query:
-            entries = self.iter_get_entries_search(url)
+        if params.get('check','').lower() == 'no':
+            _check = False
+        else: _check = True
+        
+        if params.get('iter', '') == 'yes':
+            entries = self.iter_get_entries_search(url, check=_check)
         
         else:
-            entries =  self.get_entries_search(url)
+            entries =  self.get_entries_search(url, check=_check)
         
         self.logger_debug(entries)
 

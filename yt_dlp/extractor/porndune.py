@@ -63,7 +63,7 @@ class PornDuneIE(SeleniumInfoExtractor):
         
             driver = self.get_driver()
             driver.get(url)
-            ifr_url = try_get(self.wait_until(driver, 30, ifr_or_captcha), lambda x: x.get('iframe'))
+            ifr_url = try_get(self.wait_until(driver, 30, ifr_or_captcha()), lambda x: x.get('iframe'))
             title = try_get(re.findall(r'og:title" content="([^"]+)"', html.unescape(driver.page_source)), lambda x: sanitize_filename(x[0], restricted=True))
             if not ifr_url:
                 

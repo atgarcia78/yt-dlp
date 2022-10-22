@@ -29,7 +29,7 @@ class error404_or_found:
                 return False
     
 
-class alreadylogin_or_reqtw():    
+class alreadylogin_or_reqtw:    
     def __call__(self, driver):        
         el = driver.find_elements(by=By.CSS_SELECTOR, value="nav.l-header__menu")        
         if el:            
@@ -162,7 +162,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                 self.send_driver_request(driver, el_init[1].get_attribute('href'))
             
-            el = self.wait_until(driver, 60, succ_or_twlogin)            
+            el = self.wait_until(driver, 60, succ_or_twlogin())            
 
             if el:
                 if el[0] == "loginok":
@@ -177,7 +177,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     self.wait_until(driver, 0.5)           
                     login_element.submit()
                     
-                    el = self.wait_until(driver, 60, succ_or_twrelogin)
+                    el = self.wait_until(driver, 60, succ_or_twrelogin())
                 
                     if el:
                         if el[0] == "loginok":
@@ -453,7 +453,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             entries = {} 
             
             self.send_driver_request(driver, url) 
-            res = self.wait_until(driver, 30, error404_or_found)
+            res = self.wait_until(driver, 30, error404_or_found())
             
             if not res or "error404" in res: 
                 raise ExtractorError("Error 404: Post doesnt exists")
@@ -512,7 +512,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             entries = {}
             
             self.send_driver_request(driver, f"{self._SITE_URL}/{account}")
-            res = self.wait_until(driver, 60, error404_or_found)
+            res = self.wait_until(driver, 60, error404_or_found())
             if not res or res[0] == "error404": raise ExtractorError("Error 404: User profile doesnt exists")
             
             userid = try_get(self.scan_for_json(driver, f'/api2/v2/users/{account}'), lambda x: x['id'])

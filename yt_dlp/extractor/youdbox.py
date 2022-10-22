@@ -58,7 +58,7 @@ class YoudBoxIE(SeleniumInfoExtractor):
 
             self.request_to_host("url_request", driver, _url)
 
-            video_url = self.wait_until(driver, 60, getvideourl) 
+            video_url = self.wait_until(driver, 60, getvideourl()) 
 
             if not video_url: raise ExtractorError("no video url")            
             title = driver.title.replace("mp4", "").replace("Download", "").replace("download", "").strip()

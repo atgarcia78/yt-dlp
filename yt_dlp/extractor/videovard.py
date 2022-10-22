@@ -82,7 +82,7 @@ class VideovardIE(SeleniumInfoExtractor):
 
             title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
 
-            video_url = self.wait_until(driver, 60, getvideourl)
+            video_url = self.wait_until(driver, 60, getvideourl())
             
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
                                 
