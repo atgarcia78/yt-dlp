@@ -49,7 +49,7 @@ class ThatGVideoIE(SeleniumInfoExtractor):
   
             self.request_to_host("url_request", driver, url) 
 
-            video_url = self.wait_until(driver, 30, get_videourl)
+            video_url = self.wait_until(driver, 30, get_videourl())
 
             if video_url:
                 self.to_screen(video_url)

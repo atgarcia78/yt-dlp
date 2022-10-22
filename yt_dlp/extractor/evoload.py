@@ -133,7 +133,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
             }
             
             self._send_request(url.split('?')[0].replace('/e/', '/v/'), driver)
-            _title =  self.wait_until(driver, 30, get_title) 
+            _title =  self.wait_until(driver, 30, get_title()) 
             videoid = self._match_id(url.split('?')[0])        
 
             if check_active:

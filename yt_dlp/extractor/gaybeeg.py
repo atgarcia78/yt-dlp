@@ -8,7 +8,7 @@ from ..utils import ExtractorError, try_get
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec, HTTPStatusError, ConnectError
 
 
-class get_links_netdna():
+class get_links_netdna:
     def __init__(self, logger):
         self.old_len = -1
         self.logger = logger

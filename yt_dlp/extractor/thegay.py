@@ -79,7 +79,7 @@ class TheGayIE(SeleniumInfoExtractor):
             
             videoid = self._match_id(url)  
 
-            videourl = self.wait_until(driver, 60, get_videourl)
+            videourl = self.wait_until(driver, 60, get_videourl())
             if not videourl: raise ExtractorError("couldnt find videourl")
             
             _title = re.sub(r'(?i)( - %s\..+$)' % self.IE_NAME, '', driver.title.replace('.mp4','')).strip('[_,-, ]')

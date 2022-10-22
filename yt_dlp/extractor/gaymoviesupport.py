@@ -66,7 +66,7 @@ class GayMovieSupportIE(SeleniumInfoExtractor):
                 
             videojson = self.request_to_host("post", f"https://gaymoviesupport.cf/api/source/{videoid}", data=_data, headers=_headers)
 
-            #video_url = self.wait_until(driver, 30, get_videourl)
+            #video_url = self.wait_until(driver, 30, get_videourl())
 
             if videojson.get('data'):
                 self.to_screen(videojson['data'])

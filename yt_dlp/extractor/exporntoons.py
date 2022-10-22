@@ -48,7 +48,7 @@ class ExPornToonsIE(SeleniumInfoExtractor):
             self._send_request(driver, url)
             _title = driver.title
             self.wait_until(driver, 30, ec.frame_to_be_available_and_switch_to_it((By.ID, "iplayer")))
-            video_url = self.wait_until(driver, 60, get_videourl)
+            video_url = self.wait_until(driver, 60, get_videourl())
             if video_url:
                 _videoinfo = self.get_info_for_format(video_url, headers={'Referer': self._SITE_URL})
                 if not _videoinfo: raise ExtractorError("no video info")            

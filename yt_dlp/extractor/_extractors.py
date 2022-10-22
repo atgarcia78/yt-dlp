@@ -2603,10 +2603,6 @@ from .manpornxxx import ManPornXXXIE
 from .upvideo import UpVideoIE
 from .vidoza import VidozaIE
 from .xvids import XVidsIE
-from .highload import (
-    HighloadIE,
-    EmbedoIE
-)
 from .evoload import EvoLoadIE
 from .gaystream import (
     GayStreamPWIE,
@@ -2629,7 +2625,9 @@ from .vodnakedsword import VODNakedSwordMovieIE
 from .thegay import TheGayIE
 from .tubeload import (
     TubeloadIE,
-    RedloadIE
+    RedloadIE,
+    HighloadIE,
+    EmbedoIE
 )
 from .querofoder import QueroFoderIE
 from .videovard import VideovardIE

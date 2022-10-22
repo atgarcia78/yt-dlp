@@ -10,7 +10,7 @@ from ..utils import ExtractorError, sanitize_filename
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor
 
 
-class get_video_url:
+class getvideourl:
     def __call__(self, driver):
         try:
             el = driver.find_element(By.CLASS_NAME,"fp-player")
@@ -59,7 +59,7 @@ class GayTheBestIE(SeleniumInfoExtractor):
             # el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "video.fp-engine")))
             
                       
-            video_url = self.wait_until(driver, 60, get_video_url())
+            video_url = self.wait_until(driver, 60, getvideourl())
             if not video_url: raise ExtractorError("no video url") 
               
             

@@ -61,7 +61,7 @@ class GayBingoIE(SeleniumInfoExtractor):
         try: 
             self.url_request(driver, url)
             
-            m3u8_url = self.wait_until(driver, 60, get_videourl)
+            m3u8_url = self.wait_until(driver, 60, get_videourl())
             
             if m3u8_url:
                 self.to_screen(m3u8_url)

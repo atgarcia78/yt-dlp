@@ -8,7 +8,7 @@ from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1,
 import html
 
 
-class get_episodes():
+class get_episodes:
     def __call__(self, driver):
         el_ep = driver.find_elements(By.CLASS_NAME, "episodios")
         if el_ep:

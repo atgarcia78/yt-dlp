@@ -85,7 +85,7 @@ class UserLoadIE(SeleniumInfoExtractor):
             _videoinfo = None
             driver = self.get_driver()
             self._send_request(url, driver)
-            video_url = self.wait_until(driver, 30, video_or_error_userload)
+            video_url = self.wait_until(driver, 30, video_or_error_userload())
             if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
             title = driver.title.replace(".mp4", "").split("|")[0].strip()
             videoid = self._match_id(url)

@@ -61,7 +61,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 driver.delete_all_cookies()
                 self._send_request(_url, driver=driver)
                                 
-            video_url = self.wait_until(driver, 30, getvideourl)
+            video_url = self.wait_until(driver, 30, getvideourl())
          
             if not video_url:
                 raise ExtractorError("no video url")           
