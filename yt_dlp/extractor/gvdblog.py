@@ -2,10 +2,10 @@ import json
 import re
 from datetime import datetime
 import html
-from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj
+from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, get_element_html_by_id
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, 
-    SeleniumInfoExtractor, limiter_0_1, limiter_0_5, HTTPStatusError, ConnectError)
+    SeleniumInfoExtractor, limiter_0_1, limiter_0_5, limiter_non, HTTPStatusError, ConnectError)
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -46,13 +46,18 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_urls(self, post, msg=None):
         
         if isinstance(post, str):
-            webpage = post            
+            webpage =  get_element_html_by_id('post-body', post)
+           
         else:
             webpage = traverse_obj(post, ('content', '$t'))
             
         #list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<|>(\s*Part[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or 'angle' in l1[2].lower() or 'part' in l1[3].lower()]]
 
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or (l1[1] and not 'Subtitle' in l1[1])]]
+        
+        #list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or (l1[1] and not 'Subtitle' in l1[1])]]
+
+       
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if l1[0] or (l1[1] and not 'Subtitle' in l1[1])]]
         
         iedood = self._downloader.get_info_extractor('DoodStream')
         iehigh = self._downloader.get_info_extractor('Highload')
@@ -62,7 +67,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
             if not n_videos_dood:
                 n_videos_dood = len(list_urls) - n_videos
-        if n_videos and n_videos_dood and n_videos == n_videos_dood:
+        if n_videos and n_videos_dood and n_videos >= n_videos_dood:
             _final_urls = list_urls
                 
         else:
@@ -195,7 +200,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             
             entries = []
             if (_len:=len(list_candidate_videos)) > 1:
-                with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl", max_workers=min(len(list_candidate_videos), 5)) as exe:
+                with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl", max_workers=min(len(list_candidate_videos), 16)) as exe:
                     futures = {exe.submit(self.get_entry_video, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
                 
                 
@@ -245,7 +250,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         msg = kwargs.get('msg', None)        
         if msg: pre = f'{msg}[send_req]'
         else: pre = '[send_req]'        
-        _limiter = limiter_0_5 if GVDBlogBaseIE._SLOW_DOWN else limiter_0_1
+        _limiter = limiter_0_5 if GVDBlogBaseIE._SLOW_DOWN else limiter_non
         with _limiter.ratelimit("gvdblog", delay=True):
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
             if driver:
@@ -255,6 +260,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     return self.send_http_request(url)                
                 except (HTTPStatusError, ConnectError) as e:
                     self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+                except Exception as e:
+                    self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+                    raise
         
     def _real_initialize(self):
         super()._real_initialize()
@@ -400,7 +408,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     else:                    
                         logger.warning(f'[get_entries] no entry, fails fut {futures[fut]}')
                 except Exception as e:                
-                    logger.warning(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
+                    logger.exception(f'[get_entries] fails fut {futures[fut]} {repr(e)}')
         
         else:
             _entries = [self.url_result(url if check else f"{url}?check=no", ie=GVDBlogPostIE.ie_key()) for url in posts_vid_url]
