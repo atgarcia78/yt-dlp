@@ -64,7 +64,7 @@ class PornhitsIE(SeleniumInfoExtractor):
                 title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
             
             else:
-                title = self.wait_until(driver, 60, get_title).replace('Porn Video | HotMovs.com', '').strip()
+                title = self.wait_until(driver, 60, get_title()).replace('Porn Video | HotMovs.com', '').strip()
                 
                 
             

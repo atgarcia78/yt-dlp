@@ -146,7 +146,7 @@ class XvidgayIE(SeleniumInfoExtractor):
             self._send_request(url, driver)            
 
             _title = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, 'h1'))), lambda x: x.text)
-            _videoid, _videourl = self.wait_until(driver, 60, getvideourl)
+            _videoid, _videourl = self.wait_until(driver, 60, getvideourl())
             
             if not _videourl: raise ExtractorError('no videourl')
         

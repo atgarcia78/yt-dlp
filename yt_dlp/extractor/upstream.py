@@ -62,7 +62,7 @@ class HLSStream(SeleniumInfoExtractor):
             title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
 
             if self.IE_NAME == 'videobin':
-                self.wait_until(driver, 60, trigger_m3u8)
+                self.wait_until(driver, 60, trigger_m3u8())
             
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
             

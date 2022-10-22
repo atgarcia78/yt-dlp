@@ -98,9 +98,11 @@ class BaseloadIE(SeleniumInfoExtractor):
         max_limit = kwargs.get('max_limit', True)
         #max_limit = kwargs.get('max_limit', None)
 
+        
         try:
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}{pre}'
+            #self.to_screen(f"{pre} check[{check_active}]")
             _videoinfo = None            
             videoid = self._match_id(url)
             if not webpage:
@@ -127,7 +129,9 @@ class BaseloadIE(SeleniumInfoExtractor):
                 
                 #if not video_url: raise ExtractorError("error no video url")
 
-            title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME.replace('+CACHE',''), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
+            #title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME, '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
+
+            title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
                         
             _format = {
                 'format_id': 'http-mp4',
@@ -173,7 +177,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             'Cache-Control': 'no-cache',
         }
         
-        return(try_get(self._send_request(f'https://{self.IE_NAME}.co/assets/js/main.min.js', headers=_headers_mainjs), lambda x: x.text))
+        return(try_get(self._send_request(self._MAINJS, headers=_headers_mainjs), lambda x: x.text))
             
     
     def init_ctx(self, url, **kwargs):        
@@ -253,6 +257,7 @@ class TubeloadIE(BaseloadIE):
     _SITE_URL = "https://tubeload.co"
     _VALID_URL = r'https?://(?:www\.)?tubeload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1']
+    _MAINJS = f'https://tubeload.co/assets/js/main.min.js'
 
 
 
@@ -262,3 +267,21 @@ class RedloadIE(BaseloadIE):
     IE_NAME = 'redload'
     _VALID_URL = r'https?://(?:www\.)?redload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'    
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?redload\.co/e/.+?)\1']
+    _MAINJS = f'https://redload.co/assets/js/main.min.js'
+
+class HighloadIE(BaseloadIE):
+
+    _SITE_URL = "https://highload.to"    
+    IE_NAME = 'highload'
+    _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?highload\.to/e/.+?)\1']
+    _MAINJS = 'https://highload.to/assets/js/master.js'
+
+class EmbedoIE(BaseloadIE):
+    
+    _SITE_URL = "https://embedo.co"
+    
+    IE_NAME = 'embedo'
+    _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?embedo\.co/e/.+?)\1']
+    _MAINJS = 'https://embedo.co/assets/js/master.js'
