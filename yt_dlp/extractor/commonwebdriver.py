@@ -577,17 +577,23 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             msg = kwargs.get('msg', None)
             chunk_size = kwargs.get('chunk_size', 16384)
+            stopper = kwargs.get('stopper', 'dummytogetwholefile')
+            _kwargs = kwargs.copy()
+            _kwargs.pop('msg',None)
+            _kwargs.pop('chunk_size',None)
+            _kwargs.pop('stopper',None)
             premsg = f'[stream_http_request][{self._get_url_print(url)}]'
             if msg: premsg = f'{msg}{premsg}'           
             res = None
             _msg_err = ""
-            with self._CLIENT.stream("GET", url, **kwargs) as res:
+            with self._CLIENT.stream("GET", url, **_kwargs) as res:
                 res.raise_for_status()
                 _res = ""
                 for chunk in res.iter_text(chunk_size=chunk_size):
                     if chunk:
                         _res += chunk
-                        if '</script><style>' in _res: break
+                        #if '</script><style>' in _res: break
+                        if stopper in _res: break
 
             if not _res: return ""
             else: return _res

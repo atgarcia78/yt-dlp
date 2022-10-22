@@ -64,7 +64,7 @@ class BaseloadIE(SeleniumInfoExtractor):
                 if not max_limit:               
                     return self.send_http_request(url, headers=headers)
                 else:
-                    return self.stream_http_request(url, headers=headers)
+                    return self.stream_http_request(url, stopper='</script><style>', headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
                 
@@ -128,8 +128,6 @@ class BaseloadIE(SeleniumInfoExtractor):
                     raise ExtractorError("error 404 no video url")
                 
                 #if not video_url: raise ExtractorError("error no video url")
-
-            #title = re.sub(r'(?i)((at )?%s.co$)' % self.IE_NAME, '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
 
             title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
                         
