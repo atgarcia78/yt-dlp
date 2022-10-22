@@ -9,7 +9,7 @@ import pyduktape2 as pyduk
 from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_0_5, limiter_0_1, HTTPStatusError, ConnectError, StatusStop, Lock)
+    limiter_0_5, limiter_0_1, limiter_0_01, limiter_non, HTTPStatusError, ConnectError, StatusStop, Lock)
 
 
 class BaseloadIE(SeleniumInfoExtractor):
@@ -52,7 +52,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         headers = kwargs.get('headers', None)
         max_limit = kwargs.get('max_limit', None)
         
-        with limiter_0_1.ratelimit(f'{self.IE_NAME}2', delay=True):
+        with limiter_non.ratelimit(f'{self.IE_NAME}2', delay=True):
             if msg: pre = f'{msg}[send_req]'
             else: pre = '[send_req]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}") 
@@ -67,6 +67,10 @@ class BaseloadIE(SeleniumInfoExtractor):
                     return self.stream_http_request(url, stopper='</script><style>', headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+            except Exception as e:
+                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+                raise
+            
                 
     def _get_args(self, webpage, _all=False):
         
@@ -109,6 +113,9 @@ class BaseloadIE(SeleniumInfoExtractor):
                 webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}", max_limit=max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
             if not webpage: raise ExtractorError("error 404 no webpage")
             self.logger_debug(f'{pre} size webpage dl: {len(webpage)}')
+            if '<title>404' in webpage:
+                raise ExtractorError("error 404 no webpage")
+
             _args = self._get_args(webpage)
             #self.logger_debug(f'{pre} args webpage:\n{_args}')
                       

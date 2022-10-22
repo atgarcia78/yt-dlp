@@ -586,9 +586,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             if msg: premsg = f'{msg}{premsg}'           
             res = None
             _msg_err = ""
+            _res = ""
             with self._CLIENT.stream("GET", url, **_kwargs) as res:
-                res.raise_for_status()
-                _res = ""
+                res.raise_for_status()                
                 for chunk in res.iter_text(chunk_size=chunk_size):
                     if chunk:
                         _res += chunk
@@ -609,7 +609,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     raise
                 else:
                     raise ExtractorError(_msg_err)
-            elif not _res: 
+            elif not res: 
                 raise TimeoutError(_msg_err)
             else:
                 raise ExtractorError(_msg_err) 
