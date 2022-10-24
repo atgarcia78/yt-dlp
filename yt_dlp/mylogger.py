@@ -19,7 +19,7 @@ class MyLogger(logging.LoggerAdapter):
     se pasa un logger de logging al crear la instancia 
     mylogger = MyLogger(logging.getLogger("name_ejemplo", {}))
     """
-    _debug_phr = [  'Falling back on generic information extractor','Extracting URL:',
+    _debug_phr = [  'Falling back on generic information extractor','Extracting URL:', 'Media identified',
                     'The information of all playlist entries will be held in memory', 'Looking for video embeds',
                     'Identified a HTML5 media', 'Identified a KWS Player', ' unable to extract', 'Looking for embeds',
                     'Looking for Brightcove embeds', 'Identified a html5 embed', 'mainjs from cache', 'mainjs to cache',
