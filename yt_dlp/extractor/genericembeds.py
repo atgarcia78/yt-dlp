@@ -24,8 +24,8 @@ class HTML5MediaEmbedIE(InfoExtractor):
         entries = self._parse_html5_media_entries(url, webpage, video_id, m3u8_id='hls') or []
         for num, entry in enumerate(entries, start=1):
             entry.update({
-                'id': f'{video_id}-{num}',
-                'title': f'{title} ({num})',
+                'id': f'{video_id}-{num}' if len(entries) > 1 else f'{video_id}',
+                'title': f'{title} ({num})' if len(entries) > 1 else f'{title}',
                 '_old_archive_ids': [
                     make_archive_id('generic', f'{video_id}-{num}' if len(entries) > 1 else video_id),
                 ],
