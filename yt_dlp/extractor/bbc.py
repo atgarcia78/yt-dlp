@@ -36,26 +36,35 @@ import subprocess
 import time
 from pathlib import Path
 
-
-
-_LOCK = Lock()
-
+from backoff import constant, on_exception
 from pyrate_limiter import Duration, Limiter, RequestRate
-limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
+import random
 
+def my_jitter(value):
+
+    return int(random.uniform(value, value*1.25))
+
+limiter = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=2)
+
+
+import logging
+
+logger = logging.getLogger("bbc")
 
 
 def _open_vpn(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         try:
-            with _LOCK:
+            with BBCBaseIE._LOCK:
                 if not Path('/Users/antoniotorres/.config/openvpn/openvpn.pid').exists():
                     _proc = subprocess.run(['pkill', 'TorGuardDesktopQt'])
                     relaunch = (_proc.returncode == 0)
                     if relaunch:
                         rl = Path('/Users/antoniotorres/.config/openvpn/openvpn.relaunch')
                         rl.touch
+                        time.sleep(5)
                     cmd = 'sudo openvpn --config /Users/antoniotorres/.config/openvpn/openvpnbrit.conf'
                     _openvpn = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                     _openvpn.poll()
@@ -66,6 +75,8 @@ def _open_vpn(func):
                         cont += 1
                         if cont == 15: 
                             raise ExtractorError("openvpn couldnt get started")
+                    _openvpn.poll()
+                    self.to_screen(f"openvpn: {_openvpn}")
                     _ip = try_get(self._download_json("https://api.ipify.org?format=json", None), lambda x: x.get('ip'))
                     self.to_screen(f"openvpn: ok, IP origen; {_ip}")   
             return func(self, *args, **kwargs)
@@ -75,7 +86,55 @@ def _open_vpn(func):
     return wrapper
 
 
-class BBCCoUkIE(InfoExtractor):
+class BBCBaseIE(InfoExtractor):
+
+    _LOCK = Lock()
+
+    _IS_LOGGED = False
+
+    @dec_on_exception
+    @limiter.ratelimit("bbc", delay=True)
+    def _download_json(self, *args, **kwargs):
+
+        try:
+            return super()._download_json(*args, **kwargs)
+        except Exception as e:
+            logger.exception(repr(e))
+            raise
+
+
+    @dec_on_exception
+    @limiter.ratelimit("bbc", delay=True)
+    def _download_webpage(self, *args, **kwargs):
+
+        try:
+            return super()._download_webpage(*args, **kwargs)
+        except Exception as e:
+            logger.exception(repr(e))
+            raise
+
+    @dec_on_exception
+    @limiter.ratelimit("bbc", delay=True)
+    def _download_webpage_handle(self, *args, **kwargs):
+
+        try:
+            return super()._download_webpage_handle(*args, **kwargs)
+        except Exception as e:
+            logger.exception(repr(e))
+            raise
+
+    @dec_on_exception
+    @limiter.ratelimit("bbc", delay=True)
+    def _download_xml(self, *args, **kwargs):
+
+        return super()._download_xml(*args, **kwargs)
+
+
+
+
+
+
+class BBCCoUkIE(BBCBaseIE):
     IE_NAME = 'bbc.co.uk'
     IE_DESC = 'BBC iPlayer'
     _ID_REGEX = r'(?:[pbml][\da-z]{7}|w[\da-z]{7,14})'
@@ -106,9 +165,7 @@ class BBCCoUkIE(InfoExtractor):
         'iptv-all'
     ]
     
-    _LOCK = Lock()
 
-    _IS_LOGGED = False
 
     _EMP_PLAYLIST_NS = 'http://bbc.co.uk/2008/emp/playlist'
 
@@ -323,19 +380,19 @@ class BBCCoUkIE(InfoExtractor):
     
     def _login(self):
 
-        if BBCCoUkIE._IS_LOGGED: 
+        if BBCBaseIE._IS_LOGGED: 
             self.to_screen("Already logged in")
             return
         
-        with self._LOCK:
+        with BBCBaseIE._LOCK:
             
-            with limiter_2.ratelimit("bbc", delay=True):
-                login_page, urlh = self._download_webpage_handle(
-                    self._LOGIN_URL, None, 'Downloading signin page')
+            
+            login_page, urlh = self._download_webpage_handle(
+                self._LOGIN_URL, None, 'Downloading signin page')
 
             if not self._LOGIN_URL in urlh.geturl(): 
                 self.to_screen("Already logged in")
-                BBCCoUkIE._IS_LOGGED = True
+                BBCBaseIE._IS_LOGGED = True
                 return        
 
             login_form = self._hidden_inputs(login_page)
@@ -360,11 +417,11 @@ class BBCCoUkIE(InfoExtractor):
 
             self.to_screen(post_url)
             
-            with limiter_2.ratelimit("bbc", delay=True):
+           
             
-                response, urlh = self._download_webpage_handle(
-                    unescapeHTML(post_url), None, 'Logging in', data=urlencode_postdata(login_form),
-                    headers={'Referer': self._LOGIN_URL})
+            response, urlh = self._download_webpage_handle(
+                unescapeHTML(post_url), None, 'Logging in', data=urlencode_postdata(login_form),
+                headers={'Referer': self._LOGIN_URL})
 
             if self._LOGIN_URL in urlh.geturl():
                 error = clean_html(get_element_by_class('form-message', response))
@@ -373,15 +430,15 @@ class BBCCoUkIE(InfoExtractor):
                         'Unable to login: %s' % error, expected=True)
                 raise ExtractorError('Unable to log in')
             
-            else: BBCCoUkIE._IS_LOGGED = True
+            else: BBCBaseIE._IS_LOGGED = True
             
     class MediaSelectionError(Exception):
         def __init__(self, id):
             self.id = id
 
     def _extract_asx_playlist(self, connection, programme_id):
-        with limiter_2.ratelimit("bbc", delay=True):
-            asx = self._download_xml(connection.get('href'), programme_id, 'Downloading ASX playlist')
+        
+        asx = self._download_xml(connection.get('href'), programme_id, 'Downloading ASX playlist')
         return [ref.get('href') for ref in asx.findall('./Entry/ref')]
 
     def _extract_items(self, playlist):
@@ -438,10 +495,10 @@ class BBCCoUkIE(InfoExtractor):
     
     def _download_media_selector_url(self, url, programme_id=None):
         
-        with limiter_2.ratelimit("bbc", delay=True):
-            media_selection = self._download_json(
-                url, programme_id, 'Downloading media selection JSON',
-                expected_status=(403, 404))
+        
+        media_selection = self._download_json(
+            url, programme_id, 'Downloading media selection JSON',
+            expected_status=(403, 404))
         
         self.to_screen(url)
         self.write_debug(f'Media identified: {media_selection}')
@@ -545,7 +602,8 @@ class BBCCoUkIE(InfoExtractor):
 
     def _download_playlist(self, playlist_id):
         try:
-            with limiter_2.ratelimit("bbc", delay=True):
+            
+            with limiter.ratelimit("bbc", delay=True):
                 playlist = self._download_json(
                     'http://www.bbc.co.uk/programmes/%s/playlist.json' % playlist_id,
                     playlist_id, 'Downloading playlist JSON')
@@ -590,9 +648,9 @@ class BBCCoUkIE(InfoExtractor):
             'http://www.bbc.co.uk/iplayer/playlist/%s' % playlist_id, playlist_id)
 
     def _download_legacy_playlist_url(self, url, playlist_id=None):
-        with limiter_2.ratelimit("bbc", delay=True):
-            return self._download_xml(
-                url, playlist_id, 'Downloading legacy playlist XML')
+        
+        return self._download_xml(
+            url, playlist_id, 'Downloading legacy playlist XML')
 
     def _extract_from_legacy_playlist(self, playlist, playlist_id):
         no_items = playlist.find('./{%s}noItems' % self._EMP_PLAYLIST_NS)
@@ -649,8 +707,8 @@ class BBCCoUkIE(InfoExtractor):
 
         self._login()
         
-        with limiter_2.ratelimit("bbc", delay=True):            
-            webpage = self._download_webpage(url, group_id, 'Downloading video page')
+                  
+        webpage = self._download_webpage(url, group_id, 'Downloading video page')
 
         error = self._search_regex(
             r'<div\b[^>]+\bclass=["\'](?:smp|playout)__message delta["\'][^>]*>\s*([^<]+?)\s*<',
@@ -1448,7 +1506,7 @@ class BBCIE(BBCCoUkIE):  # XXX: Do not subclass from concrete IE
 
 
 
-class BBCCoUkArticleIE(InfoExtractor):
+class BBCCoUkArticleIE(BBCBaseIE):
     _VALID_URL = r'https?://(?:www\.)?bbc\.co\.uk/programmes/articles/(?P<id>[a-zA-Z0-9]+)'
     IE_NAME = 'bbc.co.uk:article'
     IE_DESC = 'BBC articles'
@@ -1468,9 +1526,8 @@ class BBCCoUkArticleIE(InfoExtractor):
     def _real_extract(self, url):        
         playlist_id = self._match_id(url)
         
-        with limiter_2.ratelimit("bbc", delay=True):
         
-            webpage = self._download_webpage(url, playlist_id)
+        webpage = self._download_webpage(url, playlist_id)
 
         title = self._og_search_title(webpage)
         description = self._og_search_description(webpage).strip()
@@ -1479,9 +1536,9 @@ class BBCCoUkArticleIE(InfoExtractor):
             r'<div[^>]+typeof="Clip"[^>]+resource="([^"]+)"', webpage)]
 
         return self.playlist_result(entries, playlist_id, title, description)
+        
 
-
-class BBCCoUkPlaylistBaseIE(InfoExtractor):
+class BBCCoUkPlaylistBaseIE(BBCBaseIE):
     def _entries(self, webpage, url, playlist_id):
         single_page = 'page' in compat_urlparse.parse_qs(
             compat_urlparse.urlparse(url).query)
@@ -1506,8 +1563,8 @@ class BBCCoUkPlaylistBaseIE(InfoExtractor):
     def _real_extract(self, url):
         playlist_id = self._match_id(url)
 
-        with limiter_2.ratelimit("bbc", delay=True):
-                webpage = self._download_webpage(url, playlist_id)
+        
+        webpage = self._download_webpage(url, playlist_id)
 
         title, description = self._extract_title_and_description(webpage)
 
@@ -1516,7 +1573,7 @@ class BBCCoUkPlaylistBaseIE(InfoExtractor):
             playlist_id, title, description)
 
 
-class BBCCoUkIPlayerPlaylistBaseIE(InfoExtractor):
+class BBCCoUkIPlayerPlaylistBaseIE(BBCBaseIE):
     _VALID_URL_TMPL = r'https?://(?:www\.)?bbc\.co\.uk/iplayer/%%s/(?P<id>%s)' % BBCCoUkIE._ID_REGEX
 
     @staticmethod
@@ -1565,7 +1622,6 @@ class BBCCoUkIPlayerPlaylistBaseIE(InfoExtractor):
         return self.playlist_result(
             entries, pid, self._get_playlist_title(playlist_data),
             self._get_description(playlist_data))
-
 
 class BBCCoUkIPlayerEpisodesIE(BBCCoUkIPlayerPlaylistBaseIE):
     IE_NAME = 'bbc.co.uk:iplayer:episodes'
@@ -1641,7 +1697,7 @@ class BBCCoUkIPlayerEpisodesIE(BBCCoUkIPlayerPlaylistBaseIE):
         if series_id:
             variables['sliceId'] = series_id
         
-        with limiter_2.ratelimit("api_bbc", delay=True):
+        with limiter.ratelimit("api_bbc", delay=True):
             return self._download_json(
                 'https://graph.ibl.api.bbc.co.uk/', pid, headers={
                     'Content-Type': 'application/json'
@@ -1709,8 +1765,8 @@ class BBCCoUkIPlayerGroupIE(BBCCoUkIPlayerPlaylistBaseIE):
         
     def _call_api(self, pid, per_page, page=1, series_id=None):
 
-        with limiter_2.ratelimit("api_bbc", delay=True):
-            with limiter_2.ratelimit("bbc", delay=True):
+        with limiter.ratelimit("api_bbc", delay=True):
+            with limiter.ratelimit("bbc", delay=True):
                 return self._download_json(
                     'http://ibl.api.bbc.co.uk/ibl/v1/groups/%s/episodes' % pid,
                     pid, query={
