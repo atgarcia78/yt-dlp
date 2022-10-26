@@ -99,7 +99,7 @@ class BBCBaseIE(InfoExtractor):
         try:
             return super()._download_json(*args, **kwargs)
         except Exception as e:
-            logger.exception(repr(e))
+            logger.error(repr(e))
             raise
 
 
@@ -110,7 +110,7 @@ class BBCBaseIE(InfoExtractor):
         try:
             return super()._download_webpage(*args, **kwargs)
         except Exception as e:
-            logger.exception(repr(e))
+            logger.error(repr(e))
             raise
 
     @dec_on_exception
@@ -120,7 +120,7 @@ class BBCBaseIE(InfoExtractor):
         try:
             return super()._download_webpage_handle(*args, **kwargs)
         except Exception as e:
-            logger.exception(repr(e))
+            logger.error(repr(e))
             raise
 
     @dec_on_exception
@@ -128,10 +128,6 @@ class BBCBaseIE(InfoExtractor):
     def _download_xml(self, *args, **kwargs):
 
         return super()._download_xml(*args, **kwargs)
-
-
-
-
 
 
 class BBCCoUkIE(BBCBaseIE):
@@ -380,13 +376,14 @@ class BBCCoUkIE(BBCBaseIE):
     
     def _login(self):
 
-        if BBCBaseIE._IS_LOGGED: 
-            self.to_screen("Already logged in")
-            return
-        
         with BBCBaseIE._LOCK:
+
+            if BBCBaseIE._IS_LOGGED: 
+                self.to_screen("Already logged in")
+                return
             
-            
+            self.report_login()
+
             login_page, urlh = self._download_webpage_handle(
                 self._LOGIN_URL, None, 'Downloading signin page')
 
@@ -409,16 +406,14 @@ class BBCCoUkIE(BBCBaseIE):
                 'password': password,
             })
             
-            self.to_screen(login_form)
+            #self.to_screen(login_form)
 
             post_url = urljoin(self._LOGIN_URL, self._search_regex(
                 r'<form[^>]+action=(["\'])(?P<url>.+?)\1', login_page,
                 'post url', default=self._LOGIN_URL, group='url'))
 
-            self.to_screen(post_url)
-            
-           
-            
+            #self.to_screen(post_url)
+
             response, urlh = self._download_webpage_handle(
                 unescapeHTML(post_url), None, 'Logging in', data=urlencode_postdata(login_form),
                 headers={'Referer': self._LOGIN_URL})
@@ -500,8 +495,8 @@ class BBCCoUkIE(BBCBaseIE):
             url, programme_id, 'Downloading media selection JSON',
             expected_status=(403, 404))
         
-        self.to_screen(url)
-        self.write_debug(f'Media identified: {media_selection}')
+        #self.to_screen(url)
+        #self.write_debug(f'Media identified: {media_selection}')
         
         return self._process_media_selector(media_selection, programme_id)
 
@@ -696,18 +691,13 @@ class BBCCoUkIE(BBCBaseIE):
 
         return programme_id, title, description, duration, formats, subtitles
 
-    
-
-
     @_open_vpn
     def _real_extract(self, url):
 
         group_id = self._match_id(url)
 
-
         self._login()
-        
-                  
+
         webpage = self._download_webpage(url, group_id, 'Downloading video page')
 
         error = self._search_regex(
@@ -1563,7 +1553,6 @@ class BBCCoUkPlaylistBaseIE(BBCBaseIE):
     def _real_extract(self, url):
         playlist_id = self._match_id(url)
 
-        
         webpage = self._download_webpage(url, playlist_id)
 
         title, description = self._extract_title_and_description(webpage)
