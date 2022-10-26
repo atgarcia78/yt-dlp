@@ -11,6 +11,8 @@ import html
 from datetime import datetime
 
 
+
+
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import (
     dec_on_exception, 
@@ -36,8 +38,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     
     _LOCK = Lock()
     _COOKIES = {}
-
-
 
     def close(self):        
         if self._CLIENT.is_closed: return
@@ -182,10 +182,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _type_dict = {'m3u8': 'HLS', 'dash': 'DASH'}
         
         
-        _type = kwargs.get('_type', 'm3u8')
+        _type = kwargs.get('_type', 'all')
         msg = kwargs.get('msg')
         
-
 
         try:
             premsg = f"[get_entry]"
@@ -200,19 +199,50 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             
             premsg = f"{premsg}[{scene_id}][{_title}]"
             
-            getstream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id), _type_dict[_type]]) 
-                    
-            self.logger_debug(f"{premsg} [getstream_url] {getstream_url}")
-            info_json = try_get(self._send_request(getstream_url, headers=_headers_json), lambda x: x.json() if x else None)
-            self.logger_debug(f"{premsg} [getstream_url] {info_json}")
-            if not info_json: raise ExtractorError(f"{premsg}: error - Cant get json")
-            mpd_url = info_json.get("StreamUrl") 
-            if not mpd_url: raise ExtractorError(f"{premsg}: error - Can't find stream url")
-            mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
-            if not mpd_doc: raise ExtractorError(f"{premsg}: error - Cant get mpd doc") 
+            
+            if _type == 'all': _types = ['m3u8', 'dash']
+            else: _types = [_type]
 
-            if _type == "m3u8":
-                formats, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", m3u8_id="hls", headers=_headers_mpd)
+            formats = []
+
+            for _type in _types:
+
+                try:
+            
+                    getstream_url = "/".join(["https://nakedsword.com/scriptservices/getstream/scene", str(scene_id), _type_dict[_type]]) 
+                            
+                    self.logger_debug(f"{premsg} [getstream_url] {getstream_url}")
+                    info_json = try_get(self._send_request(getstream_url, headers=_headers_json), lambda x: x.json() if x else None)
+                    self.logger_debug(f"{premsg} [getstream_url] {info_json}")
+                    if not info_json: raise ExtractorError(f"{premsg}: error - Cant get json")
+                    mpd_url = info_json.get("StreamUrl") 
+                    if not mpd_url: raise ExtractorError(f"{premsg}: error - Can't find stream url")
+                    mpd_doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace') if x else None)
+                    if not mpd_doc: raise ExtractorError(f"{premsg}: error - Cant get mpd doc") 
+                    
+                    #logger.info(mpd_doc)
+
+                    if _type == "m3u8":
+                        formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(mpd_doc, mpd_url, ext="mp4", m3u8_id="hls", headers=_headers_mpd)
+                        #logger.info(formats_m3u8)
+                        if formats_m3u8:
+                            self._sort_formats(formats_m3u8)
+
+                            formats.extend(formats_m3u8)
+
+
+        
+                    elif _type == "dash":
+                        mpd_doc = self._parse_xml(mpd_doc, None)
+
+                        formats_dash = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
+
+                        if formats_dash:
+                            self._sort_formats(formats_dash)
+                            formats.extend(formats_dash)
+
+                except Exception as e:
+                    logger.exception(f"[{_type}] {repr(e)}")
 
 
             if formats:
@@ -231,11 +261,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{premsg}: OK got entry")
                 return _entry
             
-        except ExtractorError:
-            
+        except ExtractorError as e:
+            logger.exception(repr(e))
             raise
         except Exception as e:
-            
+            logger.exception(repr(e))
             raise ExtractorError(f'{premsg}: error - {repr(e)}')
        
     def _is_logged(self, driver=None):
