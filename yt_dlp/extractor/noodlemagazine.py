@@ -87,13 +87,14 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
         
         
         formats = [{
+            'format_id': source.get('label'),
             'url': source.get('file'),
-            'quality': source.get('label'),
+            'height': int(source.get('label')),
             'ext': source.get('type'),
         } for source in playlist_info.get('sources')]
 
         return {
-            'id': video_id,
+            'id': video_id.replace('-', '').replace('_', ''),
             'formats': formats,
             'title': sanitize_filename(title, restricted=True),
             'thumbnail': thumbnail,
