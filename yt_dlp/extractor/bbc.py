@@ -44,7 +44,7 @@ def my_jitter(value):
 
     return int(random.uniform(value, value*1.25))
 
-limiter = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+limiter = Limiter(RequestRate(1, 0.001 * Duration.SECOND))
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=2)
 
 
@@ -80,8 +80,8 @@ def _open_vpn(func):
                     _ip = try_get(self._download_json("https://api.ipify.org?format=json", None), lambda x: x.get('ip'))
                     self.to_screen(f"openvpn: ok, IP origen; {_ip}")   
             return func(self, *args, **kwargs)
-        finally:
-            pass
+        except BaseException as e:
+            self.to_screen(f"openvpn error: {repr(e)}")
 
     return wrapper
 
@@ -91,6 +91,18 @@ class BBCBaseIE(InfoExtractor):
     _LOCK = Lock()
 
     _IS_LOGGED = False
+
+
+    def close(self):
+
+        try:
+            subprocess.run(['sudo', 'pkill', 'openvpn'])
+            rl = Path('/Users/antoniotorres/.config/openvpn/openvpn.relaunch')
+            if rl.exists():
+                subprocess.run(['open', '/Applications/Torguard.app'])
+                rl.unlink()
+        except Exception:
+            pass
 
     @dec_on_exception
     @limiter.ratelimit("bbc", delay=True)
@@ -362,16 +374,6 @@ class BBCCoUkIE(BBCBaseIE):
         }]
 
     
-    def close(self):
-
-        try:
-            subprocess.run(['sudo', 'pkill', 'openvpn'])
-            rl = Path('/Users/antoniotorres/.config/openvpn/openvpn.relaunch')
-            if rl.exists():
-                subprocess.run(['open', '/Applications/Torguard.app'])
-                rl.unlink()
-        except Exception:
-            pass   
 
     
     def _login(self):
