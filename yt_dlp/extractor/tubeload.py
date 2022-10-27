@@ -59,7 +59,8 @@ class BaseloadIE(SeleniumInfoExtractor):
             if ((_stop:=self.get_param('stop')) and _stop.is_set()):
                 self.logger_debug(f"{pre} {self._get_url_print(url)}: stop")
                 raise StatusStop(f"{pre} {self._get_url_print(url)}")
-                
+
+
             try:
                 if not max_limit:               
                     return self.send_http_request(url, headers=headers)
@@ -67,10 +68,10 @@ class BaseloadIE(SeleniumInfoExtractor):
                     return self.stream_http_request(url, stopper='</script><style>', headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-            except Exception as e:
-                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-                raise
-            
+            # except Exception as e:
+            #     self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+            #     raise
+                
                 
     def _get_args(self, webpage, _all=False):
         
@@ -89,8 +90,7 @@ class BaseloadIE(SeleniumInfoExtractor):
                     _res.append(_args)
             return _res
             
-        args = try_get(re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage), lambda x: getter(x))
-        if not args: raise ExtractorError("error extracting video args")
+        args = try_get(re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage), lambda x: getter(x))       
         return args
         
     
@@ -111,27 +111,31 @@ class BaseloadIE(SeleniumInfoExtractor):
             videoid = self._match_id(url)
             if not webpage:
                 webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}", max_limit=max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
-            if not webpage: raise ExtractorError("error 404 no webpage")
+            if not webpage: 
+                self.report_warning(f"{pre} no webpage")
+                raise ExtractorError("error 404 no webpage")
             self.logger_debug(f'{pre} size webpage dl: {len(webpage)}')
             if '<title>404' in webpage:
                 raise ExtractorError("error 404 no webpage")
 
             _args = self._get_args(webpage)
-            #self.logger_debug(f'{pre} args webpage:\n{_args}')
+            if not _args: 
+                self.report_warning(f"{pre} no args in webpagwe")
+                raise ExtractorError("error extracting video args")
                       
             try:                
                 video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args)                
-            except pyduk.JSError as e:
+            except BaseException as e:
                 #error when something changes in network, dontknowwhy
                 lines = traceback.format_exception(*sys.exc_info())
-                self.report_warning(f"{repr(e)} [1]\n{'!!'.join(lines)}")
+                self.report_warning(f"{pre} error videourl [1] {repr(e)}\n%no%{'!!'.join(lines)}")
                 #video_url = None
                 self._real_initialize()
                 try:
                     video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args, force=True)
-                except Exception as e:
+                except BaseException as e:
                     lines = traceback.format_exception(*sys.exc_info())
-                    self.report_warning(f"{repr(e)} [2]\n{'!!'.join(lines)}")
+                    self.report_warning(f"{pre} error videourl [2] {repr(e)}\n%no%{'!!'.join(lines)}")
                     raise ExtractorError("error 404 no video url")
                 
                 #if not video_url: raise ExtractorError("error no video url")
@@ -170,7 +174,7 @@ class BaseloadIE(SeleniumInfoExtractor):
     def _real_initialize(self):        
 
         super()._real_initialize()
-            
+        
     
     def get_mainjs(self, url):
         _headers_mainjs = {    
@@ -199,7 +203,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             with BaseloadIE._LOCK:
                 if not self.get_param('proxy'):
                     if not BaseloadIE._IP_ORIG:
-                        BaseloadIE._IP_ORIG = self._get_ip_origin()
+                        BaseloadIE._IP_ORIG = try_get(self._get_ip_origin(), lambda x: x if x else "")
                     _key = BaseloadIE._IP_ORIG
                 else:
                     _key = try_get(self.get_param('proxy'), lambda x: traverse_obj(self.get_param('routing_table'), int(x.split(":")[-1])) if x else self._get_ip_origin())
@@ -236,7 +240,8 @@ class BaseloadIE(SeleniumInfoExtractor):
             return get_videourl(*_args)
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            pre = f'[init_ctx][{self._get_url_print(url)}]'
+            self.report_warning(f"{pre}%no% {repr(e)}\n{'!!'.join(lines)}")
             raise
 
     def _real_extract(self, url):
@@ -263,7 +268,7 @@ class TubeloadIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?tubeload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1']
     _MAINJS = f'https://tubeload.co/assets/js/main.min.js'
-
+    _DOMAIN = 'tubeload.co'
 
 
 class RedloadIE(BaseloadIE):
@@ -273,6 +278,7 @@ class RedloadIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?redload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'    
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?redload\.co/e/.+?)\1']
     _MAINJS = f'https://redload.co/assets/js/main.min.js'
+    _DOMAIN = 'redload.co'
 
 class HighloadIE(BaseloadIE):
 
@@ -281,6 +287,7 @@ class HighloadIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?highload\.to/e/.+?)\1']
     _MAINJS = 'https://highload.to/assets/js/master.js'
+    _DOMAIN = 'highload.co'
 
 class EmbedoIE(BaseloadIE):
     
@@ -290,3 +297,4 @@ class EmbedoIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?embedo\.co/e/.+?)\1']
     _MAINJS = 'https://embedo.co/assets/js/master.js'
+    _DOMAIN = 'embedo.co'
