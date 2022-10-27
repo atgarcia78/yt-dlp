@@ -86,7 +86,6 @@ CONFIG_EXTRACTORS = {
                                             'ratelimit': limiter_5,
                                             'maxsplits': 2}, 
       ('highload', 'tubeload', 'embedo',
-     'tubeload+cache', 'tubeload+CACHE',
                  'thisvidgay','redload',
                    'biguz', 'gaytubes',): {
                                             'ratelimit': limiter_0_1, 
@@ -244,21 +243,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             pass        
 
     def initialize(self):
-        """Initializes an instance (authentication, etc)."""
-        self._printed_messages = set()
-        self._initialize_geo_bypass({
-            'countries': self._GEO_COUNTRIES,
-            'ip_blocks': self._GEO_IP_BLOCKS,
-        })
-        
-        self._initialize_pre_login()
-        if self.supports_login():
-            username, password = self._get_login_info()
-            if username:
-                self._perform_login(username, password)
-        elif self.get_param('username') and False not in (self.IE_DESC, self._NETRC_MACHINE):
-            self.report_warning(f'Login with password is not supported for this website. {self._login_hint("cookies")}')
-        self._real_initialize()
+
+        self._ready = False
+        super().initialize()
+
 
     def _real_initialize(self):
 
@@ -577,6 +565,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.exception(e)
             return False
     
+        
+    @dec_on_exception3
+    @dec_on_exception2
     def _get_ip_origin(self):
         return(try_get(self.send_http_request("https://api.ipify.org?format=json"), lambda x: x.json().get('ip') if x else ''))
     
