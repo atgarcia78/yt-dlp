@@ -443,7 +443,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                                       lambda x: datetime.strptime(x[0].replace('Posted ', '').strip(), '%B %d, %Y'))
                 
                 if video_url:                    
-                    _res = {'_type':'url', 'url': video_url, 'ie_key': 'MyVidster', 'original_url': url}
+                    _res = {'_type':'url', 'url': video_url, 'ie_key': 'MyVidster'}
                     if posted_date:
                         _res.update({'release_date': posted_date.strftime("%Y%m%d"), 'release_timestamp': int(posted_date.timestamp())})
                     results.append(_res)
@@ -463,7 +463,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                             _res = fut.result()
                             if _res:
                                 logger.info(f"%no%[res]\n{_res}\n[ent]\n{ent}")
-                                _res.update({'original_url': ent['original_url'], 'release_data': ent.get('release_data'), 'release_timestamp': ent.get('release_timestamp')})
+                                _res.update({'release_data': ent.get('release_data'), 'release_timestamp': ent.get('release_timestamp')})
                                 entries.append(_res)
                         except Exception as e:
                             self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}") 
