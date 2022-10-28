@@ -370,7 +370,6 @@ class MyVidsterIE(MyVidsterBaseIE):
             else: 
                 raise ExtractorError("url video not found")
 
-
     def _real_initialize(self):
         with MyVidsterBaseIE._LOCK:
             super()._real_initialize()
@@ -391,7 +390,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:channel:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/channel/(?P<id>\d+)/?(?P<title>\w+)?(\?(?P<query>.+))?'
     _POST_URL = "https://www.myvidster.com/processor.php"
-    
     
     
     def get_playlist_channel(self, url):
@@ -490,8 +488,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
 
-
-    
     def _real_initialize(self):
     
         with MyVidsterBaseIE._LOCK:
@@ -507,11 +503,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:search:playlist'   
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/search/?\?(?P<query>.+)'
-    
-    '''
-        Inside query, if there is param 'pages', that it is the max number of pages of
-        search result that will be evaluated. By default: 5
-    '''
 
     _SEARCH_URL = 'https://www.myvidster.com/search/?'
     
@@ -610,14 +601,14 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
             self.to_screen(repr(e))
             raise ExtractorError(repr(e))
 
-    
     def _real_initialize(self):
         with MyVidsterBaseIE._LOCK:
             super()._real_initialize()
     
     def _real_extract(self, url):
 
-        self.report_extraction(url)        
+        self.report_extraction(url)
+        return self.get_playlist_search(url)     
 
 
 
