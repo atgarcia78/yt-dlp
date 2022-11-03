@@ -1,6 +1,7 @@
 import logging
 import re
 
+
 def get_values_regex(str_reg_list, str_content, *_groups, not_found=None):
     
     for str_reg in str_reg_list:
