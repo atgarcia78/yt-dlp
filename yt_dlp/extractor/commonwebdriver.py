@@ -1,36 +1,37 @@
+import functools
+import html
+import json
+import logging
+import random
+import re
 import shutil
 import sys
 import tempfile
-
 import time
+from threading import Event, Lock
 from urllib.parse import unquote, urlparse
 
-import httpx
-from httpx import HTTPStatusError, HTTPError, StreamError, ConnectError
 from backoff import constant, on_exception
+from httpx import (
+    Client,
+    ConnectError,
+    HTTPError,
+    HTTPStatusError,
+    Limits,
+    StreamError,
+    Timeout,
+)
 from pyrate_limiter import Duration, Limiter, RequestRate
-
-
-from threading import Lock, Event
-
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.keys import Keys
 
-import re
-import html
-import json
-
-import functools
-import random
-
-from ..utils import int_or_none, traverse_obj, try_get, classproperty
 from .common import ExtractorError, InfoExtractor
+from ..utils import classproperty, int_or_none, traverse_obj, try_get
 
-import logging
 logger = logging.getLogger("Commonwebdriver")
 
 limiter_non = Limiter(RequestRate(10000, 0))
@@ -255,7 +256,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if not SeleniumInfoExtractor._YTDL or SeleniumInfoExtractor._YTDL != self._downloader:                    
                     
                     if SeleniumInfoExtractor._YTDL:
-                        logger.debug("Cambio de ytdl")
+                        #logger.debug("Cambio de ytdl")
                         if not self._downloader.params.get('sem'):
                             self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params.get('sem', {}) 
                         if not self._downloader.params.get('lock'):
@@ -278,8 +279,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
                     
                 self._CLIENT_CONFIG = {
-                    'timeout': httpx.Timeout(20), 
-                    'limits': httpx.Limits(max_keepalive_connections=None, max_connections=None), 
+                    'timeout': Timeout(20), 
+                    'limits': Limits(max_keepalive_connections=None, max_connections=None), 
                     'headers': _headers,
                     'follow_redirects': True,
                     'verify': False,
@@ -290,7 +291,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
                 _config = self._CLIENT_CONFIG.copy()
                 
-                self._CLIENT = httpx.Client(
+                self._CLIENT = Client(
                     proxies=_config['proxies'], timeout=_config['timeout'], 
                     limits=_config['limits'], headers=_config['headers'],
                     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
@@ -299,21 +300,23 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception as e:
             logger.exception(e)
 
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None):        
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):        
 
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
                 host, port = (urlparse(_proxy).netloc).split(':')
-            driver = self._get_driver(noheadless, devtools, host, port)
+            driver = self._get_driver(noheadless, devtools, host, port, temp_prof_dir)
         return driver
         
-    def _get_driver(self, noheadless, devtools, host, port):        
+    def _get_driver(self, noheadless, devtools, host, port, temp_prof_dir):        
         
-        tempdir = tempfile.mkdtemp(prefix='asyncall-') 
-        shutil.rmtree(tempdir, ignore_errors=True) 
-        res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
-        if res != tempdir:
-            raise ExtractorError("error when creating profile folder")
+        if not temp_prof_dir:
+            tempdir = tempfile.mkdtemp(prefix='asyncall-') 
+            shutil.rmtree(tempdir, ignore_errors=True) 
+            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
+            if res != tempdir:
+                raise ExtractorError("error when creating profile folder")
+        else: tempdir = temp_prof_dir
         
         opts = FirefoxOptions()
         
@@ -427,7 +430,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         _hints = self.scan_for_request(_driver, _link, _all, timeout)
 
-        logger.debug(f"[scan_json] {_hints}")
+        #logger.debug(f"[scan_json] {_hints}")
         
         func_getter = lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else ""            
         
@@ -656,8 +659,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def socket_http(self, hostname: str, port: int, path: str, http_version: str, method: str, user_agent: str, max_limit: int):
     
-        import ssl
         import socket
+        import ssl
+
         import cchardet as chardet
 
         logger.debug(
