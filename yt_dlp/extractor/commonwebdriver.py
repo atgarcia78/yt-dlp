@@ -1,3 +1,4 @@
+import copy
 import functools
 import html
 import json
@@ -326,7 +327,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if devtools:
             opts.add_argument("--devtools")
             opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-            opts.set_preference("devtools.netmonitor.persistlog", True)
+            opts.set_preference("devtools.netmonitor.persistlog", False)
             opts.set_preference("devtools.debugger.skip-pausing", True);
         
         opts.add_argument("--no-sandbox")
@@ -399,8 +400,9 @@ class SeleniumInfoExtractor(InfoExtractor):
     def scan_for_request(self, driver, _link, _all=False, timeout=60):
 
         def _get_har():
-            return (driver.execute_async_script(
+            _res = (driver.execute_async_script(
                         "HAR.triggerExport().then(arguments[0]);")).get('entries')
+            return copy.deepcopy(_res)
 
         _list_hints = []
                 
