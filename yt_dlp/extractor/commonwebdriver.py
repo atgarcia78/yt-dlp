@@ -249,7 +249,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         self._ready = False
         super().initialize()
 
-
     def _real_initialize(self):
 
         try:        
