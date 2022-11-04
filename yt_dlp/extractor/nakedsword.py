@@ -52,7 +52,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     
     _SITE_URL = "https://www.nakedsword.com/"
-    _LOGIN_URL = "https://www.nakedsword.com/signin"
+    
     _NETRC_MACHINE = 'nakedsword'
     
     _LOCK = Lock()
@@ -76,8 +76,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             self.report_warning(f"[close][{self._proxy}] NOK {repr(e)}")
 
-
-
     def _headers_ordered(self, extra=None):
         _headers = OrderedDict()
         
@@ -98,10 +96,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _send_request(self, url, driver=None, **kwargs):
         
         if not driver:
-            
+
             try:
                 return(self.send_http_request(url, **kwargs))
-
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         else:
@@ -118,7 +115,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 break
         return i
                 
-
     def get_entries_scenes(self, url, page=None, func=None):
         
         entries = []
@@ -180,7 +176,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
  
         return entries
     
-    
     def _get_driver_logged(self):
         
         with NakedSwordBaseIE._NLOCKS.get(self._proxy):
@@ -188,13 +183,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             if self._login(driver=_driver):
                 return _driver
 
-
     def _get_entry(self, url, **kwargs):        
         
         _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://www.nakedsword.com", "Referer": self._SITE_URL})        
         
         _type = kwargs.get('_type', 'all')
-        if _type == 'all': _types = ['hls', 'dash']
+        if _type == 'all': _types = ['hls', 'dash', 'ism']
         else: _types = [_type]
         msg = kwargs.get('msg')
         premsg = f"[get_entry][{url}]"
@@ -275,6 +269,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                                 self._sort_formats(formats_m3u8)
                                 formats.extend(formats_m3u8)
 
+                    elif _type == "ism":
+
+                        ism_url = mpd_url.replace('manifest.mpd', 'Manifest')
+                        _doc = try_get(self._send_request(ism_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace'))
+                        if _doc:       
+                            ism_doc = self._parse_xml(_doc, None)                                                         
+                            formats_ism, _ = self._parse_ism_formats_and_subtitles(ism_doc, ism_url)
+                            if formats_ism:
+                                self._sort_formats(formats_ism)
+                                formats.extend(formats_ism) 
+
 
                 except Exception as e:
                     logger.exception(f"[{_type}] {repr(e)}")
@@ -307,7 +312,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 self._logout(driver=driver)
                 self.rm_driver(driver)
 
-
     def _is_logged(self, driver=None):
         
         self._send_request(self._SITE_URL, driver=driver)
@@ -318,7 +322,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         self.to_screen(f"[is_logged] {logged_ok}")
         return logged_ok
         
-    
     def _login(self, driver=None):
         
         rem = False
@@ -365,7 +368,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             if rem: self.rm_driver(driver)
             raise
 
-
     def _real_initialize(self):
 
         try:
@@ -386,7 +388,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             logger.exception(repr(e))
 
-                        
 
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedswordscene'
@@ -421,7 +422,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         try:            
             self.report_extraction(url)
             index = int(self._match_id(url))
-            return self._get_video_entry(url.split('/scene/')[0], index=index, _type='hls')
+            return self._get_video_entry(url.split('/scene/')[0], index=index, _type='all')
  
         except ExtractorError:
             raise
@@ -441,6 +442,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
 
         driver = self._get_driver_logged()
+        _type = kwargs.get('_type', 'all')
         
         try:
             self._send_request(url, driver=driver)
@@ -458,7 +460,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             entries = []
             
             if not el_scenes:
-                _entry = self._get_entry(url, driver=driver, details=details, _type="hls", index=1)
+                _entry = self._get_entry(url, driver=driver, details=details, _type=_type, index=1)
                 if _entry: entries.append(_entry)
             else:
                 
@@ -468,7 +470,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                         el = driver.find_elements(By.CLASS_NAME, "Scene")
                         _link_click = try_get(el[i].find_element(By.TAG_NAME, 'a'), lambda x: {'url': x.get_attribute('href'), 'ok': x.click()} if x else None)
                         if not _link_click: raise ExtractorError("couldnt click scene")
-                        _entry = self._get_entry(_link_click.get('url'), driver=driver, details=details, _type="hls", index=i+1)
+                        _entry = self._get_entry(_link_click.get('url'), driver=driver, details=details, _type=_type, index=i+1)
                         if _entry: entries.append(_entry)
 
                     except Exception as e:
@@ -493,7 +495,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         try:            
             self.report_extraction(url)            
-            return self._get_playlist_movie(url)
+            return self._get_playlist_movie(url, _type="all")
  
         except ExtractorError:
             raise
