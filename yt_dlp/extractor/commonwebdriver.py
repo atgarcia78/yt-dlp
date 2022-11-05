@@ -257,6 +257,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     
                     if SeleniumInfoExtractor._YTDL:
                         #logger.debug("Cambio de ytdl")
+                        if not self._downloader.params.get('stop_dl'):
+                            self._downloader.params['stop_dl'] = SeleniumInfoExtractor._YTDL.params.get('stop_dl', {}) 
                         if not self._downloader.params.get('sem'):
                             self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params.get('sem', {}) 
                         if not self._downloader.params.get('lock'):
@@ -268,6 +270,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     
                     SeleniumInfoExtractor._YTDL = self._downloader                
                 
+                if not SeleniumInfoExtractor._YTDL.params.get('stop_dl'):                     
+                    SeleniumInfoExtractor._YTDL.params['stop_dl'] = {}
                 if not SeleniumInfoExtractor._YTDL.params.get('sem'):                     
                     SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
                 if not SeleniumInfoExtractor._YTDL.params.get('lock'):
@@ -304,8 +308,12 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
-                host, port = (urlparse(_proxy).netloc).split(':')
-            driver = self._get_driver(noheadless, devtools, host, port, temp_prof_dir)
+                _host, _port = (urlparse(_proxy).netloc).split(':')
+                self.to_screen(f"[get_driver] {_host} - {int(_port)}")
+            else:
+                _host, _port = host, port
+            
+            driver = self._get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
         return driver
         
     def _get_driver(self, noheadless, devtools, host, port, temp_prof_dir):        
@@ -323,32 +331,33 @@ class SeleniumInfoExtractor(InfoExtractor):
         if not noheadless:
             opts.add_argument("--headless")
         
-        if devtools:
-            opts.add_argument("--devtools")
-            opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-            opts.set_preference("devtools.netmonitor.persistlog", False)
-            opts.set_preference("devtools.debugger.skip-pausing", True);
-        
+                
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-application-cache")
         opts.add_argument("--disable-gpu")
         opts.add_argument("--disable-dev-shm-usage")
         opts.add_argument("--profile")
         opts.add_argument(tempdir)
+
+        if devtools:
+            opts.add_argument("--devtools")
+            opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
+            opts.set_preference("devtools.netmonitor.persistlog", False)
+            opts.set_preference("devtools.debugger.skip-pausing", True);
         
                 
         if host and port:
             opts.set_preference("network.proxy.type", 1)
-            opts.set_preference("network.proxy.http",host)
-            opts.set_preference("network.proxy.httpport",int(port))
+            opts.set_preference("network.proxy.http", host)
+            opts.set_preference("network.proxy.http_port",int(port))
             opts.set_preference("network.proxy.https",host)
-            opts.set_preference("network.proxy.httpsport",int(port))
+            opts.set_preference("network.proxy.https_port",int(port))
             opts.set_preference("network.proxy.ssl",host)
-            opts.set_preference("network.proxy.sslport",int(port))
+            opts.set_preference("network.proxy.ssl_port",int(port))
             opts.set_preference("network.proxy.ftp",host)
-            opts.set_preference("network.proxy.ftpport",int(port))
+            opts.set_preference("network.proxy.ftp_port",int(port))
             opts.set_preference("network.proxy.socks",host)
-            opts.set_preference("network.proxy.socksport",int(port))
+            opts.set_preference("network.proxy.socks_port",int(port))
         
         else:
             opts.set_preference("network.proxy.type", 0)            
@@ -396,7 +405,19 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
-    def scan_for_request(self, driver, _link, _all=False, timeout=60):
+    def check_stop(self, ind):
+        
+        _stopg = self.get_param('stop')       
+        _stop = None
+        if ind:
+            _stop = traverse_obj(self.get_param('stop_dl'), (ind))
+
+        if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
+            self.to_screen("stop event")
+            raise StatusStop("stop event")
+
+    
+    def scan_for_request(self, driver, _link, indexdl=None, _all=False, timeout=60):
 
         def _get_har():
             _res = (driver.execute_async_script(
@@ -406,17 +427,24 @@ class SeleniumInfoExtractor(InfoExtractor):
         _list_hints = []
                 
         _started = time.monotonic()        
-        while(True):
+        
+        while(True):            
 
             _har = _get_har()
             for entry in _har:
-
-                if re.search(_link, (_url:=entry['request']['url'])):
-                    if (_resp_content:=entry.get('response', {}).get('content', {}).get('text', "")):
+                
+                _url = traverse_obj(entry, ('request',  'url'))
+                if _url and re.search(_link, _url):
+                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
+                    if _resp_content:
                         _hint = (_url, _resp_content)
-                        if not _all: return(_hint)   
+                        if not _all: 
+                            return(_hint)   
                         else:                    
                             _list_hints.append(_hint)
+
+                self.check_stop(indexdl)
+
 
             if _all and _list_hints: 
                 return(_list_hints)
@@ -426,10 +454,12 @@ class SeleniumInfoExtractor(InfoExtractor):
                 else: return(None,None)
             else:
                 time.sleep(0.5)
-                
-    def scan_for_json(self, _driver, _link, _all=False, timeout=60):
 
-        _hints = self.scan_for_request(_driver, _link, _all, timeout)
+            
+                
+    def scan_for_json(self, _driver, _link, indexdl=None, _all=False, timeout=60):
+
+        _hints = self.scan_for_request(_driver, _link, indexdl, _all, timeout)
 
         #logger.debug(f"[scan_json] {_hints}")
         

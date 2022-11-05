@@ -1,15 +1,32 @@
+import html
+import re
 import sys
 import traceback
 from urllib.parse import unquote
-import re
-import html
+
 import pyduktape2 as pyduk
 
-
-from ..utils import ExtractorError, sanitize_filename, traverse_obj, try_get, get_domain
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, 
-    limiter_0_5, limiter_0_1, limiter_0_01, limiter_non, HTTPStatusError, ConnectError, StatusStop, Lock)
+    ConnectError,
+    HTTPStatusError,
+    Lock,
+    SeleniumInfoExtractor,
+    StatusStop,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_0_1,
+    limiter_0_01,
+    limiter_0_5,
+    limiter_non,
+)
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    sanitize_filename,
+    traverse_obj,
+    try_get,
+)
 
 
 class BaseloadIE(SeleniumInfoExtractor):

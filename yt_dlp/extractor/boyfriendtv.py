@@ -1,22 +1,37 @@
 import html
 import json
+import logging
 import re
 import sys
 import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote, urlparse
 
 import httpx
 
-from concurrent.futures import ThreadPoolExecutor
+from .commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    ec,
+    limiter_0_1,
+)
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    int_or_none,
+    js_to_json,
+    sanitize_filename,
+    traverse_obj,
+    try_get,
+    urljoin,
+)
 
-from ..utils import (ExtractorError, int_or_none, js_to_json,
-                     sanitize_filename, try_get, urljoin, get_domain, traverse_obj)
-from .commonwebdriver import (dec_on_exception2, dec_on_exception3, dec_on_exception, 
-                              HTTPStatusError, ConnectError, SeleniumInfoExtractor,
-                              limiter_0_1, By, ec)
-
-import logging
 logger = logging.getLogger('bftv')
 
 class BoyFriendTVBaseIE(SeleniumInfoExtractor):
