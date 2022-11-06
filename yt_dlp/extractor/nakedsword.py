@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from queue import Queue
 from threading import Lock
-from urllib.parse import quote, unquote, urljoin
+from urllib.parse import quote, unquote, urljoin, urlparse
 
 from .commonwebdriver import (
     By,
@@ -184,7 +184,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             else:
                 host, port = (urlparse(self.proxy).netloc).split(':')
 
-            _driver = self.get_driver(noheadless=True, devtools=True, host=host, port=port)
+            _driver = self.get_driver(devtools=True, host=host, port=port)
             if self._login(driver=_driver):
                 return _driver
 
@@ -222,9 +222,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     scene_click = try_get(el_scenes, lambda x: {'ok': x[index_scene-1].find_element(By.TAG_NAME, 'a').click()} if x else None)
                     if not scene_click: raise ExtractorError("couldnt select scene")
                 
-            play = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "button.vjs-big-play-button"))), lambda x: {'ok': x.click()} if x else None)
+            play = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "button.vjs-big-play-button"))), lambda x: {'ok': x.click()} if x else None)
             if play:
-                pause = try_get(driver.find_element(By.TAG_NAME, 'video'), lambda x: {'ok': x.click()} if x else None)
+                #pause = try_get(driver.find_element(By.TAG_NAME, 'video'), lambda x: {'ok': x.click()} if x else None)
+                pause = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing"))), lambda x: {'ok': x.click()} if x else None)
             else: raise ExtractorError("couldnt play video")
 
             mpd_url, _doc = try_get(self.scan_for_request(driver, f"manifest.mpd", indexdl=self.indexdl, _all=True), lambda x: x[-1])
@@ -327,7 +328,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         try:
             if not self._is_logged(driver=driver):
 
-                self.check_stop(self.indexdl)
+                self.check_stop()
 
                 self.report_login()
                 username, password = self._get_login_info()
@@ -363,18 +364,24 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 self.to_screen(f"[login] Already logged")
                 return True
         except Exception as e:
-            logger.error(repr(e))
+            logger.exception(repr(e))
 
     def check_stop(self):
         
-        _stopg = self.get_param('stop')
-        _stop = None
-        if self.indexdl:
-            _stop = traverse_obj(self.get_param('stop_dl'), self.indexdl)
+        try:
+            _stopg = self.get_param('stop')
+            _stop = None
+            if self.indexdl:
+                _stop = traverse_obj(self.get_param('stop_dl'), self.indexdl)
 
-        if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
-            self.to_screen("stop event")
-            raise StatusStop("stop event")
+            if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
+                self.to_screen("stop event")
+                raise StatusStop("stop event")
+        
+        except StatusStop:
+            raise
+        except Exception as e:
+            logger.exception(repr(e))
 
     def _real_initialize(self):
 
@@ -456,11 +463,11 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         try:
             driver = self._get_driver_logged()
-            self.check_stop(self.indexdl)
+            self.check_stop()
             self._send_request(url, driver=driver)
             self.wait_until(driver, 2)
-            el_scenes = self.wait_until(driver, 60, getScenes(self.to_screen))
-            self.check_stop(self.indexdl)
+            el_scenes = self.wait_until(driver, 60, getScenes())
+            self.check_stop()
             details = try_get(self.scan_for_json(driver, "details", indexdl=self.indexdl), lambda x: x.get('data'))
             if details:
                 playlist_id = str(details.get('id'))
@@ -477,7 +484,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                 num_scenes = len(el_scenes)
                 for i in range(num_scenes):
                     
-                    self.check_stop(self.indexdl)
+                    self.check_stop()
 
                     try:                
                         el = driver.find_elements(By.CLASS_NAME, "Scene")

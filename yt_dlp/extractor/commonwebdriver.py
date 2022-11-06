@@ -431,7 +431,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         else:                    
                             _list_hints.append(_hint)
 
-                self.check_stop(indexdl)
+                self.check_stop()
 
             if _all and _list_hints: 
                 return(_list_hints)
