@@ -405,19 +405,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
-    def check_stop(self, ind):
-        
-        _stopg = self.get_param('stop')       
-        _stop = None
-        if ind:
-            _stop = traverse_obj(self.get_param('stop_dl'), (ind))
-
-        if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
-            self.to_screen("stop event")
-            raise StatusStop("stop event")
-
-    
-    def scan_for_request(self, driver, _link, indexdl=None, _all=False, timeout=60):
+    def scan_for_request(self, driver, _link, indexdl=None, _all=False, timeout=10):
 
         def _get_har():
             _res = (driver.execute_async_script(
@@ -428,7 +416,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 
         _started = time.monotonic()        
         
-        while(True):            
+        while True:            
 
             _har = _get_har()
             for entry in _har:
@@ -445,7 +433,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
                 self.check_stop(indexdl)
 
-
             if _all and _list_hints: 
                 return(_list_hints)
             
@@ -455,14 +442,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 time.sleep(0.5)
 
-            
-                
-    def scan_for_json(self, _driver, _link, indexdl=None, _all=False, timeout=60):
+    def scan_for_json(self, _driver, _link, indexdl=None, _all=False, timeout=10):
 
         _hints = self.scan_for_request(_driver, _link, indexdl, _all, timeout)
 
-        #logger.debug(f"[scan_json] {_hints}")
-        
         func_getter = lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else ""            
         
         if not _all:
@@ -486,7 +469,6 @@ class SeleniumInfoExtractor(InfoExtractor):
                         
         return el 
     
-    #@_check_init
     def get_info_for_format(self, url, **kwargs):
         
         try:
@@ -522,7 +504,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:                
             self.logger_debug(f"[get_info_for_format][{self._get_url_print(url)}] {res}:{_msg_err}")   
 
-    #@_check_init
     def _is_valid(self, url, msg=None):
         
         if not url: 
@@ -534,10 +515,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
         self.logger_debug(f'[valid]{_pre_str} start checking')
         
-        
-
         try:
-
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to', 
                                       'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
                 self.logger_debug(f'[valid]{_pre_str}:False')
@@ -599,12 +577,11 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.exception(e)
             return False
     
-        
     @dec_on_exception3
     @dec_on_exception2
     def _get_ip_origin(self):
         return(try_get(self.send_http_request("https://api.ipify.org?format=json"), lambda x: x.json().get('ip') if x else ''))
-    
+
     def stream_http_request(self, url, **kwargs):
         try:
             premsg = f'[stream_http_request][{self._get_url_print(url)}]'
@@ -651,8 +628,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:                
             self.logger_debug(f"{premsg} {res}:{_msg_err}")        
 
-
-    def send_http_request(self, url, **kwargs):        
+    def send_http_request(self, url, **kwargs):
         try:
             _type = kwargs.get('_type', "GET")
             headers = kwargs.get('headers', None)
@@ -688,82 +664,3 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:                
             self.logger_debug(f"{premsg} {req}:{res}:{_msg_err}")
 
-    def socket_http(self, hostname: str, port: int, path: str, http_version: str, method: str, user_agent: str, max_limit: int):
-    
-        import socket
-        import ssl
-
-        import cchardet as chardet
-
-        logger.debug(
-            f'Connecting to {hostname}:{port}, send {method} {path} {http_version} request')
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # connect the client
-        client.connect((hostname, port))
-
-        # ssl wrap the socket
-        if port == 443:
-            context = ssl.create_default_context()
-            client = context.wrap_socket(client, server_hostname=hostname)
-
-        accept = self._CLIENT_CONFIG['headers']['Accept']
-        accept_language = self._CLIENT_CONFIG['headers']['Accept-Language']
-        accept_encoding = self._CLIENT_CONFIG['headers']['Accept-Encoding']
-
-        _cmd = f"{method} {path} HTTP/{http_version}\r\nHost: {hostname}\r\nUser-Agent: {user_agent}\r\nAccept: {accept}\r\nAccept-Language: {accept_language}\r\n\r\n"
-
-        logger.debug(_cmd)
-
-        client.send(_cmd.encode())
-
-        # receive some data
-        buffer_size = 4096
-        response = b''
-        while True:
-            data = client.recv(buffer_size)
-            #data = client.recv()
-            logger.debug(f'receiving {len(data)} bytes data...')
-            if data:
-                response += data
-            #if any([b'</script><style>' in response, not data, len(response) > max_limit]):
-            if any([b'</script><style>' in response, not data]):
-                client.close()
-                break
-        logger.debug(response)
-        encoding = chardet.detect(response)['encoding']
-        logger.debug(encoding)
-        return response.decode(encoding)
-
-    def socket_http_request(self, url, **kwargs):
-
-        try:
-            res = ""
-            _msg_err = ""
-            headers = kwargs.get('headers', None)
-            msg = kwargs.get('msg', None)
-            premsg = f'[socket_http_request][{self._get_url_print(url)}]'
-            if msg: 
-                premsg = f'{msg}{premsg}'            
-            max_limit = kwargs.get('max_limit', None)
-            
-            # use urlparse to parse the url, return ParseResult
-            parsedResult = urlparse(url)
-            scheme, hostname, port, path = parsedResult.scheme, parsedResult.hostname, parsedResult.port, parsedResult.path
-            # check if scheme is http or https
-            if scheme != 'http' and scheme != 'https':
-                logger.error(f'{url} is not a valid url, only support http or https')
-                return
-            # nomalize port if port is not specified
-            port = port if port else 80 if parsedResult.scheme == 'http' else 443
-            path = path if path else '/'
-            http_version = "1.0"
-            method = "GET"
-            user_agent = self._CLIENT_CONFIG['headers']['User-Agent'] 
-            return self.socket_http(hostname, port, path, http_version, method, user_agent, max_limit)
-
-        except Exception as e:            
-            _msg_err = repr(e)
-            logger.exception(_msg_err)
-            raise
-
-    
