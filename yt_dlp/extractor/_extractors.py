@@ -2657,3 +2657,5 @@ from .thisvidgay import (
     BiguzIE
 )
 from .gaygo import GaygoIE
+from .justthegays import JustTheGaysIE
+from .hexupload import HexUploadIE
