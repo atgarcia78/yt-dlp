@@ -57,7 +57,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         #list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or (l1[1] and not 'Subtitle' in l1[1])]]
 
        
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if l1[0] or (l1[1] and not 'Subtitle' in l1[1])]]
+        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage, re.IGNORECASE) if any([l1[0], (l1[1] and not 'subtitle' in l1[1].lower()), (l1[2] and not 'subtitle' in l1[2].lower())])]]
         
         iedood = self._downloader.get_info_extractor('DoodStream')
         iehigh = self._downloader.get_info_extractor('Highload')
@@ -189,6 +189,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if GVDBlogBaseIE._SLOW_DOWN:
             check = False
         
+        pre = f'[get_entries]:{self._get_url_print(url)}'
+
         try:
             
             postdate, title, postid = self.get_info(post)
@@ -196,7 +198,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 
             if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError(f"[{url} no video info")   
                 
-            pre = f'[get_entries]:{self._get_url_print(url)}'
+            
             
             entries = []
             if (_len:=len(list_candidate_videos)) > 1:
@@ -440,4 +442,4 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.logger_debug(entries)
 
         
-        return self.playlist_result(entries, f'{sanitize_filename(query, restricted=True)}', f"Search")
+        return self.playlist_result(entries, playlist_id=f'{sanitize_filename(query, restricted=True)}'.replace('%23', ''), playlist_title="Search")

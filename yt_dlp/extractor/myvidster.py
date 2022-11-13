@@ -29,7 +29,7 @@ logger = logging.getLogger('myvidster')
 
 _URL_NOT_VALID = [  'rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 
                     'twinkvideos.com/embed','xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 
-                    'pornone.com/embed/', 'player.vimeo.com/video']
+                    'pornone.com/embed/', 'player.vimeo.com/video', 'gaystreamvp.ga']
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -200,12 +200,15 @@ class MyVidsterIE(MyVidsterBaseIE):
                     continue
                     
                 if 'locotube.site/pn' in el:
-                    _id, _id2 = try_get(re.search(r'locotube\.site/pn/\?c\=(?P<id>\d+)(&gfi=(?P<id2>[a-zA-Z0-9\-]+))?', el), 
+                    _id, _id2 = try_get(re.search(r'locotube\.site/pn\?c\=(?P<id>[\d/]+)(&gfi=(?P<id2>[a-zA-Z0-9\-]+))?', el), 
                                         lambda x: x.group('id', 'id2') if x else (None, None))
                     if _id2:
                         el = f'https://gayforit.eu/playvideo.php?vkey={_id2}'
                     elif _id:
-                        el = f'https://thisvid.com/embed/{_id}'
+                        if '/' in _id:
+                            el = f'https://www.boyfriendtv.com/embed/{_id}'
+                        else:
+                            el = f'https://thisvid.com/embed/{_id}'
                 
                 _extr_name = self._get_ie_name(el)
                 
@@ -223,9 +226,10 @@ class MyVidsterIE(MyVidsterBaseIE):
                             return _ent
                         else:
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
+                            return {"error_getbestvid": f"[{el}] not entry video"}
                     except Exception as e:
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
-
+                        return {"error_getbestvid": f"[{el}] error entry video - {repr(e)}"}
 
                 elif _extr_name != 'generic':
                     
@@ -337,6 +341,8 @@ class MyVidsterIE(MyVidsterBaseIE):
             
             
             elif isinstance(embedlink_res, dict):
+                if (_msg_error:=embedlink_res.get('error_getbestvid')):
+                    raise ExtractorError(_msg_error)
                 embedlink_res.update({'original_url': url})
                 embedlink_res.update(_entry)
                 if not embedlink_res.get('title'): 

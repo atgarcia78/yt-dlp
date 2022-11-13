@@ -28,10 +28,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait
 
 from .common import ExtractorError, InfoExtractor
-from ..utils import classproperty, int_or_none, traverse_obj, try_get
+from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url
 
 logger = logging.getLogger("Commonwebdriver")
 
@@ -85,19 +85,19 @@ CONFIG_EXTRACTORS = {
                                             'ratelimit': limiter_5, 
                                             'maxsplits': 4},
                 ('doodstream','vidoza',): {
-                                            'ratelimit': limiter_5,
+                                            'ratelimit': limiter_1,
                                             'maxsplits': 2}, 
       ('highload', 'tubeload', 'embedo',
                  'thisvidgay','redload',
                    'biguz', 'gaytubes',): {
                                             'ratelimit': limiter_0_1, 
                                             'maxsplits': 4},
-                        ('boyfriendtv',): {'ratelimit': limiter_0_1, 
+      ('boyfriendtv', 'nakedswordscene'): {'ratelimit': limiter_0_1, 
                                             'maxsplits': 16},
                 ('fembed', 'streamtape',
               'gayforfans', 'gayguytop',
                  'upstream', 'videobin',
-               'gayforiteu', 'xvidgay',): {
+              'gayforiteu', 'xvidgay',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16},
             ('odnoklassniki', 'thisvid',
@@ -106,7 +106,7 @@ CONFIG_EXTRACTORS = {
               'gay0day', 'onlygayvideo',
               'txxx','thegay','homoxxx',
         'youporngay', 'youporn','gaygo',
-                            'pornone',): {
+                'hexupload','pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
 }
@@ -135,6 +135,16 @@ class scroll:
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height: return True
             else: return False
+
+class checkStop:
+
+    def __init__(self, checkstop):
+        self.checkstop = checkstop
+    def __call__(self, driver):
+
+        self.checkstop()
+        return False                
+  
  
 def _check_init(func):
     @functools.wraps(func)
@@ -244,12 +254,17 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass        
 
+
+    
     def initialize(self):
 
-        self._ready = False
+        self._ready = False        
         super().initialize()
 
+
+
     def _real_initialize(self):
+
 
         try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
@@ -299,11 +314,23 @@ class SeleniumInfoExtractor(InfoExtractor):
                     proxies=_config['proxies'], timeout=_config['timeout'], 
                     limits=_config['limits'], headers=_config['headers'],
                     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+
+                self.indexdl = None
                     
                     
         except Exception as e:
             logger.exception(e)
 
+    
+    
+
+    def extract(self, url):
+
+        url, self.indexdl = try_get(unsmuggle_url(url), lambda x: (x[0], x[1].get('indexdl') if x[1] else None))
+
+        return super().extract(url)
+    
+    
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):        
 
         with SeleniumInfoExtractor._MASTER_LOCK:
@@ -405,7 +432,27 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
-    def scan_for_request(self, driver, _link, indexdl=None, _all=False, timeout=10):
+    def check_stop(self):
+        
+        try:
+            _stopg = self.get_param('stop')
+            _stop = None
+            if self.indexdl:
+                _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
+
+            if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
+                self.to_screen("stop event")
+                raise StatusStop("stop event")
+        
+        except StatusStop as e:
+            raise
+        # except Exception as e:
+        #     logger.exception(repr(e))
+
+
+    
+    
+    def scan_for_request(self, driver, _link, _all=False, timeout=10, response=True):
 
         def _get_har():
             _res = (driver.execute_async_script(
@@ -423,13 +470,20 @@ class SeleniumInfoExtractor(InfoExtractor):
                 
                 _url = traverse_obj(entry, ('request',  'url'))
                 if _url and re.search(_link, _url):
-                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
-                    if _resp_content:
-                        _hint = (_url, _resp_content)
+                    if not response:
+                        _hint = (_url, None)
                         if not _all: 
                             return(_hint)   
                         else:                    
                             _list_hints.append(_hint)
+                    else:
+                        _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
+                        if _resp_content:
+                            _hint = (_url, _resp_content)
+                            if not _all: 
+                                return(_hint)   
+                            else:                    
+                                _list_hints.append(_hint)
 
                 self.check_stop()
 
@@ -442,9 +496,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 time.sleep(0.5)
 
-    def scan_for_json(self, _driver, _link, indexdl=None, _all=False, timeout=10):
+    def scan_for_json(self, _driver, _link, _all=False, timeout=10):
 
-        _hints = self.scan_for_request(_driver, _link, indexdl, _all, timeout)
+        _hints = self.scan_for_request(_driver, _link, _all, timeout)
 
         func_getter = lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else ""            
         
@@ -462,8 +516,12 @@ class SeleniumInfoExtractor(InfoExtractor):
                 return(_list_info_json)
     
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
+        
+        
         try:
-            el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(method)
+            el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(ec.any_of(checkStop(self.check_stop), method))
+        except StatusStop as e:
+            raise
         except Exception as e:
             el = None
                         
