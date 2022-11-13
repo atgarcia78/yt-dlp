@@ -79,7 +79,8 @@ class StreamtapeIE(SeleniumInfoExtractor):
                 try:
                     return self.send_http_request(url)
                 except (HTTPStatusError, ConnectError) as e:
-                    self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+                    self.logger_debug(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+                    return {"error_sendreq": f"error - {repr(e)}"}
         
         return _aux()
 
@@ -96,9 +97,10 @@ class StreamtapeIE(SeleniumInfoExtractor):
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
             if not webpage:
-                webpage = try_get(self._send_request(url, msg=pre, lim=limiter_0_1), lambda x: html.unescape(x.text))
+                webpage = try_get(self._send_request(url, msg=pre, lim=limiter_0_1), lambda x: x if isinstance(x, dict) else html.unescape(x.text))
             
-            if not webpage: raise ExtractorError("no webpage")
+            _msg_error = ""
+            if not webpage or (isinstance(webpage, dict) and (_msg_error:=webpage.get('error_sendreq'))): raise ExtractorError(f"{_msg_error} no webpage")
             el_node = try_get(re.findall(r'var srclink\s+=\s+\$\([\'\"]#([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
             if not el_node: raise ExtractorError("error when retrieving video url")
             _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])

@@ -2,10 +2,13 @@ import re
 import sys
 import traceback
 
-
-
+from .commonwebdriver import (
+    SeleniumInfoExtractor,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_0_1,
+)
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, By, ec
 
 
 class FxggxtIE(SeleniumInfoExtractor):
@@ -14,13 +17,16 @@ class FxggxtIE(SeleniumInfoExtractor):
     
             
     
-    @dec_on_exception
+    @dec_on_exception3
+    @dec_on_exception2
     @limiter_0_1.ratelimit("fxggxt", delay=True)
-    def _send_request(self, url):        
-        
-        self.logger_debug(f"[send_request] {url}") 
-        res = self.send_http_request(url)                
-        return res
+    def _send_request(self, url, **kwargs):        
+            
+        try:
+            self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
+            return(self.send_http_request(url, **kwargs))
+        except (HTTPStatusError, ConnectError) as e:
+            self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
     
     def _real_initialize(self):
         super()._real_initialize()
@@ -38,7 +44,7 @@ class FxggxtIE(SeleniumInfoExtractor):
             videourl = try_get(re.findall(r'iframe[^>]*src=[\"\']([^\"\']+)[\"\']', webpage), lambda x: x[0])
 
             if not videourl: raise ExtractorError("no video url")
-            self.to_screen(videourl)
+            #self.to_screen(videourl)
             _entry = {
                 '_type': 'url_transparent',
                 'url': videourl}

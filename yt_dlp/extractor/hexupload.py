@@ -3,47 +3,46 @@ import time
 import traceback
 from urllib.parse import unquote
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, 
-    SeleniumInfoExtractor, limiter_15, limiter_5, limiter_10, By, ec, HTTPStatusError, ConnectError,
-    Lock)
+    By,
+    ConnectError,
+    HTTPStatusError,
+    Lock,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    ec,
+    limiter_1,
+)
+from ..utils import ExtractorError, get_domain, sanitize_filename, traverse_obj, try_get
 
-class video_or_error_userload:
+
+class video_or_error:
     
     def __call__(self, driver):
-        try:
-            elimg = driver.find_elements(By.CSS_SELECTOR, "img.image-blocked")
-            if elimg:
-                
-                return "error"
-            elover = driver.find_elements(By.ID, "videooverlay")
-            if elover:
-                for _ in range(5):
-                    try:
-                        elover[0].click()
-                        time.sleep(1)
-                    except Exception as e:
-                        break
-            el_vid = driver.find_elements(By.ID, "olvideo_html5_api")
-            if el_vid:
-                if _src:=el_vid[0].get_attribute('src'):
-                    return unquote(_src)
-                else:
-                    return False
-            else: return False
-        except Exception as e:
+        
+        if driver.find_elements(By.CSS_SELECTOR, '.alert'):
+            return "error"
+        button = driver.find_elements(By.CLASS_NAME, "vjs-icon-placeholder")
+        if not button:
             return False
+        button[0].click()
+        time.sleep(2)
+        video = driver.find_element(By.ID, 'my_video_html5_api')
+        video.click()
+        return True
 
-class UserLoadIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'userload'
-    _VALID_URL = r'https?://(?:www\.)?userload\.co/(?:embed|e|f)/(?P<id>[^\/$]+)(?:\/|$)'
-    _SITE_URL = 'https://userload.co/'
+class HexUploadIE(SeleniumInfoExtractor):
+
+    IE_NAME = 'hexupload'
+    _VALID_URL = r'https?://(?:www\.)?hexupload\.net/(embed-)?(?P<id>[^\/$]+)(?:\/|$)'
+    _SITE_URL = 'https://hexupload.net/'
     
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_5.ratelimit("userload", delay=True)
+    @limiter_1.ratelimit("hexupload", delay=True)
     def _get_video_info(self, url, msg=None):        
         try:
             pre = '[get_video_info]'
@@ -74,11 +73,11 @@ class UserLoadIE(SeleniumInfoExtractor):
         driver = kwargs.get('driver', None)
          
         if driver:
-            with limiter_5.ratelimit("userload", delay=True):
+            with limiter_1.ratelimit("hexupload2", delay=True):
                 self.logger_debug(f"[send_request] {url}")
                 driver.get(url)
         else:
-            with limiter_5.ratelimit("userload2", delay=True):
+            with limiter_1.ratelimit("hexupload2", delay=True):
                 self.logger_debug(f"[send_request] {url}")
                 try:
                     return self.send_http_request(url)
@@ -94,13 +93,16 @@ class UserLoadIE(SeleniumInfoExtractor):
             
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg: pre = f'{msg}{pre}'
-            
-            driver = self.get_driver()
-            self._send_request(url.replace('userload.co/embed/', 'userload.co/f/').replace('userload.co/e/', 'userload.co/f/'), driver=driver)
-            video_url = self.wait_until(driver, 30, video_or_error_userload())
-            if not video_url or video_url == 'error': raise ExtractorError('404 video not found')
-            title = driver.title.replace(".mp4", "").split("|")[0].strip()
             videoid = self._match_id(url)
+            driver = self.get_driver(devtools=True)
+            self._send_request(f'{self._SITE_URL}{videoid}', driver=driver)
+            res = self.wait_until(driver, 30, video_or_error())
+            video_url = None
+            if res and res != "error":
+                video_url = try_get(self.scan_for_request(driver, 'video.mp4', response=False), lambda x: x[0])
+            if not video_url: raise ExtractorError('404 video not found')
+            title = driver.title.replace("mp4", "").replace("Download", "").strip()
+            
             
             _format = {
                 'format_id': 'http-mp4',
@@ -119,8 +121,8 @@ class UserLoadIE(SeleniumInfoExtractor):
                 'id' : videoid,
                 'title' : sanitize_filename(title, restricted=True),
                 'formats' : [_format],
-                'extractor_key' : 'UserLoad',
-                'extractor': 'userload',
+                'extractor_key' : self.ie_key(),
+                'extractor': self.IE_NAME,
                 'ext': 'mp4',
                 'webpage_url': url
             } 
