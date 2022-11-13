@@ -2659,3 +2659,4 @@ from .thisvidgay import (
 from .gaygo import GaygoIE
 from .justthegays import JustTheGaysIE
 from .hexupload import HexUploadIE
+from .doodstream import DoodStreamIE
