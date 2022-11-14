@@ -129,7 +129,7 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
     """
 
     URLS = (
-        r'dood\.(?:to|watch|so|pm|wf|re)',
+        # r'dood\.(?:to|watch|so|pm|wf|re)',
         # Sites youtube-dl supports, but we won't
         r'viewsb\.com',
         r'filemoon\.sx',
@@ -137,7 +137,7 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
     )
 
     _TESTS = [{
-        'url': 'http://dood.to/e/5s1wmbdacezb',
+        'url': 'http://trrtgghghndood.to/e/5s1wmbdacezb',
         'only_matching': True,
     }]
 
