@@ -130,10 +130,11 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
 
     URLS = (
         r'dood\.(?:to|watch|so|pm|wf|re)',
+        r'trrtgghghndood\.(?:to|watch|so|pm|wf|ru)',
     )
 
     _TESTS = [{
-        'url': 'http://dood.to/e/5s1wmbdacezb',
+        'url': 'http://trrtgghghndood.to/e/5s1wmbdacezb',
         'only_matching': True,
     }]
 

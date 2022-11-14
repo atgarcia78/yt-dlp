@@ -85,9 +85,7 @@ class BaseloadIE(SeleniumInfoExtractor):
                     return self.stream_http_request(url, stopper='</script><style>', headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-            # except Exception as e:
-            #     self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
-            #     raise
+
                 
                 
     def _get_args(self, webpage, _all=False):

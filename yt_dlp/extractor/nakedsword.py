@@ -345,12 +345,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _is_logged(self, driver):
         
         self._send_request(self._SIGNIN_URL, driver=driver)
-        #self.wait_until(driver, 2)
-        #self.check_stop()
-        #el_ua = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.UserAction"))), lambda x: x[1].text)
-        #self.check_stop()
         logged_ok = try_get(self.wait_until(driver, 5, checkLogged()), lambda x: True if x else False)
-        #logged_ok = (el_ua == "MY ACCOUNT")
         self.logger_debug(f"[is_logged][{self._key}] {logged_ok}")
         return logged_ok
         
@@ -368,25 +363,15 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         'A valid %s account is needed to access this media.'
                         % self._NETRC_MACHINE)        
                 
-                #ua_click = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.UserAction"))), lambda x: {'ok': x[1].click()} if x else None)
-                #if not ua_click: raise ExtractorError("couldnt rollout login option")
+
                 el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.Input")))
                 el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.Input.Password")))
                 el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "button.SignInButton")))
-                #self.wait_until(driver, 0.1)
                 el_username.send_keys(username)
-                #self.wait_until(driver, 0.1)
                 el_psswd.send_keys(password)
-                #self.wait_until(driver, 0.1)                
                 el_submit.click() 
-                
-                #self.wait_until(driver, 2)
-                       
-                #el_ua = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, "div.UserAction"))), lambda x: x[1].text)
-                
 
                 logged_ok = try_get(self.wait_until(driver, 30, checkLogged()), lambda x: True if x else False)
-                #if el_ua == "MY ACCOUNT":
                 if logged_ok:
                     self.logger_debug(f"[login][{self._key}] Login OK")
                     return True
