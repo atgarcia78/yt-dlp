@@ -48,7 +48,8 @@ class FembedIE(SeleniumInfoExtractor):
             driver = self.get_driver()
             videoid = self._match_id(url)
             title = try_get(unquote(url).split('#'), lambda x: x[1].replace(".mp4", ""))
-            self._send_request(_wurl:=(url.split('#')[0].replace('fembed', 'vanfem')), driver)            
+            _wurl = url.split('#')[0].replace('fembed', 'vanfem')
+            self._send_request(_wurl, driver)            
 
             _headers = {'Referer': _wurl.split('v/')[0]}
 
@@ -64,19 +65,6 @@ class FembedIE(SeleniumInfoExtractor):
                         time.sleep(1)
                     except Exception:
                         break
-            # cont = self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "loading-container.faplbu")))
-            # if cont:
-            #     try:
-            #         cont.click()
-            #     except Exception:
-            #         pass
-            # else:
-            #     elobs = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, 'svg')))
-            #     if elobs:
-            #         try:
-            #             elobs.click()
-            #         except Exception:
-            #             pass
             
             if not title:
                 title = driver.title.replace("Video ", "").replace(".mp4", "").strip().lower()
@@ -173,8 +161,7 @@ class FembedIE(SeleniumInfoExtractor):
             })
         
         except Exception:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+
             raise
         finally:
             self.rm_driver(driver)

@@ -114,8 +114,7 @@ class JustTheGaysIE(SeleniumInfoExtractor):
             return self._get_entry(url)  
         except ExtractorError:
             raise
-        except Exception as e:
-            
+        except Exception as e:            
             self.to_screen(f"{repr(e)}")
             raise ExtractorError(repr(e))
             
