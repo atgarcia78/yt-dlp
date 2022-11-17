@@ -66,7 +66,7 @@ class FilemoonIE(SeleniumInfoExtractor):
             m3u8_url = try_get(re.search(r'file:"(?P<url>[^"]+)"', unpacked), lambda x: x.group('url'))
         
         except Exception as e:
-            self.to_screen("Change to pyduk")
+            self.logger_debug("Change to pyduk")
             _duk_ctx = pyduk.DuktapeContext()
             sign = try_get(re.findall(r'</main><script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage), lambda x: x[0])
         
