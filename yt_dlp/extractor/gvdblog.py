@@ -20,8 +20,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         
         check = kwargs.get('check', True)
         msg = kwargs.get('msg', None)
-        
-       
 
         _x = x if isinstance(x, list) else [x]
         _x.sort(reverse=True)
@@ -50,15 +48,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
            
         else:
             webpage = traverse_obj(post, ('content', '$t'))
-            
-        #list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|>(\s*Download\s*)<|>(\s*Angle[^<]*)<|>(\s*Part[^<]*)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or 'download' in l1[1].lower() or 'angle' in l1[2].lower() or 'part' in l1[3].lower()]]
 
-        
-        #list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<', webpage, re.IGNORECASE) if any(_ in l1[0] for _ in ['allowfullscreen="true"', 'allow="autoplay" allowfullscreen=""']) or (l1[1] and not 'Subtitle' in l1[1])]]
+        p1 = re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage, re.IGNORECASE)
+        p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2]) for l1 in p1 if any([(l1[0] and 'src=' in l1[0]), (l1[1] and not 'subtitle' in l1[1].lower()), (l1[2] and not 'subtitle' in l1[2].lower())])]
+        p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
+        list_urls = [item.get('src') for item in p3 if all([_ not in item.get('src', '_FORKEEP') for _ in ("www.youtube.com", "www.blogger.com", "DUMMY")])]
 
-       
-        list_urls = [item.get('src') for item in [{_el.split('=')[0]:_el.split('=')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('=')) == 2} for l1 in re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage, re.IGNORECASE) if any([l1[0], (l1[1] and not 'subtitle' in l1[1].lower()), (l1[2] and not 'subtitle' in l1[2].lower())])]]
-        
         iedood = self._downloader.get_info_extractor('DoodStream')
         iehigh = self._downloader.get_info_extractor('Highload')
         n_videos = list_urls.count(None)
@@ -67,14 +62,20 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
             if not n_videos_dood:
                 n_videos_dood = len(list_urls) - n_videos
+        
+        
+        _final_urls = []
         if n_videos and n_videos_dood and n_videos >= n_videos_dood:
-            _final_urls = list_urls
+            _final_urls.extend(list_urls)
+        elif not n_videos and (n_videos_dood == len(list_urls)):
+            for el in list_urls:
+                _final_urls.extend([el, None])
                 
         else:
             _pre = "[get_urls]"
             if msg: _pre += f"[{msg}]"
             self.report_warning(f"{_pre} please check urls extracted: {list_urls}")
-            _final_urls = []
+
             _pass = 0
             for i in range(len(list_urls)):
                 if _pass:
@@ -102,7 +103,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _final_urls.append(None)
                         
                 elif list_urls[i] and not iedood.suitable(list_urls[i]):
-
+                    j = 0
                     _temp = []
                     if i < (len(list_urls) - 1):
                         j = 1
@@ -131,16 +132,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _pass += 1 
         
         
-        # _final_urls = []
-        # for i,el in enumerate(list_urls):
-        #     _final_urls.append(el)
-        #     if el and iedood.suitable(el):
-        #         if i == (len(list_urls) - 1):
-        #             _final_urls.append(None)
-        #         else:
-        #             if list_urls[i+1] and iedood.suitable(list_urls[i+1]):
-        #                 _final_urls.append(None)
-
         
         _subvideo = []
         list1 = []
@@ -153,6 +144,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     list1.append(_subvideo)
                     _subvideo = []
         
+        if _subvideo: list1.append(_subvideo)
         return list1
 
                    

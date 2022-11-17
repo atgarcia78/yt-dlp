@@ -2660,3 +2660,5 @@ from .gaygo import GaygoIE
 from .justthegays import JustTheGaysIE
 from .hexupload import HexUploadIE
 from .doodstream import DoodStreamIE
+from .voe import VoeIE
+from .streamsb import StreamSBIE
