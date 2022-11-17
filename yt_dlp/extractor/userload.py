@@ -7,7 +7,11 @@ from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, 
     SeleniumInfoExtractor, limiter_15, limiter_5, limiter_10, By, ec, HTTPStatusError, ConnectError,
-    Lock)
+    Lock, TimeoutException, WebDriverException)
+
+
+from backoff import constant, on_exception
+dec_on_exception_ul = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
 
 class video_or_error_userload:
     
@@ -66,7 +70,7 @@ class UserLoadIE(SeleniumInfoExtractor):
         
         
         
-    @dec_on_exception
+    @dec_on_exception_ul
     @dec_on_exception3
     @dec_on_exception2    
     def _send_request(self, url, **kwargs):        
@@ -74,7 +78,7 @@ class UserLoadIE(SeleniumInfoExtractor):
         driver = kwargs.get('driver', None)
          
         if driver:
-            with limiter_5.ratelimit("userload", delay=True):
+            with limiter_5.ratelimit("userload2", delay=True):
                 self.logger_debug(f"[send_request] {url}")
                 driver.get(url)
         else:
@@ -126,8 +130,14 @@ class UserLoadIE(SeleniumInfoExtractor):
             } 
             return _entry_video
             
-        except Exception:
+        except (WebDriverException, TimeoutException) as e:
+            raise ExtractorError(f"no webpage - error 404 - {e.msg}")
+        except ExtractorError as e:
             raise
+        except Exception as e:                
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
+            raise ExtractorError(f"{repr(e)} {str(e)}")
         finally:
             self.rm_driver(driver)
         

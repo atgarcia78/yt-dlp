@@ -29,6 +29,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import WebDriverException, TimeoutException
 
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url
@@ -74,6 +75,7 @@ class StatusStop(Exception):
         self.exc_info = exc_info
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
 dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
 dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
@@ -94,7 +96,7 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 4},
       ('boyfriendtv', 'nakedswordscene'): {'ratelimit': limiter_0_1, 
                                             'maxsplits': 16},
-                ('fembed', 'streamtape',
+   ('videovard', 'fembed', 'streamtape',
               'gayforfans', 'gayguytop',
                  'upstream', 'videobin',
               'gayforiteu', 'xvidgay',): {
@@ -105,7 +107,8 @@ CONFIG_EXTRACTORS = {
                'yourporngod', 'ebembed',
               'gay0day', 'onlygayvideo',
               'txxx','thegay','homoxxx',
-        'youporngay', 'youporn','gaygo',
+                      'youporn','gaygo',
+          'youporngay', 'gaypornvideos',
                 'hexupload','pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
@@ -432,6 +435,13 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
+    
+    def raise_from_res(self, res, msg):
+    
+        if res and isinstance(res, str): return
+        _msg_error = try_get(res, lambda x: f" - {x.get('error_res')}") or "" 
+        raise ExtractorError(f"{msg}{_msg_error}")
+
     def check_stop(self):
         
         try:
@@ -449,9 +459,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         # except Exception as e:
         #     logger.exception(repr(e))
 
-
-    
-    
     def scan_for_request(self, driver, _link, _all=False, timeout=10, response=True):
 
         def _get_har():
@@ -546,7 +553,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 return ({'url': _url, 'filesize': _filesize, 'accept_ranges': _accept_ranges})
         except Exception as e:
             _msg_err = repr(e)
-            if res and res.status_code == 404:           
+            if res and (400 <= res.status_code < 500):           
                 res.raise_for_status()
             elif res and res.status_code == 503:
                 raise StatusError503(repr(e))            
