@@ -96,9 +96,9 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 4},
       ('boyfriendtv', 'nakedswordscene'): {'ratelimit': limiter_0_1, 
                                             'maxsplits': 16},
-   ('videovard', 'fembed', 'streamtape',
-              'gayforfans', 'gayguytop',
-                 'upstream', 'videobin',
+    ('videovard', 'fembed', 'streamtape',
+           'gaypornvideos', 'gayforfans', 
+      'gayguytop','upstream', 'videobin',
               'gayforiteu', 'xvidgay',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16},
@@ -108,7 +108,7 @@ CONFIG_EXTRACTORS = {
               'gay0day', 'onlygayvideo',
               'txxx','thegay','homoxxx',
                       'youporn','gaygo',
-          'youporngay', 'gaypornvideos',
+               'youporngay', 'streamsb',
                 'hexupload','pornone',): {
                                             'ratelimit': limiter_1, 
                                             'maxsplits': 16}
@@ -438,7 +438,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     
     def raise_from_res(self, res, msg):
     
-        if res and isinstance(res, str): return
+        if res and (isinstance(res, str) or not res.get('error_res')): return
+        
         _msg_error = try_get(res, lambda x: f" - {x.get('error_res')}") or "" 
         raise ExtractorError(f"{msg}{_msg_error}")
 

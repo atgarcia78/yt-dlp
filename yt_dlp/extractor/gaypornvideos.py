@@ -48,7 +48,7 @@ class GayPornVideosIE(SeleniumInfoExtractor):
         pre = f'[send_request][{self._get_url_print(url)}]'
         if (msg:=kwargs.get('msg')): pre = f'{msg}{pre}'
 
-        with limiter_1.ratelimit(f"{IE_NAME}2", delay=True):
+        with limiter_1.ratelimit(f"{self.IE_NAME}2", delay=True):
             self.logger_debug(pre)            
             if driver:
                 driver.get(url)
@@ -75,7 +75,7 @@ class GayPornVideosIE(SeleniumInfoExtractor):
             
             if not videourl: raise ExtractorError("no video url")
             
-            self.to_screen(videourl)
+            #self.to_screen(videourl)
             
             _format =  {
                 'format_id': 'http-mp4',
