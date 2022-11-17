@@ -303,29 +303,22 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     def send_api_search(self, query):
         
         try:
-            
-        
             _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"
-            
             self.logger_debug(_urlquery)
-                    
             res_search = try_get(self._send_request(_urlquery), lambda x: x.text.replace(',,',','))        
             if not res_search: 
                 raise ExtractorError("no search results")
-            
             data = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res_search), lambda x: x.group('data'))
-            
-            self.logger_debug(f'[entries result] {data}')
-            
             if not data:
                 raise ExtractorError("no video entries")
             info_json = json.loads(data)
+            self.logger_debug(f'[entries result] {info_json}')
 
             video_entries = traverse_obj(info_json, ('feed', 'entry'))
             if not video_entries: 
                 raise ExtractorError("no video entries")
-            self.logger_debug(f'[entries result] {len(video_entries)}')
-            
+            self.logger_debug(f'[entries result] videos entries [{len(video_entries)}]')
+
             return video_entries
         except Exception as e:
             logger.debug(repr(e))
@@ -420,7 +413,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     def _real_initialize(self):
         super()._real_initialize()
         
-
     def _real_extract(self, url):
         
         self.report_extraction(url)
@@ -435,11 +427,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
         if params.get('iter', '') == 'yes':
             entries = self.iter_get_entries_search(url, check=_check)
-        
         else:
             entries =  self.get_entries_search(url, check=_check)
         
         self.logger_debug(entries)
 
-        
         return self.playlist_result(entries, playlist_id=f'{sanitize_filename(query, restricted=True)}'.replace('%23', ''), playlist_title="Search")

@@ -77,7 +77,6 @@ class BaseloadIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre} {self._get_url_print(url)}: stop")
                 raise StatusStop(f"{pre} {self._get_url_print(url)}")
 
-
             try:
                 if not max_limit:               
                     return self.send_http_request(url, headers=headers)
@@ -86,8 +85,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
 
-                
-                
+
     def _get_args(self, webpage, _all=False):
         
         def getter(x):
@@ -307,7 +305,6 @@ class HighloadIE(BaseloadIE):
 class EmbedoIE(BaseloadIE):
     
     _SITE_URL = "https://embedo.co"
-    
     IE_NAME = 'embedo'
     _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?embedo\.co/e/.+?)\1']

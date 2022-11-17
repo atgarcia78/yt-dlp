@@ -4,8 +4,11 @@ import re
 import time
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_2, By, ec
+from .commonwebdriver import WebDriverException, TimeoutException, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, By, ec
 
+
+from backoff import constant, on_exception
+dec_on_exception_vv = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=1)
 
 class getvideourl:
     def __call__(self, driver):
@@ -40,24 +43,38 @@ class VideovardIE(SeleniumInfoExtractor):
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://videovard\.\w\w/[e,v]/.+?)\1']
    
     
-    # @staticmethod
-    # def _extract_urls(webpage):
-       
-    #     return [mobj.group('url') for mobj in re.finditer(r'<iframe[^>]+?src=([\"\'])(?P<url>https://videovard\.\w\w/[e,v]/.+?)\1',webpage)]
-
-    @dec_on_exception
-    @limiter_2.ratelimit("videovard", delay=True)
-    def send_multi_request(self, url, driver=None, _type=None, headers=None):
+    @dec_on_exception_vv
+    @dec_on_exception3
+    @dec_on_exception2
+    @limiter_1.ratelimit("videovard", delay=True)
+    def send_multi_request(self, url, **kwargs):
         
+        driver = kwargs.get('driver')
+        pre = f'[send_req][{self._get_url_print(url)}]'
+        if (msg:=kwargs.get('msg')): pre = f'{msg}{pre}'
+
         if driver:
-            driver.execute_script("window.stop();")
-            driver.get(url)
+            try:
+                driver.execute_script("window.stop();")
+                driver.get(url)
+            except Exception as e:
+                self.report_warning(f"{pre}: error - {repr(e)}")
+                e.msg = f'no webpage {e.msg}'
+                raise e
+
         else:
-            if not _type:
-                res = self.send_http_request(url, headers=headers)                
-                return res
-            else:
-                return self.get_info_for_format(url, headers=headers)       
+
+            _type = kwargs.get('_type', None)
+            headers = kwargs.get('headers', None)
+
+            try:
+                if not _type:
+                    res = self.send_http_request(url, headers=headers)                
+                    return res
+                else:
+                    return self.get_info_for_format(url, headers=headers)       
+            except (HTTPStatusError, ConnectError) as e:
+                self.report_warning(f"{pre}: error - {repr(e)}")
 
 
     def _real_initialize(self):
@@ -65,17 +82,20 @@ class VideovardIE(SeleniumInfoExtractor):
         super()._real_initialize()        
 
                 
-    def _real_extract(self, url):
+    def _get_entry(self, url, **kwargs):
+        
+        check_active = kwargs.get('check_active', False)
+        msg = kwargs.get('msg', None)
 
+        driver = self.get_driver(devtools=True)
+        driver.set_page_load_timeout(10)
+        
         try:
             
             self.report_extraction(url) 
                 
             videoid = self._match_id(url)
 
-            
-            driver = self.get_driver(devtools=True)
-            
             _formats = None            
             
             self.send_multi_request(_wurl:=(url.replace('/e/', '/v/').replace('videovard.to', 'videovard.sx')), driver=driver)
@@ -126,16 +146,32 @@ class VideovardIE(SeleniumInfoExtractor):
                 "ext": "mp4"})
             
 
-        
+        except (WebDriverException, TimeoutException) as e:
+            raise ExtractorError(f"error 404 - {e.msg}")
         except ExtractorError as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise
         except Exception as e:                
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-            raise ExtractorError(repr(e))
+            raise ExtractorError(f"{repr(e)} {str(e)}")
         finally:
             self.rm_driver(driver)
 
                     
+
+    def _real_extract(self, url):
+        self.report_extraction(url)
+        
+        try:
+            
+            if not self.get_param('embed'): _check_active = True
+            else: _check_active = False
+
+            return self._get_entry(url, check_active=_check_active)             
+            
+        except (ExtractorError, WebDriverException, TimeoutException) as e:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise ExtractorError(repr(e))

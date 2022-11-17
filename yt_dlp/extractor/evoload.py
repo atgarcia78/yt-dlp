@@ -13,7 +13,9 @@ from .commonwebdriver import (
     dec_on_exception,
     dec_on_exception2,
     dec_on_exception3,
-    limiter_15,
+    limiter_5,
+    TimeoutException,
+    WebDriverException
 )
 from ..utils import (
     ExtractorError,
@@ -23,6 +25,8 @@ from ..utils import (
     try_get,
 )
 
+from backoff import constant, on_exception
+dec_on_exception_evo = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=1)
 
 class video_or_error_evoload:
     def __init__(self, logger):
@@ -84,8 +88,6 @@ class get_title:
             return False
         
        
-        
-
 class EvoLoadIE(SeleniumInfoExtractor):
     
     _SITE_URL = "https://evoload.io"
@@ -97,7 +99,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
 
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_15.ratelimit("evoload", delay=True)
+    @limiter_5.ratelimit("evoload", delay=True)
     def _get_video_info(self, url, **kwargs):        
          
         try:            
@@ -121,10 +123,12 @@ class EvoLoadIE(SeleniumInfoExtractor):
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
          
             
-    @dec_on_exception
-    @limiter_15.ratelimit("evoload", delay=True)
+    @dec_on_exception_evo
+    @limiter_5.ratelimit("evoload2", delay=True)
     def _send_request(self, url, driver):
+        
         self.logger_debug(f"[send_request] {url}")   
+        driver.execute_script("window.stop();")
         driver.get(url)
         
     
@@ -135,6 +139,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
             if msg: pre = f'{msg}{pre}'
             
             driver = self.get_driver()
+            driver.set_page_load_timeout(10)
             self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
             video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
             if not video_url or video_url == 'error': raise ExtractorError("404 not video found")
@@ -166,10 +171,14 @@ class EvoLoadIE(SeleniumInfoExtractor):
             } 
             return _entry_video
             
-        except Exception:
-            #lines = traceback.format_exception(*sys.exc_info())
-            #self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+        except (WebDriverException, TimeoutException) as e:
+            raise ExtractorError(f"no webpage - error 404 - {e.msg}")
+        except ExtractorError as e:
             raise
+        except Exception as e:                
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
+            raise ExtractorError(f"{repr(e)} {str(e)}")
         finally:
             self.rm_driver(driver)
         

@@ -54,24 +54,19 @@ class StreamtapeIE(SeleniumInfoExtractor):
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
     
-    @dec_on_exception
+
     @dec_on_exception3
     @dec_on_exception2    
     def _send_request(self, url, **kwargs):        
         
         driver = kwargs.get('driver', None)
         msg = kwargs.get('msg', None)
-        lim = kwargs.get('lim', None)
-        if lim:
-            dec = lim.ratelimit("streamtape2", delay=True)
-        else:            
-            dec = limiter_1.ratelimit("streamtape2", delay=True)
+        if msg: pre = f'{msg}[send_req]'
+        else: pre = '[send_req]'
+        lim = kwargs.get('lim', limiter_1)
         
-        @dec
-        def _aux():            
-            
-            if msg: pre = f'{msg}[send_req]'
-            else: pre = '[send_req]'
+        with lim.ratelimit("streamtape2", delay=True):
+
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
             if driver:
                 driver.get(url)
@@ -82,7 +77,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
                     self.logger_debug(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
                     return {"error_sendreq": f"error - {repr(e)}"}
         
-        return _aux()
+
 
 
     def _get_entry(self, url, **kwargs):
