@@ -11,6 +11,7 @@ from datetime import datetime
 from queue import Queue
 from threading import Lock, Semaphore
 from urllib.parse import quote, unquote, urljoin, urlparse
+import time
 
 from .commonwebdriver import (
     By,
@@ -49,10 +50,11 @@ class checkLogged:
         if any([(not self.ifnot and el_ua == "LOGIN"), (self.ifnot and el_ua == "MY ACCOUNT")]): return False
         elif any([(not self.ifnot and el_ua == "MY ACCOUNT"), (self.ifnot and el_ua == "LOGIN")]): return True
 
-
 class getScenes:
 
     def __call__(self, driver):
+        
+        el_poster = driver.find_element(By.CSS_SELECTOR, "div.vjs-poster")
         el_mv = driver.find_element(By.CLASS_NAME, "MovieDetailsPage")
         el_inner = el_mv.find_element(By.CLASS_NAME, "Inner")        
         el_mvsc = try_get(el_inner.find_elements(By.CLASS_NAME, "MovieScenes"), lambda x: x[0] if x else None)
@@ -61,9 +63,8 @@ class getScenes:
                 return _scenes
             else:
                 return False
-        else: raise ExtractorError("no entries")
+        else: return "singlescene"
             
-
 class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://www.nakedsword.com/"
@@ -215,8 +216,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 self.rm_driver(_driver)
                 raise 
 
-
-       
     def _get_entry(self, url, **kwargs):        
         
         #self.to_screen(f"[stop_dl] {self.get_param('stop_dl')}")
@@ -244,10 +243,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 rem = True
                 self.check_stop()                                
                 self._send_request(url.split('/scene/')[0], driver=driver)
-                self.wait_until(driver, 5)
-                el_scenes = self.wait_until(driver, 60, getScenes())
+                el_scenes = self.wait_until(driver, 60, getScenes()) 
+                if not el_scenes:
+                    self._send_request(self._SIGNIN_URL, driver=driver)
+                    self._login(driver, force=True)
+                    self._send_request(url, driver=driver)
+                    el_scenes = self.wait_until(driver, 60, getScenes()) 
+                    if not el_scenes: raise ExtractorError("error auth")
+                
                 self.check_stop()
-                if el_scenes:
+                if isinstance(el_scenes, list):                   
+                
                     scene_click = try_get(el_scenes, lambda x: {'ok': x[index_scene-1].find_element(By.TAG_NAME, 'a').click()} if x else None)
                     if not scene_click: raise ExtractorError("couldnt select scene")
                 
@@ -285,7 +291,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         formats_dash = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
 
                         if formats_dash:
-                            self._sort_formats(formats_dash)
+                            #self._sort_formats(formats_dash)
                             formats.extend(formats_dash)
                     
                     elif _type == "hls":
@@ -296,7 +302,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
                                 m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
                             if formats_m3u8:
-                                self._sort_formats(formats_m3u8)
+                                #self._sort_formats(formats_m3u8)
                                 formats.extend(formats_m3u8)
 
                     elif _type == "ism":
@@ -307,7 +313,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             ism_doc = self._parse_xml(_doc, None)                                                         
                             formats_ism, _ = self._parse_ism_formats_and_subtitles(ism_doc, ism_url)
                             if formats_ism:
-                                self._sort_formats(formats_ism)
+                                #self._sort_formats(formats_ism)
                                 formats.extend(formats_ism) 
 
 
@@ -316,7 +322,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
 
             if formats:
-                self._sort_formats(formats)
+                #self._sort_formats(formats)
             
                 _entry = {
                     "id": str(scene_id),
@@ -342,6 +348,98 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 NakedSwordBaseIE._SEM.release()
                 self.rm_driver(driver)
 
+    
+    def _get_entries(self, urls, **kwargs):
+        _headers_mpd = self._headers_ordered({"Accept": "*/*", "Origin": "https://www.nakedsword.com", "Referer": self._SITE_URL})        
+        _type = kwargs.get('_type', 'all')
+        if _type == 'all': _types = ['hls', 'dash', 'ism']
+        else: _types = [_type]
+        msg = kwargs.get('msg')
+        premsg = f"[get_entries][{self._key}]"
+        if msg: premsg = f"{msg}{premsg}"        
+        
+        details = kwargs.get('details')
+        driver = kwargs.get('driver')
+
+        info_scenes_mpd = self.scan_for_request(driver, f"manifest.mpd", _all=True)
+
+        #self.to_screen(f"[get_entries]\n{info_scenes_mpd }")
+
+        _entries = []
+
+        for (i, (mpd_url, _doc)), _url in zip(enumerate(info_scenes_mpd), urls):          
+
+            _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{i+1}"
+            scene_id = traverse_obj(details, ('scenes', i, 'id'))
+
+            formats = []
+
+            for _type in _types:
+
+                self.check_stop()
+                try:
+                    if _type == "dash":
+
+                        if not _doc:
+                            _doc = try_get(self._send_request(mpd_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace'))                      
+                            if not _doc:
+                                raise ExtractorError("couldnt get mpd doc")
+                        
+                        mpd_doc = self._parse_xml(_doc, None)
+
+                        formats_dash = self._parse_mpd_formats(mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
+
+                        if formats_dash:
+                            #self._sort_formats(formats_dash)
+                            formats.extend(formats_dash)
+                    
+                    elif _type == "hls":
+
+                        m3u8_url = mpd_url.replace('manifest.mpd', 'playlist.m3u8')
+                        m3u8_doc = try_get(self._send_request(m3u8_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace'))
+                        if m3u8_doc:                                                                
+                            formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
+                                m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                            if formats_m3u8:
+                                #self._sort_formats(formats_m3u8)
+                                formats.extend(formats_m3u8)
+
+                    elif _type == "ism":
+
+                        ism_url = mpd_url.replace('manifest.mpd', 'Manifest')
+                        _doc = try_get(self._send_request(ism_url, headers=_headers_mpd), lambda x: (x.content).decode('utf-8', 'replace'))
+                        if _doc:       
+                            ism_doc = self._parse_xml(_doc, None)                                                         
+                            formats_ism, _ = self._parse_ism_formats_and_subtitles(ism_doc, ism_url)
+                            if formats_ism:
+                                #self._sort_formats(formats_ism)
+                                formats.extend(formats_ism) 
+
+
+                except Exception as e:
+                    logger.error(f"[{_type}] {repr(e)}")
+
+
+            if formats:
+                #self._sort_formats(formats)
+            
+                _entry = {
+                    "id": str(scene_id),
+                    "title": _title,
+                    "formats": formats,
+                    "ext": "mp4",
+                    "webpage_url": _url,
+                    "extractor_key": 'NakedSwordScene',
+                    "extractor": 'nakedswordscene'
+                }
+            
+                self.logger_debug(f"{premsg}[{_url}]: OK got entry")
+                _entries.append(_entry)
+
+        return _entries
+                
+
+    
     def _is_logged(self, driver):
         
         self._send_request(self._SIGNIN_URL, driver=driver)
@@ -349,10 +447,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         self.logger_debug(f"[is_logged][{self._key}] {logged_ok}")
         return logged_ok
         
-    def _login(self, driver):
+    def _login(self, driver, force=False):
         
         try:
-            if not self._is_logged(driver):
+            if force or not self._is_logged(driver):
 
                 self.check_stop()
 
@@ -378,7 +476,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 else: raise ExtractorError("login nok")
             
             else:
-                self.logger_debug(f"[login][{self._key}] Login OK")
+                self.logger_debug(f"[login][{self._key}] Already logged")
                 return True
         except Exception as e:
             logger.exception(repr(e))
@@ -423,10 +521,16 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
         
         try:
             self._send_request(url, driver=driver)
-            self.wait_until(driver, 5)
-            el_scenes = self.wait_until(driver, 60, getScenes())
-            details = try_get(self.scan_for_json(driver, "details"), lambda x: x.get('data'))
+            el_scenes = self.wait_until(driver, 60, getScenes()) 
             if not el_scenes:
+                self._send_request(self._SIGNIN_URL, driver=driver)
+                self._login(driver, force=True)
+                self._send_request(url, driver=driver)
+                el_scenes = self.wait_until(driver, 60, getScenes()) 
+                if not el_scenes: raise ExtractorError("error auth")
+            
+            details = try_get(self.scan_for_json(driver, "details"), lambda x: x.get('data'))
+            if el_scenes == "singlescene":
                 return self._get_entry(url, driver=driver, details=details, _type=_type, index=1)
             else:
                 _link_click = try_get(el_scenes[int(index) - 1].find_element(By.TAG_NAME, 'a'), lambda x: {'url': x.get_attribute('href'), 'ok': x.click()} if x else None)
@@ -464,17 +568,30 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
     def _get_playlist_movie(self, url, **kwargs):
 
-        driver = None
-        _type = kwargs.get('_type', 'all')       
-
-        driver = self._get_driver_logged()
+        driver = kwargs.get('driver', None)
+        _type = kwargs.get('_type', 'all')
+        if driver:
+            rem = False
+            self._login(driver)
+        else: 
+            rem = True   
+            driver = self._get_driver_logged()
 
         try:
             
             self.check_stop()
             self._send_request(url, driver=driver)
-            self.wait_until(driver, 5)
-            el_scenes = self.wait_until(driver, 60, getScenes())
+            el_scenes = self.wait_until(driver, 60, getScenes()) 
+            self.logger_debug(f"[get_playlist_movie][{url}] {el_scenes}")
+
+            if not el_scenes:
+                self._send_request(self._SIGNIN_URL, driver=driver)
+                self._login(driver, force=True)
+                self._send_request(url, driver=driver)
+                el_scenes = self.wait_until(driver, 60, getScenes()) 
+                if not el_scenes: raise ExtractorError("error auth")
+
+
             self.check_stop()
             details = try_get(self.scan_for_json(driver, "details"), lambda x: x.get('data'))
             if details:
@@ -485,29 +602,43 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
             entries = []
             
-            if not el_scenes:
+            if el_scenes == "singlescene":
                 _entry = self._get_entry(url, driver=driver, details=details, _type=_type, index=1)
                 if _entry: entries.append(_entry)
             else:                
                 num_scenes = len(el_scenes)
-                for i in range(num_scenes):
-                    
-                    
-
+                _urls_sc = []
+                for i in range(num_scenes):                    
                     try:
-                        self.check_stop()              
-                        el = self.wait_until(driver, 60, getScenes())
+                        self.check_stop()
+                        if i == 0:
+                            el = el_scenes
+                        else:
+                            el = self.wait_until(driver, 60, getScenes())              
+                            if not el:
+                                self._login(driver, force=True)
+                                self._send_request(url, driver=driver)
+                                el = self.wait_until(driver, 60, getScenes()) 
+                                if not el: raise ExtractorError("error auth")
+                        
                         _link_click = try_get(el[i].find_element(By.TAG_NAME, 'a'), lambda x: {'url': x.get_attribute('href'), 'ok': x.click()} if x else None)
                         if not _link_click: raise ExtractorError("couldnt click scene")
-                        _entry = self._get_entry(_link_click.get('url'), driver=driver, details=details, _type=_type, index=i+1)
-                        if _entry: entries.append(_entry)
+                        _urls_sc.append(_link_click.get('url'))
+                        play = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "button.vjs-big-play-button"))), lambda x: {'ok': x.click()} if x else None)
+                        self.wait_until(driver, 0.1)
+                        self.logger_debug(f"[get_playlist_movie][{i}] play {play}")
+                        if play:
+                            pause = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing"))), lambda x: {'ok': x.click()} if x else None)
+                            self.logger_debug(f"[get_playlist_movie][{i}] pause {pause}")
+                            self.wait_until(driver, 0.1)
 
                     except StatusStop as e:                        
                         raise
                     except Exception as e:
                         self.report_warning(f"[get_playlist_movie][{url}] scene {i+1} - error - {repr(e)}")
 
-
+                entries = self._get_entries(_urls_sc, driver=driver, details=details, _type=_type)
+            
             if entries:
                 self.logger_debug(f"[get_playlist_movie][{url}] OK got entries list")
                 return self.playlist_result(entries, playlist_id=playlist_id, playlist_title=sanitize_filename(pl_title, True))
@@ -520,7 +651,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         finally:
             self._logout(driver)
             NakedSwordBaseIE._SEM.release()
-            self.rm_driver(driver)
+            if rem:
+                self.rm_driver(driver)
 
  
     def _real_extract(self, url):
