@@ -372,7 +372,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if devtools:
             opts.add_argument("--devtools")
             opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-            opts.set_preference("devtools.netmonitor.persistlog", False)
+            opts.set_preference("devtools.netmonitor.persistlog", True)
             opts.set_preference("devtools.debugger.skip-pausing", True);
         
                 
