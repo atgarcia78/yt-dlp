@@ -148,7 +148,6 @@ class checkStop:
         self.checkstop()
         return False                
   
- 
 def _check_init(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -184,7 +183,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         'Pragma': 'no-cache', 
         'Cache-Control': 'no-cache', 
     }
-    
     @classproperty
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()
@@ -205,7 +203,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 cls._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
     
-    #@_check_init
     def _get_extractor(self, _args):
 
         if _args.startswith('http'):
@@ -257,14 +254,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass        
 
-
-    
     def initialize(self):
 
         self._ready = False        
         super().initialize()
-
-
 
     def _real_initialize(self):
 
@@ -272,9 +265,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
                 if not SeleniumInfoExtractor._YTDL or SeleniumInfoExtractor._YTDL != self._downloader:                    
-                    
                     if SeleniumInfoExtractor._YTDL:
-                        #logger.debug("Cambio de ytdl")
                         if not self._downloader.params.get('stop_dl'):
                             self._downloader.params['stop_dl'] = SeleniumInfoExtractor._YTDL.params.get('stop_dl', {}) 
                         if not self._downloader.params.get('sem'):
@@ -324,16 +315,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception as e:
             logger.exception(e)
 
-    
-    
-
     def extract(self, url):
 
         url, self.indexdl = try_get(unsmuggle_url(url), lambda x: (x[0], x[1].get('indexdl') if x[1] else None))
 
         return super().extract(url)
-    
-    
+        
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):        
 
         with SeleniumInfoExtractor._MASTER_LOCK:
@@ -346,79 +333,78 @@ class SeleniumInfoExtractor(InfoExtractor):
             driver = self._get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
         return driver
         
-    def _get_driver(self, noheadless, devtools, host, port, temp_prof_dir):        
+        def _get_driver(self, noheadless, devtools, host, port, temp_prof_dir):        
         
-        if not temp_prof_dir:
-            tempdir = tempfile.mkdtemp(prefix='asyncall-') 
-            shutil.rmtree(tempdir, ignore_errors=True) 
-            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
-            if res != tempdir:
-                raise ExtractorError("error when creating profile folder")
-        else: tempdir = temp_prof_dir
-        
-        opts = FirefoxOptions()
-        
-        if not noheadless:
-            opts.add_argument("--headless")
-        
-                
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-application-cache")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--profile")
-        opts.add_argument(tempdir)
+            if not temp_prof_dir:
+                tempdir = tempfile.mkdtemp(prefix='asyncall-') 
+                shutil.rmtree(tempdir, ignore_errors=True) 
+                res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)            
+                if res != tempdir:
+                    raise ExtractorError("error when creating profile folder")
+            else: tempdir = temp_prof_dir
+            
+            opts = FirefoxOptions()
+            
+            if not noheadless:
+                opts.add_argument("--headless")
+            
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-application-cache")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--profile")
+            opts.add_argument(tempdir)
 
-        if devtools:
-            opts.add_argument("--devtools")
-            opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-            opts.set_preference("devtools.netmonitor.persistlog", True)
-            opts.set_preference("devtools.debugger.skip-pausing", True);
-        
-                
-        if host and port:
-            opts.set_preference("network.proxy.type", 1)
-            opts.set_preference("network.proxy.http", host)
-            opts.set_preference("network.proxy.http_port",int(port))
-            opts.set_preference("network.proxy.https",host)
-            opts.set_preference("network.proxy.https_port",int(port))
-            opts.set_preference("network.proxy.ssl",host)
-            opts.set_preference("network.proxy.ssl_port",int(port))
-            opts.set_preference("network.proxy.ftp",host)
-            opts.set_preference("network.proxy.ftp_port",int(port))
-            opts.set_preference("network.proxy.socks",host)
-            opts.set_preference("network.proxy.socks_port",int(port))
-        
-        else:
-            opts.set_preference("network.proxy.type", 0)            
-                
-        opts.set_preference("dom.webdriver.enabled", False)
-        opts.set_preference("useAutomationExtension", False)
-        
-        serv = Service(log_path="/dev/null")
-        
-        @dec_retry 
-        def return_driver():    
-            _driver = None
-            try:                
-                _driver = Firefox(service=serv, options=opts)                
-                _driver.maximize_window()                
-                self.wait_until(_driver, 0.5)                
-                return _driver                
-            except Exception as e:  
-                if _driver: 
-                    _driver.quit()
-                if 'Status code was: 69' in repr(e):                    
-                    self.report_warning(f'Firefox needs to be relaunched')
-                    return                    
-                else: raise ExtractorError("firefox failed init")
-                
-        
-        driver = return_driver()
-        if not driver:
-            shutil.rmtree(tempdir, ignore_errors=True)
-        
-        return driver
+            if devtools:
+                opts.add_argument("--devtools")
+                opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
+                opts.set_preference("devtools.netmonitor.persistlog", True)
+                opts.set_preference("devtools.debugger.skip-pausing", True);
+            
+                    
+            if host and port:
+                opts.set_preference("network.proxy.type", 1)
+                opts.set_preference("network.proxy.http", host)
+                opts.set_preference("network.proxy.http_port",int(port))
+                opts.set_preference("network.proxy.https",host)
+                opts.set_preference("network.proxy.https_port",int(port))
+                opts.set_preference("network.proxy.ssl",host)
+                opts.set_preference("network.proxy.ssl_port",int(port))
+                opts.set_preference("network.proxy.ftp",host)
+                opts.set_preference("network.proxy.ftp_port",int(port))
+                opts.set_preference("network.proxy.socks",host)
+                opts.set_preference("network.proxy.socks_port",int(port))
+            
+            else:
+                opts.set_preference("network.proxy.type", 0)            
+                    
+            opts.set_preference("dom.webdriver.enabled", False)
+            opts.set_preference("useAutomationExtension", False)
+            
+            serv = Service(log_path="/dev/null")
+            
+            @dec_retry 
+            def return_driver():    
+                _driver = None
+                try:                
+                    _driver = Firefox(service=serv, options=opts)                
+                    _driver.maximize_window()                
+                    self.wait_until(_driver, 0.5)                
+                    return _driver                
+                except Exception as e:  
+                    if _driver: 
+                        _driver.quit()
+                    if 'Status code was: 69' in repr(e):                    
+                        self.report_warning(f'Firefox needs to be relaunched')
+                        return                    
+                    else: raise ExtractorError("firefox failed init")
+                    
+            
+            driver = return_driver()
+            if not driver:
+                shutil.rmtree(tempdir, ignore_errors=True)
+            
+            return driver
 
     @classmethod
     def rm_driver(cls, driver):
@@ -435,7 +421,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
-    
     def raise_from_res(self, res, msg):
     
         if res and (isinstance(res, str) or not res.get('error_res')): return
