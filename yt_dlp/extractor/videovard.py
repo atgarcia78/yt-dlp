@@ -4,11 +4,10 @@ import re
 import time
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import WebDriverException, TimeoutException, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import WebDriverException, TimeoutException, dec_on_exception2, dec_on_exception3, dec_on_driver_timeout, SeleniumInfoExtractor, limiter_1, By, ec
 
 
-from backoff import constant, on_exception
-dec_on_exception_vv = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=1)
+
 
 class getvideourl:
     def __call__(self, driver):
@@ -43,7 +42,7 @@ class VideovardIE(SeleniumInfoExtractor):
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://videovard\.\w\w/[e,v]/.+?)\1']
    
     
-    @dec_on_exception_vv
+    @dec_on_driver_timeout
     @dec_on_exception3
     @dec_on_exception2
     @limiter_1.ratelimit("videovard", delay=True)
@@ -118,7 +117,7 @@ class VideovardIE(SeleniumInfoExtractor):
                         _formats = self._extract_m3u8_formats_and_subtitles(video_url, video_id=videoid, ext="mp4", 
                                                                             entry_protocol="m3u8_native", m3u8_id="hls", headers=_headers)
                 else:
-                    m3u8_url, m3u8_doc = self.scan_for_request(driver, f"master.m3u8")
+                    m3u8_url, m3u8_doc, _ = self.scan_for_request(driver, f"master.m3u8")
                     if m3u8_url:
                         if not m3u8_doc:
                             m3u8_doc = try_get(self.send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))

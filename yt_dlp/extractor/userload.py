@@ -7,11 +7,10 @@ from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, 
     SeleniumInfoExtractor, limiter_15, limiter_5, limiter_10, By, ec, HTTPStatusError, ConnectError,
-    Lock, TimeoutException, WebDriverException)
+    Lock, TimeoutException, WebDriverException, dec_on_driver_timeout)
 
 
-from backoff import constant, on_exception
-dec_on_exception_ul = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
+
 
 class video_or_error_userload:
     
@@ -70,7 +69,7 @@ class UserLoadIE(SeleniumInfoExtractor):
         
         
         
-    @dec_on_exception_ul
+    @dec_on_driver_timeout
     @dec_on_exception3
     @dec_on_exception2    
     def _send_request(self, url, **kwargs):        

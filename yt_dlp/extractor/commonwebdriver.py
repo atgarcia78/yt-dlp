@@ -32,7 +32,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
 from .common import ExtractorError, InfoExtractor
-from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url
+from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
+
+from typing import (Any, Callable, Coroutine, Dict, Generator, Sequence, Tuple,
+                    TypeVar, Union)
+
+T = TypeVar("T")
+_MaybeSequence = Union[T, Sequence[T]]
+_MaybeCallable = Union[T, Callable[[], T]]
 
 logger = logging.getLogger("Commonwebdriver")
 
@@ -51,9 +58,19 @@ limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
+def my_limiter(value: float) -> Limiter:
+    return Limiter(RequestRate(1, value*Duration.SECOND))
+
 def my_jitter(value: float) -> float:
 
     return int(random.uniform(value, value*1.25))
+
+
+def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, my_jitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
+    if not my_jitter: _jitter = None
+    else: _jitter = my_jitter
+    return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
+
 
 
 class StatusError503(Exception):
@@ -82,6 +99,9 @@ dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
+dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_tries=3, jitter=my_jitter, raise_on_giveup=True, interval=10)
+
 CONFIG_EXTRACTORS = {
                 ('userload', 'evoload',): {
                                             'ratelimit': limiter_5, 
@@ -94,8 +114,11 @@ CONFIG_EXTRACTORS = {
                    'biguz', 'gaytubes',): {
                                             'ratelimit': limiter_0_1, 
                                             'maxsplits': 4},
-      ('boyfriendtv', 'nakedswordscene'): {'ratelimit': limiter_0_1, 
+      ('boyfriendtv', 'nakedswordscene',): {'ratelimit': limiter_0_1, 
                                             'maxsplits': 16},
+                     ('nakedswordscene',): {'ratelimit': limiter_0_1,
+                                            'maxsplits': 16,
+                                            'ratelimit': 7*1048576},
     ('videovard', 'fembed', 'streamtape',
            'gaypornvideos', 'gayforfans', 
       'gayguytop','upstream', 'videobin',
@@ -254,6 +277,15 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass        
 
+
+    @classmethod
+    def suitable(cls, url):
+        """Receives a URL and returns True if suitable for this IE."""
+        # This function must import everything it needs (except other extractors),
+        # so that lazy_extractors works correctly
+        return cls._match_valid_url(url.split("#__youtubedl_smuggle=")[0]) is not None
+
+    
     def initialize(self):
 
         self._ready = False        
@@ -323,17 +355,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):        
 
-        with SeleniumInfoExtractor._MASTER_LOCK:
-            if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
-                _host, _port = (urlparse(_proxy).netloc).split(':')
-                self.to_screen(f"[get_driver] {_host} - {int(_port)}")
-            else:
-                _host, _port = host, port
-            
-            driver = self._get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
-        return driver
-        
-        def _get_driver(self, noheadless, devtools, host, port, temp_prof_dir):        
+        def _get_driver(noheadless, devtools, host, port, temp_prof_dir):        
         
             if not temp_prof_dir:
                 tempdir = tempfile.mkdtemp(prefix='asyncall-') 
@@ -358,7 +380,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if devtools:
                 opts.add_argument("--devtools")
                 opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-                opts.set_preference("devtools.netmonitor.persistlog", True)
+                opts.set_preference("devtools.netmonitor.persistlog", False)
                 opts.set_preference("devtools.debugger.skip-pausing", True);
             
                     
@@ -406,6 +428,18 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             return driver
 
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
+                _host, _port = (urlparse(_proxy).netloc).split(':')
+                self.to_screen(f"[get_driver] {_host} - {int(_port)}")
+            else:
+                _host, _port = host, port
+            
+            return _get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
+        
+        
+
+    
     @classmethod
     def rm_driver(cls, driver):
         
@@ -470,13 +504,14 @@ class SeleniumInfoExtractor(InfoExtractor):
                         else:                    
                             _list_hints.append(_hint)
                     else:
+                        _resp_status = traverse_obj(entry, ('response', 'status'))
                         _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
-                        if _resp_content:
-                            _hint = (_url, _resp_content)
-                            if not _all: 
-                                return(_hint)   
-                            else:                    
-                                _list_hints.append(_hint)
+                       
+                        _hint = (_url, _resp_content, int(_resp_status))
+                        if not _all: 
+                            return(_hint)   
+                        else:                    
+                            _list_hints.append(_hint)
 
                 self.check_stop()
 
@@ -699,6 +734,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             else: return ""
         except Exception as e:            
             _msg_err = repr(e)
+            if res and res.status_code == 403:                
+                raise ReExtractInfo(_msg_err)
             if res and res.status_code == 404:           
                 res.raise_for_status()
             elif res and res.status_code == 503:
