@@ -46,7 +46,7 @@ def my_limiter(value: float) -> Limiter:
 
 def my_jitter(value: float) -> float:
 
-    return int(random.uniform(value, value*1.25))
+    return int(random.uniform(value*0.75, value*1.75))
 
 def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, my_jitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
     if not my_jitter: _jitter = None
@@ -101,7 +101,7 @@ dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=1
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 
 dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=180, jitter=my_jitter, raise_on_giveup=True, interval=15)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=15)
 
 CONFIG_EXTRACTORS = {
                 ('userload', 'evoload',): {
@@ -486,7 +486,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             _res = (driver.execute_async_script(
                         "HAR.triggerExport().then(arguments[0]);")).get('entries')
             
-            _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default="") for _ in ('image', 'video', 'css')])])]
+            _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default="") for _ in ('image', 'css')])])]
             return copy.deepcopy(_res_filt)
 
         _list_hints = []
