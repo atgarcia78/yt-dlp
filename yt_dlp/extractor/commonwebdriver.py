@@ -34,12 +34,25 @@ from selenium.common.exceptions import WebDriverException, TimeoutException
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
 
-from typing import (Any, Callable, Coroutine, Dict, Generator, Sequence, Tuple,
-                    TypeVar, Union)
+from typing import (Callable, Sequence, Tuple,
+                    TypeVar, Union, Type, Optional)
 
 T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
 _MaybeCallable = Union[T, Callable[[], T]]
+
+def my_limiter(value: float) -> Limiter:
+    return Limiter(RequestRate(1, value*Duration.SECOND))
+
+def my_jitter(value: float) -> float:
+
+    return int(random.uniform(value, value*1.25))
+
+def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, my_jitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
+    if not my_jitter: _jitter = None
+    else: _jitter = my_jitter
+    return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
+
 
 logger = logging.getLogger("Commonwebdriver")
 
@@ -58,18 +71,6 @@ limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
-def my_limiter(value: float) -> Limiter:
-    return Limiter(RequestRate(1, value*Duration.SECOND))
-
-def my_jitter(value: float) -> float:
-
-    return int(random.uniform(value, value*1.25))
-
-
-def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, my_jitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
-    if not my_jitter: _jitter = None
-    else: _jitter = my_jitter
-    return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
 
 
 
