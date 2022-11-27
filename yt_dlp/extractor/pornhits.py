@@ -71,7 +71,7 @@ class PornhitsIE(SeleniumInfoExtractor):
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
             
             _formats = None             
-            m3u8_url, m3u8_doc = self.scan_for_request(driver, r".mp4$")
+            m3u8_url, m3u8_doc, _ = self.scan_for_request(driver, r".mp4$")
             if m3u8_url:
                 if not m3u8_doc:
                     m3u8_doc = try_get(self.send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))

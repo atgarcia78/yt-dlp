@@ -13,6 +13,7 @@ from .commonwebdriver import (
     dec_on_exception,
     dec_on_exception2,
     dec_on_exception3,
+    dec_on_driver_timeout,
     limiter_5,
     TimeoutException,
     WebDriverException
@@ -25,8 +26,6 @@ from ..utils import (
     try_get,
 )
 
-from backoff import constant, on_exception
-dec_on_exception_evo = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=1)
 
 class video_or_error_evoload:
     def __init__(self, logger):
@@ -123,7 +122,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
          
             
-    @dec_on_exception_evo
+    @dec_on_driver_timeout
     @limiter_5.ratelimit("evoload2", delay=True)
     def _send_request(self, url, driver):
         
