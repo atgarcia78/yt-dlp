@@ -256,7 +256,7 @@ class BBGroupIE(SeleniumInfoExtractor):
 
                     self.logger_debug(f"{pre} start scan har")
 
-                    m3u8_url, m3u8_doc = self.scan_for_request(_driver, f".m3u8")           
+                    m3u8_url, m3u8_doc, _ = self.scan_for_request(_driver, f".m3u8")           
                     if m3u8_url:
                         if not "playlist" in m3u8_url:
                             if m3u8_doc:

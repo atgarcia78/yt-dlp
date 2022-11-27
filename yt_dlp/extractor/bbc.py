@@ -36,17 +36,13 @@ import subprocess
 import time
 from pathlib import Path
 
-from backoff import constant, on_exception
-from pyrate_limiter import Duration, Limiter, RequestRate
-import random
+from .commonwebdriver import my_limiter, my_dec_on_exception
 
-def my_jitter(value):
 
-    return int(random.uniform(value, value*1.25))
 
-limiter = Limiter(RequestRate(1, 0.001 * Duration.SECOND))
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=2)
-
+limiter = my_limiter(0.001)
+#dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=2)
+dec_on_exception = my_dec_on_exception(Exception, max_tries=3, my_jitter=True, raise_on_giveup=False, interval=2)
 
 import logging
 

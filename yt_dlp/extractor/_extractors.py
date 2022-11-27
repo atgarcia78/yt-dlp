@@ -2435,10 +2435,11 @@ from .hungyoungbrit import (
 from .nakedsword import (
     NakedSwordSceneIE,
     NakedSwordMovieIE,
-    NakedSwordMostWatchedIE,
-    NakedSwordStarsStudiosIE,
-    NakedSwordPlaylistIE,
-    NakedSwordSearchIE
+    NakedSwordScenesPlaylistIE,
+    #NakedSwordMostWatchedIE,
+    #NakedSwordStarsStudiosIE,
+    #NakedSwordPlaylistIE,
+    #NakedSwordSearchIE
 )
 from .monstercockinfo import MonsterCockInfoIE
 from .onlyfans import (
