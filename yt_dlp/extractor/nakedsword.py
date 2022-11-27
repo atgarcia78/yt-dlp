@@ -640,8 +640,10 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         try:
             self.report_extraction(url)            
             return self._get_entries(url, _type="hls")
-        except (ExtractorError, StatusStop, ReExtractInfo) as e:
+        except (ExtractorError, StatusStop) as e:
             raise
+        except ReExtractInfo as e:
+            raise ExtractorError(str(e))
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
@@ -823,8 +825,10 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
         try:
             self.report_extraction(url)            
             return self._get_entries_from_scenes_list(url, _type="hls")
-        except (ExtractorError, StatusStop, ReExtractInfo) as e:
+        except (ExtractorError, StatusStop) as e:
             raise
+        except ReExtractInfo as e:
+            raise ExtractorError(str(e))
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
