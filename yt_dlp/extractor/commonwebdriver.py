@@ -46,7 +46,7 @@ def my_limiter(value: float) -> Limiter:
 
 def my_jitter(value: float) -> float:
 
-    return int(random.uniform(value*0.75, value*1.75))
+    return int(random.uniform(value, value*1.5))
 
 def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, my_jitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
     if not my_jitter: _jitter = None
@@ -72,8 +72,6 @@ limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
 
-
-
 class StatusError503(Exception):
     """Error during info extraction."""
 
@@ -93,15 +91,13 @@ class StatusStop(Exception):
         self.exc_info = exc_info
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
 dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
 dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-
 dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=15)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=5)
 
 CONFIG_EXTRACTORS = {
                 ('userload', 'evoload',): {
@@ -138,7 +134,6 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 16}
 }
 
-
 class scroll:
     '''
         To use as a predicate in the webdriver waits to scroll down to the end of the page
@@ -172,13 +167,6 @@ class checkStop:
         self.checkstop()
         return False                
   
-def _check_init(func):
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if not self._CLIENT:
-            self._real_initialize()
-        return func(self, *args, **kwargs)
-    return wrapper
 
 def getter(x):
     
@@ -193,13 +181,9 @@ def getter(x):
 class SeleniumInfoExtractor(InfoExtractor):
     
     _FF_PROF =  '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
-    
     _MASTER_LOCK = Lock()
-    
     _YTDL = None
-    
     _CONFIG_REQ = CONFIG_EXTRACTORS.copy()
-   
     _FIREFOX_HEADERS =  {      
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
@@ -207,10 +191,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         'Pragma': 'no-cache', 
         'Cache-Control': 'no-cache', 
     }
+    
     @classproperty
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()
-    
     @classmethod
     def logger_info(cls, msg):
         if cls._YTDL:
@@ -278,7 +262,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass        
 
-
     @classmethod
     def suitable(cls, url):
         """Receives a URL and returns True if suitable for this IE."""
@@ -286,14 +269,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         # so that lazy_extractors works correctly
         return cls._match_valid_url(url.split("#__youtubedl_smuggle=")[0]) is not None
 
-    
     def initialize(self):
 
         self._ready = False        
         super().initialize()
 
     def _real_initialize(self):
-
 
         try:        
             with SeleniumInfoExtractor._MASTER_LOCK:
@@ -317,7 +298,6 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if not SeleniumInfoExtractor._YTDL.params.get('sem'):                     
                     SeleniumInfoExtractor._YTDL.params['sem'] = {} # for the ytdlp cli                    
                 if not SeleniumInfoExtractor._YTDL.params.get('lock'):
-                    #SeleniumInfoExtractor._YTDL.params['lock'] = SeleniumInfoExtractor._MASTER_LOCK
                     SeleniumInfoExtractor._YTDL.params['lock'] = Lock()
                 if not SeleniumInfoExtractor._YTDL.params.get('stop'):
                     SeleniumInfoExtractor._YTDL.params['stop'] = Event()
@@ -343,8 +323,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
 
                 self.indexdl = None
-                    
-                    
+
         except Exception as e:
             logger.exception(e)
 
@@ -429,7 +408,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             return driver
 
-        #with SeleniumInfoExtractor._MASTER_LOCK:
         if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
             _host, _port = (urlparse(_proxy).netloc).split(':')
             self.to_screen(f"[get_driver] {_host} - {int(_port)}")
@@ -438,9 +416,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         return _get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
         
-        
-
-    
     @classmethod
     def rm_driver(cls, driver):
         
