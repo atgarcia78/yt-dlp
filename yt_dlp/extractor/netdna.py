@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception,  dec_on_exception2,  dec_on_exception3, dec_retry_raise, SeleniumInfoExtractor, limiter_0_5, limiter_1, HTTPStatusError, ConnectError, _check_init
+from .commonwebdriver import dec_on_exception,  dec_on_exception2,  dec_on_exception3, dec_retry_raise, SeleniumInfoExtractor, limiter_0_5, limiter_1, HTTPStatusError, ConnectError
 
 
 class fast_forward:     
@@ -128,7 +128,7 @@ class NetDNAIE(SeleniumInfoExtractor):
             self.write_debug(repr(e))
             raise       
 
-    @_check_init
+    
     def get_video_info_url(self, url):
         
         title = None
@@ -167,7 +167,7 @@ class NetDNAIE(SeleniumInfoExtractor):
             return({'error': repr(e)})     
         
     
-    @_check_init
+    
     def get_entry(self, url, **kwargs):        
 
         _info_video = self.get_video_info_url(url)
