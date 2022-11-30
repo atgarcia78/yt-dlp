@@ -26,7 +26,6 @@ class getvideourl:
         except Exception as e:
             self.logger(f"[getvideourl] el_player_click error {str(e)}")
 
-
         el_media = driver.find_elements(By.CSS_SELECTOR, ".jw-media")
         self.logger(f"[getvideourl] el_media {el_media}")
         try:
@@ -49,13 +48,11 @@ class getvideourl:
         if videourl: return {"OK": videourl}
         else: return False
         
-
 class BasePornhitsIE(SeleniumInfoExtractor):
 
-    
     @dec_on_exception2
     @dec_on_exception3
-    def _get_video_info(self, url, msg=None, headers={}):        
+    def _get_video_info(self, url, msg=None, headers={}):
         
         with limiter_2.ratelimit(self.IE_NAME, delay=True):
             try:
@@ -65,18 +62,11 @@ class BasePornhitsIE(SeleniumInfoExtractor):
                 _headers = {'Range': 'bytes=0-', 'Referer': headers.get('Referer') or self._SITE_URL,
                             'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-origin',
                             'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-                # _host = get_domain(url)
-                
-                # with self.get_param('lock'):
-                #     if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                #         _sem = Lock()
-                #         self.get_param('sem').update({_host: _sem})
-                    
-                # with _sem:   
+
                 return self.get_info_for_format(url, headers=_headers)       
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
-    
+
     @dec_on_driver_timeout
     @dec_on_exception2
     @dec_on_exception3
@@ -190,13 +180,11 @@ class BasePornhitsIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
         finally:
             self.rm_driver(driver)
-    
-    
+
     def _real_initialize(self):
 
         super()._real_initialize()        
 
-                
     def _real_extract(self, url):
 
         self.report_extraction(url)
@@ -215,8 +203,6 @@ class BasePornhitsIE(SeleniumInfoExtractor):
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
-            
-            
 class TxxxIE(BasePornhitsIE):
     IE_NAME = "txxx"
     _SITE_URL = "https://txxx.com/"
