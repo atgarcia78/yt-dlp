@@ -93,11 +93,11 @@ class StatusStop(Exception):
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
 dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
-dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=False, interval=2)
+dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=5)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=10)
 
 CONFIG_EXTRACTORS = {
                 ('userload', 'evoload',): {
@@ -394,12 +394,13 @@ class SeleniumInfoExtractor(InfoExtractor):
                     self.wait_until(_driver, 0.5)                
                     return _driver                
                 except Exception as e:  
+                    self.report_warning(f'Firefox fails starting')
                     if _driver: 
                         _driver.quit()
-                    if 'Status code was: 69' in repr(e):                    
-                        self.report_warning(f'Firefox needs to be relaunched')
-                        return                    
-                    else: raise ExtractorError("firefox failed init")
+                    #if 'Status code was: 69' in repr(e):                    
+                    #    self.report_warning(f'Firefox needs to be relaunched')
+                    #    return                    
+                    raise ExtractorError("firefox failed init")
                     
             
             driver = return_driver()
@@ -408,6 +409,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             return driver
 
+        
         if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
             _host, _port = (urlparse(_proxy).netloc).split(':')
             self.to_screen(f"[get_driver] {_host} - {int(_port)}")
