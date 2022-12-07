@@ -72,7 +72,6 @@ class GayQTIE(SeleniumInfoExtractor):
         driver = self.get_driver()
         
         try:
-            
             driver.get(url)            
 
             title, streams = self.wait_until(driver, 60, get_video_data(self.to_screen))

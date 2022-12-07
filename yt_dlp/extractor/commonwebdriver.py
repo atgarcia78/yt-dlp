@@ -389,12 +389,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             def return_driver():    
                 _driver = None
                 try:                
-                    _driver = Firefox(service=serv, options=opts)                
+                    with SeleniumInfoExtractor._MASTER_LOCK:
+                        _driver = Firefox(service=serv, options=opts)                
                     _driver.maximize_window()                
-                    self.wait_until(_driver, 0.5)                
+                    self.wait_until(_driver, timeout=0.5)                
                     return _driver                
                 except Exception as e:  
-                    self.report_warning(f'Firefox fails starting')
+                    logger.exception(f'Firefox fails starting - {str(e)}')
                     if _driver: 
                         _driver.quit()
                     #if 'Status code was: 69' in repr(e):                    
@@ -402,14 +403,16 @@ class SeleniumInfoExtractor(InfoExtractor):
                     #    return                    
                     raise ExtractorError("firefox failed init")
                     
-            
+            #with SeleniumInfoExtractor._MASTER_LOCK:
             driver = return_driver()
+            
             if not driver:
                 shutil.rmtree(tempdir, ignore_errors=True)
             
             return driver
 
         
+
         if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
             _host, _port = (urlparse(_proxy).netloc).split(':')
             self.to_screen(f"[get_driver] {_host} - {int(_port)}")
@@ -458,15 +461,25 @@ class SeleniumInfoExtractor(InfoExtractor):
         #     logger.exception(repr(e))
 
     def scan_for_request(self, driver, _link, _method="GET", _all=False, timeout=10, response=True):
-
+        
+        @dec_retry
         def _get_har():
-            _res = (driver.execute_async_script(
-                        "HAR.triggerExport().then(arguments[0]);")).get('entries')
+            try:
+                
+                _res = (driver.execute_async_script(
+                            "HAR.triggerExport().then(arguments[0]);")).get('entries')
             
-            _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default="") for _ in ('image', 'css')])])]
-            return copy.deepcopy(_res_filt)
+                _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css')])])]
+                return copy.deepcopy(_res_filt)
+            except Exception as e:
+                raise ExtractorError(str(e))
 
+        _har_old = []
+        driver.set_script_timeout(60)
+        
+        _list_hints_old = []
         _list_hints = []
+        _first = True
 
         if not isinstance(_link, (list, tuple)):
             _link_list = [_link]
@@ -480,7 +493,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         while True:            
 
-            _har = _get_har()
+            _newhar = _get_har()
+            _har = _newhar[len(_har_old):]
+            _har_old = _newhar
             for entry in _har:
 
                 _url = traverse_obj(entry, ('request',  'url'))
@@ -505,7 +520,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     _resp_status = traverse_obj(entry, ('response', 'status'))
                     _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
                     
-                    _hint = (_url, _resp_content, int_or_none(_resp_status))
+                    _hint = {'url':_url, 'content':_resp_content, 'status': int_or_none(_resp_status)}
                     if not _all: 
                         return(_hint)   
                     else:                    
@@ -513,22 +528,34 @@ class SeleniumInfoExtractor(InfoExtractor):
 
                 self.check_stop()
 
-            if _all and _list_hints: 
+            if _all and not _first and (len(_list_hints) == len(_list_hints_old)): 
                 return(_list_hints)
             
             if (time.monotonic() - _started) >= timeout:
-                if _all: return([])
+                if _all: return(_list_hints)
                 else: 
                     if not response: return(None,None)
                     else: return(None,None,None)
             else:
-                time.sleep(0.5)
+                if _all:
+                    _list_hints_old = _list_hints
+                if _first: 
+                    _first = False
+                    if not _list_hints:
+                        time.sleep(0.5)
+                    else:
+                        time.sleep(0.01)                    
+                elif not _first:
+                    time.sleep(0.01)
+
 
     def scan_for_json(self, _driver, _link, _all=False, timeout=10):
 
+
+
         _hints = self.scan_for_request(_driver, _link, _all=_all, timeout=timeout)
 
-        func_getter = lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x[1]))) if x[1] else ""            
+        func_getter = lambda x: json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""            
         
         if not _all:
             _info_json = try_get(_hints, func_getter)
