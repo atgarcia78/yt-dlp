@@ -9,10 +9,14 @@ from datetime import datetime
 
 import httpx
 
-from ..utils import ExtractorError, int_or_none, try_get
+from ..utils import ExtractorError, int_or_none, try_get, traverse_obj
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, scroll, By, ec, Keys
 
 from queue import Queue
+
+import logging
+
+logger = logging.getLogger('onlyfans')
 
 class error404_or_found:    
     def __call__(self, driver):        
@@ -138,7 +142,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     def _login(self, driver):
         
-
+        
         username, password = self._get_login_info()
     
         if not username or not password:
@@ -218,8 +222,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         try:
             
-            account = user_profile or users_dict.get(data_post.get('fromUser', {}).get('id'))
-            date_timestamp = int(datetime.fromisoformat((_datevideo:=data_post.get('createdAt','') or data_post.get('postedAt',''))).timestamp())
+            account = user_profile or users_dict.get(traverse_obj(data_post, ('fromUser', 'id')) or traverse_obj(data_post, ('author', 'id')))
+            _datevideo = data_post.get('createdAt', data_post.get('postedAt',''))
+            logger.info(_datevideo)
+            date_timestamp = int(datetime.fromisoformat(_datevideo).timestamp())
 
             _entries = []
             
@@ -231,7 +237,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     _formats = []
                     orig_width = orig_height = None
                     
-                    if _url:=_media.get('source',{}).get('source'):
+                    if (_url:=traverse_obj(_media, ('source', 'source'))):
                         _filesize = self._get_filesize(_url)
                          
                         _formats.append({
@@ -286,10 +292,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     
                     if _formats: 
                     
-                        if orig_width > orig_height:
-                            self._sort_formats(_formats, field_preference=('height', 'width'))
-                        else:
-                            self._sort_formats(_formats, field_preference=('width', 'height'))
+                        # if orig_width > orig_height:
+                        #     self._sort_formats(_formats, field_preference=('height', 'width'))
+                        # else:
+                        #     self._sort_formats(_formats, field_preference=('width', 'height'))
                             
                         
                         _entry = {
@@ -386,12 +392,13 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         _reg_str = r'/api2/v2/posts/paid'
         data_json = self.scan_for_json(driver,_reg_str, _all=True)
         if data_json:
-            #self.write_debug(data_json)
+            logger.info(data_json)
             list_json = []
             for el in data_json:
                 list_json += el['list']                               
             
             for info_json in list_json:
+                logger.info(info_json)
                 for _video in self._extract_from_json(info_json, users_dict=OnlyFansBaseIE._USERS):
                     if not _video['id'] in entries.keys(): entries[_video['id']] = _video
                     else:
