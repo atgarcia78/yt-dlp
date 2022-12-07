@@ -134,7 +134,6 @@ class GayForFansPlayListIE(SeleniumInfoExtractor):
         driver = self.get_driver()
         
         try:
-            
             driver.get(url)
             entries = []
             
