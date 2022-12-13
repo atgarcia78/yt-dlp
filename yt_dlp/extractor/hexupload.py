@@ -99,7 +99,7 @@ class HexUploadIE(SeleniumInfoExtractor):
             res = self.wait_until(driver, 30, video_or_error())
             video_url = None
             if res and res != "error":
-                video_url = try_get(self.scan_for_request(driver, 'video.mp4', response=False), lambda x: x[0])
+                video_url = try_get(self.scan_for_request(driver, 'video.mp4', response=False), lambda x: x.get('url'))
             if not video_url: raise ExtractorError('404 video not found')
             title = driver.title.replace("mp4", "").replace("Download", "").strip()
             
