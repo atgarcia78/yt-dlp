@@ -117,7 +117,7 @@ class VideovardIE(SeleniumInfoExtractor):
                         _formats = self._extract_m3u8_formats_and_subtitles(video_url, video_id=videoid, ext="mp4", 
                                                                             entry_protocol="m3u8_native", m3u8_id="hls", headers=_headers)
                 else:
-                    m3u8_url, m3u8_doc, _ = self.scan_for_request(driver, f"master.m3u8")
+                    m3u8_url, m3u8_doc  = try_get(self.scan_for_request(driver, f"master.m3u8"), lambda x: (x.get('url'), x,get('content')) if x else (None, None))
                     if m3u8_url:
                         if not m3u8_doc:
                             m3u8_doc = try_get(self.send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))
