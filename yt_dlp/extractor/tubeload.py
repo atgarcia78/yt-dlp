@@ -81,7 +81,7 @@ class BaseloadIE(SeleniumInfoExtractor):
                 if not max_limit:               
                     return self.send_http_request(url, headers=headers)
                 else:
-                    return self.stream_http_request(url, stopper='</script><style>', headers=headers)
+                    return self.stream_http_request(url, truncate='</script><style>', headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
 
