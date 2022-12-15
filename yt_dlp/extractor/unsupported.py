@@ -129,7 +129,6 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
     """
 
     URLS = (
-        r'dood\.(?:to|watch|so|pm|wf|re)',
         r'trrtgghghndood\.(?:to|watch|so|pm|wf|ru)',
     )
 

@@ -98,7 +98,7 @@ dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=10)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, raise_on_giveup=True, interval=30)
 
 CONFIG_EXTRACTORS = {
                 ('userload', 'evoload',): {
@@ -106,7 +106,7 @@ CONFIG_EXTRACTORS = {
                                             'maxsplits': 4},
                 ('doodstream','vidoza',): {
                                             'ratelimit': limiter_1,
-                                            'maxsplits': 2}, 
+                                            'maxsplits': 5}, 
       ('highload', 'tubeload', 'embedo',
                  'thisvidgay','redload',
                    'biguz', 'gaytubes',): {
