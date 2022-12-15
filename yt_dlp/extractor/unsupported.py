@@ -134,6 +134,9 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
         r'viewsb\.com',
         r'filemoon\.sx',
         r'hentai\.animestigma\.com',
+        r'https://viewsb\.com',
+        r'https://filemoon\.sx',
+        r'trrtgghghndood\.(?:to|watch|so|pm|wf|ru)',
     )
 
     _TESTS = [{

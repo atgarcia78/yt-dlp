@@ -50,9 +50,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             webpage = traverse_obj(post, ('content', '$t'))
 
         p1 = re.findall(r'<iframe ([^>]+)>|mybutton2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage, re.IGNORECASE)
-        p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2]) for l1 in p1 if any([(l1[0] and 'src=' in l1[0]), (l1[1] and not 'subtitle' in l1[1].lower()), (l1[2] and not 'subtitle' in l1[2].lower())])]
+        p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2]) for l1 in p1 if any([(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])), (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
         p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
-        list_urls = [item.get('src') for item in p3 if all([_ not in item.get('src', '_FORKEEP') for _ in ("www.youtube.com", "www.blogger.com", "DUMMY")])]
+        list_urls = [item.get('src') for item in p3 if all([_ not in item.get('src', '_FORKEEP') for _ in ("youtube.com", "blogger.com", "DUMMY")])]
 
         iedood = self._downloader.get_info_extractor('DoodStream')
         iehigh = self._downloader.get_info_extractor('Highload')
@@ -67,9 +67,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _final_urls = []
         if n_videos and n_videos_dood and n_videos >= n_videos_dood:
             _final_urls.extend(list_urls)
-        elif not n_videos and (n_videos_dood == len(list_urls)):
+        elif ((n_videos_dood + n_videos) == len(list_urls)):
             for el in list_urls:
-                _final_urls.extend([el, None])
+                if el: _final_urls.extend([el, None])
                 
         else:
             _pre = "[get_urls]"

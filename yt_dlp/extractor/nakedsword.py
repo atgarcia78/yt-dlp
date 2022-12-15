@@ -202,18 +202,27 @@ class NakedSwordLongTerm:
 
     def check_if_token_refreshed(self):
 
-        logger.debug("init refresh")
-        self.driver.refresh()
+        self.logger.debug("init refresh")
+        try:
+            self.ie._send_request("https://www.nakedsword.com/movies/283060/islas-canarias", driver=self.driver)
+        except Exception as e:
+            self.logger.exception(str(e))
+            try:
+                self.ie.rm_driver(self.driver)
+            except Exception as e:
+                pass
+            self.driver = self.ie._get_driver_logged()
+
         self.ie.wait_until(self.driver, timeout=30, method=waitVideo())
         status, _headers = try_get(self.ie.scan_for_request(self.driver, "details", _all=True, inclheaders=True), lambda x: (x[-1].get('status'), x[-1].get('headers')) if x else (None, None))
         if not status or int(status) == 403 or not _headers:
-            logger.warning("fails init refresh, will logout and login")
+            self.logger.warning("fails init refresh, will logout and login")
             self.ie._logout(self.driver)
             self.ie._get_driver_logged(driver=self.driver)
             #self.ie.wait_until(self.driver, timeout=30, method=waitVideo())
             status, _headers = try_get(self.ie.scan_for_request(self.driver, "details", _all=True, inclheaders=True), lambda x: (x[-1].get('status'), x[-1].get('headers')) if x else (None, None))
         if status and int(status) != 403 and _headers:
-            logger.debug("ok refresh")
+            self.logger.debug("ok refresh")
             self.headers_api = _headers
 
     @long_operation_in_thread
@@ -225,12 +234,12 @@ class NakedSwordLongTerm:
                 if self.timer.elapsed_seconds() < 40:
                     time.sleep(1)
                 else:
-                    logger.debug("timeout to refresh")
+                    self.logger.debug("timeout to refresh")
                     with self.lock:
                         self.check_if_token_refreshed()
                         self.timer.has_elapsed(0.1)
         except Exception as e:
-            logger.exception(str(e))
+            self.logger.exception(str(e))
         finally:
             try:
                 self.ie._logout(self.driver)
@@ -369,7 +378,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @dec_on_exception_driver
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_0_005.ratelimit("nakedsword", delay=True)
+    @limiter_0_01.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, **kwargs):
         
         driver = kwargs.get('driver', None)
@@ -380,7 +389,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
         else:
-            driver.execute_script("window.stop();")
+            #driver.execute_script("window.stop();")
             driver.get(url)
 
     @dec_retry     
@@ -455,13 +464,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
             details = None
             headers_api = None
-            try:
-                details = self.get_api_details(movieid)
-            except Exception as e:
-                logger.exception(f"{premsg} fails to use api {str(e)}")
-                if driver:
-                    details, headers_api = try_get(self.scan_for_json(driver, "details", _all=True, inclheaders=True), lambda x: (x[-1][0].get('data'), x[-1][1]))
             
+            details = self.get_api_details(movieid)
+
             if not details:
                 raise ReExtractInfo(f"{premsg} no details info")
             
@@ -545,7 +550,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     return True
                 else: 
                     self.logger_debug(f"[login][{self._key}] Login NOK")
-                    driver.refresh()
+                    self._send_request(self._SITE_URL, driver=driver)
                     raise ExtractorError("login nok")
             
             else:
@@ -1012,24 +1017,33 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
 
             _movies_filtered = [_mov for _mov in _movies if _from <= datetime.fromisoformat(extract_timezone(_mov.get('publish_start'))[1]) <= _to]
 
-            _url_movies = list(set(['https://www.nakedsword.com/movies/%s/%s' %(x['id'], re.sub(r"[ :,']", "-", x["title"].lower())) for x in _movies_filtered]))
+            _url_movies = [try_get(self._send_request(_url), lambda x: str(x.url)) for _url in list(set(['https://www.nakedsword.com/movies/%s/%s' %(x['id'], re.sub(r"[ :,']", "-", x["title"].lower())) for x in _movies_filtered]))]
 
             self.logger_debug(f"{premsg} url movies [{len(_url_movies)}]\n{_url_movies}")
 
-            imov = self._get_extractor('NakedSwordMovie')
+            if self.get_param('embed') or (self.get_param('extract_flat','') != 'in_playlist'): 
 
-            _entries = []
-            with ThreadPoolExecutor(thread_name_prefix='nsnewest') as ex:
-                futures = {ex.submit(imov._get_entries, _url, _type="hls", force=True): _url for _url in _url_movies}
+                imov = self._get_extractor('NakedSwordMovie')
 
-            with NakedSwordBaseIE._LOCK:
-                NakedSwordBaseIE._USERS -= 1
+                _entries = []
+                with ThreadPoolExecutor(thread_name_prefix='nsnewest') as ex:
+                    futures = {ex.submit(imov._get_entries, _url, _type="hls", force=True): _url for _url in _url_movies}
 
-            for fut in futures:
-                if _res:=fut.result():
-                    _entries += [_r for _r in _res if not _r.update({'original_url': url})]
-                
-            return self.playlist_result(_entries, playlist_id=f'{sanitize_filename(_query, restricted=True)}', playlist_title="Search")
+                with NakedSwordBaseIE._LOCK:
+                    NakedSwordBaseIE._USERS -= 1
+
+                for fut in futures:
+                    if _res:=fut.result():
+                        _entries += [_r for _r in _res if not _r.update({'original_url': url})]
+                    
+                return self.playlist_result(_entries, playlist_id=f'{sanitize_filename(_query, restricted=True)}', playlist_title="Search")
+            
+            else:
+                return self.playlist_from_matches(
+                    _url_movies, 
+                    getter=lambda x: x, 
+                    ie=NakedSwordMovieIE, playlist_id=f'{sanitize_filename(_query, restricted=True)}', playlist_title="Search")
+
         
         except Exception as e:
             logger.exception(f"{premsg} {str(e)}")
