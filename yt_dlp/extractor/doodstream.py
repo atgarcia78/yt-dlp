@@ -3,7 +3,7 @@ import traceback
 import sys
 
 from ..utils import sanitize_filename, try_get, traverse_obj, get_domain
-from .commonwebdriver import dec_on_exception2, dec_on_exception, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_5, By, HTTPStatusError, ConnectError, Lock
+from .commonwebdriver import dec_on_exception2, dec_on_exception, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, limiter_2, limiter_5, By, HTTPStatusError, ConnectError, Lock
 
 from urllib.parse import unquote
 
@@ -67,7 +67,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 _sem = Lock()
                 self.get_param('sem').update({_host: _sem})
 
-        with limiter_5.ratelimit(f"dstr{_host}", delay=True):
+        with limiter_1.ratelimit(f"dstr{_host}", delay=True):
             try:
                 with _sem:
                     self.logger_debug(f"{pre} {self._get_url_print(url)}")                
@@ -78,7 +78,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     
     
     @dec_on_exception
-    @limiter_5.ratelimit("doodstream", delay=True)
+    @limiter_1.ratelimit("doodstream", delay=True)
     def _send_request(self, url, driver=None, msg=None):        
     
         if msg: pre = f'{msg}[send_req]'
