@@ -168,7 +168,6 @@ class checkStop:
         self.checkstop()
         return False                
   
-
 def getter(x):
     
     if x != 'generic':    
@@ -177,8 +176,6 @@ def getter(x):
             return(value['ratelimit'].ratelimit(key_text, delay=True))
     
     return limiter_non.ratelimit("nonlimit", delay=True)
-
-
 
 
 def long_operation_in_thread(func):
@@ -190,7 +187,6 @@ def long_operation_in_thread(func):
         thread.start()
         return stop_event
     return wrapper 
-
 
 
 class ProgressTimer:
@@ -211,19 +207,22 @@ class ProgressTimer:
         self._last_ts += elapsed_seconds - elapsed_seconds % seconds
         return True
 
-
-
 @dec_retry_on_exception
-def get_har(driver, _method="GET"):
-
+def get_har(driver, _method="GET", _mimetype=None):
 
     _res = (driver.execute_async_script(
                 "HAR.triggerExport().then(arguments[0]);")).get('entries')
 
-    _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css')])])]
+    
+    _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css', 'font', 'octet-stream')])])]
+
+    if _mimetype:
+        if isinstance(_mimetype, str): _mimetype = [_mimetype]
+        _res_filt = [el for el in _res_filt if any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in _mimetype])]
+    
     return copy.deepcopy(_res_filt)
 
-def scan_har_for_request(driver, _valid_url, _method="GET", _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
+def scan_har_for_request(driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
     
     _har_old = []
     driver.set_script_timeout(60)
@@ -236,7 +235,7 @@ def scan_har_for_request(driver, _valid_url, _method="GET", _all=False, timeout=
     
     while True:            
 
-        _newhar = get_har(driver, _method=_method)
+        _newhar = get_har(driver, _method=_method, _mimetype=_mimetype)
         _har = _newhar[len(_har_old):]
         _har_old = _newhar
         for entry in _har:
@@ -303,7 +302,7 @@ def scan_har_for_request(driver, _valid_url, _method="GET", _all=False, timeout=
 
 def scan_har_for_json(_driver, _link, _all=False, timeout=10, inclheaders=False, check_event=None):
 
-    _hints = scan_har_for_request(_driver, _link, _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
+    _hints = scan_har_for_request(_driver, _link, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
     def func_getter(x):
         _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
@@ -608,7 +607,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         # except Exception as e:
         #     logger.exception(repr(e))
 
-    def scan_for_request(self, driver, _valid_url, _method="GET", _all=False, timeout=10, response=True, inclheaders=False):
+    def scan_for_request(self, driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False):
         
         _har_old = []
         driver.set_script_timeout(60)
@@ -621,7 +620,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         while True:            
 
-            _newhar = get_har(driver, _method=_method)
+            _newhar = get_har(driver, _method=_method, _mimetype=_mimetype)
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
             for entry in _har:
@@ -682,7 +681,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def scan_for_json(self, _driver, _link, _all=False, timeout=10, inclheaders=False):
 
-        _hints = self.scan_for_request(_driver, _link, _all=_all, timeout=timeout, inclheaders=inclheaders)
+        _hints = self.scan_for_request(_driver, _link, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders)
 
         def func_getter(x):
             _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
@@ -835,7 +834,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             if msg: premsg = f'{msg}{premsg}' 
 
             chunk_size = kwargs.get('chunk_size', 16384)
-            stopper = kwargs.get('stopper', 'dummytogetwholefile')
+            
+            #could be a string i.e. download until this text is found, or max bytes to download,
+            # or None, im that case will download the whole content
+            truncate_after = kwargs('truncate') 
             
             _kwargs = kwargs.copy()
             _kwargs.pop('msg',None)
@@ -845,16 +847,28 @@ class SeleniumInfoExtractor(InfoExtractor):
                       
             res = None
             _msg_err = ""
-            _res = ""
+            
             with self._CLIENT.stream("GET", url, **_kwargs) as res:
                 res.raise_for_status()                
-                for chunk in res.iter_text(chunk_size=chunk_size):
-                    if chunk:
-                        _res += chunk
-                        if stopper in _res: break
+                
+                if isinstance(truncate_after, str): 
+                    _res = ""
+                    for chunk in res.iter_text(chunk_size=chunk_size):
+                        if chunk:
+                            _res += chunk
+                            if truncate_after in _res: break
 
-            if not _res: return ""
-            else: return _res
+                    return _res
+                
+                else:
+                    _res = b""
+                    for chunk in res.iter_bytes(chunk_size=chunk_size):
+                        if chunk:
+                            _res += chunk
+                            if truncate_after and res.num_bytes_downloaded >= truncate_after:
+                                break
+                    return _res
+
            
         except Exception as e:            
             _msg_err = repr(e)
