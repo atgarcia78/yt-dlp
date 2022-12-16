@@ -2433,6 +2433,7 @@ from .hungyoungbrit import (
     HungYoungBritPlaylistIE,
 )
 from .nakedsword import (
+    NakedSwordLongTermIE,
     NakedSwordSceneIE,
     NakedSwordMovieIE,
     NakedSwordScenesPlaylistIE,
