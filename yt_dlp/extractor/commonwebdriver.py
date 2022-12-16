@@ -46,10 +46,10 @@ def my_limiter(value: float) -> Limiter:
 
 def my_jitter(value: float) -> float:
 
-    return int(random.uniform(value, value*1.5))
+    return int(random.uniform(value, value*1.25))
 
-def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, my_jitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
-    if not my_jitter: _jitter = None
+def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, myjitter: bool = False, raise_on_giveup: bool = True, interval: int=1):
+    if not myjitter: _jitter = None
     else: _jitter = my_jitter
     return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
 
@@ -98,7 +98,7 @@ dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on
 dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
 dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, raise_on_giveup=True, interval=30)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
 
 CONFIG_EXTRACTORS = {
                 ('userload', 'evoload',): {
@@ -210,9 +210,7 @@ class ProgressTimer:
 @dec_retry_on_exception
 def get_har(driver, _method="GET", _mimetype=None):
 
-    _res = (driver.execute_async_script(
-                "HAR.triggerExport().then(arguments[0]);")).get('entries')
-
+    _res = try_get(driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"), lambda x: x.get('entries') if x else None)
     
     _res_filt = [el for el in _res if all([traverse_obj(el, ('request',  'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'),default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css', 'font', 'octet-stream')])])]
 
@@ -476,12 +474,17 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def extract(self, url):
 
-        url, self.indexdl = try_get(unsmuggle_url(url), lambda x: (x[0], x[1].get('indexdl') if x[1] else None))
+        url, data = unsmuggle_url(url)
+
+        self.indexdl = traverse_obj(data, 'indexl')
+        self.args_ie = traverse_obj(data, 'args')
 
         return super().extract(url)
         
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):        
 
+        
+        @dec_retry
         def _get_driver(noheadless, devtools, host, port, temp_prof_dir):        
         
             if not temp_prof_dir:
@@ -529,37 +532,36 @@ class SeleniumInfoExtractor(InfoExtractor):
                     
             opts.set_preference("dom.webdriver.enabled", False)
             opts.set_preference("useAutomationExtension", False)
+
+            opts.page_load_strategy = 'eager'
             
             serv = Service(log_path="/dev/null")
             
-            @dec_retry 
+             
             def return_driver():    
                 _driver = None
                 try:                
-                    with SeleniumInfoExtractor._MASTER_LOCK:
-                        _driver = Firefox(service=serv, options=opts)                
-                    _driver.maximize_window()                
-                    self.wait_until(_driver, timeout=0.5)                
+                    _driver = Firefox(service=serv, options=opts)                
+                    _driver.maximize_window()                                    
+                    self.wait_until(_driver, timeout=0.5)
+                    _driver.set_script_timeout(20)
+                    _driver.set_page_load_timeout(25)                            
                     return _driver                
                 except Exception as e:  
                     logger.exception(f'Firefox fails starting - {str(e)}')
-                    if _driver: 
-                        _driver.quit()
-                    #if 'Status code was: 69' in repr(e):                    
-                    #    self.report_warning(f'Firefox needs to be relaunched')
-                    #    return                    
-                    raise ExtractorError("firefox failed init")
+                    if _driver: _driver.quit()                  
                     
-            #with SeleniumInfoExtractor._MASTER_LOCK:
-            driver = return_driver()
+                        
+            with SeleniumInfoExtractor._MASTER_LOCK:
+                driver = return_driver()
             
             if not driver:
                 shutil.rmtree(tempdir, ignore_errors=True)
+                raise ExtractorError("firefox failed init")
             
             return driver
 
         
-
         if not host and (_proxy:=traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
             _host, _port = (urlparse(_proxy).netloc).split(':')
             self.to_screen(f"[get_driver] {_host} - {int(_port)}")
@@ -573,13 +575,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         
         tempdir = traverse_obj(driver.caps, 'moz:profile')        
         try:
-            driver.close()
-        except Exception:
-            pass        
-        try:
             driver.quit()
         except Exception:
-            pass       
+            pass
         finally:            
             if tempdir: shutil.rmtree(tempdir, ignore_errors=True)
 
@@ -610,8 +608,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def scan_for_request(self, driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False):
         
         _har_old = []
-        driver.set_script_timeout(60)
-        
+                
         _list_hints_old = []
         _list_hints = []
         _first = True
@@ -837,12 +834,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             
             #could be a string i.e. download until this text is found, or max bytes to download,
             # or None, im that case will download the whole content
-            truncate_after = kwargs('truncate') 
+            truncate_after = kwargs.get('truncate') 
             
             _kwargs = kwargs.copy()
             _kwargs.pop('msg',None)
             _kwargs.pop('chunk_size',None)
-            _kwargs.pop('stopper',None)
+            _kwargs.pop('truncate',None)
             
                       
             res = None
@@ -891,8 +888,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     def send_http_request(self, url, **kwargs):
         try:
             _type = kwargs.get('_type', "GET")
-            #headers = kwargs.get('headers', None)
-            #data = kwargs.get('data', None)
             msg = kwargs.get('msg', None)
             premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
             if msg: 
@@ -900,27 +895,29 @@ class SeleniumInfoExtractor(InfoExtractor):
 
             res = None
             _msg_err = ""
-            #req = self._CLIENT.build_request(_type, url, data=data, headers=headers)
             req = self._CLIENT.build_request(_type, url, **kwargs)
             res = self._CLIENT.send(req)
             if res:
                 res.raise_for_status()                
                 return res
             else: return ""
-        except Exception as e:            
-            _msg_err = repr(e)
-            if res and res.status_code == 403:                
-                raise ReExtractInfo(_msg_err)
-            if res and res.status_code == 404:           
-                res.raise_for_status()
-            elif res and res.status_code == 503:
-                raise StatusError503(repr(e))
-            elif isinstance(e, ConnectError):
-                if 'errno 61' in _msg_err.lower():                    
-                    raise
-                else:
-                    raise ExtractorError(_msg_err)   
-            elif not res:
+        except ConnectError as e:            
+            _msg_err = str(e)
+            if 'errno 61' in _msg_err.lower():                    
+                raise
+            else:
+                raise ExtractorError(_msg_err)
+        except HTTPStatusError as e:
+            _msg_err = str(e)
+            if e.response.status_code == 403:
+                raise ReExtractInfo(_msg_err)            
+            elif e.response.status_code == 503:
+                raise StatusError503(_msg_err)
+            else:
+                raise
+        except Exception as e:
+            _msg_err = str(e)
+            if not res:
                 raise TimeoutError(_msg_err)
             else:
                 raise ExtractorError(_msg_err) 

@@ -42,7 +42,7 @@ from .commonwebdriver import my_limiter, my_dec_on_exception
 
 limiter = my_limiter(0.001)
 #dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=2)
-dec_on_exception = my_dec_on_exception(Exception, max_tries=3, my_jitter=True, raise_on_giveup=False, interval=2)
+dec_on_exception = my_dec_on_exception(Exception, max_tries=3, myjitter=True, raise_on_giveup=False, interval=2)
 
 import logging
 
