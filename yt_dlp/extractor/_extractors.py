@@ -2561,7 +2561,7 @@ from .hungyoungbrit import (
     HungYoungBritPlaylistIE,
 )
 from .nakedsword import (
-    NakedSwordLongTermIE,
+    NakedSwordAPIIE,
     NakedSwordSceneIE,
     NakedSwordMovieIE,
     NakedSwordScenesPlaylistIE,
