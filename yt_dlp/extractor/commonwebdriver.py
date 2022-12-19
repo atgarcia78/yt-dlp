@@ -880,25 +880,28 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if _all:
                     return (_list_hints)
                 else:
-                    if not response:
-                        return (None, None)
-                    else:
-                        return (None, None, None)
+                    return 
             else:
                 if _all:
                     _list_hints_old = _list_hints
-                if _first:
-                    _first = False
-                    if not _list_hints:
+                    if _first:
+                        _first = False
+                        if not _list_hints:
+                            time.sleep(0.5)
+                        else:
+                            time.sleep(0.01)
+                    else:
+                        time.sleep(0.01)
+                else:
+                    if _first:
+                        _first = False
                         time.sleep(0.5)
                     else:
                         time.sleep(0.01)
-                elif not _first:
-                    time.sleep(0.01)
 
-    def scan_for_json(self, _driver, _link, _all=False, timeout=10, inclheaders=False):
+    def scan_for_json(self, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False):
 
-        _hints = self.scan_for_request(_driver, _link, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders)
+        _hints = self.scan_for_request(_driver, _link, _method=_method, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders)
 
         def func_getter(x):
             _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""

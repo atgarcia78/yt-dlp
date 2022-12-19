@@ -101,30 +101,23 @@ class waitVideo:
 
 
 class selectHLS:
-    def __init__(self, delay=0):
-        self._pl_click = False
-        self._menu = None
+    def __init__(self, delay=0.5):
         self._delay = delay
 
     def __call__(self, driver):
-        if not self._pl_click:
-            el_pl_click = try_get(driver.find_element(By.CSS_SELECTOR, "button.vjs-big-play-button"), lambda x: x.click())
-            time.sleep(self._delay)
-            self._pl_click = True
-            try:
-                click_pause = try_get(driver.find_element(By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing"), lambda x: (x.text, x.click()))
-            except Exception as e:
-                pass
-        if not self._menu:
-            self._menu, el_menu_click = try_get(driver.find_element(By.CSS_SELECTOR, "button.vjs-control.vjs-button.fas.fa-cog"), lambda x: (x, x.click()))
-            time.sleep(self._delay)
+        el_pl_click = try_get(driver.find_element(By.CSS_SELECTOR, "button.vjs-big-play-button"), lambda x: x.click())
+        time.sleep(self._delay)
+
+        click_pause = try_get(driver.find_element(By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing"), lambda x: (x.text, x.click()))
+
+        self._menu, el_menu_click = try_get(driver.find_element(By.CSS_SELECTOR, "button.vjs-control.vjs-button.fas.fa-cog"), lambda x: (x, x.click()))
 
         menu_hls = try_get(driver.find_elements(By.CLASS_NAME, "BaseVideoPlayerSettingsMenu-item-inner"), lambda x: x[1])
         if not "checked=" in menu_hls.get_attribute('outerHTML'):
             menu_hls.click()
             time.sleep(self._delay)
             el_conf_click = try_get(driver.find_elements(By.CSS_SELECTOR, "div.Button"), lambda x: (x[1].text, x[1].click()))
-            time.sleep(self._delay)
+            
             self._menu.click()
             return "TRUE"
         else:
@@ -168,15 +161,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             NakedSwordBaseIE._USERS -= 1
             if NakedSwordBaseIE._USERS <= 0 and not self.get_param('embed'):
                 if NakedSwordBaseIE._API:
-                    NakedSwordBaseIE._API.stop_event()
-                    NakedSwordBaseIE._API.close_event.wait()
+                    NakedSwordBaseIE._API.close_driver()
                     NakedSwordBaseIE._API = None
                     NakedSwordBaseIE._USERS = 0
 
     def close(self):
         if NakedSwordBaseIE._API:
-            NakedSwordBaseIE._API.stop_event()
-            NakedSwordBaseIE._API.close_event.wait()
+            NakedSwordBaseIE._API.close_driver()
             NakedSwordBaseIE._API = None
             NakedSwordBaseIE._USERS = 0
         super().close()
@@ -188,14 +179,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     
     def get_formats(self, _types, _info):
 
-        if self.IE_NAME == 'NakedSwordMovie' and NakedSwordBaeIE._STATUS == '403':
-            _limiter = NakedSwordBaseIE._LIMITERS['403']
-        else:
-            _limiter = NakedSwordBaseIE._LIMITERS['NORMAL']
+        _limiter = NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]
 
         @_limiter
         def _get_formats():
-            logger.info(f"[get_formats] {_info}")
+            logger.debug(f"[get_formats] {_info}")
 
             m3u8_url = _info.get('m3u8_url')
 
@@ -338,10 +326,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.rm_driver(driver)
             raise ExtractorError({str(e)})
 
-    def get_api_basic_auth(self, username, pwd):
+    # def get_api_basic_auth(self, username, pwd):
         
-        return "Basic " + base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
+    #     return "Basic " + base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
     
+    def refresh_api_token(self):
+        NakedSwordAPIIE._API.check_if_token_refreshed()  
+
     def get_api_http_headers(self):
         return NakedSwordBaseIE._API()
 
@@ -438,15 +429,24 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             logger.exception(str(e))
             raise
 
-    def _is_logged(self, driver, initurl=False):
+    def _is_logged(self, driver, initurl=False, checkpost=False):
 
-        if not initurl:
-            _init_url  = self._SITE_URL
+        _init_url  = self._SITE_URL if not initurl else self._INIT_URL
 
-        else: 
-            _init_url = self._INIT_URL
-
-        self._send_request(_init_url, driver=driver)
+        if checkpost:
+            x = self.scan_for_request(driver, r'login$', _method="POST", timeout=10) or {}
+            logger.info(f"[login] x {x}")
+            if x:
+                status, jwt = x.get('status'), x.get('content')
+                if status and (int(status) == 200) and jwt:
+                    self.logger_debug(f"[login][{self._key}] Login OK")
+                    self._send_request(_init_url, driver=driver)
+                    return True
+                else:
+                    self.logger_debug(f"[is_logged][{self._key}] Login NOK")
+                    return False
+        
+        self._send_request(_init_url, driver=driver)            
         logged_ok = (self.wait_until(driver, timeout=10, method=checkLogged()) == "TRUE")
         self.logger_debug(f"[is_logged][{self._key}] {logged_ok}")
         return logged_ok
@@ -454,10 +454,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @dec_retry
     def _login(self, driver):
 
+        self.check_stop()
         try:
             if not self._is_logged(driver):
 
-                self.check_stop()
                 self.report_login()
                 username, password = self._get_login_info()
                 if not username or not password:
@@ -474,24 +474,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
                 el_username.send_keys(username)
                 el_psswd.send_keys(password)
-               # with NakedSwordBaseIE._NLOCKS.get(self._key):
                 el_submit.click()
-                self.wait_until(driver, timeout=1)
-
-                if self._is_logged(driver, initurl=True):
-                    self.logger_debug(f"[login][{self._key}] Login OK")
-                    return True
-                else:
-                    self.logger_debug(f"[login][{self._key}] Login NOK")
-                    self._send_request(self._SITE_URL, driver=driver)
+ 
+                if not self._is_logged(driver, initurl=True, checkpost=True):
+                    logger.info(f"[login][{self._key}] Login NOK")
                     raise ExtractorError("login nok")
-
+                else:
+                    logger.info(f"[login][{self._key}] Login OK")
+                    return True
             else:
-                self.logger_debug(f"[login][{self._key}] Already logged")
+                logger.info(f"[login][{self._key}] Already logged")
                 return True
         except Exception as e:
             logger.error(str(e))
-            # self._logout(driver)
             raise
 
     def _real_initialize(self):
@@ -534,40 +529,41 @@ class NakedSwordAPIIE(NakedSwordBaseIE):
 
         self.call_lock = Lock()
         self.driver_lock = Lock()
-        self.close_event = Event()
-
+        
         self.driver = None
         self.headers_api = {}
         self.start_driver()
 
     @dec_on_reextract
-    def start_driver(self):
+    def start_driver(self, **kwargs):
+    
+        with self.driver_lock:
 
-        try:
-            if self.driver:
-                try:
-                    self._logout(self.driver)
-                    self.rm_driver(self.driver)
-                except Exception as e:
-                    pass
-            self.driver = self.get_driver_logged()
-            status, _headers = try_get(self.scan_for_request(self.driver, r'details$', _mimetype="json", inclheaders=True), lambda x: (x.get('status'), x.get('headers')) if x else (None, None))
-            if any([not status, status and int(status) == 403, not _headers]):
-                raise Exception("start driver error")
-            self.headers_api = _headers
-            self.timer.has_elapsed(0.1)
-        except Exception as e:
-            self.logger.error(f"[start_driver] {str(e)}")
-            raise ReExtractInfo("error start driver")
+            try:
+                if self.driver:
+                    try:
+                        self._logout(self.driver)
+                        self.rm_driver(self.driver)
+                    except Exception as e:
+                        pass
+                self.driver = self.get_driver_logged(**kwargs)
+                status, _headers = try_get(self.scan_for_request(self.driver, r'details$', _mimetype="json", inclheaders=True), lambda x: (x.get('status'), x.get('headers')) if x else (None, None))
+                if any([not status, status and int(status) == 403, not _headers]):
+                    raise Exception("start driver error")
+                self.headers_api = _headers
+                self.timer.has_elapsed(0.1)
+            except Exception as e:
+                self.logger.error(f"[start_driver] {str(e)}")
+                raise ReExtractInfo("error start driver")
 
     def check_if_token_refreshed(self):
 
         self.logger.debug(f"[token_refresh] init refresh")
         try:
-            with self.driver_lock:
-                self._send_request(self._INIT_URL, driver=self.driver)
-                self.wait_until(self.driver, timeout=30, method=waitVideo())
-                status, _headers = try_get(self.scan_for_request(self.driver,  r'details$', _mimetype="json", inclheaders=True), lambda x: (x.get('status'), x.get('headers')) if x else (None, None))
+
+            self._send_request(self._INIT_URL, driver=self.driver)
+            self.wait_until(self.driver, timeout=30, method=waitVideo())
+            status, _headers = try_get(self.scan_for_request(self.driver,  r'details$', _mimetype="json", inclheaders=True), lambda x: (x.get('status'), x.get('headers')) if x else (None, None))
 
             if any([not status, status and int(status) == 403, not _headers]):
                 self.logger.error("fails token refresh")
@@ -578,20 +574,19 @@ class NakedSwordAPIIE(NakedSwordBaseIE):
             self.timer.has_elapsed(0.1)
         except Exception as e:
             self.logger.error(f"fails token refresh - {str(e)}")
-            with self.driver_lock:
-                self.start_driver()
+            self.start_driver()
             self.logger.info(f"[token_refresh] ok refresh after error")
 
-    def stop_event(self):
-        try:
-            self.logger.info(f"[stop_event]")
-            if self.driver:
-                self._logout(self.driver)
-                self.rm_driver(self.driver)
+    def close_driver(self):
+        with self.driver_lock:
+            try:
+                self.logger.info(f"[close_driver]")
+                if self.driver:
+                    self._logout(self.driver)
+                    self.rm_driver(self.driver)
 
-        finally:
-            self.close_event.set()
-            self.driver = None
+            finally:            
+                self.driver = None
 
     def __call__(self):
         with self.call_lock:
@@ -714,6 +709,9 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
             logger.info(f"{premsg} sublist of movie scenes: {sublist}")
 
+            
+            _raise_reextract = []
+            
             for _info in info_streaming_scenes:
 
                 try:
@@ -737,29 +735,36 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
                     if not sublist or i in sublist:
 
-                        formats = self.get_formats(_types, _info)
-                        if formats:
-                            _entry.update({'formats': formats})
-                            self.logger_debug(f"{premsg}[{_info.get('url')}]: OK got entry")
-                            _entries.append(_entry)
+                        try:
+                            formats = self.get_formats(_types, _info)
+                            if formats:
+                                _entry.update({'formats': formats})
+                                self.logger_debug(f"{premsg}[{i}][{_info.get('url')}]: OK got entry")
+                                _entries.append(_entry)
+                        except ReExtractInfo as e:
+                            _raise_reextract.append(i)
+
 
                     else:
                         _entries.append(_entry)
 
-                except ReExtractInfo as e:
-                    
-                    if NakedSwordBaseIE._STATUS == 'NORMAL':
-                        NakedSwordBaseIE._STATUS == '403'
+                except ReExtractInfo as e: 
                     raise
                 except Exception as e:
                     logger.exception(f"{premsg}[{i}]: info streaming\n{_info} error - {str(e)}")
                     raise
+            
+            
+            if _raise_reextract:
+                logger.info(f"{premsg} ERROR to get format {_raise_reextract} from sublist of movie scenes: {sublist}")
+                self.refresh_api_token()
+                raise ReExtractInfo("error in scenes of movie")
+            
+            else:
+                logger.info(f"{premsg} OK format for sublist of movie scenes: {sublist}")
 
             
-            
-            if NakedSwordBaseIE._STATUS == '403':
-                NakedSwordBaseIE._STATUS == 'NORMAL'
-            
+
             if _force_list:
                 return _entries
             else:
