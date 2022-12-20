@@ -41,41 +41,7 @@ T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
 _MaybeCallable = Union[T, Callable[[], T]]
 
-
-def my_limiter(value: float) -> Limiter:
-    return Limiter(RequestRate(1, value * Duration.SECOND))
-
-
-def my_jitter(value: float) -> float:
-
-    return int(random.uniform(value, value * 1.25))
-
-
-def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, myjitter: bool = False, raise_on_giveup: bool = True, interval: int = 1):
-    if not myjitter:
-        _jitter = None
-    else:
-        _jitter = my_jitter
-    return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
-
-
 logger = logging.getLogger("Commonwebdriver")
-
-limiter_non = Limiter(RequestRate(10000, 0))
-limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
-limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
-limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
-limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
-limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
-limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
-limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
-limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
-limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
-limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
-limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
-limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
-limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
-
 
 class StatusError503(Exception):
     """Error during info extraction."""
@@ -95,6 +61,40 @@ class StatusStop(Exception):
         super().__init__(msg)
 
         self.exc_info = exc_info
+
+
+def my_limiter(value: float) -> Limiter:
+    return Limiter(RequestRate(1, value * Duration.SECOND))
+
+
+def my_jitter(value: float) -> float:
+
+    return int(random.uniform(value, value * 1.25))
+
+
+def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, myjitter: bool = False, raise_on_giveup: bool = True, interval: int = 1):
+    if not myjitter:
+        _jitter = None
+    else:
+        _jitter = my_jitter
+    return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
+
+
+
+limiter_non = Limiter(RequestRate(10000, 0))
+limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
+limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
+limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
+limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
+limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
+limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
+limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
+limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
+limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
+limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
+limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
+limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
 
 dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
@@ -143,6 +143,16 @@ CONFIG_EXTRACTORS = {
         'maxsplits': 16}
 }
 
+def getter(x):
+
+    if x != 'generic':
+        value, key_text = try_get([(v, kt) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x == (kt := _) for _ in k)], lambda y: y[0]) or ("", "")
+        if value:
+            return (value['ratelimit'].ratelimit(key_text, delay=True))
+
+    return limiter_non.ratelimit("nonlimit", delay=True)
+
+
 
 class scroll:
     '''
@@ -183,27 +193,6 @@ class checkStop:
         return False
 
 
-def getter(x):
-
-    if x != 'generic':
-        value, key_text = try_get([(v, kt) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x == (kt := _) for _ in k)], lambda y: y[0]) or ("", "")
-        if value:
-            return (value['ratelimit'].ratelimit(key_text, delay=True))
-
-    return limiter_non.ratelimit("nonlimit", delay=True)
-
-
-def long_operation_in_thread(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        stop_event = Event()
-        kwargs['stop_event'] = stop_event
-        thread = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
-        thread.start()
-        return stop_event
-    return wrapper
-
-
 class ProgressTimer:
     TIMER_FUNC = time.monotonic
 
@@ -222,213 +211,6 @@ class ProgressTimer:
         self._last_ts += elapsed_seconds - elapsed_seconds % seconds
         return True
 
-
-
-def _sync(lock=None):
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if not lock:
-                if not hasattr(self, '_lock'):
-                    self._lock = Lock()
-                lock = self._lock
-            with lock:
-                return func(self, *args, **kwargs)
-        return wrapper
-    return decorator
-
-
-
-class Driver:
-
-    _LOCK = Lock()
-
-    def __init__(self, **kwargs):
-        self.noheadless = kwargs.get('noheadless', False)
-        self.devtools = kwargs.get('devtools', False)
-        self.host = kwargs.get('host', None)
-        self.port = kwargs.get('port', None)        
-        self.stop_event = Event()        
-        
-        self.driver = self.get_driver()
-
-    @retry_on_driver_except
-    def get_driver(self):
-
-        
-        tempdir = tempfile.mkdtemp(prefix='asyncall-')
-        shutil.rmtree(tempdir, ignore_errors=True)
-        res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)
-        if res != tempdir:
-            raise ExtractorError("error when creating profile folder")
-
-        opts = FirefoxOptions()
-
-        if not self.noheadless:
-            opts.add_argument("--headless")
-
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-application-cache")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--profile")
-        opts.add_argument(tempdir)
-
-        if self.devtools:
-            opts.add_argument("--devtools")
-            opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-            opts.set_preference("devtools.netmonitor.persistlog", False)
-            opts.set_preference("devtools.debugger.skip-pausing", True)
-
-        if self.host and self.port:
-            opts.set_preference("network.proxy.type", 1)
-            opts.set_preference("network.proxy.http", self.host)
-            opts.set_preference("network.proxy.http_port", int(self.port))
-            opts.set_preference("network.proxy.https", self.host)
-            opts.set_preference("network.proxy.https_port", int(self.port))
-            opts.set_preference("network.proxy.ssl", self.host)
-            opts.set_preference("network.proxy.ssl_port", int(self.port))
-            opts.set_preference("network.proxy.ftp", self.host)
-            opts.set_preference("network.proxy.ftp_port", int(self.port))
-            opts.set_preference("network.proxy.socks", self.host)
-            opts.set_preference("network.proxy.socks_port", int(self.port))
-
-        else:
-            opts.set_preference("network.proxy.type", 0)
-
-        opts.set_preference("dom.webdriver.enabled", False)
-        opts.set_preference("useAutomationExtension", False)
-
-        opts.page_load_strategy = 'eager'
-
-        serv = Service(log_path="/dev/null")
-
-        
-        def return_driver():
-            _driver = None
-            try:
-                _driver = Firefox(service=serv, options=opts)
-                _driver.maximize_window()
-                self.wait_until(_driver, timeout=0.5)
-                _driver.set_script_timeout(20)
-                _driver.set_page_load_timeout(25)
-                return _driver
-            except Exception as e:
-                logger.exception(f'Firefox fails starting - {str(e)}')
-                if _driver:
-                    _driver.quit()
-                    shutil.rmtree(tempdir, ignore_errors=True)
-                raise WebDriverException(str(e))
-                
-        with Driver._LOCK:
-            return(return_driver())
-
-    @dec_retry_on_exception
-    def get_har(self, _method="GET", _mimetype=None):
-
-        _res = try_get(self.driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"), lambda x: x.get('entries') if x else None)
-
-        _res_filt = [el for el in _res if all([traverse_obj(el, ('request', 'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css', 'font', 'octet-stream')])])]
-
-        if _mimetype:
-            if isinstance(_mimetype, str):
-                _mimetype = [_mimetype]
-            _res_filt = [el for el in _res_filt if any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in _mimetype])]
-
-        return copy.deepcopy(_res_filt)
-
-    def scan_har_for_request(self, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False):
-
-        _har_old = []
-
-        _list_hints_old = []
-        _list_hints = []
-        _first = True
-
-        _started = time.monotonic()
-
-        while True:
-
-            _newhar = get_har(driver, _method=_method, _mimetype=_mimetype)
-            _har = _newhar[len(_har_old):]
-            _har_old = _newhar
-            for entry in _har:
-
-                _url = traverse_obj(entry, ('request', 'url'))
-                if not _url or not re.search(_valid_url, _url):
-                    continue
-
-                _hint = {}
-
-                _hint.update({'url': _url})
-                if inclheaders:
-                    _req_headers = {val[0]: val[1] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host' and (val := list(header.values()))}
-                    _hint = {'headers': _req_headers}
-
-                if response:
-                    _resp_status = traverse_obj(entry, ('response', 'status'))
-                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
-
-                    _hint.update({'content': _resp_content, 'status': int_or_none(_resp_status)})
-
-                if not _all:
-                    return (_hint)
-                else:
-                    _list_hints.append(_hint)
-
-                self.check_stop()
-
-            if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
-                return (_list_hints)
-
-            if (time.monotonic() - _started) >= timeout:
-                if _all:
-                    return (_list_hints)
-                else:
-                    if not response:
-                        return (None, None)
-                    else:
-                        return (None, None, None)
-            else:
-                if _all:
-                    _list_hints_old = _list_hints
-                if _first:
-                    _first = False
-                    if not _list_hints:
-                        time.sleep(0.5)
-                    else:
-                        time.sleep(0.01)
-                elif not _first:
-                    time.sleep(0.01)
-
-    def scan_har_for_json(self, _valid_url, _all=False, timeout=10, inclheaders=False):
-
-        _hints = self.scan_for_request(_valid_url, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders)
-
-        def func_getter(x):
-            _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
-            if inclheaders:
-                return (_info_json, x.get('headers'))
-            else:
-                return _info_json
-
-        if not _all:
-            return try_get(_hints, func_getter)
-
-        else:
-            if _hints:
-                _list_info_json = []
-                for el in _hints:
-                    _info_json = try_get(el, func_getter)
-                    if _info_json:
-                        _list_info_json.append(_info_json)
-
-                return _list_info_json
-
-
-
-
 @dec_retry_on_exception
 def get_har(driver, _method="GET", _mimetype=None):
 
@@ -443,7 +225,7 @@ def get_har(driver, _method="GET", _mimetype=None):
 
     return copy.deepcopy(_res_filt)
 
-def scan_har_for_request(self, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
+def scan_har_for_request(_driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
 
         _har_old = []
         
@@ -455,7 +237,7 @@ def scan_har_for_request(self, _valid_url, _method="GET", _mimetype=None, _all=F
 
         while True:
 
-            _newhar = get_har(self.driver, _method=_method, _mimetype=_mimetype)
+            _newhar = get_har(_driver, _method=_method, _mimetype=_mimetype)
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
             for entry in _har:
@@ -506,26 +288,28 @@ def scan_har_for_request(self, _valid_url, _method="GET", _mimetype=None, _all=F
                 if _all:
                     return (_list_hints)
                 else:
-                    if not response:
-                        return (None, None)
-                    else:
-                        return (None, None, None)
+                    return 
             else:
                 if _all:
                     _list_hints_old = _list_hints
-                if _first:
-                    _first = False
-                    if not _list_hints:
+                    if _first:
+                        _first = False
+                        if not _list_hints:
+                            time.sleep(0.5)
+                        else:
+                            time.sleep(0.01)
+                    else:
+                        time.sleep(0.01)
+                else:
+                    if _first:
+                        _first = False
                         time.sleep(0.5)
                     else:
                         time.sleep(0.01)
-                elif not _first:
-                    time.sleep(0.01)
 
+def scan_har_for_json(_driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
 
-def scan_har_for_json(_driver, _link, _all=False, timeout=10, inclheaders=False, check_event=None):
-
-    _hints = scan_har_for_request(_driver, _link, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
+    _hints = scan_har_for_request(_driver, _link, _method=_method, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
     def func_getter(x):
         _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
@@ -708,6 +492,31 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return super().extract(url)
 
+    def raise_from_res(self, res, msg):
+
+        if res and (isinstance(res, str) or not res.get('error_res')):
+            return
+
+        _msg_error = try_get(res, lambda x: f" - {x.get('error_res')}") or ""
+        raise ExtractorError(f"{msg}{_msg_error}")
+
+    def check_stop(self):
+
+        try:
+            _stopg = self.get_param('stop')
+            _stop = None
+            if self.indexdl:
+                _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
+
+            if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
+                self.to_screen("stop event")
+                raise StatusStop("stop event")
+
+        except StatusStop as e:
+            raise
+        # except Exception as e:
+        #     logger.exception(repr(e))
+
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
 
         @dec_retry
@@ -794,7 +603,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return _get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
 
-
     @classmethod
     def rm_driver(cls, driver):
 
@@ -807,121 +615,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def raise_from_res(self, res, msg):
-
-        if res and (isinstance(res, str) or not res.get('error_res')):
-            return
-
-        _msg_error = try_get(res, lambda x: f" - {x.get('error_res')}") or ""
-        raise ExtractorError(f"{msg}{_msg_error}")
-
-    def check_stop(self):
-
-        try:
-            _stopg = self.get_param('stop')
-            _stop = None
-            if self.indexdl:
-                _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
-
-            if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
-                self.to_screen("stop event")
-                raise StatusStop("stop event")
-
-        except StatusStop as e:
-            raise
-        # except Exception as e:
-        #     logger.exception(repr(e))
-
     def scan_for_request(self, driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False):
 
-        _har_old = []
-
-        _list_hints_old = []
-        _list_hints = []
-        _first = True
-
-        _started = time.monotonic()
-
-        while True:
-
-            _newhar = get_har(driver, _method=_method, _mimetype=_mimetype)
-            _har = _newhar[len(_har_old):]
-            _har_old = _newhar
-            for entry in _har:
-
-                _url = traverse_obj(entry, ('request', 'url'))
-                if not _url or not re.search(_valid_url, _url):
-                    continue
-
-                _hint = {}
-
-                _hint.update({'url': _url})
-                if inclheaders:
-                    _req_headers = {val[0]: val[1] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host' and (val := list(header.values()))}
-                    _hint = {'headers': _req_headers}
-
-                if response:
-                    _resp_status = traverse_obj(entry, ('response', 'status'))
-                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
-
-                    _hint.update({'content': _resp_content, 'status': int_or_none(_resp_status)})
-
-                if not _all:
-                    return (_hint)
-                else:
-                    _list_hints.append(_hint)
-
-                self.check_stop()
-
-            if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
-                return (_list_hints)
-
-            if (time.monotonic() - _started) >= timeout:
-                if _all:
-                    return (_list_hints)
-                else:
-                    return 
-            else:
-                if _all:
-                    _list_hints_old = _list_hints
-                    if _first:
-                        _first = False
-                        if not _list_hints:
-                            time.sleep(0.5)
-                        else:
-                            time.sleep(0.01)
-                    else:
-                        time.sleep(0.01)
-                else:
-                    if _first:
-                        _first = False
-                        time.sleep(0.5)
-                    else:
-                        time.sleep(0.01)
+        return scan_har_for_request(driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
 
     def scan_for_json(self, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False):
 
-        _hints = self.scan_for_request(_driver, _link, _method=_method, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders)
-
-        def func_getter(x):
-            _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
-            if inclheaders:
-                return (_info_json, x.get('headers'))
-            else:
-                return _info_json
-
-        if not _all:
-            return try_get(_hints, func_getter)
-
-        else:
-            if _hints:
-                _list_info_json = []
-                for el in _hints:
-                    _info_json = try_get(el, func_getter)
-                    if _info_json:
-                        _list_info_json.append(_info_json)
-
-                return _list_info_json
+        return scan_har_for_json(driver, _valid_url, _method=_method,_all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
 
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
 
@@ -933,6 +633,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             el = None
 
         return el
+
 
     def get_info_for_format(self, url, **kwargs):
 
@@ -1117,10 +818,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             if msg:
                 premsg = f'{msg}{premsg}'
 
+            noraise = kwargs.get('noraise', None)
+
             _kwargs = kwargs.copy()
 
             _kwargs.pop('_type', None)
             _kwargs.pop('msg', None)
+            _kwargs.pop('noraise', None)
 
             res = None
             req = None
@@ -1139,6 +843,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         except HTTPStatusError as e:
+            if noraise:
+                return res
             _msg_err = str(e)
             if e.response.status_code == 403:
                 raise ReExtractInfo(_msg_err)
