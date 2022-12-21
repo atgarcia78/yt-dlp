@@ -199,6 +199,12 @@ class ProgressTimer:
     def __init__(self):
         self._last_ts = self.TIMER_FUNC()
 
+    def __repr__(self):
+        return(f"{self.elapsed_seconds():.2f}")
+
+    def reset(self):
+        self._last_ts += self.elapsed_seconds()
+
     def elapsed_seconds(self) -> float:
         return self.TIMER_FUNC() - self._last_ts
 
@@ -479,6 +485,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
 
                 self.indexdl = None
+                self.args_ie = None                        
 
         except Exception as e:
             logger.exception(e)
