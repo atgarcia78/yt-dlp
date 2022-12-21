@@ -40,6 +40,73 @@ from ..utils import (
 
 logger = logging.getLogger('nakedsword')
 
+
+class NSAPI:
+
+    def __init__(self, iens):
+        self.iens = iens
+        self.logger = logging.getLogger("NSAPI")
+        self.timer = ProgressTimer()
+        self.call_lock = Lock()
+        self.headers_api = {}
+
+        self.get_auth()
+
+    def logout(self):
+
+        if self.iens._logout_api():
+            self.headers_api = {}
+            self.logger.info(f"[logout] OK")
+        else:
+            self.logger.info(f"[logout] NOK")
+
+    @dec_retry
+    def get_auth(self, **kwargs):
+    
+        with self.call_lock:
+
+            try:
+                _headers = self.iens._get_api_basic_auth()
+                if _headers:
+                    self.headers_api = _headers
+                    self.logger.info(f"[get_auth] OK")
+                    self.timer.reset()
+                    return True
+                else: raise ExtractorError("couldnt auth")
+            except Exception as e:
+                self.logger.exception(f"[get_auth] {str(e)}")
+                raise ExtractorError("error get auth")
+    
+    @dec_retry
+    def get_refresh(self):
+
+        with self.call_lock:
+
+            try:
+                if self.iens._refresh_api():
+                    self.logger.info(f"[refresh] OK")
+                    self.timer.reset()
+                    return True
+                else:
+                    raise ExtractorError("couldnt refresh")
+            except Exception as e:
+                self.logger.error(f"[refresh] {str(e)}")
+                raise ExtractorError("error refresh")
+
+
+    def __call__(self):
+        if not self.headers_api:
+            self.get_auth()
+            return self.headers_api
+        
+        if not self.timer.has_elapsed(50):
+            return self.headers_api
+        else:
+            self.logger.info(f"[call] timeout to token refresh")
+            if self.get_refresh():
+                return self.headers_api
+
+
 class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://www.nakedsword.com/"
@@ -145,7 +212,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Cache-Control': 'no-cache',
                 'TE': 'trailers'
             }}
-
 
     def get_formats(self, _types, _info):
 
@@ -391,11 +457,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 self.proxy = None
                 self._key = "noproxy"
 
-            if self.IE_NAME != 'nakedswordapi':
+            with NakedSwordBaseIE._LOCK:
+                if not NakedSwordBaseIE._APP_DATA:
+                    NakedSwordBaseIE._APP_DATA = self._get_data_app()
                 if not NakedSwordBaseIE._API:
-                    NakedSwordBaseIE._API = self._get_extractor("NakedSwordAPI")
+                    NakedSwordBaseIE._API = NSAPI(self)
                     
-            
         except Exception as e:
             logger.error(repr(e))
 
@@ -410,89 +477,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     
     def API_GET_HTTP_HEADERS(self):
         return NakedSwordBaseIE._API()
-
-
-class NakedSwordAPIIE(NakedSwordBaseIE):
-    IE_NAME = 'nakedswordapi'
-    _VALID_URL = r'__dummynakedswordapi__'
-
-    
-    def close(self):
-        self.logout()
-        super().close()
-    
-    def _real_initialize(self):
-
-        super()._real_initialize()
-
-        self.logger = logging.getLogger("NSAPI")
-
-        self.timer = ProgressTimer()
-
-        self.call_lock = Lock()
-               
-        self.headers_api = {}
-        
-        if not NakedSwordBaseIE._APP_DATA:
-            NakedSwordBaseIE._APP_DATA = self._get_data_app()
-            if not NakedSwordBaseIE._APP_DATA:
-                raise ExtractorError('fail to get APP DATA')
-        
-        self.get_auth()
-
-    def logout(self):
-
-        if self._logout_api():
-            self.headers_api = {}
-            self.logger.info(f"[logout] OK")
-        else:
-            self.logger.info(f"[logout] NOK")
-
-    @dec_retry
-    def get_auth(self, **kwargs):
-    
-        with self.call_lock:
-
-            try:
-                _headers = self._get_api_basic_auth()
-                if _headers:
-                    self.headers_api = _headers
-                    self.logger.info(f"[get_auth] OK")
-                    self.timer.has_elapsed(0.1)
-                    return True
-                else: raise ExtractorError("couldnt auth")
-            except Exception as e:
-                self.logger.exception(f"[get_auth] {str(e)}")
-                raise ExtractorError("error get auth")
-    
-    @dec_retry
-    def get_refresh(self):
-
-        with self.call_lock:
-
-            try:
-                if self._refresh_api():
-                    self.logger.info(f"[refresh] OK")
-                    self.timer.has_elapsed(0.1)
-                    return True
-                else:
-                    raise ExtractorError("couldnt refresh")
-            except Exception as e:
-                self.logger.error(f"[refresh] {str(e)}")
-                raise ExtractorError("error refresh")
-
-
-    def __call__(self):
-        if not self.headers_api:
-            self.get_auth()
-            return self.headers_api
-        
-        if self.timer.elapsed_seconds() < 40:
-            return self.headers_api
-        else:
-            self.logger.info(f"[call] timeout to token refresh")
-            if self.get_refresh():
-                return self.headers_api
 
 
 class NakedSwordSceneIE(NakedSwordBaseIE):
