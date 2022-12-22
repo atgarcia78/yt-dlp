@@ -484,8 +484,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     limits=_config['limits'], headers=_config['headers'],
                     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
 
-                self.indexdl = None
-                self.args_ie = None                        
+                #self.indexdl = None
+                #self.args_ie = None                        
 
         except Exception as e:
             logger.exception(e)
@@ -494,7 +494,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         url, data = unsmuggle_url(url)
 
-        self.indexdl = traverse_obj(data, 'indexl')
+        self.indexdl = traverse_obj(data, 'indexdl')
         self.args_ie = traverse_obj(data, 'args')
 
         return super().extract(url)
