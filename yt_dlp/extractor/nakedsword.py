@@ -215,10 +215,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     def get_formats(self, _types, _info):
 
-        _limiter = NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]
+        with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]:
 
-        @_limiter
-        def _get_formats():
             logger.debug(f"[get_formats] {_info}")
 
             m3u8_url = _info.get('m3u8_url')
@@ -272,8 +270,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             else:
                 return formats
 
-        return _get_formats()
-   
+
     @dec_on_exception2
     @dec_on_exception3
     @limiter_0_01.ratelimit("nakedsword", delay=True)
@@ -287,15 +284,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _logout_api(self):
 
         resopts = self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["LOGOUT"])
-
         _headers_del = copy.deepcopy(self._HEADERS["DELETE"]["LOGOUT"])
-
         _headers = self.API_GET_HTTP_HEADERS()
-
         _headers_del.update({'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
-
         resdel = self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="DELETE", headers= _headers_del)
-
         return (resdel.status_code == 204)
     
     def _get_data_app(self):
@@ -364,6 +356,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         NakedSwordBaseIE._TAGS.update({'themes': themes, 'sex_acts': sex_acts})
 
     def _get_api_most_watched_scenes(self, query, limit=60):
+        
         if query == 'most_watched': _query = ""
         else: _query = query + '&'
         _limit = limit or 60
@@ -390,17 +383,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
             _url_movie = try_get(self._send_request(url.split('/scene/')[0]), lambda x: str(x.url))
             movieid = NakedSwordMovieIE._match_id(_url_movie)
-            
-
             details = None
-            
             details = self._get_api_details(movieid, headers=headers_api)
-
             if not details:
                 raise ReExtractInfo(f"{premsg} no details info")
 
             _urls_api = self._get_api_scene_urls(details)
-
             num_scenes = len(details.get('scenes'))
 
             if index_scene:
