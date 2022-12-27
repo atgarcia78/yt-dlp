@@ -3,6 +3,7 @@ import re
 import sys
 import traceback
 from urllib.parse import unquote
+import subprocess
 
 import pyduktape2 as pyduk
 
@@ -19,6 +20,7 @@ from .commonwebdriver import (
     limiter_0_01,
     limiter_0_5,
     limiter_non,
+    limiter_1
 )
 from ..utils import (
     ExtractorError,
@@ -52,9 +54,9 @@ class BaseloadIE(SeleniumInfoExtractor):
                         self.get_param('sem').update({_host: _sem})                    
                             
                 with _sem:
-                    if ((_stop:=self.get_param('stop')) and _stop.is_set()):
-                        self.logger_debug(f"{pre} {self._get_url_print(url)}: stop")
-                        raise StatusStop(f"{pre} {self._get_url_print(url)}")                    
+
+                    self.check_stop()
+
                     return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
                 
             except (HTTPStatusError, ConnectError) as e:
@@ -69,13 +71,12 @@ class BaseloadIE(SeleniumInfoExtractor):
         headers = kwargs.get('headers', None)
         max_limit = kwargs.get('max_limit', None)
         
-        with limiter_non.ratelimit(f'{self.IE_NAME}2', delay=True):
+        with limiter_1.ratelimit(f'{self.IE_NAME}2', delay=True):
             if msg: pre = f'{msg}[send_req]'
             else: pre = '[send_req]'
             self.logger_debug(f"{pre} {self._get_url_print(url)}") 
-            if ((_stop:=self.get_param('stop')) and _stop.is_set()):
-                self.logger_debug(f"{pre} {self._get_url_print(url)}: stop")
-                raise StatusStop(f"{pre} {self._get_url_print(url)}")
+            
+            self.check_stop()
 
             try:
                 if not max_limit:               
@@ -112,7 +113,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         check_active = kwargs.get('check_active', False)
         msg = kwargs.get('msg', None)
         webpage = kwargs.get('webpage', None)
-        max_limit = kwargs.get('max_limit', True)
+        max_limit = kwargs.get('max_limit', False)
         #max_limit = kwargs.get('max_limit', None)
 
         
@@ -137,12 +138,15 @@ class BaseloadIE(SeleniumInfoExtractor):
                 raise ExtractorError("error extracting video args")
                       
             try:                
-                video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args)                
+                #video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args)
+                video_url = self.getvideourl(url, _args)
             except BaseException as e:
                 #error when something changes in network, dontknowwhy
                 lines = traceback.format_exception(*sys.exc_info())
                 self.report_warning(f"{pre} error videourl [1] {repr(e)}\n%no%{'!!'.join(lines)}")
                 #video_url = None
+                
+                '''
                 self._real_initialize()
                 try:
                     video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args, force=True)
@@ -150,7 +154,7 @@ class BaseloadIE(SeleniumInfoExtractor):
                     lines = traceback.format_exception(*sys.exc_info())
                     self.report_warning(f"{pre} error videourl [2] {repr(e)}\n%no%{'!!'.join(lines)}")
                     raise ExtractorError("error 404 no video url")
-                
+                '''
                 #if not video_url: raise ExtractorError("error no video url")
 
             title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
@@ -184,9 +188,32 @@ class BaseloadIE(SeleniumInfoExtractor):
             raise
 
 
+    def getvideourl(self, url, _args):
+
+        mainjs = self.cache.load(self.IE_NAME, f'{self._key}mainjs')
+        if not mainjs:
+            mainjs = self.get_mainjs(url)
+            if mainjs: 
+                self.cache.store(self.IE_NAME, f'{self._key}mainjs', mainjs)
+        
+        argsjs = self._get_args(mainjs)
+        cmd0 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in argsjs])
+        cmd1 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in _args])
+
+        res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
+        res1 = subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
+
+        return(subprocess.run(['node', '/Users/antoniotorres/Projects/common/logs/tubeload_getvurl.js', res0, res1], capture_output=True, encoding="utf-8").stdout.strip('\n'))
+
     def _real_initialize(self):        
 
         super()._real_initialize()
+        if not self.get_param('proxy'):
+            self._ip_orig = try_get(self._get_ip_origin(), lambda x: x if x else "")
+            self._key = self._ip_orig
+        else:
+            self._key = try_get(self.get_param('proxy'), lambda x: traverse_obj(self.get_param('routing_table'), int(x.split(":")[-1])) if x else self._get_ip_origin())
+
         
     
     def get_mainjs(self, url):
