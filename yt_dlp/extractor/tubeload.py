@@ -1,11 +1,9 @@
 import html
 import re
-import sys
-import traceback
 from urllib.parse import unquote
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
-import pyduktape2 as pyduk
 
 from .commonwebdriver import (
     ConnectError,
@@ -108,57 +106,76 @@ class BaseloadIE(SeleniumInfoExtractor):
         return args
         
     
+    def get_mainjs(self, url):
+        _headers_mainjs = {    
+            'Referer': url,
+            'Sec-Fetch-Dest': 'script',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
+        
+        return(try_get(self._send_request(self._MAINJS, headers=_headers_mainjs), lambda x: x.text))
+    
     def _get_entry(self, url, **kwargs):     
 
-        check_active = kwargs.get('check_active', False)
-        msg = kwargs.get('msg', None)
-        webpage = kwargs.get('webpage', None)
-        max_limit = kwargs.get('max_limit', False)
-        #max_limit = kwargs.get('max_limit', None)
-
         
-        try:
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg: pre = f'{msg}{pre}'
-            #self.to_screen(f"{pre} check[{check_active}]")
-            _videoinfo = None            
-            videoid = self._match_id(url)
-            if not webpage:
-                webpage = try_get(self._send_request(f"{self._SITE_URL}/e/{videoid}", max_limit=max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
-            if not webpage: 
-                self.report_warning(f"{pre} no webpage")
-                raise ExtractorError("error 404 no webpage")
-            self.logger_debug(f'{pre} size webpage dl: {len(webpage)}')
-            if '<title>404' in webpage:
-                raise ExtractorError("error 404 no webpage")
+        check_active = kwargs.get('check_active', False)
+        self.webpage = kwargs.get('webpage', None)
+        self.max_limit = kwargs.get('max_limit', True)
+        self.pre = f'[get_entry][{self._get_url_print(url)}]'
+        if (msg:=kwargs.get('msg', None)):
+            self.pre = f'{msg}{self.pre}'
+        videoid = self._match_id(url)
+        self._url =  f"{self._SITE_URL}/e/{videoid}"
+        
+        def _getres0():
+            if (mainjs := self.get_mainjs(self._url)) and (argsjs := self._get_args(mainjs)):            
+                cmd0 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in argsjs])
+                res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
+                if res0: self.cache.store(self.IE_NAME, f'{self._key}res0', res0)
+                return res0
 
-            _args = self._get_args(webpage)
+        def _getinfofromwebpage():
+            _args = None
+            title = None
+            if not self.webpage:
+                self.webpage = try_get(self._send_request(self._url, max_limit=self.max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
+                if not self.webpage: 
+                    #self.report_warning(f"{self.pre} no webpage")
+                    raise ExtractorError("error 404 no webpage")
+                self.logger_debug(f'{self.pre} size webpage dl: {len(self.webpage)}')
+                if '<title>404' in self.webpage:
+                    raise ExtractorError("error 404 no webpage")
+            title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(self.webpage).replace('.mp4','')).strip('[_,-, ]')
+            _args = self._get_args(self.webpage)
             if not _args: 
-                self.report_warning(f"{pre} no args in webpagwe")
+                #self.report_warning("no args in webpage")
                 raise ExtractorError("error extracting video args")
-                      
-            try:                
-                #video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args)
-                video_url = self.getvideourl(url, _args)
-            except BaseException as e:
-                #error when something changes in network, dontknowwhy
-                lines = traceback.format_exception(*sys.exc_info())
-                self.report_warning(f"{pre} error videourl [1] {repr(e)}\n%no%{'!!'.join(lines)}")
-                #video_url = None
-                
-                '''
-                self._real_initialize()
-                try:
-                    video_url = self.init_ctx(f"{self._SITE_URL}/e/{videoid}", data=_args, force=True)
-                except BaseException as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.report_warning(f"{pre} error videourl [2] {repr(e)}\n%no%{'!!'.join(lines)}")
-                    raise ExtractorError("error 404 no video url")
-                '''
-                #if not video_url: raise ExtractorError("error no video url")
+            cmd1 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in _args])
+            return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), title)
 
-            title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
-                        
+        try:
+            
+
+            res0 = self.cache.load(self.IE_NAME, f'{self._key}res0')
+            if not res0:
+                with ThreadPoolExecutor(thread_name_prefix="tload") as exe:
+                    futures = {'infowebpage':exe.submit(_getinfofromwebpage), 'res0': exe.submit(_getres0)}
+        
+                res1, title = futures['infowebpage'].result()
+                res0 = futures['res0'].result()
+            
+            else:
+            
+                res1, title = _getinfofromwebpage()
+
+            if not res0 or not res1:
+                raise ExtractorError(f"error in res0[{not res0}] or res1[{not res1}]")
+
+            video_url = subprocess.run(['node', '/Users/antoniotorres/Projects/common/logs/tubeload_getvurl.js', res0, res1], capture_output=True, encoding="utf-8").stdout.strip('\n')
+
             _format = {
                 'format_id': 'http-mp4',
                 'url': unquote(video_url),               
@@ -167,8 +184,8 @@ class BaseloadIE(SeleniumInfoExtractor):
             }
 
             if check_active:
-                _videoinfo = self._get_video_info(video_url, msg=pre)
-                if not _videoinfo: raise ExtractorError("error 404: no video info")
+                _videoinfo = self._get_video_info(video_url, msg=self.pre)
+                if not _videoinfo: raise ExtractorError(f"error 404: no video info")
                 else:
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
 
@@ -185,25 +202,9 @@ class BaseloadIE(SeleniumInfoExtractor):
             return _entry_video
             
         except Exception:
+            self.report_warning(f"{self.pre} error {repr(e)} - {str(e)}")
             raise
 
-
-    def getvideourl(self, url, _args):
-
-        mainjs = self.cache.load(self.IE_NAME, f'{self._key}mainjs')
-        if not mainjs:
-            mainjs = self.get_mainjs(url)
-            if mainjs: 
-                self.cache.store(self.IE_NAME, f'{self._key}mainjs', mainjs)
-        
-        argsjs = self._get_args(mainjs)
-        cmd0 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in argsjs])
-        cmd1 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in _args])
-
-        res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
-        res1 = subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
-
-        return(subprocess.run(['node', '/Users/antoniotorres/Projects/common/logs/tubeload_getvurl.js', res0, res1], capture_output=True, encoding="utf-8").stdout.strip('\n'))
 
     def _real_initialize(self):        
 
@@ -214,77 +215,6 @@ class BaseloadIE(SeleniumInfoExtractor):
         else:
             self._key = try_get(self.get_param('proxy'), lambda x: traverse_obj(self.get_param('routing_table'), int(x.split(":")[-1])) if x else self._get_ip_origin())
 
-        
-    
-    def get_mainjs(self, url):
-        _headers_mainjs = {    
-            'Referer': url,
-            'Sec-Fetch-Dest': 'script',
-            'Sec-Fetch-Mode': 'no-cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
-        }
-        
-        return(try_get(self._send_request(self._MAINJS, headers=_headers_mainjs), lambda x: x.text))
-            
-    
-    def init_ctx(self, url, **kwargs):        
-
-         
-        try:
-        
-            force = kwargs.get('force', False)
-            _args = kwargs.get('data', [])
-
-            jscode_deofus = 'function deofus(h,u,n,t,e,r){var _data=["","split","0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/","slice","indexOf","","",".","pow","reduce","reverse","0"];function _aux(d,e,f){var g=_data[2][_data[1]](_data[0]);var h=g[_data[3]](0,e);var i=g[_data[3]](0,f);var j=d[_data[1]](_data[0])[_data[10]]()[_data[9]](function(a,b,c){if(h[_data[4]](b)!==-1)return a+=h[_data[4]](b)*(Math[_data[8]](e,c))},0);var k=_data[0];while(j>0){k=i[j%f]+k;j=(j-(j%f))/f}return k||_data[11]};function _aux2(h,u,n,t,e,r){r="";for(var i=0,len=h.length;i<len;i++){var s="";while(h[i]!==n[e]){s+=h[i];i++}for(var j=0;j<n.length;j++)s=s.replace(new RegExp(n[j],"g"),j);r+=String.fromCharCode(_aux(s,e,10)-t)};return decodeURIComponent(escape(r))};return _aux2(h,u,n,t,e,r)};'                
-            jscode_atob = 'function atob(str){return (new TextDecoder().decode(Duktape.dec("base64", str)))}'
-
-            
-
-            with BaseloadIE._LOCK:
-                if not self.get_param('proxy'):
-                    if not BaseloadIE._IP_ORIG:
-                        BaseloadIE._IP_ORIG = try_get(self._get_ip_origin(), lambda x: x if x else "")
-                    _key = BaseloadIE._IP_ORIG
-                else:
-                    _key = try_get(self.get_param('proxy'), lambda x: traverse_obj(self.get_param('routing_table'), int(x.split(":")[-1])) if x else self._get_ip_origin())
-                
-                if not force:
-                    jscode_final = self.cache.load(self.IE_NAME, f'{_key}jscode')
-                else: jscode_final = None            
-                
-                _duk_ctx = pyduk.DuktapeContext()
-                
-                if not jscode_final:
-                    if not force:
-                        mainjs = self.cache.load(self.IE_NAME, f'{_key}mainjs')
-                    else: mainjs = None
-                    if not mainjs:
-                        mainjs = self.get_mainjs(url)                
-                        if mainjs: 
-                            self.cache.store(self.IE_NAME, f'{_key}mainjs', mainjs)
-                        else: raise ExtractorError("couldnt get mainjs")        
-                    
-                    _duk_ctx.eval_js(jscode_deofus)
-                    _duk_ctx.eval_js(jscode_atob)
-                    _code = _duk_ctx.get_global('deofus')(*self._get_args(mainjs))
-                    _jscode_1, _var = try_get(re.findall(r'(var res = ([^\.]+)\.replace.*); var decode', _code), lambda x: x[0])
-                    
-                    jscode_final = f'function getvurl(h,u,n,t,e,r){{var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};return atob(res2)}};'
-                    
-                    #version full for cache
-                    _jscode_cache = f'function getvurl(h,u,n,t,e,r){{{jscode_deofus}var res1 = deofus(h,u,n,t,e,r); var {_var} = RegExp("{_var}=([^;]+);").exec(res1)[1].slice(1,-1); {_jscode_1};{jscode_atob};return atob(res2)}};'
-                    self.cache.store(self.IE_NAME, f'{_key}jscode', _jscode_cache)
-
-            _duk_ctx.eval_js(jscode_final)
-            get_videourl = _duk_ctx.get_global('getvurl')
-            return get_videourl(*_args)
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            pre = f'[init_ctx][{self._get_url_print(url)}]'
-            self.report_warning(f"{pre}%no% {repr(e)}\n{'!!'.join(lines)}")
-            raise
 
     def _real_extract(self, url):
         
