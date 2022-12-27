@@ -571,7 +571,10 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
             _entries = []
 
-            sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'))
+            sublist = []
+            if hasattr(self, 'args_ie'):
+                sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
+
 
             logger.info(f"{premsg} sublist of movie scenes: {sublist}")
 
