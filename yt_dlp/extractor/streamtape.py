@@ -2,11 +2,14 @@ import re
 import sys
 import time
 import traceback
-import pyduktape2 as pyduk
 import html
 
-from ..utils import ExtractorError, sanitize_filename, try_get
+from ..utils import ExtractorError, sanitize_filename, try_get, escape_url, get_domain
 from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_0_1, limiter_1, By
+import logging
+import subprocess
+
+logger = logging.getLogger("streamtape")
 
 class video_or_error_streamtape:
     
@@ -35,8 +38,10 @@ class video_or_error_streamtape:
 class StreamtapeIE(SeleniumInfoExtractor):
 
     IE_NAME = 'streamtape'
-    _VALID_URL = r'https?://(www.)?(?:streamtape|streamta)\.(?:com|net|pe)/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.(?:com|net)/(?:e|v|d)/.+?)\1']
+    
+    
+    _VALID_URL = r'https?://(www.)?(?:streamtape|streamta)\.[^/]+/(?:d|e|v)/(?P<id>[a-zA-Z0-9_-]+)/?'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?streamtape\.[^/]+/(?:e|v|d)/.+?)\1']
 
     @dec_on_exception3
     @dec_on_exception2
@@ -82,60 +87,63 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', True)
         msg = kwargs.get('msg', None)
         webpage = kwargs.get('webpage', None)
+        videoid = self._match_id(url)
+        _url =  url.split(videoid)[0] + videoid
         
         try:
             
-            url = url.replace('/e/', '/v/')
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg: pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
+            _url = _url.replace('/e/', '/v/')
+            pre = f'[get_entry][{self._get_url_print(_url)}]'
+            if msg: pre = f'{msg}{pre}'
             if not webpage:
-                webpage = try_get(self._send_request(url, msg=pre, lim=limiter_0_1), lambda x: x if isinstance(x, dict) else html.unescape(x.text))
+                webpage = try_get(self._send_request(_url, msg=pre, lim=limiter_0_1), lambda x: x if isinstance(x, dict) else html.unescape(x.text))
             
             _msg_error = ""
             if not webpage or (isinstance(webpage, dict) and (_msg_error:=webpage.get('error_sendreq'))): raise ExtractorError(f"{_msg_error} no webpage")
             el_node = try_get(re.findall(r'var srclink\s+=\s+\$\([\'\"]#([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
             if not el_node: raise ExtractorError("error when retrieving video url")
-            _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: x[0])
+            _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: "const res = " + x[0])
+            #self.to_screen(_code)
  
             try:
-                _duk_ctx = pyduk.DuktapeContext()
-                _res = _duk_ctx.eval_js(_code)                
+                _res = subprocess.run(["node", "-e", f"{_code}console.log(res)"], capture_output=True, encoding="utf-8").stdout.strip('\n')
+                video_url = 'https:' + _res + '&stream=1'          
             except Exception as e:
+                logger.exception(repr(e))
                 raise ExtractorError("error video url")
             
-            if not _res: raise ExtractorError("error video url")
-            video_url = 'https:' + _res + '&stream=1'
+            
             _title = self._html_search_regex((r'>([^<]+)</h2>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title',fatal=False)
             
             if not _title:
                 _title = self._html_search_meta(('og:title', 'twitter:title'), webpage, None)
                                         
-             
+            _headers = {'Referer': f'https://{get_domain(url)}/', 'Origin': f'https://{get_domain(url)}'}
             _format = {
                 'format_id': 'http-mp4',
                 'url': video_url,
                 'ext': 'mp4',
-                'http_headers': {'Referer': url}
+                'http_headers': _headers
             }
             
             
-            if check_active:
-                _videoinfo = self._get_video_info(video_url, headers= {'Referer': url}, msg=pre)
+            if check:
+                _videoinfo = self._get_video_info(video_url, headers=_headers, msg=pre)
                 if not _videoinfo: 
                     raise ExtractorError("error 404: no video info")
                 _format.update({'url': _videoinfo['url'],'filesize': _videoinfo['filesize'] })
                 
             _entry_video = {
-                'id' : self._match_id(url),
+                'id' : videoid,
                 'title' : sanitize_filename(_title.replace('.mp4',''), restricted=True),
                 'formats' : [_format],
                 'ext': 'mp4',
                 'extractor_key': 'Streamtape',
                 'extractor': 'streamtape',
-                'webpage_url': url
+                'webpage_url': escape_url(url)
             }            
             
             return _entry_video
@@ -154,10 +162,12 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
         try:                            
 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            # if not self.get_param('embed'): _check = True
+            # else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            _check = True
+
+            return self._get_entry(url, check=_check)  
             
         except ExtractorError as e:
             raise

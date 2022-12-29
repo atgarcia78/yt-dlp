@@ -121,10 +121,10 @@ class HLSStream(SeleniumInfoExtractor):
 
         try:                            
 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            return self._get_entry(url, check=_check)  
             
         except ExtractorError:
             raise

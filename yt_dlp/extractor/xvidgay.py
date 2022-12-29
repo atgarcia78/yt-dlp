@@ -134,7 +134,7 @@ class XvidgayIE(SeleniumInfoExtractor):
     
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
          
 
@@ -160,7 +160,7 @@ class XvidgayIE(SeleniumInfoExtractor):
             if not _videoid:
                 _videoid =  str(int(hashlib.sha256(_videourl.split('video=')[1].encode('utf-8')).hexdigest(),16) % 10**10)
             
-            if check_active:
+            if check:
                 _videoinfo = self._get_video_info(_videourl)
                 if not _videoinfo: raise ExtractorError("error 404: no video info")
                 else:
@@ -194,7 +194,7 @@ class XvidgayIE(SeleniumInfoExtractor):
 
         try:                            
 
-            return self._get_entry(url, check_active=True)  
+            return self._get_entry(url, check=True)  
             
         except ExtractorError:
             raise

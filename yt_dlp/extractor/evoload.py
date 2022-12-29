@@ -131,7 +131,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
         driver.get(url)
         
     
-    def _get_entry(self, url, check_active=False, msg=None):
+    def _get_entry(self, url, check=False, msg=None):
         
         try:
             pre = f'[get_entry][{self._get_url_print(url)}]'
@@ -153,7 +153,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
             _title =  self.wait_until(driver, 30, get_title()) 
             videoid = self._match_id(url.split('?')[0])        
 
-            if check_active:
+            if check:
                 _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo: raise ExtractorError("error 404: no video info")
                 else:
@@ -192,10 +192,10 @@ class EvoLoadIE(SeleniumInfoExtractor):
 
         try:                            
 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            return self._get_entry(url, check=_check)  
             
         except ExtractorError:
             raise

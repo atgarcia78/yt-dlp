@@ -81,7 +81,7 @@ class StreamSBIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
         videoid, dom = re.search(self._VALID_URL, url).group('id', 'domain')
 
@@ -112,7 +112,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                     'height': int(res)
                 }
 
-                if check_active:
+                if check:
                     _video_info = self._get_video_info(_videourl, headers={'Referer': f"https://{dom}/"})
                     self.raise_from_res(_video_info, "no video info")
                     _format.update(_video_info)
@@ -144,10 +144,10 @@ class StreamSBIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
         try: 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            return self._get_entry(url, check=_check)  
         except ExtractorError:
             raise
         except Exception as e:            
