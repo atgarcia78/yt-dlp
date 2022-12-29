@@ -293,7 +293,6 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"
     _VALID_URL = r'https?://(?:www\.)?gvdblog.com/search\?(?P<query>[^#]+)'
-    
 
     def send_api_search(self, query):
         
@@ -356,7 +355,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.exception(f"{repr(e)} - {str(e)}")
             raise
 
-
     def iter_get_entries_search(self, url, check=True):
         blog_posts_list = self.get_blog_posts_search(url)
         
@@ -376,7 +374,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         else:
             for _url in posts_vid_url:
                 yield self.url_result(_url if check else f"{_url}?check=no", ie=GVDBlogPostIE.ie_key())
-
 
     def get_entries_search(self, url, check=True):         
     
@@ -425,10 +422,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.exception(f"{repr(e)} - {str(e)}")
             raise
 
- 
     def _real_initialize(self):
         super()._real_initialize()
-        
+ 
     def _real_extract(self, url):
         
         self.report_extraction(url)
