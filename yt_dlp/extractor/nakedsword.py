@@ -361,7 +361,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         else: _query = query + '&'
         _limit = limit or 60
         pages = int(_limit) // 30 + 1
-        _list_urls = [f"https://ns-api.nakedsword.com/frontend/scenes/feed?{_query}per_page=30&subset_sort_by=most_watched&subset_limit={limit}&page={i}&sort_by=most_watched" for i in range(1, pages + 1)]
+        _list_urls = [f"https://ns-api.nakedsword.com/frontend/scenes/feed?{_query}per_page=30&subset_sort_by=most_watched&subset_limit={_limit}&page={i}&sort_by=most_watched" for i in range(1, pages + 1)]
         _scenes_info = []
         for _url in _list_urls:
             _scenes_info.extend(try_get(self._send_request(_url, headers=self.API_GET_HTTP_HEADERS()), lambda x: traverse_obj(x.json(), ('data', 'scenes'), default=[]) if x else []))
