@@ -1,7 +1,7 @@
 import sys
 import traceback
 import re
-import pyduktape2 as pyduk
+import subprocess
 import json
 import html
 
@@ -46,16 +46,13 @@ class FilemoonIE(SeleniumInfoExtractor):
     def _get_entry(self, url, **kwargs):
         
         videoid = self._match_id(url)
-                
-        
-        
+
         _wurl = f"{self._SITE_URL}d/{videoid}"
         webpage = try_get(self._send_request(_wurl), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
         
         if not webpage:
             raise ExtractorError("no webpage")
-        
-        
+
         packed = self._search_regex(r'<script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage, 'packed code')
         if not packed:
             raise ExtractorError("couldnt find js function")            
@@ -67,34 +64,25 @@ class FilemoonIE(SeleniumInfoExtractor):
         
         except Exception as e:
             self.logger_debug("Change to pyduk")
-            _duk_ctx = pyduk.DuktapeContext()
+            
             sign = try_get(re.findall(r'</main><script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage), lambda x: x[0])
-        
             if not sign:
                raise ExtractorError("couldnt find js function")
-        
-            jscode = "var res =" + sign +";res"
+            jscode = "var res =" + sign +";console.log(res)"
         
             try:
-                _webpage = _duk_ctx.eval_js(jscode)
+                _webpage = subprocess.run(["node", "-e", jscode], capture_output=True, encoding="utf-8").stdout.strip('\n')
             except Exception as e:
                 self.report_warning(repr(e))
                 _webpage = None
         
-            if not _webpage:
-            
+            if not _webpage:            
                 raise ExtractorError("error executing js")
         
-
-        
-            options = try_get(re.search(r'setup\s*\((?P<options>[^;]+);', _webpage), lambda x: json.loads(js_to_json(x.group('options')[:-1].replace('Class()','Class'))) if x else None) 
-            
-            #options = try_get(re.search(r'player.setup\((?P<options>[^\)]+)\)', unpacked), lambda x: json.loads(js_to_json(x.group('options').replace("\\",""))) if x else None)
+            options = try_get(re.search(r'setup\s*\((?P<options>[^;]+);', _webpage), lambda x: json.loads(js_to_json(x.group('options')[:-1].replace('Class()','Class'))) if x else None)             
             
             m3u8_url = traverse_obj(options, ('sources', 0, 'file'))
-        
-        
-        
+
         if not m3u8_url:
             raise ExtractorError("couldnt find m3u8 url")
         
@@ -117,9 +105,8 @@ class FilemoonIE(SeleniumInfoExtractor):
             "formats": formats,
             "webpage_url": _wurl,                             
             "ext": "mp4"})
-    
 
-            
+
     def _real_extract(self, url):
         
         self.report_extraction(url)
