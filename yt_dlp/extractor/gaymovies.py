@@ -35,7 +35,7 @@ class GayMoviesIE(SeleniumInfoExtractor):
             return res
         
         
-    def _get_playlist(self, url, check_active=False):
+    def _get_playlist(self, url, check=False):
         
         
         
@@ -86,12 +86,12 @@ class GayMoviesIE(SeleniumInfoExtractor):
                     
                 _entry = {}                         
                 try:
-                    _entry = iefem._get_entry(_value['fembed']['url'], check_active=check_active)
+                    _entry = iefem._get_entry(_value['fembed']['url'], check=check)
                     _original_url = _value['fembed']['original_url']
                 except Exception as e:
                     self.to_screen(repr(e))
                     try:
-                        _entry = iestr._get_entry(_value['streamtape']['url'], check_active=check_active)
+                        _entry = iestr._get_entry(_value['streamtape']['url'], check=check)
                         _original_url = _value['streamtape']['original_url']
                     except Exception as e:
                         self.to_screen(repr(e))
@@ -128,10 +128,10 @@ class GayMoviesIE(SeleniumInfoExtractor):
 
         try:                            
 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_playlist(url, check_active=_check_active)  
+            return self._get_playlist(url, check=_check)  
             
         except ExtractorError:
             raise

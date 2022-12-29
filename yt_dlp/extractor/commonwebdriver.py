@@ -512,7 +512,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             _stopg = self.get_param('stop')
             _stop = None
-            if self.indexdl:
+            if hasattr(self, 'indexdl'):            
                 _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
 
             if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
@@ -650,32 +650,37 @@ class SeleniumInfoExtractor(InfoExtractor):
             client = kwargs.get('client', None)
             headers = kwargs.get('headers', None)
             if client:
-                res = client.head(url, headers=headers)
+                res = client.head(unquote(url), headers=headers, timeout=5)
             else:
-                res = self._CLIENT.head(url, headers=headers)
+                res = self._CLIENT.head(unquote(url), headers=headers, timeout=5)
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
             _accept_ranges = any([res.headers.get('accept-ranges'), res.headers.get('content-range')])
             if _filesize:
                 return ({'url': _url, 'filesize': _filesize, 'accept_ranges': _accept_ranges})
+        except ConnectError as e:
+            _msg_err = f'{repr(e)} - {str(e)}'
+            if 'errno 61' in _msg_err.lower():
+                raise
+            else:
+                raise ExtractorError(_msg_err)
+        except HTTPStatusError as e:            
+            _msg_err = f'{repr(e)} - {str(e)}'
+            if e.response.status_code == 403:
+                raise ReExtractInfo(_msg_err)
+            elif e.response.status_code == 503:
+                raise StatusError503(_msg_err)
+            else:
+                raise
         except Exception as e:
-            _msg_err = repr(e)
-            if res and (400 <= res.status_code < 500):
-                res.raise_for_status()
-            elif res and res.status_code == 503:
-                raise StatusError503(repr(e))
-            elif isinstance(e, ConnectError):
-                if 'errno 61' in _msg_err.lower():
-                    raise
-                else:
-                    raise ExtractorError(_msg_err)
-            elif not res:
-                raise TimeoutError(repr(e))
+            _msg_err = f'{repr(e)} - {str(e)}'
+            if not res:
+                raise TimeoutError(_msg_err)
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            self.logger_debug(f"[get_info_for_format][{self._get_url_print(url)}] {res}:{_msg_err}")
+            self.logger_debug(f"{res}:{_msg_err}")
 
     def _is_valid(self, url, msg=None):
 

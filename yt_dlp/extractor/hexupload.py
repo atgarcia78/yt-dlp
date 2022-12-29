@@ -86,7 +86,7 @@ class HexUploadIE(SeleniumInfoExtractor):
     
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
         
         try:
@@ -111,7 +111,7 @@ class HexUploadIE(SeleniumInfoExtractor):
                 'http_headers': {'Referer': self._SITE_URL}
             }
             
-            if check_active:
+            if check:
                 _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo: raise ExtractorError("error 404: no video info")
                 else:
@@ -145,10 +145,10 @@ class HexUploadIE(SeleniumInfoExtractor):
             
         try:
 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            return self._get_entry(url, check=_check)  
     
         except ExtractorError as e:
             raise

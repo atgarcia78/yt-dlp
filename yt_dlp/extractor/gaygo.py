@@ -61,7 +61,7 @@ class GaygoIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', False)
         
         videoid = self._match_id(url)        
         _url = f'{self._SITE_URL}/view/{videoid}'
@@ -82,7 +82,7 @@ class GaygoIE(SeleniumInfoExtractor):
             'ext': 'mp4'
         }
 
-        if check_active:
+        if check:
             _videoinfo = self._get_video_info(videourl, headers=headers)
             if not _videoinfo: raise ExtractorError("error 404: no video info")
             else:

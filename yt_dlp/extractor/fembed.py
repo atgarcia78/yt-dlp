@@ -38,7 +38,7 @@ class FembedIE(SeleniumInfoExtractor):
     
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
          
 
@@ -100,7 +100,7 @@ class FembedIE(SeleniumInfoExtractor):
                     'http_headers': _headers,
                     'ext': 'mp4'
                 }
-                if check_active: 
+                if check: 
                     _info_video = self._get_video_info(_videourl, _headers)
                     if _info_video:
                         _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
@@ -133,7 +133,7 @@ class FembedIE(SeleniumInfoExtractor):
                         'http_headers': _headers,                        
                         'ext': 'mp4'
                     }
-                    if check_active: 
+                    if check: 
                         _info_video = self._get_video_info(_videourl, _headers)
                         if _info_video:
                             _f.update({'url': _info_video['url'],'filesize': _info_video['filesize']})
@@ -176,10 +176,10 @@ class FembedIE(SeleniumInfoExtractor):
 
         try:                            
 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            return self._get_entry(url, check=_check)  
             
         except ExtractorError:
             raise

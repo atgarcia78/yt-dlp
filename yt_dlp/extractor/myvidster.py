@@ -175,7 +175,7 @@ class MyVidsterIE(MyVidsterBaseIE):
     def getbestvid(self, x, **kwargs):
         
         msg = kwargs.get('msg', None)
-        _check = kwargs.get('check_active', True)
+        _check = kwargs.get('check', True)
 
         pre = f"[getbestvid]"
         if msg: pre = f'{msg}{pre}'
@@ -220,7 +220,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if _check_extr(_extr_name): #get entry                    
                     ie = self._get_extractor(el)
                     try:
-                        _ent = ie._get_entry(el, check_active=_check, msg=pre)
+                        _ent = ie._get_entry(el, check=_check, msg=pre)
                         if _ent:
                             self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
                             return _ent
@@ -254,7 +254,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
     def _get_entry(self, url, **kwargs):
         
-        _check = kwargs.get('check_active', True)
+        _check = kwargs.get('check', True)
         _from_list = kwargs.get('from_list', None)
         video_id = self._match_id(url)
         url = url.replace("vsearch", "video")
@@ -322,12 +322,12 @@ class MyVidsterIE(MyVidsterBaseIE):
                 videolink_res = None
 
                 embedlink_res = try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage),
-                                        lambda x: self.getbestvid(x[0], check_active=_check, msg='embedlink') if x else None)
+                                        lambda x: self.getbestvid(x[0], check=_check, msg='embedlink') if x else None)
                 
                 if not embedlink_res or isinstance(embedlink_res, str):           
                     
                     videolink_res =  try_get(re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage),
-                                            lambda x: self.getbestvid(x[0], check_active=_check, msg='videolink') if x else None)                
+                                            lambda x: self.getbestvid(x[0], check=_check, msg='videolink') if x else None)                
                     
                     if videolink_res and isinstance(videolink_res, dict):
                         if (_msg_error:=videolink_res.get('error_getbestvid')):
@@ -475,7 +475,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                     MyVidsterBaseIE._NUM_VIDS_PL[url] = len(results)
                     
                     with ThreadPoolExecutor(thread_name_prefix='ex_channelpl') as ex:
-                        futures = {ex.submit(iemv._get_entry, el['url'], check_active=_check, from_list=url): el['url'] for el in results}
+                        futures = {ex.submit(iemv._get_entry, el['url'], check=_check, from_list=url): el['url'] for el in results}
 
                     entries = []
 

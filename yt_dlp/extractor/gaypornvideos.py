@@ -63,7 +63,7 @@ class GayPornVideosIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
         
-        check_active = kwargs.get('check_active', False)
+        check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
         
         try:
@@ -84,7 +84,7 @@ class GayPornVideosIE(SeleniumInfoExtractor):
                 'ext': 'mp4'
             }  
 
-            if check_active:
+            if check:
                 _video_info = self._get_video_info(videourl)
                 self.to_screen(_video_info)
                 self.raise_from_res(_video_info, "no video info")
@@ -111,10 +111,10 @@ class GayPornVideosIE(SeleniumInfoExtractor):
         
         self.report_extraction(url)
         try: 
-            if not self.get_param('embed'): _check_active = True
-            else: _check_active = False
+            if not self.get_param('embed'): _check = True
+            else: _check = False
 
-            return self._get_entry(url, check_active=_check_active)  
+            return self._get_entry(url, check=_check)  
         except ExtractorError:
             raise
         except Exception as e:            
