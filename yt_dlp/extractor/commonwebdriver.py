@@ -41,7 +41,6 @@ T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
 _MaybeCallable = Union[T, Callable[[], T]]
 
-logger = logging.getLogger("Commonwebdriver")
 
 class StatusError503(Exception):
     """Error during info extraction."""
@@ -113,7 +112,7 @@ CONFIG_EXTRACTORS = {
         'ratelimit': limiter_5,
         'maxsplits': 4},
     ('doodstream', 'vidoza',): {
-        'ratelimit': limiter_1,
+        'ratelimit': limiter_0_1,
         'maxsplits': 5},
     ('highload', 'tubeload', 'embedo',
                  'thisvidgay', 'redload',
@@ -153,7 +152,6 @@ def getter(x):
     return limiter_non.ratelimit("nonlimit", delay=True)
 
 
-
 class scroll:
     '''
         To use as a predicate in the webdriver waits to scroll down to the end of the page
@@ -181,7 +179,6 @@ class scroll:
             else:
                 return False
 
-
 class checkStop:
 
     def __init__(self, checkstop):
@@ -191,7 +188,6 @@ class checkStop:
 
         self.checkstop()
         return False
-
 
 class ProgressTimer:
     TIMER_FUNC = time.monotonic
@@ -488,7 +484,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 #self.args_ie = None                        
 
         except Exception as e:
-            logger.exception(e)
+            logger = logging.getLogger(self.IE_NAME)
+            logger.exception(repr(e))
 
     def extract(self, url):
 
@@ -521,8 +518,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         except StatusStop as e:
             raise
-        # except Exception as e:
-        #     logger.exception(repr(e))
 
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
 
@@ -589,6 +584,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     _driver.set_page_load_timeout(25)
                     return _driver
                 except Exception as e:
+                    logger = logging.getLogger(self.IE_NAME)
                     logger.exception(f'Firefox fails starting - {str(e)}')
                     if _driver:
                         _driver.quit()
@@ -641,7 +637,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return el
 
-
     def get_info_for_format(self, url, **kwargs):
 
         try:
@@ -680,7 +675,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            self.logger_debug(f"{res}:{_msg_err}")
+            logger = logging.getLogger(self.IE_NAME)
+            logger.debug(f"{res}:{_msg_err}")
 
     def _is_valid(self, url, msg=None):
 
@@ -750,9 +746,10 @@ class SeleniumInfoExtractor(InfoExtractor):
 
                 return valid
 
-        except Exception as e:
-            self.report_warning(f'[valid]{_pre_str} error {repr(e)}')
-            logger.exception(e)
+        except Exception as e:            
+            logger = logging.getLogger(self.IE_NAME)
+            logger.warning(f'[valid]{_pre_str} error {repr(e)}')
+            logger.exception(repr(e))
             return False
 
     @dec_on_exception3
@@ -819,7 +816,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            self.logger_debug(f"{premsg} {res}:{_msg_err}")
+            logger = logging.getLogger(self.IE_NAME)
+            logger.debug(f"{premsg} {res}:{_msg_err}")
 
     def send_http_request(self, url, **kwargs):
         try:
@@ -871,4 +869,5 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            self.logger_debug(f"{premsg} {req}:{res}:{_msg_err}")
+            logger = logging.getLogger(self.IE_NAME)
+            logger.debug(f"{premsg} {req}:{res}:{_msg_err}")
