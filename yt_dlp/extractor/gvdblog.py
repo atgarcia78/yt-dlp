@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import logging
 
-logger = logging.getLogger('GVDBlog')
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
     _SLOW_DOWN = False
@@ -24,6 +23,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _x = x if isinstance(x, list) else [x]
         _x.sort(reverse=True)
 
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
+
         pre = ' '
         if msg: pre = f'{msg}{pre}'       
         
@@ -33,12 +34,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             try:
                 _entry = ie._get_entry(el, check=check, msg=pre)
                 if _entry:
-                    self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video")
+                    logger.debug(f"{pre}[{self._get_url_print(el)}] OK got entry video")
                     return _entry
                 else:
-                    self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
+                    logger.debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
             except Exception as e:
-                self.report_warning(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                logger.debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
     
     def get_urls(self, post, msg=None):
@@ -147,7 +148,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if _subvideo: list1.append(_subvideo)
         return list1
 
-                   
     def get_info(self, post):
 
         if isinstance(post, str):
@@ -167,6 +167,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         check = kwargs.get('check', True)
        
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
 
         if isinstance(post, str):
             url = unquote(post)
@@ -203,8 +204,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         if (_res:=fut.result()):
                             entries.append(_res)
                         else: raise ExtractorError("no entry")
-                    except Exception as e:
-                        self.report_warning(f'{pre} entry [{futures[fut]}] {repr(e)}')
+                    except Exception as e:                        
+                        logger.debug(f'{pre} entry [{futures[fut]}] {repr(e)}')
                 
             elif _len == 1:
                 try:
@@ -244,6 +245,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     @dec_on_exception2    
     def _send_request(self, url, **kwargs):
         
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
         driver = kwargs.get('driver', None)
         pre = f'[send_req][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg', None)):
@@ -257,9 +259,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 try:                
                     return self.send_http_request(url)                
                 except (HTTPStatusError, ConnectError) as e:
-                    self.report_warning(f"{pre}: error - {repr(e)}")
+                    logger.warning(f"{pre}: error - {repr(e)}")
                 except Exception as e:
-                    self.report_warning(f"{pre}: error - {repr(e)}")
+                    logger.warning(f"{pre}: error - {repr(e)}")
                     raise
         
     def _real_initialize(self):
@@ -296,6 +298,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def send_api_search(self, query):
         
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
+        
         try:
             _urlquery = f"https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999{query}"
             self.logger_debug(_urlquery)
@@ -319,6 +323,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             raise
 
     def get_blog_posts_search(self, url):        
+        
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
         
         try:
 
@@ -352,10 +358,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             return final_entries
         except Exception as e:
-            logger.exception(f"{repr(e)} - {str(e)}")
+            logger.exception(f"{repr(e)}")
             raise
 
     def iter_get_entries_search(self, url, check=True):
+        
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
+        
         blog_posts_list = self.get_blog_posts_search(url)
         
         if len(blog_posts_list) > 50: 
@@ -377,6 +386,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def get_entries_search(self, url, check=True):         
     
+        logger = logging.getLogger(self.IE_NAME.split(':')[0])
+
         try:        
             blog_posts_list = self.get_blog_posts_search(url)
 

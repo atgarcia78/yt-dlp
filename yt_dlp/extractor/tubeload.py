@@ -2,8 +2,8 @@ import html
 import re
 from urllib.parse import unquote
 import subprocess
+import logging
 from concurrent.futures import ThreadPoolExecutor
-
 
 from .commonwebdriver import (
     ConnectError,
@@ -15,10 +15,8 @@ from .commonwebdriver import (
     dec_on_exception2,
     dec_on_exception3,
     limiter_0_1,
-    limiter_0_01,
-    limiter_0_5,
     limiter_non,
-    limiter_1
+    my_dec_on_exception,
 )
 from ..utils import (
     ExtractorError,
@@ -28,50 +26,27 @@ from ..utils import (
     try_get,
 )
 
-import logging
 
-
+on_exception_vinfo = my_dec_on_exception((TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=2, interval=0.1)
 
 class BaseloadIE(SeleniumInfoExtractor):
 
     _LOCK = Lock()
     _IP_ORIG = None
 
-    
-    @dec_on_exception3  
+    @on_exception_vinfo
     @dec_on_exception2
     def _get_video_info(self, url, **kwargs):        
-        
         
         pre = f'[get_video_info][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
-        #self.logger.info(f"{pre} before limiter")
-
         with limiter_0_1.ratelimit(self.IE_NAME, delay=True):
             try:
-                
-                #self.logger.info(f"{pre} after limiter")
-                _host = get_domain(url)
-                
-                with self.get_param('lock'):
-                    if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
-                        _sem = Lock()
-                        self.get_param('sem').update({_host: _sem})                    
-                            
-                with _sem:
-
-                    #self.logger.info(f"{pre} after lock")
-
-                    #self.check_stop()
-
-                    return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
-                
+                return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
             except (HTTPStatusError, ConnectError) as e:
-                self.logger.warning(f"{pre}: inner error sin raise - {repr(e)}")
-
-
+                self.logger.debug(f"{pre}: inner error sin raise - {repr(e)}")
 
 
 
@@ -79,8 +54,6 @@ class BaseloadIE(SeleniumInfoExtractor):
     @dec_on_exception2
     def _send_request(self, url, **kwargs):       
 
-        
-        
         headers = kwargs.get('headers', None)
         max_limit = kwargs.get('max_limit', None)
         pre = f'[send_req][{self._get_url_print(url)}]'
@@ -89,17 +62,15 @@ class BaseloadIE(SeleniumInfoExtractor):
         
         with limiter_non.ratelimit(f'{self.IE_NAME}2', delay=True):
             
-            self.logger_debug(f"{pre}: start") 
+            self.logger.debug(f"{pre}: start") 
             
-            #self.check_stop()
-
             try:
                 if not max_limit:               
                     return self.send_http_request(url, headers=headers)
                 else:
                     return self.stream_http_request(url, truncate='</script><style>', headers=headers)
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"{pre}: error - {repr(e)}")
+                self.logger.warning(f"{pre}: error - {repr(e)}")
 
 
     def _get_args(self, webpage, _all=False):
@@ -149,7 +120,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             webpage = try_get(self._send_request(_url, max_limit=max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
             if not webpage: 
                 raise ExtractorError("error 404 no webpage")
-            self.logger_debug(f'{pre} size webpage dl: {len(webpage)}')
+            self.logger.debug(f'{pre} size webpage dl: {len(webpage)}')
             if '<title>404' in webpage:
                 raise ExtractorError("error 404 no webpage")
         title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
@@ -170,36 +141,8 @@ class BaseloadIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
         videoid = self._match_id(url)
         _url =  f"{self._SITE_URL}/e/{videoid}"
-        
-        
-        # def _getres0(_url):
-        #     if (mainjs := self.get_mainjs(_url)) and (argsjs := self._get_args(mainjs)):            
-        #         cmd0 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in argsjs])
-        #         res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
-        #         if res0: self.cache.store(self.IE_NAME, f'{self._key}res0', res0)
-        #         return res0
-
-        # def _getinfofromwebpage(_url, webpage, max_limit, pre):
-        #     _args = None
-        #     title = None
-        #     if not webpage:
-        #         webpage = try_get(self._send_request(_url, max_limit=max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
-        #         if not webpage: 
-        #             #self.report_warning(f"{pre} no webpage")
-        #             raise ExtractorError("error 404 no webpage")
-        #         self.logger_debug(f'{pre} size webpage dl: {len(webpage)}')
-        #         if '<title>404' in webpage:
-        #             raise ExtractorError("error 404 no webpage")
-        #     title = re.sub(r'(?i)((at )?%s$)' % get_domain(self._SITE_URL), '', self._html_extract_title(webpage).replace('.mp4','')).strip('[_,-, ]')
-        #     _args = self._get_args(webpage)
-        #     if not _args: 
-        #         #self.report_warning("no args in webpage")
-        #         raise ExtractorError("error extracting video args")
-        #     cmd1 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in _args])
-        #     return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), title)
 
         try:
-            
 
             res0 = self.cache.load(self.IE_NAME, f'{self._key}res0')
             if not res0:
@@ -229,7 +172,13 @@ class BaseloadIE(SeleniumInfoExtractor):
             }
 
             if check:
-                _videoinfo = self._get_video_info(video_url, msg=pre)
+                _host = get_domain(video_url)
+                with self.get_param('lock'):
+                    if not (_sem:=traverse_obj(self.get_param('sem'), _host)): 
+                        _sem = Lock()
+                        self.get_param('sem').update({_host: _sem})                    
+                with _sem:
+                    _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo: raise ExtractorError(f"error 404: no video info")
                 else:
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
@@ -247,7 +196,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             return _entry_video
             
         except Exception as e:
-            self.report_warning(f"{pre} error {repr(e)} - {str(e)}")
+            self.logger.debug(f"{pre} error {repr(e)} - {str(e)}")
             raise
 
 
