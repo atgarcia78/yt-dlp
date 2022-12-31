@@ -49,7 +49,6 @@ class BaseloadIE(SeleniumInfoExtractor):
                 self.logger.debug(f"{pre}: inner error sin raise - {repr(e)}")
 
 
-
     @dec_on_exception3
     @dec_on_exception2
     def _send_request(self, url, **kwargs):       
