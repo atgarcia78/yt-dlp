@@ -28,14 +28,21 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support import expected_conditions as ec
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
 
-from typing import (Callable, Sequence, Tuple,
-                    TypeVar, Union, Type, Optional)
+from typing import (
+    Callable, 
+    Sequence, 
+    Tuple,
+    TypeVar, 
+    Union, 
+    Type, 
+    Optional,
+    Iterable)
 
 T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
@@ -71,7 +78,7 @@ def my_jitter(value: float) -> float:
     return int(random.uniform(value, value * 1.25))
 
 
-def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, myjitter: bool = False, raise_on_giveup: bool = True, interval: int = 1):
+def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, myjitter: bool = False, raise_on_giveup: bool = True, interval: Union[int, float] = 1):
     if not myjitter:
         _jitter = None
     else:
@@ -496,6 +503,14 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return super().extract(url)
 
+    def get_ytdl_sem(self, _host)->Lock:
+        with self.get_param('lock'):
+            _sem = traverse_obj(self.get_param('sem'), _host)
+            if not _sem:
+                _sem = Lock()
+                self.get_param('sem').update({_host: _sem})
+            return _sem 
+
     def raise_from_res(self, res, msg):
 
         if res and (isinstance(res, str) or not res.get('error_res')):
@@ -622,9 +637,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return scan_har_for_request(driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
 
-    def scan_for_json(self, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False):
+    def scan_for_json(self, driver, _valid_url, _method="GET", _all=False, timeout=10, inclheaders=False):
 
-        return scan_har_for_json(driver, _valid_url, _method=_method,_all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
+        return scan_har_for_json(driver, _valid_url, _method=_method,_all=_all, timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop())
 
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
 
