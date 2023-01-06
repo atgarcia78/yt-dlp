@@ -29,7 +29,7 @@ class XAttrMetadataPP(PostProcessor):
         # 'user.xdg.comment': 'description',
         'user.dublincore.title': 'title',
         'user.dublincore.date': 'upload_date',
-        'user.dublincore.description': 'meta_comment',
+        'user.dublincore.description': 'description',
         'user.dublincore.contributor': 'uploader',
         'user.dublincore.format': 'format',
     }
