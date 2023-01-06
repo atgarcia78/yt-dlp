@@ -2,7 +2,6 @@ import hashlib
 import json
 import re
 import urllib.parse
-from hashlib import sha256
 
 from .ffmpeg import FFmpegPostProcessor
 
