@@ -69,8 +69,12 @@ class StatusStop(Exception):
         self.exc_info = exc_info
 
 
-def my_limiter(value: float) -> Limiter:
-    return Limiter(RequestRate(1, value * Duration.SECOND))
+def my_limiter(seconds: Union[str, int, float]):
+        
+    if seconds == "non":
+        return Limiter(RequestRate(10000, 0))
+    elif isinstance(seconds, (int, float)):
+        return Limiter(RequestRate(1, seconds * Duration.SECOND))
 
 
 def my_jitter(value: float) -> float:
@@ -85,34 +89,39 @@ def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: O
         _jitter = my_jitter
     return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
 
+try:
 
 
-limiter_non = Limiter(RequestRate(10000, 0))
-limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
-limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
-limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
-limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
-limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
-limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
-limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
-limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
-limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
-limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
-limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
-limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
-limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
+    limiter_non = Limiter(RequestRate(10000, 0))
+    limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
+    limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
+    limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
+    limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
+    limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+    limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
+    limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
+    limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
+    limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
+    limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
+    limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
+    limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
+    limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
 
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
-dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
-dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
-dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
-dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
-retry_on_driver_except = on_exception(constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
+    dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+    dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
+    dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
+    dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
+    dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
+    dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
+    dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+    dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
+    dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
+    retry_on_driver_except = on_exception(constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
+
+except Exception as e:
+    logger = logging.getLogger("commonwdr")
+    logger.exception(repr(e))
 
 CONFIG_EXTRACTORS = {
     ('userload', 'evoload',): {
