@@ -518,7 +518,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if not _sem:
                 _sem = Lock()
                 self.get_param('sem').update({_host: _sem})
-            return _sem 
+        return _sem 
 
     def raise_from_res(self, res, msg):
 
