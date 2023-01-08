@@ -190,7 +190,9 @@ class BaseloadIE(SeleniumInfoExtractor):
                     _host = get_domain(video_url)
                     
                     
-                    with self.get_ytdl_sem(_host):
+                    _sem = self.get_ytdl_sem(_host)
+
+                    with _sem:
                         _videoinfo = self._get_video_info(video_url, msg=pre)
                     if not _videoinfo: raise ExtractorError(f"error 404: no video info")
                     else:
