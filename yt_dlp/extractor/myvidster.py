@@ -440,6 +440,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             el_videos = get_elements_by_class("thumbnail", webpage)
             results = []
             
+            _check = True
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
             if query:
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
@@ -450,8 +451,10 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 else:
                     el_videos = el_videos[int(_first) - 1:]
 
-                _check = params.get('check', True)
-                if _check == 'no': _check = False
+                _check = params.get('check')
+                if _check == 'no':
+                    _check = False
+                else: _check = True
             
             
             for el in el_videos:
