@@ -33,7 +33,6 @@ on_exception_vinfo = my_dec_on_exception((TimeoutError, ExtractorError), raise_o
 class BaseloadIE(SeleniumInfoExtractor):
 
     _LOCK = Lock()
-    _IP_ORIG = None
     _MAINJS = ""
     _SITE_URL = ""
 
@@ -141,9 +140,9 @@ class BaseloadIE(SeleniumInfoExtractor):
             cmd1 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in _args])
             return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), title)
     
+    
     def _get_entry(self, url, **kwargs):     
 
-        
         check = kwargs.get('check')
         webpage = kwargs.get('webpage', None)
         max_limit = kwargs.get('max_limit', True)
@@ -218,11 +217,13 @@ class BaseloadIE(SeleniumInfoExtractor):
     def _real_initialize(self):        
 
         super()._real_initialize()
-        if not self.get_param('proxy'):
-            self._ip_orig = try_get(self._get_ip_origin(), lambda x: x if x else "")
-            self._key = self._ip_orig
+
+        _proxy = try_get(self.get_param('proxy'), lambda x: int(x.split(':')[-1]))
+
+        if not _proxy or not self.get_param('routing_table'):
+            self._key = self.get_ip_origin()
         else:
-            self._key = try_get(self.get_param('proxy'), lambda x: traverse_obj(self.get_param('routing_table'), int(x.split(":")[-1])) if x else self._get_ip_origin())
+            self._key = try_get(self.get_param('routing_table'), lambda x: x.get(_proxy))
 
         self.logger = logging.getLogger(self.IE_NAME)
 
