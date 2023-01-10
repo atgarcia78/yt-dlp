@@ -380,7 +380,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         return _scenes_info
 
-    def _get_api_scene_urls(self, details=None):
+    def _get_api_scene_urls(self, details):
 
         movie_id = details.get('id')
         return [f"https://ns-api.nakedsword.com/frontend/streaming/aebn/movie/{movie_id}?max_bitrate=10500&scenes_id={sc['id']}&start_time={sc['startTimeSeconds']}&duration={sc['endTimeSeconds']-sc['startTimeSeconds']}&format=HLS" for sc in details.get('scenes')]

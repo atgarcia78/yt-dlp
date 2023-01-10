@@ -20,7 +20,7 @@ from httpx import (
     HTTPStatusError,
     Limits,
     StreamError,
-    Timeout,
+    Timeout
 )
 from pyrate_limiter import Duration, Limiter, RequestRate
 from selenium.webdriver import Firefox, FirefoxOptions
@@ -348,6 +348,61 @@ def scan_har_for_json(_driver, _link, _method="GET", _all=False, timeout=10, inc
                     _list_info_json.append(_info_json)
 
             return _list_info_json
+
+
+from ipaddress import ip_address
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import httpx
+
+class myIP:
+    URLS_API_GETMYIP = {
+        "httpbin": {"url": "https://httpbin.org/get", "key": "origin"},
+        "ipify": {"url": "https://api.ipify.org?format=json", "key": "ip"},
+        "ipapi": {"url": "http://ip-api.com/json", "key": "query"}
+    }
+
+    @classmethod
+    def get_ip(cls, key=None, timeout=1, api="ipify", ie=None):
+
+        if api not in cls.URLS_API_GETMYIP:
+            raise Exception("api not supported")
+
+        _urlapi = cls.URLS_API_GETMYIP[api]['url']
+        _keyapi = cls.URLS_API_GETMYIP[api]['key']
+
+
+        try:
+            if not ie:
+                _proxies = {'all://': f'http://127.0.0.1:{key}'} if key != None else None
+                myip = try_get(httpx.get(_urlapi, timeout=httpx.Timeout(timeout=timeout), proxies=_proxies, follow_redirects=True), lambda x: x.json().get(_keyapi)) # type: ignore
+            else:
+                myip = try_get(ie.send_http_request(_urlapi, timeout=httpx.Timeout(timeout=timeout)), lambda x: x.json().get(_keyapi))
+            return myip
+        except Exception as e:
+            return repr(e)
+
+    @classmethod
+    def get_myiptryall(cls, key=None, timeout=1, ie=None):
+
+        def is_ipaddr(res):
+            try:
+                ip_address(res)
+                return True
+            except Exception as e:
+                return False
+        exe = ThreadPoolExecutor(thread_name_prefix="getmyip")
+        futures = {exe.submit(cls.get_ip, key=key, timeout=timeout, api=api, ie=ie): api for api in cls.URLS_API_GETMYIP}
+        for el in as_completed(futures):
+            if not el.exception() and is_ipaddr(_res:=el.result()):
+                exe.shutdown(wait=False, cancel_futures=True)
+                return _res
+            else: continue
+
+    @classmethod
+    def get_myip(cls, key=None, timeout=1, ie=None):
+        return cls.get_myiptryall(key=key, timeout=timeout, ie=ie)
+    
+        
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -776,10 +831,14 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.exception(repr(e))
             return False
 
-    @dec_on_exception3
-    @dec_on_exception2
-    def _get_ip_origin(self):
-        return (try_get(self.send_http_request("https://api.ipify.org?format=json"), lambda x: x.json().get('ip') if x else ''))
+    def get_ip_origin(self, key=None, timeout=1, own=True):
+        
+        if own:
+            ie = self
+        else:
+            ie = None        
+        
+        return myIP.get_myip(key=key, timeout=timeout, ie=ie)
 
     def stream_http_request(self, url, **kwargs):
         try:
