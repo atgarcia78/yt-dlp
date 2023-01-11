@@ -217,15 +217,15 @@ class BaseloadIE(SeleniumInfoExtractor):
     def _real_initialize(self):        
 
         super()._real_initialize()
+        self.logger = logging.getLogger(self.IE_NAME)
 
         _proxy = try_get(self.get_param('proxy'), lambda x: int(x.split(':')[-1]))
-
         if not _proxy or not self.get_param('routing_table'):
             self._key = self.get_ip_origin()
         else:
             self._key = try_get(self.get_param('routing_table'), lambda x: x.get(_proxy))
 
-        self.logger = logging.getLogger(self.IE_NAME)
+        
 
 
     def _real_extract(self, url):
