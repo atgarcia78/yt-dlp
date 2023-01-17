@@ -3,11 +3,10 @@ import json
 import logging
 import re
 import sys
-import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from threading import Event, Lock
+from threading import Lock
 import base64
 import subprocess
 import copy
@@ -26,7 +25,7 @@ from .commonwebdriver import (
     limiter_0_1,
     limiter_5,
     SeleniumInfoExtractor,
-    Union
+    
 
 )
 from ..utils import (
@@ -123,7 +122,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _API = NSAPI()
     _STATUS: str = 'NORMAL'
     _LIMITERS = {'403': limiter_5.ratelimit("nakedswordscene", delay=True), 'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
-    _JS_SCRIPT = '/Users/antoniotorres/Projects/common/logs/nsword_getxident.js'
+    _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
     _HEADERS = {"OPTIONS": {"AUTH": {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
             'Accept': '*/*',
