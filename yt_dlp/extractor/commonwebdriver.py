@@ -903,25 +903,23 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.debug(f"{premsg} {res}:{_msg_err}")
 
     def send_http_request(self, url, **kwargs):
-        try:
+        
+        res = None
+        req = None
+        _msg_err = ""
+        _type = kwargs.get('_type', "GET")
+        msg = kwargs.get('msg', None)
+        premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
+        if msg:
+            premsg = f'{msg}{premsg}'
 
-            _type = kwargs.get('_type', "GET")
-            msg = kwargs.get('msg', None)
-            premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
-            if msg:
-                premsg = f'{msg}{premsg}'
-
-            noraise = kwargs.get('noraise', None)
+        try:            
 
             _kwargs = kwargs.copy()
 
             _kwargs.pop('_type', None)
             _kwargs.pop('msg', None)
-            _kwargs.pop('noraise', None)
 
-            res = None
-            req = None
-            _msg_err = ""
             req = self._CLIENT.build_request(_type, url, **_kwargs)
             res = self._CLIENT.send(req)
             if res:
@@ -936,8 +934,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         except HTTPStatusError as e:
-            if noraise:
-                return res
             _msg_err = str(e)
             if e.response.status_code == 403:
                 raise ReExtractInfo(_msg_err)
