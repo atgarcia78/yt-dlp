@@ -35,6 +35,8 @@ class BaseloadIE(SeleniumInfoExtractor):
     _LOCK = Lock()
     _MAINJS = ""
     _SITE_URL = ""
+    _JS_SCRIPT = {"deofus": "/Users/antoniotorres/.config/yt-dlp/tubeload_deofus.js", 
+                  "getvurl": "/Users/antoniotorres/.config/yt-dlp/tubeload_getvurl.js"}
 
     @on_exception_vinfo
     @dec_on_exception2
@@ -109,7 +111,7 @@ class BaseloadIE(SeleniumInfoExtractor):
     
     def _getres0(self, _url)->str:
         if (mainjs := self.get_mainjs(_url)) and (argsjs := self._get_args(mainjs)):            
-            cmd0 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in argsjs])
+            cmd0 = f"node {self._JS_SCRIPT['deofus']} " + " ".join([str(el) for el in argsjs])
             res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
             if res0: 
                 self.cache.store(self.IE_NAME, f'{self._key}res0', res0)
@@ -137,7 +139,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             _args = self._get_args(webpage)
             if not _args: 
                 raise ExtractorError("error extracting video args")
-            cmd1 = "node /Users/antoniotorres/Projects/common/logs/tubeload_deofus.js " + " ".join([str(el) for el in _args])
+            cmd1 = f"node {self._JS_SCRIPT['deofus']} " + " ".join([str(el) for el in _args])
             return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), title)
     
     
@@ -176,7 +178,7 @@ class BaseloadIE(SeleniumInfoExtractor):
             if not res0 or not res1:
                 raise ExtractorError(f"error in res0[{not res0}] or res1[{not res1}]")
             else:
-                video_url = subprocess.run(['node', '/Users/antoniotorres/Projects/common/logs/tubeload_getvurl.js', res0, res1], capture_output=True, encoding="utf-8").stdout.strip('\n')
+                video_url = subprocess.run(['node', self._JS_SCRIPT['getvurl'], res0, res1], capture_output=True, encoding="utf-8").stdout.strip('\n')
 
                 _format = {
                     'format_id': 'http-mp4',
