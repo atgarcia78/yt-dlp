@@ -35,6 +35,7 @@ from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
 
 from typing import (
+    cast,
     Callable, 
     Sequence, 
     Tuple,
