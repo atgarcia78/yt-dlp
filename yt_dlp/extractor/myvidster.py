@@ -31,6 +31,7 @@ _URL_NOT_VALID = [  '//syndication', '?thumb=http', 'rawassaddiction.blogspot', 
                     'twinkvideos.com/embed','xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 
                     'pornone.com/embed/', 'player.vimeo.com/video', 'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/']
 
+logger = logging.getLogger("NS")
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
 
@@ -185,7 +186,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         else:
             _x = [unquote(x)]     
             
-        self.logger_debug(f"{pre} urls to check: {_x}")
+        #logger.info(f"{pre} urls to check: {_x}")
        
         for el in _x:
             
@@ -244,11 +245,12 @@ class MyVidsterIE(MyVidsterBaseIE):
                         self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')                             
                         
                 else: #url generic
+                    #logger.info("url generic")
                     if self._is_valid(el, msg=pre):
                         return el
                 
             except Exception as e:
-                self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                logger.exception(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
             finally:
                 MyVidsterBaseIE._URLS_CHECKED.append(el)
                 
@@ -277,9 +279,11 @@ class MyVidsterIE(MyVidsterBaseIE):
                 _entry = {}    
 
             source_url_res = try_get(re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage), 
-                                    lambda x: self.getbestvid(x[0], 'source_url') if x else None) 
+                                    lambda x: self.getbestvid(x[0], msg='source_url') if x else None) 
 
             if source_url_res:
+
+                #logger.info(f"source url: {source_url_res}")
                 
                 if isinstance(source_url_res, dict):
                     source_url_res.update({'original_url': url})
@@ -379,6 +383,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                     
                 else: 
                     raise ExtractorError("url video not found")
+        except Exception as e:
+            logger.exception(repr(e))
         finally:
             if _from_list:
                 with MyVidsterBaseIE._LOCK:
