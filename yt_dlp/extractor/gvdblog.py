@@ -4,13 +4,15 @@ from datetime import datetime
 import html
 from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, get_element_html_by_id, int_or_none, get_domain
 from .commonwebdriver import (
-    unquote, dec_on_exception, dec_on_exception2, dec_on_exception3, 
-    SeleniumInfoExtractor, limiter_1, limiter_0_1, limiter_0_5, limiter_non, HTTPStatusError, ConnectError,
+    unquote, dec_on_exception2, dec_on_exception3, 
+    SeleniumInfoExtractor, limiter_1, limiter_0_1, HTTPStatusError, ConnectError,
     ExtractorError, cast)
 
 from concurrent.futures import ThreadPoolExecutor
 
 import logging
+
+logger = logging.getLogger("gvdblog")
 
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
@@ -23,8 +25,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _x = x if isinstance(x, list) else [x]
         _x.sort(reverse=True)
-
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
 
         pre = ' '
         if msg: pre = f'{msg}{pre}'       
@@ -45,7 +45,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 except Exception as e:
                     logger.debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
                 
-    def get_urls(self, post, msg=None):
+    def get_urls(self, post, msg=None):        
         
         if isinstance(post, str):
             webpage =  get_element_html_by_id('post-body', post) or post
@@ -59,90 +59,97 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         if not webpage: 
             raise ExtractorError("no webpage")
+        
         p1 = re.findall(r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage, flags=re.IGNORECASE) # type: ignore
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2]) for l1 in p1 if any([(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])), (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
         p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
+        
         list_urls = [item.get('data-litespeed-src', item.get('src')) for item in p3 if all([_ not in item.get('src', '_FORKEEP') for _ in ("youtube.com", "blogger.com", "DUMMY")])]
 
-        iedood = self._downloader.get_info_extractor('DoodStream') # type: ignore
-        iehigh = self._downloader.get_info_extractor('Highload') # type: ignore
-        n_videos = list_urls.count(None)
-        n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
-        if not n_videos_dood: 
-            n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
-            if not n_videos_dood:
-                n_videos_dood = len(list_urls) - n_videos
-        
-        
-        _final_urls = []
-        if n_videos and n_videos_dood and n_videos >= n_videos_dood:
-            _final_urls.extend(list_urls)
-        elif ((n_videos_dood + n_videos) == len(list_urls)):
-            for el in list_urls:
-                if el: _final_urls.extend([el, None])
-                
-        else:
-            _pre = "[get_urls]"
-            if msg: _pre += f"[{msg}]"
-            self.report_warning(f"{_pre} please check urls extracted: {list_urls}")
 
-            _pass = 0
-            for i in range(len(list_urls)):
-                if _pass:
-                    _pass -= 1
-                    continue
-                if list_urls[i] and iedood.suitable(list_urls[i]):
-                    if i == (len(list_urls) - 1):
-                        _final_urls.append(list_urls[i])
-                        _final_urls.append(None)
-                    else:
-                        j = 1
+        _final_urls = []
+        
+        if self.keyapi == 'gvdblog.net' and len(list_urls) <= 2 and not list_urls.count(None):
+                _final_urls.extend(list_urls)
+                                
+        else:
+            iedood = self._downloader.get_info_extractor('DoodStream') # type: ignore
+            iehigh = self._downloader.get_info_extractor('Highload') # type: ignore
+            n_videos = list_urls.count(None)
+            n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
+            if not n_videos_dood: 
+                n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
+                if not n_videos_dood:
+                    n_videos_dood = len(list_urls) - n_videos
+            
+
+            if n_videos and n_videos_dood and n_videos >= n_videos_dood:
+                _final_urls.extend(list_urls)
+            elif ((n_videos_dood + n_videos) == len(list_urls)):
+                for el in list_urls:
+                    if el: _final_urls.extend([el, None])
+                    
+            else:
+                _pre = "[get_urls]"
+                if msg: _pre += f"[{msg}]"
+                self.report_warning(f"{_pre} please check urls extracted: {list_urls}")
+
+                _pass = 0
+                for i in range(len(list_urls)):
+                    if _pass:
+                        _pass -= 1
+                        continue
+                    if list_urls[i] and iedood.suitable(list_urls[i]):
+                        if i == (len(list_urls) - 1):
+                            _final_urls.append(list_urls[i])
+                            _final_urls.append(None)
+                        else:
+                            j = 1
+                            _temp = []
+                            while True:
+                                if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
+                                    _temp.append(list_urls[i+j])
+                                    j += 1
+                                    if j + i == len(list_urls): break
+                                else: break
+                            if _temp:
+                                _final_urls.extend(_temp)
+                                _pass = len(_temp)
+                            if not list_urls[i+j]:
+                                _pass += 1
+                            _final_urls.append(list_urls[i])
+                            _final_urls.append(None)
+                            
+                    elif list_urls[i] and not iedood.suitable(list_urls[i]):
+                        j = 0
                         _temp = []
-                        while True:
-                            if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
-                                _temp.append(list_urls[i+j])
-                                j += 1
-                                if j + i == len(list_urls): break
-                            else: break
+                        if i < (len(list_urls) - 1):
+                            j = 1
+                            while True:
+                                if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
+                                    _temp.append(list_urls[i+j])
+                                    j += 1
+                                    if j + i == len(list_urls):
+                                        j -= 1
+                                        break
+                                else: break
+                        
+                        _final_urls.append(list_urls[i])
                         if _temp:
                             _final_urls.extend(_temp)
                             _pass = len(_temp)
-                        if not list_urls[i+j]:
-                            _pass += 1
-                        _final_urls.append(list_urls[i])
-                        _final_urls.append(None)
-                        
-                elif list_urls[i] and not iedood.suitable(list_urls[i]):
-                    j = 0
-                    _temp = []
-                    if i < (len(list_urls) - 1):
-                        j = 1
-                        while True:
-                            if list_urls[i+j] and not iedood.suitable(list_urls[i+j]):
-                                _temp.append(list_urls[i+j])
-                                j += 1
-                                if j + i == len(list_urls):
-                                    j -= 1
-                                    break
-                            else: break
-                    
-                    _final_urls.append(list_urls[i])
-                    if _temp:
-                        _final_urls.extend(_temp)
-                        _pass = len(_temp)
-                        '''
+                            '''
+                            if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
+                                _final_urls.append(list_urls[i+j])
+                                _final_urls.append(None)
+                                _pass += 1
+                            '''
                         if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
                             _final_urls.append(list_urls[i+j])
                             _final_urls.append(None)
-                            _pass += 1
-                        '''
-                    if list_urls[i+j] and iedood.suitable(list_urls[i+j]):
-                        _final_urls.append(list_urls[i+j])
-                        _final_urls.append(None)
-                        _pass += 1 
-        
-        
-        
+                            _pass += 1 
+            
+
         _subvideo = []
         list1 = []
         for el in _final_urls:
@@ -158,7 +165,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         return list1
 
     def get_info(self, post)->tuple:
-
        
         if isinstance(post, str): #webpage content
             
@@ -167,7 +173,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             postdate = try_get(re.search(r"(?:(class='entry-time mi'><time class='published' datetime='[^']+'>(?P<date1>[^<]+)<)|(calendar[\"']></i> Date: (?P<date2>[^<]+)<))", post), 
                                          lambda x: try_get(traverse_obj(x.groupdict(), ('date1'), ('date2')), 
                                                 lambda y: datetime.strptime(y, '%B %d, %Y') if y else None) if x else None)
-
 
             return(postdate, title, postid)
             
@@ -188,7 +193,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         check = kwargs.get('check', True)
 
               
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
 
         if isinstance(post, str):
             url = unquote(post)
@@ -222,7 +226,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             if (_len:=len(list_candidate_videos)) > 1:
                 with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
                     futures = {exe.submit(self.get_entry_video, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
-                
                 
                 for fut in futures:
                     try:
@@ -269,7 +272,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     @dec_on_exception2    
     def _send_request(self, url, **kwargs):
         
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
+        
         driver = kwargs.get('driver', None)
         pre = f'[send_req][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg', None)):
@@ -292,10 +295,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         super()._real_initialize()
         self.keyapi: str
 
-
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist" # type: ignore
-    #_VALID_URL = r'https?://(www\.)?gvdblog\.(?:com|net)/(\d{4}/\d+/)?.+\.html(\?(?P<query>[^#]+))?'
     _VALID_URL = r'https?://(www\.)?gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(net/(?!search\?)[^\/\?]+))(\?(?P<nocheck>check=no))?'
 
     def _real_initialize(self):
@@ -303,7 +304,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
                
     def _real_extract(self, url):
         
-                
+        self.keyapi = cast(str, get_domain(url))  
         _check = True
         if try_get(re.search(self._VALID_URL, url), lambda x: x.group('nocheck')):
             _check = False
@@ -314,14 +315,12 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             
         return self.playlist_result(entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
                 
-
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist" # type: ignore
     _VALID_URL = r'https?://(?:www\.)?gvdblog\.(com|net)/search\?(?P<query>[^#]+)'
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
                  'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100"}
 
-    
     def get_list_videos(self, res):
         
         if not res: raise ExtractorError("no res from api")
@@ -334,11 +333,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         else:
             return res.json()
             
-
     def send_api_search(self, query):
         
         
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
+        
         
         try:
             assert hasattr(self, 'keyapi') and isinstance(self.keyapi, str)
@@ -357,8 +355,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             raise
 
     def get_blog_posts_search(self, url):        
-        
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
         
         #just in case, get keyapi 
         self.keyapi = cast(str, get_domain(url))
@@ -403,8 +399,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def iter_get_entries_search(self, url, check=True):
         
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
-        
         blog_posts_list = self.get_blog_posts_search(url)
         
         if len(blog_posts_list) > 50: 
@@ -427,8 +421,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def get_entries_search(self, url, check=True):         
     
-        logger = logging.getLogger(self.IE_NAME.split(':')[0])
-
         try:        
             blog_posts_list = self.get_blog_posts_search(url)
 
@@ -484,14 +476,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     def _real_extract(self, url):
         
         self.report_extraction(url)
-
         self.keyapi = cast(str, get_domain(url))
-
         _check = True
         _iter = False
-
         query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
-
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
         
@@ -500,7 +488,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         
             if params.get('iter', 'no').lower() == 'yes':
                 _iter = True
-        
         if _iter:
             entries = self.iter_get_entries_search(url, check=_check)
         else:
