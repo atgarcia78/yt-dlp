@@ -103,7 +103,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
                 continue
             format_id = flashvars.get(f'{key}_text', key)
             _format = {
-                'url': (_videourl:=iegen._kvs_getrealurl(flashvars[key], flashvars['license_code'])),
+                'url': (_videourl:=iegen._kvs_get_real_url(flashvars[key], flashvars['license_code'])),
                 'format_id': format_id,
                 'http_headers': _headers,
                 'ext': 'mp4',
