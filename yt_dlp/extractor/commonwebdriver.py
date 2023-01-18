@@ -658,7 +658,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 try:
                     _driver = Firefox(service=serv, options=opts)
                     _driver.maximize_window()
-                    self.wait_until(_driver, timeout=0.5)
+                    self.wait_until(_driver, timeout=1)
                     _driver.set_script_timeout(20)
                     _driver.set_page_load_timeout(25)
                     return _driver
