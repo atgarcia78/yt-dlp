@@ -1,12 +1,12 @@
 import re
 import random
-import urllib.parse
 
 from .common import InfoExtractor
 from ..utils import (
     multipart_encode,
     ExtractorError,
     sanitize_filename)
+
 
 class EricVideosIE(InfoExtractor):
     IE_NAME = 'ericvideos'
@@ -18,15 +18,13 @@ class EricVideosIE(InfoExtractor):
     _AUTH_URL = "https://www.ericvideos.com/ES/identification/1/"
     _NETRC_MACHINE = 'ericvideos'
 
-
     def _login(self):
         username, password = self._get_login_info()
-    
+
         if not username or not password:
             self.raise_login_required(
                 'A valid %s account is needed to access this media.'
                 % self._NETRC_MACHINE)
-
 
         data = {
             "log_email": username,
@@ -38,10 +36,10 @@ class EricVideosIE(InfoExtractor):
         }
 
         boundary = "-----------------------------" + str(random.randrange(1111111111111111111111111111, 9999999999999999999999999999))
-        
+
         out, content = multipart_encode(data, boundary)
-        #print(out)
-        #print(content)
+        # print(out)
+        # print(content)
         login_page, url_handle = self._download_webpage_handle(
             self._LOGIN_URL,
             None,
@@ -53,12 +51,9 @@ class EricVideosIE(InfoExtractor):
                 "Content-type": content
             }
         )
-        #cookies = self._get_cookies(self._LOGIN_URL)
-        #print(cookies)
+        # cookies = self._get_cookies(self._LOGIN_URL)
+        # print(cookies)
 
-
-
-        
     def _log_out(self):
         self._request_webpage(
             self._LOG_OUT,
@@ -73,14 +68,14 @@ class EricVideosIE(InfoExtractor):
 
         try:
 
-            #print(self._get_cookies(url))
+            # print(self._get_cookies(url))
 
             content, url_handle = self._download_webpage_handle(
                 url,
                 None,
                 'Downloading video page'
             )
-            #print(content)
+            # print(content)
             regex_title = r"<title>(?P<title>.*?)</title>"
             regex_file = r"\"file\": \"(?P<embedurl>.*?)\""
             regex_id = r"\"mediaid\": \"(?P<mediaid>.*?)\""
@@ -93,44 +88,42 @@ class EricVideosIE(InfoExtractor):
             if mobj:
                 embedurl = mobj.group("embedurl")
                 if (embedurl == ""):
-                    raise Exception(e)
+                    raise Exception("no videourl")
             else:
-                raise Exception(e)
+                raise Exception("no videourl")
             if mobjtitle:
                 title = mobjtitle.group("title")
             if mobjid:
                 mediaid = mobjid.group("mediaid")
 
-        except Exception as e:
+        except Exception:
             self._log_out()
             raise ExtractorError("Can't find any video", expected=True)
 
-        
-        #print(embedurl)
-        
-        #print(title)
+        # print(embedurl)
 
-        #print(self._get_cookies(embedurl))
+        # print(title)
+
+        # print(self._get_cookies(embedurl))
 
         try:
-            
+
             formats_m3u8 = self._extract_m3u8_formats(
                 embedurl, mediaid, m3u8_id="hls", ext='mp4', entry_protocol='m3u8_native', fatal=False
             )
 
             self._sort_formats(formats_m3u8)
 
-            #print(formats_m3u8)
+            # print(formats_m3u8)
 
             self._log_out()
-            
-        
-        except Exception as e:
+
+        except Exception:
             self._log_out()
             raise ExtractorError("Fallo al recuperar ficheros descriptores del vídeo", expected=True)
-            
+
         return {
             "id": mediaid,
-            "title": sanitize_filename(title,restricted=True),
+            "title": sanitize_filename(title, restricted=True),
             "formats": formats_m3u8,
         }

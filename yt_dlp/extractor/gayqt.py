@@ -2,16 +2,15 @@ import sys
 import time
 import traceback
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 
-from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor
+from ..utils import ExtractorError, sanitize_filename
+from .commonwebdriver import SeleniumInfoExtractor, By
 
 
 class get_video_data:
     def __init__(self, logger):
         self.logger = logger
+
     def __call__(self, driver):
         try:
             eldiv = driver.find_element(By.TAG_NAME, "div")
@@ -60,25 +59,24 @@ class get_video_data:
 class GayQTIE(SeleniumInfoExtractor):
     IE_NAME = "gayqt"
     _VALID_URL = r'https?://(?:www\.)gayqt\.com/videos/(?P<id>[\d]+)/.*'
-    
+
     def _real_initialize(self):
         super()._real_initialize()
-        
 
     def _real_extract(self, url):
-        
+
         self.report_extraction(url)
         videoid = self._match_id(url)
         driver = self.get_driver()
-        
+
         try:
-            driver.get(url)            
+            driver.get(url)
 
             title, streams = self.wait_until(driver, 60, get_video_data(self.to_screen))
             if not streams:
                 raise ExtractorError("no video url")
             _formats = []
-            
+
             for _id, _url in streams.items():
                 _info_video = self.get_info_for_format(_url) or {}
                 _formats.append({
@@ -88,18 +86,19 @@ class GayQTIE(SeleniumInfoExtractor):
                     'format_note': _id,
                     'filesize': _info_video['filesize'],
                     'ext': 'mp4'})
-                    
-            if not _formats: raise ExtractorError("no formats founnd")
+
+            if not _formats:
+                raise ExtractorError("no formats founnd")
             self._sort_formats(_formats)
-            
-            return({
+
+            return ({
                 'id': videoid,
-                'title': sanitize_filename(title,restricted=True),
+                'title': sanitize_filename(title, restricted=True),
                 'formats': _formats,
                 'ext': 'mp4'
             })
-        
-        except ExtractorError as e:
+
+        except ExtractorError:
             raise
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())

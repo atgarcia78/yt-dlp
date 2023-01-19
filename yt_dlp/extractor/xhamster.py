@@ -127,7 +127,7 @@ class XHamsterIE(InfoExtractor):
 
     def _real_extract(self, url):
         mobj = self._match_valid_url(url)
-        
+
         video_id = mobj.group('id') or mobj.group('id_2')
         display_id = mobj.group('display_id') or mobj.group('display_id_2')
 
@@ -457,7 +457,8 @@ class XHamsterUserIE(InfoExtractor):
     def _real_extract(self, url):
         user_id = self._match_id(url)
         return self.playlist_result(self._entries(user_id), user_id)
-    
+
+
 class XHamsterPornStarIE(InfoExtractor):
     _VALID_URL = r'https?://(?:.+?\.)?%s/pornstars/(?P<id>[^/?#&]+)' % XHamsterIE._DOMAINS
     _TESTS = [{
@@ -468,7 +469,6 @@ class XHamsterPornStarIE(InfoExtractor):
         },
         'playlist_mincount': 7,
     }]
-    
 
     def _entries(self, user_id):
         next_page_url = 'https://xhamster.com/pornstars/%s/1' % user_id

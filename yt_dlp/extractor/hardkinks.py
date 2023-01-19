@@ -1,10 +1,9 @@
 import re
-import random
-import urllib.parse
-import pprint
+
 
 from .common import InfoExtractor
 from ..utils import urlencode_postdata
+
 
 class HardKinksIE(InfoExtractor):
     IE_NAME = 'hardkinks'
@@ -15,13 +14,11 @@ class HardKinksIE(InfoExtractor):
     _SITE_CLOUD = "https://www.hardkinks.com/api_admin.php?fn_cloudflare=1"
     _NETRC_MACHINE = 'hardkinks'
 
-
     def _login(self):
         username, password = self._get_login_info()
         if username is None:
             return
 
-        
         data = {
             "redirect": "",
             "login[email]": username,
@@ -43,14 +40,11 @@ class HardKinksIE(InfoExtractor):
                 "Connection": "keep-alive",
             }
         )
-        
-
 
     def _real_initialize(self):
         self._login()
 
     def _real_extract(self, url):
-        
 
         title = url.rsplit("/", 1)[1]
         print(title)
@@ -64,16 +58,16 @@ class HardKinksIE(InfoExtractor):
                 "Connection": "keep-alive",
             }
         )
-        #print(content)
+        # print(content)
 
         regex_mediaid = r"media_id: '(?P<mediaid>.*?)'"
         mobj = re.search(regex_mediaid, content)
         if mobj:
             media_id = mobj.group("mediaid")
 
-        #print(media_id)
+        # print(media_id)
 
-        data = { "media_id": media_id }
+        data = {"media_id": media_id}
 
         info = self._download_json(
             self._SITE_CLOUD,
@@ -90,8 +84,8 @@ class HardKinksIE(InfoExtractor):
             }
         )
 
-        #pp = pprint.PrettyPrinter()
-        #pp.pprint(info)
+        # pp = pprint.PrettyPrinter()
+        # pp.pprint(info)
 
         signed_id = info['stream']['signed_id']
         url_hls = "https://videodelivery.net/" + signed_id + "/manifest/video.m3u8"
@@ -110,11 +104,8 @@ class HardKinksIE(InfoExtractor):
 
         self._sort_formats(formats_mpd)
 
-
         return {
             "id": info['stream']['id'],
             "title": title,
             "formats": formats_mpd + formats_m3u8,
         }
-
-        

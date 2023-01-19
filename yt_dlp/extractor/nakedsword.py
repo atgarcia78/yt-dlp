@@ -25,10 +25,9 @@ from .commonwebdriver import (
     limiter_0_1,
     limiter_5,
     SeleniumInfoExtractor,
-    Dict,
-
-
+    Dict
 )
+
 from ..utils import (
     ExtractorError,
     extract_timezone,

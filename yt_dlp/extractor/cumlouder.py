@@ -2,33 +2,28 @@ import re
 
 from .common import InfoExtractor
 from ..utils import (
-    ExtractorError, 
+    ExtractorError,
     HEADRequest,
 )
-
-
 
 
 class CumlouderIE(InfoExtractor):
     IE_NAME = 'cumlouder'
     _VALID_URL = r'https?://(www\.)?cumlouder\.com'
 
-
-    
     def _real_extract(self, url):
 
-               
-        webpage, _ = self._download_webpage_handle(url,None, "Downloading video webpage")
+        webpage, _ = self._download_webpage_handle(url, None, "Downloading video webpage")
         title = None
         mobj = re.search(r"<title>(?P<title>.+?)</title>", webpage)
         title = ""
         if mobj:
             title = mobj.group('title')
             title = title.partition(" | ")[0]
-            title = title.replace(" ", "_").replace(",","")
+            title = title.replace(" ", "_").replace(",", "")
 
         if not title:
-            title = url.rsplit("/")[0].replace("-","_")
+            title = url.rsplit("/")[0].replace("-", "_")
         video_url = ""
         height = None
         weight = None
@@ -48,29 +43,25 @@ class CumlouderIE(InfoExtractor):
             video_id = 'cumlouder'
 
         reqhead = HEADRequest(video_url)
-        res = self._request_webpage(reqhead, None, headers={'Range' : 'bytes=0-', 'Accept': '*/*', 'Referer': url})
+        res = self._request_webpage(reqhead, None, headers={'Range': 'bytes=0-', 'Accept': '*/*', 'Referer': url})
         filesize = res.getheader('Content-Lenght')
         if filesize:
             filesize = int(filesize)
 
         format_video = {
-            'format_id' : 'http-mp4',
-            'url' : video_url,
-            'filesize' : filesize,
-            'weight' : weight,
-            'height' : height,
+            'format_id': 'http-mp4',
+            'url': video_url,
+            'filesize': filesize,
+            'weight': weight,
+            'height': height,
             'http_headers': {'Accept': '*/*', 'Referer': url}
         }
-        
-
 
         entry_video = {
-            'id' : video_id,
-            'title' : title,
-            'formats' : [format_video],
-            'ext' : 'mp4'
+            'id': video_id,
+            'title': title,
+            'formats': [format_video],
+            'ext': 'mp4'
         }
-                        
-        return entry_video
-              
 
+        return entry_video

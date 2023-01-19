@@ -1,10 +1,9 @@
 import re
-import random
-import urllib.parse
-import pprint
+
 
 from .common import InfoExtractor
 from ..utils import urlencode_postdata
+
 
 class DarkCruisingIE(InfoExtractor):
     IE_NAME = 'darkcruising'
@@ -16,13 +15,11 @@ class DarkCruisingIE(InfoExtractor):
     _SITE_CLOUD = "https://www.darkcruising.com/api_admin.php?fn_cloudflare=1"
     _NETRC_MACHINE = 'hardkinks'
 
-
     def _login(self):
         username, password = self._get_login_info()
         if username is None:
             return
 
-        
         data = {
             "redirect": "",
             "login[email]": username,
@@ -44,7 +41,7 @@ class DarkCruisingIE(InfoExtractor):
                 "Connection": "keep-alive",
             }
         )
-        
+
     def _logout(self):
         self._request_webpage(
             self._LOGOUT_URL,
@@ -56,15 +53,14 @@ class DarkCruisingIE(InfoExtractor):
         self._login()
 
     def _real_extract(self, url):
-        
 
         title = url.rsplit("/", 1)[1]
-        #print(title)
-        #print(url)
+        # print(title)
+        # print(url)
 
-        url = url.replace("detail","regarder")
+        url = url.replace("detail", "regarder")
 
-        #print(url)
+        # print(url)
         content, url_handle = self._download_webpage_handle(
             url,
             None,
@@ -75,19 +71,19 @@ class DarkCruisingIE(InfoExtractor):
                 "Connection": "keep-alive",
             }
         )
-        #print(content)
+        # print(content)
 
         regex_mediaid = r"media_id: '(?P<mediaid>.*?)'"
         mobj = re.search(regex_mediaid, content)
         if mobj:
             media_id = mobj.group("mediaid")
 
-        #print(media_id)
+        # print(media_id)
 
-        data = { "media_id": media_id }
+        data = {"media_id": media_id}
 
-        #print(data)
-        
+        # print(data)
+
         info = self._download_json(
             self._SITE_CLOUD,
             None,
@@ -102,14 +98,14 @@ class DarkCruisingIE(InfoExtractor):
                 "X-Requested-With": "XMLHttpRequest"
             }
         )
-        #print(info)
-        #pp = pprint.PrettyPrinter()
-        #pp.pprint(info)
+        # print(info)
+        # pp = pprint.PrettyPrinter()
+        # pp.pprint(info)
 
         signed_id = info['stream']['signed_id']
         url_hls = "https://videodelivery.net/" + signed_id + "/manifest/video.m3u8"
         url_dash = "https://videodelivery.net/" + signed_id + "/manifest/video.mpd"
-        #print(url_hls)
+        # print(url_hls)
 
         formats_m3u8 = self._extract_m3u8_formats(
             url_hls, None, m3u8_id="hls", fatal=False
@@ -120,7 +116,6 @@ class DarkCruisingIE(InfoExtractor):
         )
 
         self._sort_formats(formats_m3u8)
-        
 
         self._sort_formats(formats_mpd)
 
@@ -131,5 +126,3 @@ class DarkCruisingIE(InfoExtractor):
             "title": title,
             "formats": formats_mpd + formats_m3u8,
         }
-
-        

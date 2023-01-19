@@ -34,7 +34,8 @@ class Tube8IE(KeezMoviesIE):  # XXX: Do not subclass from concrete IE
     def _real_extract(self, url):
         webpage, info = self._extract_info(url)
 
-        if 'embed-sorry' in webpage: raise ExtractorError("404 video doesnt exist")
+        if 'embed-sorry' in webpage:
+            raise ExtractorError("404 video doesnt exist")
 
         if not info['title']:
             info['title'] = self._html_search_regex(
