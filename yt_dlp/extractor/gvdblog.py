@@ -6,7 +6,7 @@ from ..utils import ExtractorError, try_get, sanitize_filename, traverse_obj, ge
 from .commonwebdriver import (
     unquote, dec_on_exception2, dec_on_exception3, 
     SeleniumInfoExtractor, limiter_1, limiter_0_1, HTTPStatusError, ConnectError,
-    ExtractorError, cast)
+    ExtractorError, cast, Tuple)
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -154,7 +154,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if _subvideo: list1.append(_subvideo)
         return list1
 
-    def get_info(self, post)->tuple:
+    def get_info(self, post)->Tuple:
        
         if isinstance(post, str): #webpage content
             

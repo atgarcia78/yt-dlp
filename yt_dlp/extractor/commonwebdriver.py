@@ -39,11 +39,13 @@ from typing import (
     Callable, 
     Sequence, 
     Tuple,
+    Dict,
     TypeVar, 
     Union, 
     Type, 
     Optional,
-    Iterable)
+    Iterable,
+    )
 
 T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
