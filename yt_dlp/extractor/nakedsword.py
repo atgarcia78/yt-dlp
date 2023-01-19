@@ -25,6 +25,7 @@ from .commonwebdriver import (
     limiter_0_1,
     limiter_5,
     SeleniumInfoExtractor,
+    Dict,
     
 
 )
@@ -294,7 +295,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         resdel = self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="DELETE", headers= _headers_del)
         return (resdel.status_code == 204)
     
-    def _get_data_app(self)->dict:
+    def _get_data_app(self)->Dict:
         
         app_data = {'PROPERTY_ID': None, 'PASSPHRASE': None, 'GTM_ID': None, 'GTM_AUTH': None, 'GTM_PREVIEW': None}
         
@@ -323,7 +324,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             logger.exception(str(e))
             return app_data
         
-    def _get_api_basic_auth(self)->dict:        
+    def _get_api_basic_auth(self)->Dict:        
 
         resopts = self._send_request("https://ns-api.nakedsword.com/frontend/auth/login", _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["AUTH"])
         username, pwd = self._get_login_info()
