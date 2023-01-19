@@ -21,51 +21,41 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entry_video(self, x, **kwargs):
         
         check = kwargs.get('check', True)
-        msg = kwargs.get('msg', None)
+        premsg = '[get_entry_video]'
+        if (msg:=kwargs.get('msg', None)):
+            premsg = f'{msg}{premsg}'
 
         _x = x if isinstance(x, list) else [x]
         _x.sort(reverse=True)
 
-        pre = ' '
-        if msg: pre = f'{msg}{pre}'       
+        #self.to_screen(f"{premsg} {_x}")
         
         for el in _x:
-            ie = self._get_extractor(el)
-            if not ie or not hasattr(ie, '_get_entry'):
-                logger.debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video, ie is None or hasnt _get_entry attr')
-                continue
-            else:
-                try:
-                    _entry = ie._get_entry(el, check=check, msg=pre)
-                    if _entry:
-                        logger.debug(f"{pre}[{self._get_url_print(el)}] OK got entry video")
-                        return _entry
-                    else:
-                        logger.debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
-                except Exception as e:
-                    logger.debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+            try:
+                ie = self._get_extractor(el)
+                if not ie or not hasattr(ie, '_get_entry'):
+                    logger.warning(f'{premsg} WARNING error entry video, ie is None or hasnt _get_entry attr')
+                    continue
+                else:
+                    try:
+                        _entry = ie._get_entry(el, check=check, msg=premsg)
+                        if _entry:
+                            logger.debug(f"{premsg}[{self._get_url_print(el)}] OK got entry video")
+                            return _entry
+                        else:
+                            logger.exception(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
+                    except Exception as e:
+                        logger.exception(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+            except Exception as e:
+                logger.exception(f'{premsg}[{self._get_url_print(el)}] {repr(e)}')
                 
-    def get_urls(self, post, msg=None):        
-        
-        if isinstance(post, str):
-            webpage =  get_element_html_by_id('post-body', post) or post
-           
-        else:
-            assert hasattr(self, 'keyapi') and isinstance(self.keyapi, str)
-            if self.keyapi == 'gvdblog.com':
-                webpage = traverse_obj(post, ('content', '$t'))
-            else:
-                webpage =  traverse_obj(post, ('content', 'rendered'))
-
-        if not webpage: 
-            raise ExtractorError("no webpage")
+    def get_urls(self, webpage, msg=None): 
         
         p1 = re.findall(r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage, flags=re.IGNORECASE) # type: ignore
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2]) for l1 in p1 if any([(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])), (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
         p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"') for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
         
         list_urls = [item.get('data-litespeed-src', item.get('src')) for item in p3 if all([_ not in item.get('src', '_FORKEEP') for _ in ("youtube.com", "blogger.com", "DUMMY")])]
-
 
         _final_urls = []
         
@@ -191,41 +181,58 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entries_from_blog_post(self, post, **kwargs):
 
         check = kwargs.get('check', True)
-
-              
-
-        if isinstance(post, str):
-            url = unquote(post)
-            self.report_extraction(url)
-            post = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
-            if not post: raise ExtractorError("no webpage")
-            
-        else:
-            assert hasattr(self, 'keyapi') and isinstance(self.keyapi, str)
-            if self.keyapi == 'gvdblog.com':
-                url = try_get(traverse_obj(post, ('link', -1, 'href')), lambda x: unquote(x) if x != None else None)
-            else:
-                url = try_get(post.get('link'), lambda x: unquote(x) if x != None else None)
-            
-            self.report_extraction(url)
-
-
         if GVDBlogBaseIE._SLOW_DOWN:
             check = False
-        
-        pre = f'[get_entries]:{self._get_url_print(url)}'
+
+        url = None
+        post_content = None
+        postdate = None
+        title = None
+        postid = None
+        list_candidate_videos = None
+
+        try:
+
+            if isinstance(post, str) and post.startswith('http'): #url
+                url = unquote(post)
+                self.report_extraction(url)        
+                post_content = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+                if post_content:
+                    postdate, title, postid = self.get_info(post_content)
+                    if self.keyapi == 'gvdblog.com':
+                        post_content = get_element_html_by_id('post-body', post_content)
+                    list_candidate_videos = self.get_urls(post_content, msg=url)               
+            
+            elif isinstance(post, dict):
+                if self.keyapi == 'gvdblog.com':
+                    url = try_get(traverse_obj(post, ('link', -1, 'href')), lambda x: unquote(x) if x != None else None)
+                    post_content = traverse_obj(post, ('content', '$t'))
+                else:
+                    url = try_get(post.get('link'), lambda x: unquote(x) if x != None else None)
+                    post_content =  traverse_obj(post, ('content', 'rendered'))
+                
+                self.report_extraction(url)                
+                postdate, title, postid = self.get_info(post)
+                if post_content:
+                    list_candidate_videos = self.get_urls(post_content, msg=url)
+            
+            else:
+                ExtractorError("incorrect type of data as post")
+
+        except Exception as e:
+            logger.exception(f"[get_entries_from_post] {repr(e)}")
+        finally:
+            premsg = f'[get_entries]:{self._get_url_print(url)}'
+            if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError(f"[{url} no video info")
+            self.logger_debug(f"{postid} - {title} - {postdate} - {list_candidate_videos}")
+
+        entries = []
 
         try:
             
-            postdate, title, postid = self.get_info(post)
-            list_candidate_videos = self.get_urls(post, msg=url)
-                
-            if not postdate or not title or not postid or not list_candidate_videos: raise ExtractorError(f"[{url} no video info")   
-
-            entries = []
-            if (_len:=len(list_candidate_videos)) > 1:
+            if len(list_candidate_videos) > 1:
                 with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
-                    futures = {exe.submit(self.get_entry_video, _el, check=check, msg=pre): _el for _el in list_candidate_videos}
+                    futures = {exe.submit(self.get_entry_video, _el, check=check, msg=premsg): _el for _el in list_candidate_videos}
                 
                 for fut in futures:
                     try:
@@ -233,17 +240,17 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                             entries.append(_res)
                         else: raise ExtractorError("no entry")
                     except Exception as e:                        
-                        logger.debug(f'{pre} entry [{futures[fut]}] {repr(e)}')
+                        logger.debug(f'{premsg} entry [{futures[fut]}] {repr(e)}')
                 
-            elif _len == 1:
+            else:
                 try:
-                    _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=pre)
+                    _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=premsg)
                     if _entry:
                         entries.append(_entry)
                 except Exception as e:
                     pass
             
-            if not entries: raise ExtractorError(f"{pre} no video entries")
+            if not entries: raise ExtractorError(f"{premsg} no video entries")
 
             _entryupdate = {'original_url': url}
             
@@ -264,10 +271,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         except ExtractorError as e:                 
             raise 
         except Exception as e:
-            logger.debug(f'{pre} {repr(e)}')  
-            raise ExtractorError(f'{pre} {repr(e)}')
+            logger.debug(f'{premsg} {repr(e)}')  
+            raise ExtractorError(f'{premsg} {repr(e)}')
 
-    #@dec_on_exception
     @dec_on_exception3
     @dec_on_exception2    
     def _send_request(self, url, **kwargs):
@@ -284,7 +290,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 driver.get(url)
             else:
                 try:                
-                    return self.send_http_request(url)                
+                    return self.send_http_request(url, **kwargs)                
                 except (HTTPStatusError, ConnectError) as e:
                     logger.warning(f"{pre}: error - {repr(e)}")
                 except Exception as e:
@@ -335,14 +341,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             
     def send_api_search(self, query):
         
-        
-        
-        
         try:
             assert hasattr(self, 'keyapi') and isinstance(self.keyapi, str)
-            _urlquery = f"{self._BASE_API[self.keyapi]}{query}"
-            self.logger_debug(_urlquery)
-            video_entries = try_get(self._send_request(_urlquery), lambda x: self.get_list_videos(x))
+            #_urlquery = f"{self._BASE_API[self.keyapi]}{query}"
+            #self.logger_debug(_urlquery)
+            video_entries = try_get(self._send_request(self._BASE_API[self.keyapi], params=query), lambda x: self.get_list_videos(x))
                                                     
             if not video_entries: 
                 raise ExtractorError("no video entries")
@@ -364,25 +367,32 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
             
             if query:
+                if self.keyapi == 'gvdblog.com': 
+                    query = query.replace('date', 'published')
+                    if not 'orderby' in query: query += '&orderby=published'
+                else: 
+                    query = query.replace('published', 'date')
+                    if not 'orderby' in query: query += '&orderby=date'
+
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
             else:
                 params = {}
             
-            urlquery = ""
+            urlquery = []
             
 
-            if _publ:=params.get('published'):
-                urlquery += f"&published-max={_publ}T23:59:59&published-min={_publ}T00:00:00&orderby=published"
-            if _publ:=params.get('date'):
-                urlquery += f"&before={_publ}T23:59:59&after={_publ}T00:00:00&orderby=date"
-            if _category:=(params.get('label') or params.get('category')):
-                urlquery += f"&category={_category}"
-            if _q:=params.get('q'):
-                urlquery += f"&q={_q}"
-                
+            for key,val in params.items():
 
-            
-            post_blog_entries_search = self.send_api_search(urlquery)
+                if key == 'published':
+                    urlquery.append(f"published-max={val}T23:59:59&published-min={val}T00:00:00")
+                elif key == 'date':
+                    urlquery.append(f"before={val}T23:59:59&after={val}T00:00:00")
+                else:
+                    urlquery.append(f"{key}={val}")
+
+           
+
+            post_blog_entries_search = self.send_api_search('&'.join(urlquery))
 
             _nentries = int_or_none(params.get('entries'))
             _from = int(params.get('from', 1))
