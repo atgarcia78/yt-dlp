@@ -30,6 +30,9 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
+
+assert Keys  # for flake8
+
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
 
@@ -45,6 +48,10 @@ from typing import (
     Optional,
     Iterable,
 )
+
+assert Tuple
+assert Dict
+assert Iterable
 
 T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
@@ -139,8 +146,7 @@ CONFIG_EXTRACTORS = {
     ('boyfriendtv', 'nakedswordscene',): {'ratelimit': limiter_0_1,
                                           'maxsplits': 16},
     ('nakedswordscene',): {'ratelimit': limiter_0_1,
-                           'maxsplits': 16,
-                           'ratelimit': 7 * 1048576},
+                           'maxsplits': 16},
     ('videovard', 'fembed', 'streamtape',
      'gaypornvideos', 'gayforfans',
      'gayguytop', 'upstream', 'videobin',

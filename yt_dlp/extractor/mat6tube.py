@@ -3,7 +3,6 @@ import html
 import re
 
 
-
 from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, limiter_10
 
@@ -15,67 +14,70 @@ class Mat6TubeIE(SeleniumInfoExtractor):
     _SITE_URL = "https://adult.mat6tube.com"
 
     @dec_on_exception
-    @limiter_5.ratelimit("mat6tube2", delay=True)  
+    @limiter_5.ratelimit("mat6tube2", delay=True)
     def _get_video_info(self, *args, **kwargs):
-        
+
         return super().get_info_for_format(*args, **kwargs)
-    
+
     @dec_on_exception
     @limiter_10.ratelimit("mat6tube", delay=True)
-    def _send_request(self, url, _type="GET", data=None, headers=None):       
-        
-        self.logger_debug(f"[send_req] {self._get_url_print(url)}") 
-        return(self.send_http_request(url, _type=_type, data=data, headers=headers))
-    
+    def _send_request(self, url, _type="GET", data=None, headers=None):
+
+        self.logger_debug(f"[send_req] {self._get_url_print(url)}")
+        return (self.send_http_request(url, _type=_type, data=data, headers=headers))
+
     def _real_initialize(self):
         super()._real_initialize()
-        
-    
 
     def _real_extract(self, url):
-        
+
         self.report_extraction(url)
-        
+
         video_id = self._match_id(url)
         _url = f'{self._SITE_URL}/watch/{video_id}'
-                   
+
         webpage = try_get(self._send_request(_url), lambda x: html.unescape(x.text))
-        if not webpage: raise ExtractorError("couldnt get video webpage")
-            
-        if not '/player/' in url:
+        if not webpage:
+            raise ExtractorError("couldnt get video webpage")
+
+        if '/player/' not in url:
             iplayer = try_get(re.findall(r'iplayer["\'] src=["\']([^"\']+)["\']', webpage), lambda x: x[0])
-            if not iplayer: raise ExtractorError()            
+            if not iplayer:
+                raise ExtractorError("coulddnt find iplayer")
             _url_player = f'{self._SITE_URL}{iplayer}'
-        else: 
+        else:
             _url_player = url
-            if not 'adult.mat6tube.com' in _url_player: _url_player = _url_player.replace('mat6tube.com', 'adult.mat6tube.com')
-                
+            if 'adult.mat6tube.com' not in _url_player:
+                _url_player = _url_player.replace('mat6tube.com', 'adult.mat6tube.com')
+
         webpage2, urlh2 = try_get(self._send_request(_url_player, headers={'Referer': _url}), lambda x: (html.unescape(x.text), str(x.url)))
-        if not webpage2: raise ExtractorError("couldnt get iplayer webpage")
-        
+        if not webpage2:
+            raise ExtractorError("couldnt get iplayer webpage")
+
         playlisturl = try_get(re.findall(r'playlistUrl=["\']([^"\']+)["\']', webpage2), lambda x: x[0])
-        if not playlisturl: raise ExtractorError()
-        
-        data = try_get(self._send_request(f'{self._SITE_URL}{playlisturl}', headers={'Referer': urlh2}), lambda x: x.json())        
-                
-        if not data or not data.get('sources'): raise ExtractorError()
-        
-        _videoid = str(int(hashlib.sha256(video_id.encode('utf-8')).hexdigest(),16) % 10**8)
-        
+        if not playlisturl:
+            raise ExtractorError()
+
+        data = try_get(self._send_request(f'{self._SITE_URL}{playlisturl}', headers={'Referer': urlh2}), lambda x: x.json())
+
+        if not data or not data.get('sources'):
+            raise ExtractorError()
+
+        _videoid = str(int(hashlib.sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**8)
+
         _title = self._search_regex((r'\"name_\": "(?P<title>[^\"]+)\"', r'<h1>(?P<title>[^\<]+)\<', r'\"og:title\" content=\"(?P<title>[^\"]+)\"'), webpage, "title", fatal=False, default="no_title", group="title")
-        
+
         _title = sanitize_filename(_title, restricted=True)
-        
+
         _formats = [{
-            'url': (_info:=(self._get_video_info(_el['file']) or {})).get('file') or _el['file'],
+            'url': (_info := (self._get_video_info(_el['file']) or {})).get('file') or _el['file'],
             'height': int(_el['label']),
             'ext': _el['type'],
             'filesize': _info.get('filesize'),
             'format_id': f"http{_el['label']}"
-            
+
         } for _el in data['sources']]
-        
-        
+
         self._sort_formats(_formats)
 
         return {
@@ -83,5 +85,3 @@ class Mat6TubeIE(SeleniumInfoExtractor):
             "title": _title,
             "formats": _formats
         }
-
-        

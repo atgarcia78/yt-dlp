@@ -61,9 +61,7 @@ class InstagramBaseIE(InfoExtractor):
         #     r'window\._sharedData\s*=\s*({.+?});', login_webpage, 'shared data', default='{}'), None)
 
         shared_data = self._parse_json(self._search_regex(
-             r'native"\:(\{.+?\})\}', login_webpage, 'shared data', default='{}'), None)
-
-        
+            r'native"\:(\{.+?\})\}', login_webpage, 'shared data', default='{}'), None)
 
         self.to_screen(shared_data)
 

@@ -1,10 +1,9 @@
 import re
-import random
-import urllib.parse
-import pprint
+
 
 from .common import InfoExtractor
 from ..utils import urlencode_postdata
+
 
 class MachoFactoryIE(InfoExtractor):
     IE_NAME = 'machofactory'
@@ -16,13 +15,11 @@ class MachoFactoryIE(InfoExtractor):
     _SITE_CLOUD = "https://www.machofactory.com/api_admin.php?fn_cloudflare=1"
     _NETRC_MACHINE = 'hardkinks'
 
-
     def _login(self):
         username, password = self._get_login_info()
         if username is None:
             return
 
-        
         data = {
             "redirect": "",
             "login[email]": username,
@@ -44,7 +41,7 @@ class MachoFactoryIE(InfoExtractor):
                 "Connection": "keep-alive",
             }
         )
-        
+
     def _logout(self):
         self._request_webpage(
             self._LOGOUT_URL,
@@ -56,10 +53,10 @@ class MachoFactoryIE(InfoExtractor):
         self._login()
 
     def _real_extract(self, url):
-        
-        url = url.replace("detail","regarder")
 
-        #print(url)
+        url = url.replace("detail", "regarder")
+
+        # print(url)
         content, url_handle = self._download_webpage_handle(
             url,
             None,
@@ -70,21 +67,21 @@ class MachoFactoryIE(InfoExtractor):
                 "Connection": "keep-alive",
             }
         )
-        #print(content)
-        
+        # print(content)
+
         title = url.rsplit("/", 1)[1]
-        #print(title)
+        # print(title)
         regex_mediaid = r"media_id: '(?P<mediaid>.*?)'"
         mobj = re.search(regex_mediaid, content)
         if mobj:
             media_id = mobj.group("mediaid")
 
-        #print(media_id)
+        # print(media_id)
 
-        data = { "media_id": media_id }
+        data = {"media_id": media_id}
 
-        #print(data)
-        
+        # print(data)
+
         info = self._download_json(
             self._SITE_CLOUD,
             None,
@@ -99,14 +96,14 @@ class MachoFactoryIE(InfoExtractor):
                 "X-Requested-With": "XMLHttpRequest"
             }
         )
-        #print(info)
-        #pp = pprint.PrettyPrinter()
-        #pp.pprint(info)
+        # print(info)
+        # pp = pprint.PrettyPrinter()
+        # pp.pprint(info)
 
         signed_id = info['stream']['signed_id']
         url_hls = "https://videodelivery.net/" + signed_id + "/manifest/video.m3u8"
         url_dash = "https://videodelivery.net/" + signed_id + "/manifest/video.mpd"
-        #print(url_hls)
+        # print(url_hls)
 
         formats_m3u8 = self._extract_m3u8_formats(
             url_hls, None, m3u8_id="hls", fatal=False
@@ -117,7 +114,7 @@ class MachoFactoryIE(InfoExtractor):
         )
 
         self._sort_formats(formats_m3u8)
-        
+
         self._sort_formats(formats_mpd)
 
         self._logout()
@@ -127,5 +124,3 @@ class MachoFactoryIE(InfoExtractor):
             "title": title,
             "formats": formats_mpd + formats_m3u8,
         }
-
-        

@@ -1,12 +1,11 @@
 import re
-import random
-import urllib.parse
-import pprint
+
 
 from .common import InfoExtractor
 from ..utils import (
     urlencode_postdata,
     ExtractorError)
+
 
 class RawFuckIE(InfoExtractor):
     IE_NAME = 'rawfuck'
@@ -18,7 +17,6 @@ class RawFuckIE(InfoExtractor):
     _SITE_CLOUD = "https://www.rawfuck.com/api_admin.php?fn_cloudflare=1"
     _NETRC_MACHINE = 'hardkinks'
 
-
     def _login(self):
         username, password = self._get_login_info()
         if not username or not password:
@@ -26,7 +24,6 @@ class RawFuckIE(InfoExtractor):
                 'A valid %s account is needed to access this media.'
                 % self._NETRC_MACHINE)
 
-        
         data = {
             "redirect": "",
             "login[email]": username,
@@ -54,9 +51,6 @@ class RawFuckIE(InfoExtractor):
         else:
             return
 
-
-
-        
     def _logout(self):
         self._request_webpage(
             self._LOGOUT_URL,
@@ -68,15 +62,14 @@ class RawFuckIE(InfoExtractor):
         self._login()
 
     def _real_extract(self, url):
-        
 
         title = url.rsplit("/", 1)[1]
-        #print(title)
-        #print(url)
+        # print(title)
+        # print(url)
 
-        url = url.replace("detail","regarder")
+        url = url.replace("detail", "regarder")
 
-        #print(url)
+        # print(url)
 
         try:
 
@@ -90,26 +83,25 @@ class RawFuckIE(InfoExtractor):
                     "Connection": "keep-alive",
                 }
             )
-            #print(content)
+            # print(content)
 
             regex_mediaid = r"media_id: '(?P<mediaid>.*?)'"
             mobj = re.search(regex_mediaid, content)
             if mobj:
                 media_id = mobj.group("mediaid")
 
-        except Exception as e:
-            self._log_out()
+        except Exception:
+            self._logout()
             raise ExtractorError("Video not found", expected=True)
 
+        # print(media_id)
 
-        #print(media_id)
+        data = {"media_id": media_id}
 
-        data = { "media_id": media_id }
-
-        #print(data)
+        # print(data)
 
         try:
-        
+
             info = self._download_json(
                 self._SITE_CLOUD,
                 None,
@@ -124,14 +116,14 @@ class RawFuckIE(InfoExtractor):
                     "X-Requested-With": "XMLHttpRequest"
                 }
             )
-            #print(info)
-            #pp = pprint.PrettyPrinter()
-            #pp.pprint(info)
+            # print(info)
+            # pp = pprint.PrettyPrinter()
+            # pp.pprint(info)
 
             signed_id = info['stream']['signed_id']
             url_hls = "https://videodelivery.net/" + signed_id + "/manifest/video.m3u8"
             url_dash = "https://videodelivery.net/" + signed_id + "/manifest/video.mpd"
-            #print(url_hls)
+            # print(url_hls)
 
             formats_m3u8 = self._extract_m3u8_formats(
                 url_hls, None, m3u8_id="hls", fatal=False
@@ -142,20 +134,16 @@ class RawFuckIE(InfoExtractor):
             )
 
             self._sort_formats(formats_m3u8)
-            
 
             self._sort_formats(formats_mpd)
 
-        except Exception as e:
-            self._log_out()
+        except Exception:
             raise ExtractorError("Fail to get video info files", expected=True)
-
-        self._logout()
+        finally:
+            self._logout()
 
         return {
             "id": info['stream']['id'],
             "title": title,
             "formats": formats_mpd + formats_m3u8,
         }
-
-        
