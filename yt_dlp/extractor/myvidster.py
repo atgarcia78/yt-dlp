@@ -3,11 +3,11 @@ from datetime import datetime
 from threading import Lock
 from urllib.parse import unquote, urljoin
 import html
+from httpx import Cookies
 import re
 
 from ..utils import (
     ExtractorError, 
-    datetime_from_str, 
     get_elements_by_class,
     sanitize_filename, 
     try_get, 
@@ -31,7 +31,7 @@ _URL_NOT_VALID = [  '//syndication', '?thumb=http', 'rawassaddiction.blogspot', 
                     'twinkvideos.com/embed','xtube.com', 'xtapes.to', 'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 
                     'pornone.com/embed/', 'player.vimeo.com/video', 'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/']
 
-logger = logging.getLogger("NS")
+
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
 
@@ -40,7 +40,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     _NETRC_MACHINE = "myvidster"
     
     _LOCK = Lock()
-    _COOKIES = {}
+    _COOKIES: Cookies = Cookies()
     _RSS = {}
 
     _URLS_CHECKED = []
@@ -131,14 +131,15 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
             el_username = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, 'input#user_id'))), lambda x: x[0])
             el_password = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, 'input#password'))), lambda x: x[0])
             el_button = try_get(self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CSS_SELECTOR, 'button'))), lambda x: x[0])
-            el_username.send_keys(username)
-            self.wait_until(driver, 2)
-            el_password.send_keys(password)
-            self.wait_until(driver, 2)
-            el_button.click()
-            self.wait_until(driver, 60, ec.url_changes("https://www.myvidster.com/user/"))
-            if not "www.myvidster.com/user/home.php" in driver.current_url:
-                raise ExtractorError("no logged")
+            if el_username and el_password and el_button:
+                el_username.send_keys(username)
+                self.wait_until(driver, 2)
+                el_password.send_keys(password)
+                self.wait_until(driver, 2)
+                el_button.click()
+                self.wait_until(driver, 60, ec.url_changes("https://www.myvidster.com/user/"))
+                if not "www.myvidster.com/user/home.php" in driver.current_url:
+                    raise ExtractorError("no logged")
     
     def _get_videos(self, _urlq):
         
@@ -167,7 +168,8 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                 raise
         else:    
             for cookie in MyVidsterBaseIE._COOKIES.jar:
-                self._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
+                if cookie.value:
+                    self._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
                 
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'

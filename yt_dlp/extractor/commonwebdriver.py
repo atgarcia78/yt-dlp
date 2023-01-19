@@ -842,25 +842,26 @@ class SeleniumInfoExtractor(InfoExtractor):
         return myIP.get_myip(key=key, timeout=timeout, ie=ie)
 
     def stream_http_request(self, url, **kwargs):
+        
+        premsg = f'[stream_http_request][{self._get_url_print(url)}]'
+        msg = kwargs.get('msg', None)
+        if msg:
+            premsg = f'{msg}{premsg}'
+
+        chunk_size = kwargs.get('chunk_size', 16384)
+        # could be a string i.e. download until this text is found, or max bytes to download,
+        # or None, im that case will download the whole content
+        truncate_after = kwargs.get('truncate')
+
+        res = None
+        _msg_err = ""
+
         try:
-            premsg = f'[stream_http_request][{self._get_url_print(url)}]'
-            msg = kwargs.get('msg', None)
-            if msg:
-                premsg = f'{msg}{premsg}'
-
-            chunk_size = kwargs.get('chunk_size', 16384)
-
-            # could be a string i.e. download until this text is found, or max bytes to download,
-            # or None, im that case will download the whole content
-            truncate_after = kwargs.get('truncate')
 
             _kwargs = kwargs.copy()
             _kwargs.pop('msg', None)
             _kwargs.pop('chunk_size', None)
             _kwargs.pop('truncate', None)
-
-            res = None
-            _msg_err = ""
 
             with self._CLIENT.stream("GET", url, **_kwargs) as res:
                 res.raise_for_status()
