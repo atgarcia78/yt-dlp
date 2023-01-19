@@ -5,6 +5,7 @@ import subprocess
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+
 from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
@@ -17,7 +18,8 @@ from .commonwebdriver import (
     limiter_0_1,
     limiter_non,
     my_dec_on_exception,
-    Union
+    Union,
+    Tuple
 )
 from ..utils import (
     ExtractorError,
@@ -122,7 +124,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         else:
             raise ExtractorError("couldnt get res0")
 
-    def _getinfofromwebpage(self, _url, webpage, max_limit, pre)->tuple[str,str]:
+    def _getinfofromwebpage(self, _url, webpage, max_limit, pre)->Tuple[str,str]:
         _args = None
         title = None
         if not webpage:
