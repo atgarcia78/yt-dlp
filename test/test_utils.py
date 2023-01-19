@@ -1935,7 +1935,7 @@ Line 1
 
         self.assertEqual(determine_file_encoding(b'\xff\xfe\n--verbose'), ('utf-16-le', 2))
 
-        self.assertEqual(determine_file_encoding(b'\n--verbose'), ('utf-8', 0))
+        self.assertEqual(determine_file_encoding(b'\n--verbose'), (None, 0))
         self.assertEqual(determine_file_encoding(b'# coding: someencodinghere-12345\n--verbose'), ('someencodinghere-12345', 0))
 
         self.assertEqual(determine_file_encoding(b'#coding:utf-8\n--verbose'), ('utf-8', 0))
