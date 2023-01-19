@@ -276,7 +276,8 @@ def scan_har_for_request(_driver, _valid_url, _method="GET", _mimetype=None, _al
                 _hint = {}
 
                 if inclheaders:
-                    _req_headers = {val[0]: val[1] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host' and (val := list(header.values()))}
+
+                    _req_headers = {header['name']:header['value'] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host'}
 
                     _hint = {'headers': _req_headers}
 
@@ -398,10 +399,11 @@ class myIP:
         exe = ThreadPoolExecutor(thread_name_prefix="getmyip")
         futures = {exe.submit(cls.get_ip, key=key, timeout=timeout, api=api, ie=ie): api for api in cls.URLS_API_GETMYIP}
         for el in as_completed(futures):
-            if not el.exception() and is_ipaddr(_res:=el.result()):
-                exe.shutdown(wait=False, cancel_futures=True)
-                return _res
-            else: continue
+            if not el.exception():
+                _res = el.result()
+                if is_ipaddr(_res):
+                    exe.shutdown(wait=False, cancel_futures=True)
+                    return _res            
 
     @classmethod
     def get_myip(cls, key=None, timeout=1, ie=None):
@@ -431,7 +433,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classmethod
     def logger_info(cls, msg):
         if cls._YTDL:
-            if (_logger := cls._YTDL.params.get('logger')):
+            _logger = cls._YTDL.params.get('logger')
+            if _logger:
                 _logger.info(f"[{cls.__name__[:-2].lower()}]{msg}")
             else:
                 cls._YTDL.to_screen(f"[{cls.__name__[:-2].lower()}]{msg}")
@@ -439,7 +442,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classmethod
     def logger_debug(cls, msg):
         if cls._YTDL:
-            if (_logger := cls._YTDL.params.get('logger')):
+            _logger = cls._YTDL.params.get('logger')
+            if _logger:
                 _logger.debug(f"[debug+][{cls.__name__[:-2].lower()}]{msg}")
             else:
                 cls._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
@@ -459,7 +463,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             ie_key = _args
 
         try:
-            if (_extractor := self._downloader.get_info_extractor(ie_key)):
+            _extractor = self._downloader.get_info_extractor(ie_key)
+            if _extractor:
                 _extractor._ready = False
                 _extractor._real_initialize()
                 return _extractor
@@ -546,8 +551,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     'verify': False,
                     'proxies': None}
 
-                if _proxy := SeleniumInfoExtractor._YTDL.params.get('proxy'):
-                    self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
+                _proxy = SeleniumInfoExtractor._YTDL.params.get('proxy')
+                if _proxy: self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
 
                 _config = self._CLIENT_CONFIG.copy()
 
@@ -682,7 +687,8 @@ class SeleniumInfoExtractor(InfoExtractor):
 
             return driver
 
-        if not host and (_proxy := traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))):
+        _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
+        if not host and _proxy:
             _host, _port = (urlparse(_proxy).netloc).split(':')
             self.to_screen(f"[get_driver] {_host} - {int(_port)}")
         else:
