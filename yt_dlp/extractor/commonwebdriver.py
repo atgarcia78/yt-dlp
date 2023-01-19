@@ -164,11 +164,13 @@ CONFIG_EXTRACTORS = {
 def getter(x):
 
     if x != 'generic':
-        value, key_text = try_get([(v, kt) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() if any(x == (kt := _) for _ in k)], lambda y: y[0]) or ("", "")
+        value, key_text = try_get([(v, sk) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() for sk in k if sk == x], lambda y: y[0]) or ("", "")
         if value:
             return (value['ratelimit'].ratelimit(key_text, delay=True))
 
     return limiter_non.ratelimit("nonlimit", delay=True)
+
+
 
 
 class scroll:
