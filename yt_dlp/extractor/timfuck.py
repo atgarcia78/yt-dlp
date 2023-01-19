@@ -1,15 +1,12 @@
-import json
+
 import re
 import random
-import urllib.parse
-from requests import Session
+
 
 from .common import InfoExtractor
 from ..utils import (
     multipart_encode,
-    ExtractorError,
-    clean_html,
-    get_element_by_class)
+    ExtractorError)
 
 
 class TimFuckBaseIE(InfoExtractor):
