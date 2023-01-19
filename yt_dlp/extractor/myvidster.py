@@ -216,7 +216,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 _extr_name = self._get_ie_name(el)
                 
                 def _check_extr(x):
-                    if (try_get([kt for k in SeleniumInfoExtractor._CONFIG_REQ.keys() if any(x==(kt:=_) for _ in k)], 
+                    if (try_get([sk for k in SeleniumInfoExtractor._CONFIG_REQ.keys() for sk in k if x == sk], 
                                 lambda y: y[0])):
                         return True
 
@@ -336,7 +336,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                                             lambda x: self.getbestvid(x[0], check=_check, msg='videolink') if x else None)                
                     
                     if videolink_res and isinstance(videolink_res, dict):
-                        if (_msg_error:=videolink_res.get('error_getbestvid')):
+                        _msg_error = videolink_res.get('error_getbestvid')
+                        if _msg_error:
                             raise ExtractorError(_msg_error)
                         videolink_res.update({'original_url': url})
                         videolink_res.update(_entry)
@@ -351,7 +352,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                 
                 
                 elif isinstance(embedlink_res, dict):
-                    if (_msg_error:=embedlink_res.get('error_getbestvid')):
+                    _msg_error = embedlink_res.get('error_getbestvid')
+                    if _msg_error:
                         raise ExtractorError(_msg_error)
                     embedlink_res.update({'original_url': url})
                     embedlink_res.update(_entry)

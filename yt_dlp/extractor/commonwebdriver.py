@@ -1,15 +1,14 @@
 import copy
-import functools
+
 import html
 import json
 import logging
 import random
 import re
 import shutil
-import sys
 import tempfile
 import time
-from threading import Event, Lock, Thread
+from threading import Event, Lock
 from urllib.parse import unquote, urlparse
 
 from backoff import constant, on_exception
@@ -36,16 +35,16 @@ from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle
 
 from typing import (
     cast,
-    Callable, 
-    Sequence, 
+    Callable,
+    Sequence,
     Tuple,
     Dict,
-    TypeVar, 
-    Union, 
-    Type, 
+    TypeVar,
+    Union,
+    Type,
     Optional,
     Iterable,
-    )
+)
 
 T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
@@ -73,7 +72,7 @@ class StatusStop(Exception):
 
 
 def my_limiter(seconds: Union[str, int, float]):
-        
+
     if seconds == "non":
         return Limiter(RequestRate(10000, 0))
     elif isinstance(seconds, (int, float)):
@@ -92,8 +91,8 @@ def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: O
         _jitter = my_jitter
     return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
 
-try:
 
+try:
 
     limiter_non = Limiter(RequestRate(10000, 0))
     limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
@@ -109,7 +108,6 @@ try:
     limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
     limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
     limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
-
 
     dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
     dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
@@ -161,6 +159,7 @@ CONFIG_EXTRACTORS = {
         'maxsplits': 16}
 }
 
+
 def getter(x):
 
     if x != 'generic':
@@ -169,8 +168,6 @@ def getter(x):
             return (value['ratelimit'].ratelimit(key_text, delay=True))
 
     return limiter_non.ratelimit("nonlimit", delay=True)
-
-
 
 
 class scroll:
@@ -200,6 +197,7 @@ class scroll:
             else:
                 return False
 
+
 class checkStop:
 
     def __init__(self, checkstop):
@@ -210,6 +208,7 @@ class checkStop:
         self.checkstop()
         return False
 
+
 class ProgressTimer:
     TIMER_FUNC = time.monotonic
 
@@ -217,7 +216,7 @@ class ProgressTimer:
         self._last_ts = self.TIMER_FUNC()
 
     def __repr__(self):
-        return(f"{self.elapsed_seconds():.2f}")
+        return (f"{self.elapsed_seconds():.2f}")
 
     def reset(self):
         self._last_ts += self.elapsed_seconds()
@@ -234,6 +233,7 @@ class ProgressTimer:
         self._last_ts += elapsed_seconds - elapsed_seconds % seconds
         return True
 
+
 @dec_retry_on_exception
 def get_har(driver, _method="GET", _mimetype=None):
 
@@ -248,62 +248,62 @@ def get_har(driver, _method="GET", _mimetype=None):
 
     return copy.deepcopy(_res_filt)
 
+
 def scan_har_for_request(_driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
 
-        _har_old = []
-        
-        _list_hints_old = []
-        _list_hints = []
-        _first = True
+    _har_old = []
 
-        _started = time.monotonic()
+    _list_hints_old = []
+    _list_hints = []
+    _first = True
 
-        while True:
+    _started = time.monotonic()
 
-            _newhar = get_har(_driver, _method=_method, _mimetype=_mimetype)
-            _har = _newhar[len(_har_old):]
-            _har_old = _newhar
-            for entry in _har:
+    while True:
 
-                _url = traverse_obj(entry, ('request', 'url'))
-                if not _url:
-                    continue
-                _cont = False
+        _newhar = get_har(_driver, _method=_method, _mimetype=_mimetype)
+        _har = _newhar[len(_har_old):]
+        _har_old = _newhar
+        for entry in _har:
 
-                if not re.search(_valid_url, _url):
-                    continue
+            _url = cast(str, traverse_obj(entry, ('request', 'url')))
+            if not _url:
+                continue
 
-                _hint = {}
+            if not re.search(_valid_url, _url):
+                continue
 
-                if inclheaders:
+            _hint = {}
 
-                    _req_headers = {header['name']:header['value'] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host'}
+            if inclheaders:
 
-                    _hint = {'headers': _req_headers}
+                _req_headers = {header['name']: header['value'] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host'}
 
-                if not response:
-                    _hint.update({'url': _url})
-                    if not _all:
-                        return (_hint)
-                    else:
-                        _list_hints.append(_hint)
+                _hint = {'headers': _req_headers}
+
+            if not response:
+                _hint.update({'url': _url})
+                if not _all:
+                    return (_hint)
                 else:
-                    _resp_status = traverse_obj(entry, ('response', 'status'))
-                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
+                    _list_hints.append(_hint)
+            else:
+                _resp_status = traverse_obj(entry, ('response', 'status'))
+                _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
 
-                    _hint.update({'url': _url, 'content': _resp_content, 'status': int_or_none(_resp_status)})
+                _hint.update({'url': _url, 'content': _resp_content, 'status': int_or_none(_resp_status)})
 
-                    if not _all:
-                        return (_hint)
-                    else:
-                        _list_hints.append(_hint)
+                if not _all:
+                    return (_hint)
+                else:
+                    _list_hints.append(_hint)
 
-                if check_event:
-                    if isinstance(check_event, Callable):
-                        check_event()
-                    elif isinstance(check_event, Event):
-                        if check_event.is_set():
-                            raise StatusStop("stop event")
+            if check_event:
+                if isinstance(check_event, Callable):
+                    check_event()
+                elif isinstance(check_event, Event):
+                    if check_event.is_set():
+                        raise StatusStop("stop event")
 
             if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
                 return (_list_hints)
@@ -312,7 +312,7 @@ def scan_har_for_request(_driver, _valid_url, _method="GET", _mimetype=None, _al
                 if _all:
                     return (_list_hints)
                 else:
-                    return 
+                    return
             else:
                 if _all:
                     _list_hints_old = _list_hints
@@ -330,6 +330,7 @@ def scan_har_for_request(_driver, _valid_url, _method="GET", _mimetype=None, _al
                         time.sleep(0.5)
                     else:
                         time.sleep(0.01)
+
 
 def scan_har_for_json(_driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
 
@@ -360,6 +361,7 @@ from ipaddress import ip_address
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import httpx
 
+
 class myIP:
     URLS_API_GETMYIP = {
         "httpbin": {"url": "https://httpbin.org/get", "key": "origin"},
@@ -376,11 +378,10 @@ class myIP:
         _urlapi = cls.URLS_API_GETMYIP[api]['url']
         _keyapi = cls.URLS_API_GETMYIP[api]['key']
 
-
         try:
             if not ie:
-                _proxies = {'all://': f'http://127.0.0.1:{key}'} if key != None else None
-                myip = try_get(httpx.get(_urlapi, timeout=httpx.Timeout(timeout=timeout), proxies=_proxies, follow_redirects=True), lambda x: x.json().get(_keyapi)) # type: ignore
+                _proxies = {'all://': f'http://127.0.0.1:{key}'} if key is not None else None
+                myip = try_get(httpx.get(_urlapi, timeout=httpx.Timeout(timeout=timeout), proxies=_proxies, follow_redirects=True), lambda x: x.json().get(_keyapi))  # type: ignore
             else:
                 myip = try_get(ie.send_http_request(_urlapi, timeout=httpx.Timeout(timeout=timeout)), lambda x: x.json().get(_keyapi))
             return myip
@@ -394,7 +395,7 @@ class myIP:
             try:
                 ip_address(res)
                 return True
-            except Exception as e:
+            except Exception:
                 return False
         exe = ThreadPoolExecutor(thread_name_prefix="getmyip")
         futures = {exe.submit(cls.get_ip, key=key, timeout=timeout, api=api, ie=ie): api for api in cls.URLS_API_GETMYIP}
@@ -403,13 +404,11 @@ class myIP:
                 _res = el.result()
                 if is_ipaddr(_res):
                     exe.shutdown(wait=False, cancel_futures=True)
-                    return _res            
+                    return _res
 
     @classmethod
     def get_myip(cls, key=None, timeout=1, ie=None):
         return cls.get_myiptryall(key=key, timeout=timeout, ie=ie)
-    
-        
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -468,7 +467,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _extractor._ready = False
                 _extractor._real_initialize()
                 return _extractor
-        except Exception as e:
+        except Exception:
             self.logger_debug(f"extractor doesnt exist with ie_key {ie_key}")
 
     def _get_ie_name(self, url=None):
@@ -552,7 +551,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     'proxies': None}
 
                 _proxy = SeleniumInfoExtractor._YTDL.params.get('proxy')
-                if _proxy: self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
+                if _proxy:
+                    self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
 
                 _config = self._CLIENT_CONFIG.copy()
 
@@ -561,8 +561,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                     limits=_config['limits'], headers=_config['headers'],
                     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
 
-                #self.indexdl = None
-                #self.args_ie = None                        
+                # self.indexdl = None
+                # self.args_ie = None
 
         except Exception as e:
             logger = logging.getLogger(self.IE_NAME)
@@ -577,13 +577,13 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return super().extract(url)
 
-    def get_ytdl_sem(self, _host)->Lock:
+    def get_ytdl_sem(self, _host) -> Lock:
         with self.get_param('lock'):
             _sem = traverse_obj(self.get_param('sem'), _host)
             if not _sem:
                 _sem = Lock()
                 self.get_param('sem').update({_host: _sem})
-        return _sem 
+        return _sem
 
     def raise_from_res(self, res, msg):
 
@@ -598,14 +598,14 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             _stopg = self.get_param('stop')
             _stop = None
-            if hasattr(self, 'indexdl'):            
+            if hasattr(self, 'indexdl'):
                 _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
 
             if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
                 self.to_screen("stop event")
                 raise StatusStop("stop event")
 
-        except StatusStop as e:
+        except StatusStop:
             raise
 
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
@@ -714,15 +714,15 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def scan_for_json(self, driver, _valid_url, _method="GET", _all=False, timeout=10, inclheaders=False):
 
-        return scan_har_for_json(driver, _valid_url, _method=_method,_all=_all, timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop())
+        return scan_har_for_json(driver, _valid_url, _method=_method, _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop())
 
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
 
         try:
             el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(ec.any_of(checkStop(self.check_stop), method))
-        except StatusStop as e:
+        except StatusStop:
             raise
-        except Exception as e:
+        except Exception:
             el = None
 
         return el
@@ -750,7 +750,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 raise
             else:
                 raise ExtractorError(_msg_err)
-        except HTTPStatusError as e:            
+        except HTTPStatusError as e:
             _msg_err = f'{repr(e)} - {str(e)}'
             if e.response.status_code == 403:
                 raise ReExtractInfo(_msg_err)
@@ -836,23 +836,23 @@ class SeleniumInfoExtractor(InfoExtractor):
 
                 return valid
 
-        except Exception as e:            
+        except Exception as e:
             logger = logging.getLogger(self.IE_NAME)
             logger.warning(f'[valid]{_pre_str} error {repr(e)}')
             logger.exception(repr(e))
             return False
 
     def get_ip_origin(self, key=None, timeout=1, own=True):
-        
+
         if own:
             ie = self
         else:
-            ie = None        
-        
+            ie = None
+
         return myIP.get_myip(key=key, timeout=timeout, ie=ie)
 
     def stream_http_request(self, url, **kwargs):
-        
+
         premsg = f'[stream_http_request][{self._get_url_print(url)}]'
         msg = kwargs.get('msg', None)
         if msg:
@@ -915,7 +915,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger.debug(f"{premsg} {res}:{_msg_err}")
 
     def send_http_request(self, url, **kwargs):
-        
+
         res = None
         req = None
         _msg_err = ""
@@ -925,7 +925,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if msg:
             premsg = f'{msg}{premsg}'
 
-        try:            
+        try:
 
             _kwargs = kwargs.copy()
 

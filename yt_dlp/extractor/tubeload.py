@@ -111,7 +111,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         
         return(try_get(self._send_request(self._MAINJS, headers=_headers_mainjs), lambda x: x.text))
     
-    def _getres0(self, _url)->str:
+    def _getres0(self, _url) -> str:
         if (mainjs := self.get_mainjs(_url)) and (argsjs := self._get_args(mainjs)):            
             cmd0 = f"node {self._JS_SCRIPT['deofus']} " + " ".join([str(el) for el in argsjs])
             res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
@@ -124,7 +124,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         else:
             raise ExtractorError("couldnt get res0")
 
-    def _getinfofromwebpage(self, _url, webpage, max_limit, pre)->Tuple[str,str]:
+    def _getinfofromwebpage(self, _url, webpage, max_limit, pre )-> Tuple[str,str]:
         _args = None
         title = None
         if not webpage:
