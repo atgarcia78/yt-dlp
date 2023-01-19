@@ -26,7 +26,7 @@ from .commonwebdriver import (
     limiter_5,
     SeleniumInfoExtractor,
     Dict,
-    
+
 
 )
 from ..utils import (
@@ -50,7 +50,6 @@ class NSAPI:
         self.headers_api = {}
         self.ready = False
 
-
     def init(self, iens):
         self.iens = iens
         self.timer = ProgressTimer()
@@ -61,27 +60,28 @@ class NSAPI:
 
         if self.iens._logout_api():
             self.headers_api = {}
-            self.logger.info(f"[logout] OK")
+            self.logger.info("[logout] OK")
         else:
-            self.logger.info(f"[logout] NOK")
+            self.logger.info("[logout] NOK")
 
     @dec_retry
     def get_auth(self, **kwargs):
-    
+
         with self.call_lock:
 
             try:
                 _headers = self.iens._get_api_basic_auth()
                 if _headers:
                     self.headers_api = _headers
-                    self.logger.info(f"[get_auth] OK")
+                    self.logger.info("[get_auth] OK")
                     self.timer.reset()
                     return True
-                else: raise ExtractorError("couldnt auth")
+                else:
+                    raise ExtractorError("couldnt auth")
             except Exception as e:
                 self.logger.exception(f"[get_auth] {str(e)}")
                 raise ExtractorError("error get auth")
-    
+
     @dec_retry
     def get_refresh(self):
 
@@ -89,7 +89,7 @@ class NSAPI:
 
             try:
                 if self.iens._refresh_api():
-                    self.logger.info(f"[refresh] OK")
+                    self.logger.info("[refresh] OK")
                     self.timer.reset()
                     return True
                 else:
@@ -98,16 +98,15 @@ class NSAPI:
                 self.logger.error(f"[refresh] {str(e)}")
                 raise ExtractorError("error refresh")
 
-
     def __call__(self):
         if not self.headers_api:
             self.get_auth()
             return self.headers_api
-        
+
         if not self.timer.has_elapsed(50):
             return self.headers_api
         else:
-            self.logger.info(f"[call] timeout to token refresh")
+            self.logger.info("[call] timeout to token refresh")
             if self.get_refresh():
                 return self.headers_api
 
@@ -125,98 +124,98 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _LIMITERS = {'403': limiter_5.ratelimit("nakedswordscene", delay=True), 'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
     _HEADERS = {"OPTIONS": {"AUTH": {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
-            'Accept': '*/*',
-            'Accept-Language': 'en,es-ES;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Access-Control-Request-Method': 'POST',
-            'Access-Control-Request-Headers': 'authorization,x-ident',
-            'Referer': 'https://www.nakedsword.com/',
-            'Origin': 'https://www.nakedsword.com',
-            'Connection': 'keep-alive',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache'
-        }, "LOGOUT": {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
-            'Accept': '*/*',
-            'Accept-Language': 'en,es-ES;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Access-Control-Request-Method': 'DELETE',
-            'Access-Control-Request-Headers': 'authorization,donotrefreshtoken,x-ident',
-            'Referer': 'https://www.nakedsword.com/',
-            'Origin': 'https://www.nakedsword.com',
-            'Connection': 'keep-alive',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache'
-        } }, "POST": {"AUTH": {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Origin': 'https://www.nakedsword.com',
-            'Connection': 'keep-alive',
-            'Referer': 'https://www.nakedsword.com/',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
-            'Content-Length': '0',
-            'TE': 'trailers',
-        }}, "DELETE": {"LOGOUT": {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'doNotRefreshToken': 'true',
-            'Origin': 'https://www.nakedsword.com',
-            'Connection': 'keep-alive',
-            'Referer': 'https://www.nakedsword.com/',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
-            'Content-Length': '0',
-            'TE': 'trailers',
-        }}, "FINAL": {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Authorization': None,
-            'x-ident': None,
-            'X-CSRF-TOKEN': None,            
-            'Origin': 'https://www.nakedsword.com',
-            'Connection': 'keep-alive',
-            'Referer': 'https://www.nakedsword.com/',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
-            'TE': 'trailers'
-        }, "MPD": {
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
-                'Referer': 'https://www.nakedsword.com/',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'cross-site',
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache',
-                'TE': 'trailers'
-            }}
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
+        'Accept': '*/*',
+        'Accept-Language': 'en,es-ES;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,x-ident',
+        'Referer': 'https://www.nakedsword.com/',
+        'Origin': 'https://www.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache'
+    }, "LOGOUT": {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
+        'Accept': '*/*',
+        'Accept-Language': 'en,es-ES;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Access-Control-Request-Method': 'DELETE',
+        'Access-Control-Request-Headers': 'authorization,donotrefreshtoken,x-ident',
+        'Referer': 'https://www.nakedsword.com/',
+        'Origin': 'https://www.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache'
+    }}, "POST": {"AUTH": {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Origin': 'https://www.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Referer': 'https://www.nakedsword.com/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+        'Content-Length': '0',
+        'TE': 'trailers',
+    }}, "DELETE": {"LOGOUT": {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'doNotRefreshToken': 'true',
+        'Origin': 'https://www.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Referer': 'https://www.nakedsword.com/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+        'Content-Length': '0',
+        'TE': 'trailers',
+    }}, "FINAL": {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Authorization': None,
+        'x-ident': None,
+        'X-CSRF-TOKEN': None,
+        'Origin': 'https://www.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Referer': 'https://www.nakedsword.com/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+        'TE': 'trailers'
+    }, "MPD": {
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Origin': 'https://www.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Referer': 'https://www.nakedsword.com/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'cross-site',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+        'TE': 'trailers'
+    }}
 
     def get_formats(self, _types, _info):
 
@@ -265,7 +264,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             if formats_ism:
                                 formats.extend(formats_ism)
 
-                except ReExtractInfo as e:                    
+                except ReExtractInfo:
                     raise
                 except Exception as e:
                     logger.error(f"[get_formats][{_type}][{_info.get('url')}] {str(e)}")
@@ -274,7 +273,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 raise ExtractorError("couldnt find any format")
             else:
                 return formats
-
 
     @dec_on_exception2
     @dec_on_exception3
@@ -285,22 +283,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             return (self.send_http_request(url, **kwargs))
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[send_request_http] {self._get_url_print(url)}: error - {repr(e)} - {str(e)}")
-        
+
     def _logout_api(self):
 
-        resopts = self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["LOGOUT"])
+        self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["LOGOUT"])
         _headers_del = copy.deepcopy(self._HEADERS["DELETE"]["LOGOUT"])
-        _headers = self.API_GET_HTTP_HEADERS()
-        _headers_del.update({'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
-        resdel = self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="DELETE", headers= _headers_del)
-        return (resdel.status_code == 204)
-    
-    def _get_data_app(self)->Dict:
-        
+        if (_headers := self.API_GET_HTTP_HEADERS()):
+            _headers_del.update({'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
+            if (resdel := self._send_request("https://ns-api.nakedsword.com/frontend/auth/logout", _type="DELETE", headers=_headers_del)):
+                return (resdel.status_code == 204)
+
+    def _get_data_app(self) -> Dict:
+
         app_data = {'PROPERTY_ID': None, 'PASSPHRASE': None, 'GTM_ID': None, 'GTM_AUTH': None, 'GTM_PREVIEW': None}
-        
+
         try:
-        
+
             _app_data = self.cache.load('nakedsword', 'app_data') or {}
 
             if not _app_data:
@@ -315,18 +313,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             app_data.update({key: data[key]})
 
                         self.cache.store('nakedsword', 'app_data', app_data)
-            
-            else: app_data = _app_data
-            
+
+            else:
+                app_data = _app_data
+
             return app_data
-        
+
         except Exception as e:
             logger.exception(str(e))
             return app_data
-        
-    def _get_api_basic_auth(self)->Dict:        
 
-        resopts = self._send_request("https://ns-api.nakedsword.com/frontend/auth/login", _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["AUTH"])
+    def _get_api_basic_auth(self) -> Dict:
+
+        self._send_request("https://ns-api.nakedsword.com/frontend/auth/login", _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["AUTH"])
         username, pwd = self._get_login_info()
         _headers_post = copy.deepcopy(self._HEADERS["POST"]["AUTH"])
         _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
@@ -340,14 +339,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             return _final
         return {}
 
-    def _refresh_api(self)->bool:
+    def _refresh_api(self) -> bool:
 
         xident = subprocess.run(['node', self._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']], capture_output=True, encoding="utf-8").stdout.strip('\n')
         if xident:
             NakedSwordBaseIE._API.headers_api['x-ident'] = xident
             return True
-        else: return False
-        
+        else:
+            return False
 
     def _get_api_details(self, movieid, headers=None):
         return try_get(self._send_request(f"https://ns-api.nakedsword.com/frontend/movies/{movieid}/details", headers=headers or self.API_GET_HTTP_HEADERS()), lambda x: x.json().get('data') if x else None)
@@ -363,14 +362,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _get_api_tags(self):
 
         feed = try_get(self._send_request("https://ns-api.nakedsword.com/frontend/tags/feed", headers=self.API_GET_HTTP_HEADERS()), lambda x: x.json().get('data'))
-        themes = [el['name'].lower().replace(' ', '-').replace(',', '-') for el in feed['categories']]
-        sex_acts = [el['name'].lower().replace(' ', '-').replace(',', '-') for el in feed['sex_acts']]
-        NakedSwordBaseIE._TAGS.update({'themes': themes, 'sex_acts': sex_acts})
+        if feed and feed.get('categories') and feed.get('sex-acts'):
+            themes = [el['name'].lower().replace(' ', '-').replace(',', '-') for el in feed['categories']]
+            sex_acts = [el['name'].lower().replace(' ', '-').replace(',', '-') for el in feed['sex_acts']]
+            NakedSwordBaseIE._TAGS.update({'themes': themes, 'sex_acts': sex_acts})
 
     def _get_api_most_watched_scenes(self, query, limit=60):
-        
-        if query == 'most_watched': _query = ""
-        else: _query = query + '&'
+
+        if query == 'most_watched':
+            _query = ""
+        else:
+            _query = query + '&'
         _limit = limit or 60
         pages = int(_limit) // 30 + 1
         _list_urls = [f"https://ns-api.nakedsword.com/frontend/scenes/feed?{_query}per_page=30&subset_sort_by=most_watched&subset_limit={_limit}&page={i}&sort_by=most_watched" for i in range(1, pages + 1)]
@@ -417,7 +419,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
             for ind in range(_start_ind, _end_ind):
                 _urls_sc.append(f"{_url_movie}/scene/{ind}")
-                if (_info_scene := try_get(self._send_request(_urls_api[ind - 1], headers=headers_api or self.API_GET_HTTP_HEADERS()), lambda x: x.json().get('data') if x else None)):
+                _info_scene = try_get(self._send_request(_urls_api[ind - 1], headers=headers_api or self.API_GET_HTTP_HEADERS()), lambda x: x.json().get('data') if x else None)
+                if _info_scene:
                     m3u8urls_scenes.append(_info_scene)
 
             if len(m3u8urls_scenes) != len(_urls_sc):
@@ -448,10 +451,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
             super()._real_initialize()
 
-            if (_proxy := self._downloader.params.get('proxy')):
+            _proxy = self._downloader.params.get('proxy')
+            if _proxy:
                 self.proxy = _proxy
                 self._key = _proxy.split(':')[-1]
-                self.logged_debug(f"proxy: [{self._key}]")
+                self.logger_debug(f"proxy: [{self._key}]")
 
             else:
                 self.proxy = None
@@ -462,7 +466,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     NakedSwordBaseIE._APP_DATA = self._get_data_app()
                 if not NakedSwordBaseIE._API.ready:
                     NakedSwordBaseIE._API.init(self)
-                    
+
         except Exception as e:
             logger.error(repr(e))
 
@@ -471,10 +475,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     def API_REFRESH(self):
         return NakedSwordBaseIE._API.get_refresh()
-    
+
     def API_LOGOUT(self):
         return NakedSwordBaseIE._API.logout()
-    
+
     def API_GET_HTTP_HEADERS(self):
         return NakedSwordBaseIE._API()
 
@@ -530,7 +534,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             logger.error(f"[get_entries][{url} {str(e)}")
 
             raise
-        except (StatusStop, ExtractorError) as e:
+        except (StatusStop, ExtractorError):
             raise
         except Exception as e:
             logger.exception(repr(e))
@@ -543,7 +547,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             nscene = int(self._match_id(url))
             return self.get_entry(url, index=nscene, _type="hls")
 
-        except (ExtractorError, StatusStop) as e:
+        except (ExtractorError, StatusStop):
             raise
         except ReExtractInfo as e:
             raise ExtractorError(str(e))
@@ -571,7 +575,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             premsg = f"{msg}{premsg}"
 
         _force_list = kwargs.get('force', False)
-        _legacy = kwargs.get('legacy', False)
 
         self.report_extraction(url)
 
@@ -587,12 +590,10 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             if hasattr(self, 'args_ie'):
                 sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
 
-
             logger.info(f"{premsg} sublist of movie scenes: {sublist}")
 
-            
             _raise_reextract = []
-            
+
             for _info in info_streaming_scenes:
 
                 try:
@@ -622,30 +623,26 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                 _entry.update({'formats': formats})
                                 self.logger_debug(f"{premsg}[{i}][{_info.get('url')}]: OK got entry")
                                 _entries.append(_entry)
-                        except ReExtractInfo as e:
+                        except ReExtractInfo:
                             _raise_reextract.append(i)
-
 
                     else:
                         _entries.append(_entry)
 
-                except ReExtractInfo as e: 
+                except ReExtractInfo:
                     raise
                 except Exception as e:
                     logger.exception(f"{premsg}[{i}]: info streaming\n{_info} error - {str(e)}")
                     raise
-            
-            
+
             if _raise_reextract:
                 logger.info(f"{premsg} ERROR to get format {_raise_reextract} from sublist of movie scenes: {sublist}")
                 self.API_LOGOUT()
                 self.API_AUTH()
                 raise ReExtractInfo("error in scenes of movie")
-            
+
             else:
                 logger.info(f"{premsg} OK format for sublist of movie scenes: {sublist}")
-
-            
 
             if _force_list:
                 return _entries
@@ -670,7 +667,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         try:
             return self.get_entries(url, _type="hls")
-        except (ExtractorError, StatusStop) as e:
+        except (ExtractorError, StatusStop):
             raise
         except ReExtractInfo as e:
             raise ExtractorError(str(e))
@@ -686,11 +683,8 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
 
     @dec_on_reextract
     def get_entries_from_scenes_list(self, url, **kwargs):
-        _type = kwargs.get('_type', 'all')
-        if _type == 'all':
-            _types = ['hls', 'dash', 'ism']
-        else:
-            _types = [_type]
+
+        _type = kwargs.get('_type', 'hls')
         msg = kwargs.get('msg')
         premsg = f"[get_entries][{self._key}]"
         if msg:
@@ -700,10 +694,11 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
 
             info_url = self._match_valid_url(url).groupdict()
 
-            if _tagname := info_url.get('tagname'):
+            _tagname = info_url.get('tagname')
+            if _tagname:
                 with NakedSwordBaseIE._LOCK:
                     if not NakedSwordBaseIE._TAGS:
-                        self._get_tags(driver)
+                        self._get_api_tags()
                 _tagname = _tagname.lower().replace(' ', '-').replace(',', '-')
                 if _tagname in (NakedSwordBaseIE._TAGS['themes'] + NakedSwordBaseIE._TAGS['sex_acts']):
                     query = f'tags_name={_tagname}'
@@ -735,7 +730,7 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
 
                 _entries = []
                 with ThreadPoolExecutor(thread_name_prefix='nsmostwatch') as ex:
-                    futures = {ex.submit(isc.get_entry, _info[0], index=_info[1], _type="hls"): _info[0] for _info in _info_scenes}
+                    futures = {ex.submit(isc.get_entry, _info[0], index=_info[1], _type=_type): _info[0] for _info in _info_scenes}
 
                 for fut in futures:
                     if _res := fut.result():
@@ -759,7 +754,7 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
         try:
             self.report_extraction(url)
             return self.get_entries_from_scenes_list(url, _type="hls")
-        except (ExtractorError, StatusStop) as e:
+        except (ExtractorError, StatusStop):
             raise
         except ReExtractInfo as e:
             raise ExtractorError(str(e))
@@ -776,7 +771,8 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
     def get_entries_from_movies_list(self, url, **kwargs):
 
         premsg = f"[get_entries][{url}]"
-        if (msg := kwargs.get('msg')):
+        msg = kwargs.get('msg')
+        if msg:
             premsg = f"{msg}{premsg}"
 
         try:
@@ -793,7 +789,8 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
                 _from = datetime.fromisoformat(f'{_f}T00:00:00.000001')
             else:
                 _from = try_get(_movies[0].get('publish_start'), lambda x: datetime.fromisoformat(extract_timezone(x)[1]))
-            if _t := _params.get('to'):
+            _t = _params.get('to')
+            if _t:
                 _to = datetime.fromisoformat(f'{_t}T23:59:59.999999')
             else:
                 _to = try_get(_movies[-1].get('publish_start'), lambda x: datetime.fromisoformat(extract_timezone(x)[1]))
@@ -814,9 +811,9 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
                 with ThreadPoolExecutor(thread_name_prefix='nsnewest') as ex:
                     futures = {ex.submit(imov.get_entries, _url, _type="hls", force=True): _url for _url in _url_movies}
 
-
                 for fut in futures:
-                    if _res := fut.result():
+                    _res = fut.result()
+                    if _res:
                         _entries += [_r for _r in _res if not _r.update({'original_url': url})]
 
                 return self.playlist_result(_entries, playlist_id=f'{sanitize_filename(_query, restricted=True)}', playlist_title="Search")
@@ -836,7 +833,7 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
         try:
             self.report_extraction(url)
             return self.get_entries_from_movies_list(url)
-        except (ExtractorError, StatusStop) as e:
+        except (ExtractorError, StatusStop):
             raise
         except ReExtractInfo as e:
             raise ExtractorError(str(e))
@@ -844,4 +841,3 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(f'{repr(e)}')
-
