@@ -40,11 +40,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                             logger.debug(f"{premsg}[{self._get_url_print(el)}] OK got entry video")
                             return _entry
                         else:
-                            logger.exception(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
+                            logger.warning(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
                     except Exception as e:
-                        logger.exception(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                        logger.warning(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
             except Exception as e:
-                logger.exception(f'{premsg}[{self._get_url_print(el)}] {repr(e)}')
+                logger.warning(f'{premsg}[{self._get_url_print(el)}] {repr(e)}')
 
     def get_urls(self, webpage, msg=None):
 
@@ -444,7 +444,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             logger.info(f'[blog_post_list] len[{len(blog_posts_list)}]')
 
-            if len(blog_posts_list) >= 50:
+            if len(blog_posts_list) >= 100:
                 GVDBlogBaseIE._SLOW_DOWN = True
                 check = False
 

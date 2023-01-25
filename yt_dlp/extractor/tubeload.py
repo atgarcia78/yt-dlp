@@ -61,7 +61,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
-        with limiter_non.ratelimit(f'{self.IE_NAME}2', delay=True):
+        with limiter_0_1.ratelimit(f'{self.IE_NAME}2', delay=True):
 
             self.logger.debug(f"{pre}: start")
 
