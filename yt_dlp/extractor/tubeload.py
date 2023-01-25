@@ -5,7 +5,6 @@ import subprocess
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-
 from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
@@ -14,7 +13,6 @@ from .commonwebdriver import (
     dec_on_exception2,
     dec_on_exception3,
     limiter_0_1,
-    limiter_non,
     my_dec_on_exception,
     Tuple
 )
