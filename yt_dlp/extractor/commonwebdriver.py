@@ -435,7 +435,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()
 
-
     @classproperty(cache=True)
     def _RETURN_TYPE(cls):
         """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
