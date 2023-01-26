@@ -435,6 +435,25 @@ class SeleniumInfoExtractor(InfoExtractor):
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()
 
+
+    @classproperty(cache=True)
+    def _RETURN_TYPE(cls):
+        """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
+        tests = tuple(cls.get_testcases(include_onlymatching=False))
+        if tests:
+
+            if not any(k.startswith('playlist') for test in tests for k in test):
+                return 'video'
+            elif all(any(k.startswith('playlist') for k in test) for test in tests):
+                return 'playlist'
+            return 'any'
+
+        else:
+            if 'playlist' in cls.IE_NAME:
+                return 'playlist'
+            else:
+                return 'video'
+
     @classmethod
     def logger_info(cls, msg):
         if cls._YTDL:
