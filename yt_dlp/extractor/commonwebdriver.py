@@ -99,37 +99,32 @@ def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: O
     return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
 
 
-try:
+limiter_non = Limiter(RequestRate(10000, 0))
+limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
+limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
+limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
+limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
+limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
+limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
+limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
+limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
+limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
+limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
+limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
+limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
+limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
-    limiter_non = Limiter(RequestRate(10000, 0))
-    limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
-    limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
-    limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
-    limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
-    limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
-    limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
-    limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
-    limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
-    limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
-    limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
-    limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
-    limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
-    limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
+dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
+dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
+dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
+dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
+dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
+dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
+dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
+retry_on_driver_except = on_exception(constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
 
-    dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-    dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
-    dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
-    dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
-    dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
-    dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
-    dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-    dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-    dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
-    retry_on_driver_except = on_exception(constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
-
-except Exception as e:
-    logger = logging.getLogger("commonwdr")
-    logger.exception(repr(e))
 
 CONFIG_EXTRACTORS = {
     ('userload', 'evoload',): {
@@ -240,127 +235,137 @@ class ProgressTimer:
         return True
 
 
-@dec_retry_on_exception
-def get_har(driver, _method="GET", _mimetype=None):
+class myHAR:
 
-    _res = try_get(driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"), lambda x: x.get('entries') if x else None)
+    @dec_retry_on_exception
+    @classmethod
+    def get_har(cls, driver, _method="GET", _mimetype=None):
 
-    _res_filt = [el for el in _res if all([traverse_obj(el, ('request', 'method')) in _method, int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0, not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css', 'font', 'octet-stream')])])]
+        _res = try_get(driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"), lambda x: x.get('entries') if x else None)
 
-    if _mimetype:
-        if isinstance(_mimetype, str):
-            _mimetype = [_mimetype]
-        _res_filt = [el for el in _res_filt if any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in _mimetype])]
+        if _res:
 
-    return copy.deepcopy(_res_filt)
+            _res_filt = [el for el in _res if all(
+                [
+                    traverse_obj(el, ('request', 'method'), default='') == _method,
+                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,
+                    not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css', 'font', 'octet-stream')])
+                ])]
 
+            if _mimetype:
+                if isinstance(_mimetype, str):
+                    _mimetype = [_mimetype]
+                _res_filt = [el for el in _res_filt if any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in _mimetype])]
 
-def scan_har_for_request(_driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
+            return copy.deepcopy(_res_filt)
 
-    _har_old = []
+    @classmethod
+    def scan_har_for_request(cls, _driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
 
-    _list_hints_old = []
-    _list_hints = []
-    _first = True
+        _har_old = []
 
-    _started = time.monotonic()
+        _list_hints_old = []
+        _list_hints = []
+        _first = True
 
-    while True:
+        _started = time.monotonic()
 
-        _newhar = get_har(_driver, _method=_method, _mimetype=_mimetype)
-        _har = _newhar[len(_har_old):]
-        _har_old = _newhar
-        for entry in _har:
+        while True:
 
-            _url = cast(str, traverse_obj(entry, ('request', 'url')))
-            if not _url:
-                continue
+            _newhar = cls.get_har(_driver, _method=_method, _mimetype=_mimetype)
+            _har = _newhar[len(_har_old):]
+            _har_old = _newhar
+            for entry in _har:
 
-            if not re.search(_valid_url, _url):
-                continue
+                _url = cast(str, traverse_obj(entry, ('request', 'url')))
+                if not _url:
+                    continue
 
-            _hint = {}
+                if not re.search(_valid_url, _url):
+                    continue
 
-            if inclheaders:
+                _hint = {}
 
-                _req_headers = {header['name']: header['value'] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host'}
+                if inclheaders:
 
-                _hint = {'headers': _req_headers}
+                    _req_headers = {header['name']: header['value'] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host'}
 
-            if not response:
-                _hint.update({'url': _url})
-                if not _all:
-                    return (_hint)
+                    _hint = {'headers': _req_headers}
+
+                if not response:
+                    _hint.update({'url': _url})
+                    if not _all:
+                        return (_hint)
+                    else:
+                        _list_hints.append(_hint)
                 else:
-                    _list_hints.append(_hint)
-            else:
-                _resp_status = traverse_obj(entry, ('response', 'status'))
-                _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
+                    _resp_status = traverse_obj(entry, ('response', 'status'))
+                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
 
-                _hint.update({'url': _url, 'content': _resp_content, 'status': int_or_none(_resp_status)})
+                    _hint.update({'url': _url, 'content': _resp_content, 'status': int_or_none(_resp_status)})
 
-                if not _all:
-                    return (_hint)
-                else:
-                    _list_hints.append(_hint)
+                    if not _all:
+                        return (_hint)
+                    else:
+                        _list_hints.append(_hint)
 
-            if check_event:
-                if isinstance(check_event, Callable):
-                    check_event()
-                elif isinstance(check_event, Event):
-                    if check_event.is_set():
-                        raise StatusStop("stop event")
+                if check_event:
+                    if isinstance(check_event, Callable):
+                        check_event()
+                    elif isinstance(check_event, Event):
+                        if check_event.is_set():
+                            raise StatusStop("stop event")
 
-            if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
-                return (_list_hints)
-
-            if (time.monotonic() - _started) >= timeout:
-                if _all:
+                if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
                     return (_list_hints)
+
+                if (time.monotonic() - _started) >= timeout:
+                    if _all:
+                        return (_list_hints)
+                    else:
+                        return
                 else:
-                    return
-            else:
-                if _all:
-                    _list_hints_old = _list_hints
-                    if _first:
-                        _first = False
-                        if not _list_hints:
-                            time.sleep(0.5)
+                    if _all:
+                        _list_hints_old = _list_hints
+                        if _first:
+                            _first = False
+                            if not _list_hints:
+                                time.sleep(0.5)
+                            else:
+                                time.sleep(0.01)
                         else:
                             time.sleep(0.01)
                     else:
-                        time.sleep(0.01)
-                else:
-                    if _first:
-                        _first = False
-                        time.sleep(0.5)
-                    else:
-                        time.sleep(0.01)
+                        if _first:
+                            _first = False
+                            time.sleep(0.5)
+                        else:
+                            time.sleep(0.01)
 
+    @classmethod
+    def scan_har_for_json(cls, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
 
-def scan_har_for_json(_driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
+        _hints = cls.scan_har_for_request(_driver, _link, _method=_method, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
-    _hints = scan_har_for_request(_driver, _link, _method=_method, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
+        def func_getter(x):
+            _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
+            if inclheaders:
+                return (_info_json, x.get('headers'))
+            else:
+                return _info_json
 
-    def func_getter(x):
-        _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
-        if inclheaders:
-            return (_info_json, x.get('headers'))
+        if not _all:
+            return try_get(_hints, func_getter)
+
         else:
-            return _info_json
+            if _hints:
+                _list_info_json = []
+                for el in _hints:
+                    _info_json = try_get(el, func_getter)
+                    if _info_json:
+                        _list_info_json.append(_info_json)
 
-    if not _all:
-        return try_get(_hints, func_getter)
-
-    else:
-        if _hints:
-            _list_info_json = []
-            for el in _hints:
-                _info_json = try_get(el, func_getter)
-                if _info_json:
-                    _list_info_json.append(_info_json)
-
-            return _list_info_json
+                return _list_info_json
 
 
 from ipaddress import ip_address
@@ -734,11 +739,11 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def scan_for_request(self, driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False):
 
-        return scan_har_for_request(driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
+        return myHAR.scan_har_for_request(driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
 
     def scan_for_json(self, driver, _valid_url, _method="GET", _all=False, timeout=10, inclheaders=False):
 
-        return scan_har_for_json(driver, _valid_url, _method=_method, _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop())
+        return myHAR.scan_har_for_json(driver, _valid_url, _method=_method, _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop())
 
     def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
 
