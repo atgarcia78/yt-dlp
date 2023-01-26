@@ -40,9 +40,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                             logger.debug(f"{premsg}[{self._get_url_print(el)}] OK got entry video")
                             return _entry
                         else:
-                            logger.warning(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
+                            logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
                     except Exception as e:
-                        logger.warning(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                        logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
             except Exception as e:
                 logger.warning(f'{premsg}[{self._get_url_print(el)}] {repr(e)}')
 
