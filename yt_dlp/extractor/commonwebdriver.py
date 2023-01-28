@@ -583,12 +583,14 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if _proxy:
                     self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
 
-                _config = self._CLIENT_CONFIG.copy()
+                # _config = self._CLIENT_CONFIG.copy()
 
-                self._CLIENT = Client(
-                    proxies=_config['proxies'], timeout=_config['timeout'],
-                    limits=_config['limits'], headers=_config['headers'],
-                    follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+                # self._CLIENT = Client(
+                #     proxies=_config['proxies'], timeout=_config['timeout'],
+                #     limits=_config['limits'], headers=_config['headers'],
+                #     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
+
+                self._CLIENT = Client(**self._CLIENT_CONFIG)
 
                 # self.indexdl = None
                 # self.args_ie = None
