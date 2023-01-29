@@ -1,5 +1,5 @@
 import copy
-
+import contextlib
 import html
 import json
 import logging
@@ -543,6 +543,8 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _real_initialize(self):
 
+        assert self._downloader
+
         try:
             with SeleniumInfoExtractor._MASTER_LOCK:
                 if not SeleniumInfoExtractor._YTDL or SeleniumInfoExtractor._YTDL != self._downloader:
@@ -609,12 +611,12 @@ class SeleniumInfoExtractor(InfoExtractor):
         return super().extract(url)
 
     def get_ytdl_sem(self, _host) -> Lock:
-        with self.get_param('lock'):
-            _sem = traverse_obj(self.get_param('sem'), _host)
-            if not _sem:
-                _sem = Lock()
-                self.get_param('sem').update({_host: _sem})
-        return _sem
+
+        assert self._downloader
+
+        with self.get_param('lock', contextlib.nullcontext()):
+            self._downloader.params.setdefault('sem', {})
+            return self._downloader.params['sem'].setdefault(_host, Lock())
 
     def raise_from_res(self, res, msg):
 
