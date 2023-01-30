@@ -25,26 +25,34 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             premsg = f'{msg}{premsg}'
 
         _x = x if isinstance(x, list) else [x]
-        _x.sort(reverse=True)
 
-        for el in _x:
-            try:
-                ie = self._get_extractor(el)
-                if not ie or not hasattr(ie, '_get_entry'):
-                    logger.warning(f'{premsg} WARNING error entry video, ie is None or hasnt _get_entry attr')
-                    continue
-                else:
-                    try:
-                        _entry = ie._get_entry(el, check=check, msg=premsg)
-                        if _entry:
-                            logger.debug(f"{premsg}[{self._get_url_print(el)}] OK got entry video")
-                            return _entry
-                        else:
-                            logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
-                    except Exception as e:
-                        logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
-            except Exception as e:
-                logger.warning(f'{premsg}[{self._get_url_print(el)}] {repr(e)}')
+        urldict = {
+            _ie.IE_NAME: {'url': _url, 'ie': _ie}
+            for _url in _x
+            if (_ie := self._get_extractor(_url)) and hasattr(_ie, '_get_entry') and _ie.IE_NAME in ('tubeload', 'doodstream')
+        }
+
+        if not urldict:
+            logger.warning(f'{premsg} couldnt get any tubeload, doodstrem video from:\n{_x}')
+            return
+
+        _videos = []
+        for key in ('tubeload', 'doodstream'):
+            if key in urldict:
+                ie = urldict[key]['ie']
+                el = urldict[key]['url']
+                try:
+                    _entry = ie._get_entry(el, check=check, msg=premsg)
+                    if _entry:
+                        logger.debug(f"{premsg}[{self._get_url_print(el)}] OK got entry video")
+                        return _entry
+                    else:
+                        logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
+                except Exception as e:
+                    logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                _videos.append(el)
+
+        logger.warning(f'{premsg} couldnt get any working video from original list:\n{_x}\nthat was filter to final list videos:\n{_videos}')
 
     def get_urls(self, webpage, msg=None):
 
@@ -61,13 +69,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         else:
             iedood = self._downloader.get_info_extractor('DoodStream')  # type: ignore
-            iehigh = self._downloader.get_info_extractor('Highload')  # type: ignore
+            #  iehigh = self._downloader.get_info_extractor('Highload')  # type: ignore
             n_videos = list_urls.count(None)
             n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
             if not n_videos_dood:
-                n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
-                if not n_videos_dood:
-                    n_videos_dood = len(list_urls) - n_videos
+                #  n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
+                #  if not n_videos_dood:
+                n_videos_dood = len(list_urls) - n_videos
 
             if n_videos and n_videos_dood and n_videos >= n_videos_dood:
                 _final_urls.extend(list_urls)
