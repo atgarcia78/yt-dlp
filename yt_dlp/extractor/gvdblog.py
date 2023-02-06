@@ -69,12 +69,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         else:
             iedood = self._downloader.get_info_extractor('DoodStream')  # type: ignore
-            #  iehigh = self._downloader.get_info_extractor('Highload')  # type: ignore
             n_videos = list_urls.count(None)
             n_videos_dood = len([el for el in list_urls if el and iedood.suitable(el)])
             if not n_videos_dood:
-                #  n_videos_dood = len([el for el in list_urls if el and iehigh.suitable(el)])
-                #  if not n_videos_dood:
                 n_videos_dood = len(list_urls) - n_videos
 
             if n_videos and n_videos_dood and n_videos >= n_videos_dood:
@@ -83,7 +80,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 for el in list_urls:
                     if el:
                         _final_urls.extend([el, None])
-
             else:
                 _pre = "[get_urls]"
                 if msg:
