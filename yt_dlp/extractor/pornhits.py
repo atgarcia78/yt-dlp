@@ -5,7 +5,16 @@ import re
 import time
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_driver_timeout, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError, ConnectError
+from .commonwebdriver import (
+    dec_on_driver_timeout,
+    dec_on_exception2,
+    dec_on_exception3,
+    SeleniumInfoExtractor,
+    limiter_2,
+    By,
+    ec,
+    HTTPStatusError,
+    ConnectError)
 
 
 class get_title:
@@ -58,6 +67,8 @@ class getvideourl:
 
 class BasePornhitsIE(SeleniumInfoExtractor):
 
+    _SITE_URL = ""
+
     @dec_on_exception2
     @dec_on_exception3
     def _get_video_info(self, url, msg=None, headers={}):
@@ -100,6 +111,8 @@ class BasePornhitsIE(SeleniumInfoExtractor):
         check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
 
+        driver = None
+
         try:
 
             pre = f'[get_entry][{self._get_url_print(url)}]'
@@ -109,16 +122,29 @@ class BasePornhitsIE(SeleniumInfoExtractor):
             driver = self.get_driver(devtools=True)
 
             if self.IE_NAME == 'pornhits' and 'embed.php' in url:
-                webpage = try_get(self.send_multi_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
-                url = try_get(re.findall(r'/video/%s/([^\'\")]+)[\'\"]' % videoid, webpage), lambda x: f'{self._SITE_URL}video/{videoid}/{x[0]}')
+                webpage = try_get(
+                    self.send_multi_request(url),
+                    lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+
+                assert webpage
+                url = try_get(
+                    re.findall(r'/video/%s/([^\'\")]+)[\'\"]' % videoid, webpage),
+                    lambda x: f'{self._SITE_URL}video/{videoid}/{x[0]}')
+
+                assert url
 
             self.send_multi_request(url, driver)
 
-            if self.IE_NAME == "pornhits" or ((self.IE_NAME == 'txxx' or self.IE_NAME == 'hotmovs') and '/videos/' in url):
-                title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
+            if self.IE_NAME == "pornhits" or (
+                    (self.IE_NAME == 'txxx' or self.IE_NAME == 'hotmovs') and '/videos/' in url):
+                title = try_get(
+                    self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))),
+                    lambda x: x.text)
 
             else:
-                title = self.wait_until(driver, 60, get_title()).replace('Porn Video | HotMovs.com', '').strip()
+                title = try_get(
+                    self.wait_until(driver, 60, get_title()),
+                    lambda x: x.replace('Porn Video | HotMovs.com', '').strip())
 
             _formats = []
 
@@ -148,10 +174,15 @@ class BasePornhitsIE(SeleniumInfoExtractor):
 
                 _headers = {'Referer': self._SITE_URL}
 
-                m3u8_url, m3u8_doc = try_get(self.scan_for_request(driver, r".mp4$"), lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                m3u8_url, m3u8_doc = try_get(
+                    self.scan_for_request(driver, r".mp4$"),  # type: ignore
+                    lambda x: (x.get('url'), x.get('content'))
+                    if x else (None, None))
                 if m3u8_url:
                     if not m3u8_doc:
-                        m3u8_doc = try_get(self.send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))
+                        m3u8_doc = try_get(
+                            self.send_multi_request(m3u8_url, headers=_headers),
+                            lambda x: (x.content).decode('utf-8', 'replace'))
 
                     if m3u8_doc:
                         _formats, _ = self._parse_m3u8_formats_and_subtitles(
@@ -210,19 +241,19 @@ class BasePornhitsIE(SeleniumInfoExtractor):
 
 
 class TxxxIE(BasePornhitsIE):
-    IE_NAME = "txxx"
+    IE_NAME = "txxx"  # type: ignore
     _SITE_URL = "https://txxx.com/"
     _VALID_URL = r'https?://(video)?txxx.com/(?:embed|videos)/(?P<id>\d+)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://(video)?txxx\.com/embed/.+?)\1']
 
 
 class HotMovsIE(BasePornhitsIE):
-    IE_NAME = "hotmovs"
+    IE_NAME = "hotmovs"  # type: ignore
     _SITE_URL = "https://hotmovs.com/"
     _VALID_URL = r'https?://hotmovs.com/(?:embed|videos)/(?P<id>\d+)'
 
 
 class PornhitsIE(BasePornhitsIE):
-    IE_NAME = "pornhits"
+    IE_NAME = "pornhits"  # type: ignore
     _SITE_URL = "https://www.pornhits.com/"
     _VALID_URL = r'https?://(?:www)?.pornhits.com/(?:embed\.php\?id=|video/)(?P<id>\d+)'

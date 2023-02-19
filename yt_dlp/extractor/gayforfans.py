@@ -9,7 +9,7 @@ from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5,
 
 
 class GayForFansIE(SeleniumInfoExtractor):
-    IE_NAME = 'gayforfans'
+    IE_NAME = 'gayforfans'  # type: ignore
     IE_DESC = 'gayforfans'
     _VALID_URL = r'https://gayforfans\.com/video/(?P<video>[a-zA-Z0-9_-]+)'
     _SITE_URL = 'https://gayforfans.com/'
@@ -22,8 +22,15 @@ class GayForFansIE(SeleniumInfoExtractor):
         if msg:
             pre = f'{msg}[get_video_info]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
-        return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL, 'Sec-Fetch-Dest': 'video',
-                                                      'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'same-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        _headers = {
+            'Range': 'bytes=0-',
+            'Referer': self._SITE_URL,
+            'Sec-Fetch-Dest': 'video',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'same-site',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'}
+        return self.get_info_for_format(url, headers=_headers)
 
     @dec_on_exception
     @limiter_5.ratelimit("gayforfans", delay=True)
@@ -37,6 +44,7 @@ class GayForFansIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, check=False, msg=None):
 
+        driver = None
         try:
 
             pre = f'[get_entry][{self._get_url_print(url)}]'
@@ -45,15 +53,19 @@ class GayForFansIE(SeleniumInfoExtractor):
             driver = self.get_driver()
             self._send_request(url, driver)
 
-            _videourl = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, 'video'))),
-                                lambda x: try_get(x.find_elements(By.TAG_NAME, 'source'), lambda y: y[0].get_attribute('src') if y else None) if x else None)
+            _videourl = try_get(
+                self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, 'video'))),
+                lambda x: try_get(x.find_elements(By.TAG_NAME, 'source'), lambda y: y[0].get_attribute('src')
+                                  if y else None) if x else None)
 
             if not _videourl:
                 raise ExtractorError('No url')
 
             _title = driver.title.strip().replace(' - Gay for Fans', '').replace(' - gayforfans.com', '')
 
-            _info = try_get(re.findall(r'wpdiscuzAjaxObj = (\{[^\;]+)\;', driver.page_source), lambda x: json.loads(x[0]) if x else None)
+            _info = try_get(
+                re.findall(r'wpdiscuzAjaxObj = (\{[^\;]+)\;', driver.page_source),
+                lambda x: json.loads(x[0]) if x else None)
             if _info:
                 _videoid = f"POST{_info.get('wc_post_id')}"
             else:
@@ -85,12 +97,9 @@ class GayForFansIE(SeleniumInfoExtractor):
 
             return _entry_video
 
-        except Exception:
-            # lines = traceback.format_exception(*sys.exc_info())
-            # self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise
         finally:
-            self.rm_driver(driver)
+            if driver:
+                self.rm_driver(driver)
 
     def _real_initialize(self):
 
@@ -118,9 +127,13 @@ class GayForFansIE(SeleniumInfoExtractor):
 
 
 class GayForFansPlayListIE(SeleniumInfoExtractor):
-    IE_NAME = 'gayforfans:playlist'
+    IE_NAME = 'gayforfans:playlist'  # type: ignore
     IE_DESC = 'gayforfans'
-    _VALID_URL = r'https?://(www\.)?gayforfans\.com(?:(/(?P<type>(?:popular-videos|performer|categories))(?:/?$|(/(?P<name>[^\/$\?]+))))(?:/?$|/?\?(?P<search>[^$]+)$)|/?\?(?P<search2>[^$]+)$)'
+    _VALID_URL = r'''(?x)
+        https?://(www\.)?gayforfans\.com(?:
+            (/(?P<type>(?:popular-videos|performer|categories))(?:
+                /?$|(/(?P<name>[^\/$\?]+))))(?:
+                    /?$|/?\?(?P<search>[^$]+)$)|/?\?(?P<search2>[^$]+)$)'''
 
     def _real_extract(self, url):
 
@@ -134,12 +147,14 @@ class GayForFansPlayListIE(SeleniumInfoExtractor):
             while True:
 
                 el_videos = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.TAG_NAME, 'article')))
-                for _el in el_videos:
-                    _url = _el.find_element(by=By.TAG_NAME, value='a').get_attribute('href')
-                    if _url:
-                        entries.append({'_type': 'url', 'url': _url, 'ie_key': 'GayForFans'})
+                if el_videos:
+                    for _el in el_videos:
+                        _url = _el.find_element(by=By.TAG_NAME, value='a').get_attribute('href')
+                        if _url:
+                            entries.append({'_type': 'url', 'url': _url, 'ie_key': 'GayForFans'})
 
-                el_next = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CSS_SELECTOR, 'a.next.page-numbers')))
+                el_next = self.wait_until(driver, 30, ec.presence_of_all_elements_located(
+                    (By.CSS_SELECTOR, 'a.next.page-numbers')))
                 if el_next:
                     el_next[0].click()
                 else:

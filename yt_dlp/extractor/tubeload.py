@@ -25,7 +25,8 @@ from ..utils import (
 )
 
 
-on_exception_vinfo = my_dec_on_exception((TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=2, interval=0.1)
+on_exception_vinfo = my_dec_on_exception(
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=2, interval=0.1)
 
 
 class BaseloadIE(SeleniumInfoExtractor):
@@ -33,8 +34,9 @@ class BaseloadIE(SeleniumInfoExtractor):
     _LOCK = Lock()
     _MAINJS = ""
     _SITE_URL = ""
-    _JS_SCRIPT = {"deofus": "/Users/antoniotorres/.config/yt-dlp/tubeload_deofus.js",
-                  "getvurl": "/Users/antoniotorres/.config/yt-dlp/tubeload_getvurl.js"}
+    _JS_SCRIPT = {
+        "deofus": "/Users/antoniotorres/.config/yt-dlp/tubeload_deofus.js",
+        "getvurl": "/Users/antoniotorres/.config/yt-dlp/tubeload_getvurl.js"}
 
     @on_exception_vinfo
     @dec_on_exception2
@@ -45,8 +47,17 @@ class BaseloadIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
 
         with limiter_0_1.ratelimit(self.IE_NAME, delay=True):
+            _headers = {
+                'Range': 'bytes=0-',
+                'Referer': self._SITE_URL + "/",
+                'Origin': self._SITE_URL,
+                'Sec-Fetch-Dest': 'video',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'}
             try:
-                return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL + "/", 'Origin': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+                return self.get_info_for_format(url, headers=_headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.logger.debug(f"{pre}: inner error sin raise - {repr(e)}")
 
@@ -93,7 +104,9 @@ class BaseloadIE(SeleniumInfoExtractor):
                     _res.append(_args)
             return _res
 
-        args = try_get(re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage), lambda x: getter(x))
+        args = try_get(
+            re.findall(r'var .+eval\(.+decodeURIComponent\(escape\(r\)\)\}\(([^\)]+)\)', webpage),
+            lambda x: getter(x))
         return args
 
     def get_mainjs(self, url):
@@ -125,12 +138,16 @@ class BaseloadIE(SeleniumInfoExtractor):
         _args = None
         title = None
         if not webpage:
-            webpage = try_get(self._send_request(_url, max_limit=max_limit), lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
+            webpage = try_get(
+                self._send_request(_url, max_limit=max_limit),
+                lambda x: html.unescape(x) if isinstance(x, str) else html.unescape(x.text))
             if not webpage or '<title>404' in webpage:
                 raise ExtractorError("error 404 no webpage")
             self.logger.debug(f'{pre} size webpage dl: {len(webpage)}')
 
-        _title = try_get(self._html_extract_title(webpage), lambda x: x.replace('.mp4', '').strip('[_,-, ]') if x else None)
+        _title = try_get(
+            self._html_extract_title(webpage),
+            lambda x: x.replace('.mp4', '').strip('[_,-, ]') if x else None)
         if not _title:
             raise ExtractorError("error no title")
         else:
@@ -160,7 +177,9 @@ class BaseloadIE(SeleniumInfoExtractor):
             res0 = self.cache.load(self.IE_NAME, f'{self._key}res0')
             if not res0:
                 with ThreadPoolExecutor(thread_name_prefix="tload") as exe:
-                    futures = {exe.submit(self._getinfofromwebpage, _url, webpage, max_limit, pre): 'infowebpage', exe.submit(self._getres0, _url): 'res0'}
+                    futures = {
+                        exe.submit(self._getinfofromwebpage, _url, webpage, max_limit, pre): 'infowebpage',
+                        exe.submit(self._getres0, _url): 'res0'}
 
                 for fut in futures:
                     if (res := fut.result()):
@@ -176,7 +195,9 @@ class BaseloadIE(SeleniumInfoExtractor):
             if not res0 or not res1:
                 raise ExtractorError(f"error in res0[{not res0}] or res1[{not res1}]")
             else:
-                video_url = subprocess.run(['node', self._JS_SCRIPT['getvurl'], res0, res1], capture_output=True, encoding="utf-8").stdout.strip('\n')
+                video_url = subprocess.run(
+                    ['node', self._JS_SCRIPT['getvurl'], res0, res1],
+                    capture_output=True, encoding="utf-8").stdout.strip('\n')
 
                 _format = {
                     'format_id': 'http-mp4',
@@ -195,7 +216,10 @@ class BaseloadIE(SeleniumInfoExtractor):
                     if not _videoinfo:
                         raise ExtractorError("error 404: no video info")
                     else:
-                        _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
+                        _format.update({
+                            'url': _videoinfo['url'],
+                            'filesize': _videoinfo['filesize'],
+                            'accept_ranges': _videoinfo['accept_ranges']})
 
                 _entry_video = {
                     'id': videoid,

@@ -83,7 +83,7 @@ def my_limiter(seconds: Union[str, int, float]):
     if seconds == "non":
         return Limiter(RequestRate(10000, 0))
     elif isinstance(seconds, (int, float)):
-        return Limiter(RequestRate(1, seconds * Duration.SECOND))
+        return Limiter(RequestRate(1, seconds * Duration.SECOND))  # type: ignore
 
 
 def my_jitter(value: float) -> float:
@@ -91,39 +91,52 @@ def my_jitter(value: float) -> float:
     return int(random.uniform(value, value * 1.25))
 
 
-def my_dec_on_exception(exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None, myjitter: bool = False, raise_on_giveup: bool = True, interval: Union[int, float] = 1):
+def my_dec_on_exception(
+        exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None,
+        myjitter: bool = False, raise_on_giveup: bool = True, interval: Union[int, float] = 1):
     if not myjitter:
         _jitter = None
     else:
         _jitter = my_jitter
-    return on_exception(constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
+    return on_exception(
+        constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
 
 
 limiter_non = Limiter(RequestRate(10000, 0))
-limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))
-limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))
-limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))
-limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))
-limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))
-limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))
+limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))  # type: ignore
+limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))  # type: ignore
+limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))  # type: ignore
+limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))  # type: ignore
+limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))  # type: ignore
+limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))  # type: ignore
 limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
-limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))
+limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))  # type: ignore
 limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
 limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
 limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
 limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
-dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_exception2 = on_exception(constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
-dec_on_exception3 = on_exception(constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
-dec_retry = on_exception(constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
-dec_retry_on_exception = on_exception(constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
-dec_retry_raise = on_exception(constant, ExtractorError, max_tries=3, interval=10)
-dec_retry_error = on_exception(constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
-dec_on_driver_timeout = on_exception(constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
-dec_on_reextract = on_exception(constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
-retry_on_driver_except = on_exception(constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
+dec_on_exception = on_exception(
+    constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_exception2 = on_exception(
+    constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
+dec_on_exception3 = on_exception(
+    constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
+dec_retry = on_exception(
+    constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
+dec_retry_on_exception = on_exception(
+    constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
+dec_retry_raise = on_exception(
+    constant, ExtractorError, max_tries=3, interval=10)
+dec_retry_error = on_exception(
+    constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+dec_on_driver_timeout = on_exception(
+    constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
+dec_on_reextract = on_exception(
+    constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
+retry_on_driver_except = on_exception(
+    constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
 
 
 CONFIG_EXTRACTORS = {
@@ -138,10 +151,12 @@ CONFIG_EXTRACTORS = {
      'biguz', 'gaytubes',): {
         'ratelimit': limiter_0_1,
         'maxsplits': 4},
-    ('boyfriendtv', 'nakedswordscene',): {'ratelimit': limiter_0_1,
-                                          'maxsplits': 16},
-    ('nakedswordscene',): {'ratelimit': limiter_0_1,
-                           'maxsplits': 16},
+    ('boyfriendtv', 'nakedswordscene',): {
+        'ratelimit': limiter_0_1,
+        'maxsplits': 16},
+    ('nakedswordscene',): {
+        'ratelimit': limiter_0_1,
+        'maxsplits': 16},
     ('videovard', 'fembed', 'streamtape',
      'gaypornvideos', 'gayforfans',
      'gayguytop', 'upstream', 'videobin',
@@ -151,10 +166,10 @@ CONFIG_EXTRACTORS = {
     ('odnoklassniki', 'thisvid',
      'gaystreamembed', 'pornhat',
      'yourporngod', 'ebembed',
-                    'gay0day', 'onlygayvideo',
+     'gay0day', 'onlygayvideo',
      'txxx', 'thegay', 'homoxxx',
-                      'youporn', 'gaygo',
-                    'youporngay', 'streamsb',
+     'youporn', 'gaygo',
+     'youporngay', 'streamsb',
      'hexupload', 'pornone',): {
         'ratelimit': limiter_1,
         'maxsplits': 16}
@@ -164,7 +179,9 @@ CONFIG_EXTRACTORS = {
 def getter(x):
 
     if x != 'generic':
-        value, key_text = try_get([(v, sk) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() for sk in k if sk == x], lambda y: y[0]) or ("", "")
+        value, key_text = try_get(
+            [(v, sk) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() for sk in k if sk == x],
+            lambda y: y[0]) or ("", "")
         if value:
             return (value['ratelimit'].ratelimit(key_text, delay=True))
 
@@ -183,7 +200,8 @@ class scroll:
     def __call__(self, driver):
         el_footer = driver.find_elements(By.CSS_SELECTOR, "div#footer")
         if el_footer:
-            driver.execute_script("window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer[0].location)
+            driver.execute_script(
+                "window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer[0].location)
             return True
 
         else:
@@ -241,26 +259,33 @@ class myHAR:
     @classmethod
     def get_har(cls, driver, _method="GET", _mimetype=None):
 
-        _res = try_get(driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"), lambda x: x.get('entries') if x else None)
+        _res = try_get(
+            driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
+            lambda x: x.get('entries') if x else None)
 
         if _res:
 
             _res_filt = [el for el in _res if all(
                 [
                     traverse_obj(el, ('request', 'method'), default='') == _method,
-                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,
-                    not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in ('image', 'css', 'font', 'octet-stream')])
+                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,  # type: ignore
+                    not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
+                             for _ in ('image', 'css', 'font', 'octet-stream')])
                 ])]
 
             if _mimetype:
                 if isinstance(_mimetype, str):
                     _mimetype = [_mimetype]
-                _res_filt = [el for el in _res_filt if any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='') for _ in _mimetype])]
+                _res_filt = [el for el in _res_filt if any(
+                    [_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
+                     for _ in _mimetype])]
 
             return copy.deepcopy(_res_filt)
 
     @classmethod
-    def scan_har_for_request(cls, _driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False, check_event=None):
+    def scan_har_for_request(
+            cls, _driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True,
+            inclheaders=False, check_event=None):
 
         _har_old = []
 
@@ -273,6 +298,9 @@ class myHAR:
         while True:
 
             _newhar = cls.get_har(_driver, _method=_method, _mimetype=_mimetype)
+
+            assert _newhar
+
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
             for entry in _har:
@@ -288,12 +316,14 @@ class myHAR:
 
                 if inclheaders:
 
-                    _req_headers = {header['name']: header['value'] for header in traverse_obj(entry, ('request', 'headers')) if header['name'] != 'Host'}
+                    _req_headers = {header['name']: header['value']
+                                    for header in traverse_obj(entry, ('request', 'headers'))  # type: ignore
+                                    if header['name'] != 'Host'}
 
                     _hint = {'headers': _req_headers}
 
                 if not response:
-                    _hint.update({'url': _url})
+                    _hint.update({'url': _url})  # type: ignore
                     if not _all:
                         return (_hint)
                     else:
@@ -302,7 +332,10 @@ class myHAR:
                     _resp_status = traverse_obj(entry, ('response', 'status'))
                     _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
 
-                    _hint.update({'url': _url, 'content': _resp_content, 'status': int_or_none(_resp_status)})
+                    _hint.update({
+                        'url': _url,  # type: ignore
+                        'content': _resp_content,
+                        'status': int_or_none(_resp_status)})
 
                     if not _all:
                         return (_hint)
@@ -343,9 +376,12 @@ class myHAR:
                             time.sleep(0.01)
 
     @classmethod
-    def scan_har_for_json(cls, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
+    def scan_har_for_json(
+            cls, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
 
-        _hints = cls.scan_har_for_request(_driver, _link, _method=_method, _mimetype="json", _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=check_event)
+        _hints = cls.scan_har_for_request(
+            _driver, _link, _method=_method, _mimetype="json", _all=_all,
+            timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
         def func_getter(x):
             _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
@@ -392,9 +428,15 @@ class myIP:
         try:
             if not ie:
                 _proxies = {'all://': f'http://127.0.0.1:{key}'} if key is not None else None
-                myip = try_get(httpx.get(_urlapi, timeout=httpx.Timeout(timeout=timeout), proxies=_proxies, follow_redirects=True), lambda x: x.json().get(_keyapi))  # type: ignore
+                myip = try_get(
+                    httpx.get(
+                        _urlapi, timeout=httpx.Timeout(timeout=timeout),
+                        proxies=_proxies, follow_redirects=True),  # type: ignore
+                    lambda x: x.json().get(_keyapi))  # type: ignore
             else:
-                myip = try_get(ie.send_http_request(_urlapi, timeout=httpx.Timeout(timeout=timeout)), lambda x: x.json().get(_keyapi))
+                myip = try_get(
+                    ie.send_http_request(_urlapi, timeout=httpx.Timeout(timeout=timeout)),
+                    lambda x: x.json().get(_keyapi))
             return myip
         except Exception as e:
             return repr(e)
@@ -409,7 +451,9 @@ class myIP:
             except Exception:
                 return False
         exe = ThreadPoolExecutor(thread_name_prefix="getmyip")
-        futures = {exe.submit(cls.get_ip, key=key, timeout=timeout, api=api, ie=ie): api for api in cls.URLS_API_GETMYIP}
+        futures = {
+            exe.submit(cls.get_ip, key=key, timeout=timeout, api=api, ie=ie): api
+            for api in cls.URLS_API_GETMYIP}
         for el in as_completed(futures):
             if not el.exception():
                 _res = el.result()
@@ -438,9 +482,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classproperty
     def IE_NAME(cls):
-        return cls.__name__[:-2].lower()
+        return cls.__name__[:-2].lower()  # type: ignore
 
-    @classproperty(cache=True)
+    @classproperty(cache=True)  # type: ignore
     def _RETURN_TYPE(cls):
         """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
         tests = tuple(cls.get_testcases(include_onlymatching=False))
@@ -478,26 +522,35 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _get_extractor(self, _args):
 
+        assert SeleniumInfoExtractor._YTDL
+        assert self._downloader
+
         if _args.startswith('http'):
 
-            ies = self._YTDL._ies
-            for ie_key, ie in ies.items():
-                if ie.suitable(_args):
-                    if ie_key == 'Generic':
-                        continue
-                    else:
-                        break
+            ies = SeleniumInfoExtractor._YTDL._ies
+            ie_key = 'Generic'
+            for key, ie in ies.items():
+                try:
+                    if ie.suitable(_args):
+                        if key == 'Generic':
+                            continue
+                        else:
+                            ie_key = key
+                            break
+                except Exception as e:
+                    self.report_warning(f'[get_extractor] error with {key} - {repr(e)}')
+
         else:
             ie_key = _args
 
         try:
             _extractor = self._downloader.get_info_extractor(ie_key)
-            if _extractor:
-                _extractor._ready = False
-                _extractor._real_initialize()
-                return _extractor
+            _extractor._ready = False
+            _extractor._real_initialize()
+            return _extractor
         except Exception:
             self.logger_debug(f"extractor doesnt exist with ie_key {ie_key}")
+            raise
 
     def _get_ie_name(self, url=None):
 
@@ -558,7 +611,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                         if not self._downloader.params.get('stop'):
                             self._downloader.params['stop'] = SeleniumInfoExtractor._YTDL.params.get('stop', Event())
                         if not self._downloader.params.get('routing_table'):
-                            self._downloader.params['routing_table'] = SeleniumInfoExtractor._YTDL.params.get('routing_table')
+                            self._downloader.params['routing_table'] = SeleniumInfoExtractor._YTDL.params.get(
+                                'routing_table')
 
                     SeleniumInfoExtractor._YTDL = self._downloader
 
@@ -634,7 +688,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if hasattr(self, 'indexdl'):
                 _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
 
-            if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
+            if any([_stop and isinstance(_stop, Event) and _stop.is_set(), _stopg and _stopg.is_set()]):
                 self.to_screen("stop event")
                 raise StatusStop("stop event")
 
@@ -692,14 +746,14 @@ class SeleniumInfoExtractor(InfoExtractor):
             opts.set_preference("dom.webdriver.enabled", False)
             opts.set_preference("useAutomationExtension", False)
 
-            opts.page_load_strategy = 'eager'
+            opts.page_load_strategy = 'eager'  # type: ignore
 
-            serv = Service(log_path="/dev/null")
+            serv = Service(log_path="/dev/null")  # type: ignore
 
             def return_driver():
                 _driver = None
                 try:
-                    _driver = Firefox(service=serv, options=opts)
+                    _driver = Firefox(service=serv, options=opts)  # type: ignore
                     _driver.maximize_window()
                     self.wait_until(_driver, timeout=1)
                     _driver.set_script_timeout(20)
@@ -721,7 +775,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             return driver
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
-        if not host and _proxy:
+        if not host and _proxy and isinstance(_proxy, str):
             _host, _port = (urlparse(_proxy).netloc).split(':')
             self.to_screen(f"[get_driver] {_host} - {int(_port)}")
         else:
@@ -732,7 +786,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classmethod
     def rm_driver(cls, driver):
 
-        tempdir = traverse_obj(driver.caps, 'moz:profile')
+        tempdir = driver.caps.get('moz:profile')
         try:
             driver.quit()
         except Exception:
@@ -741,18 +795,28 @@ class SeleniumInfoExtractor(InfoExtractor):
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def scan_for_request(self, driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True, inclheaders=False):
+    def scan_for_request(
+            self, driver, _valid_url, _method="GET", _mimetype=None, _all=False,
+            timeout=10, response=True, inclheaders=False):
 
-        return myHAR.scan_har_for_request(driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout, response=response, inclheaders=inclheaders, check_event=self.check_stop())
+        return myHAR.scan_har_for_request(
+            driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout,
+            response=response, inclheaders=inclheaders, check_event=self.check_stop())
 
     def scan_for_json(self, driver, _valid_url, _method="GET", _all=False, timeout=10, inclheaders=False):
 
-        return myHAR.scan_har_for_json(driver, _valid_url, _method=_method, _all=_all, timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop())
+        return myHAR.scan_har_for_json(
+            driver, _valid_url, _method=_method, _all=_all, timeout=timeout,
+            inclheaders=inclheaders, check_event=self.check_stop())
 
-    def wait_until(self, driver, timeout=60, method=ec.title_is("DUMMYFORWAIT"), poll_freq=0.5):
+    def wait_until(self, driver, timeout=60, method=None, poll_freq=0.5):
 
+        if not method:
+            method = ec.title_is("DUMMYFORWAIT")
         try:
-            el = WebDriverWait(driver, timeout, poll_frequency=poll_freq).until(ec.any_of(checkStop(self.check_stop), method))
+            el = WebDriverWait(
+                driver, timeout, poll_frequency=poll_freq).until(
+                    ec.any_of(checkStop(self.check_stop), method))  # type: ignore
         except StatusStop:
             raise
         except Exception:
@@ -762,9 +826,10 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def get_info_for_format(self, url, **kwargs):
 
+        res = None
+        _msg_err = ""
         try:
-            res = None
-            _msg_err = ""
+
             client = kwargs.get('client', None)
             headers = kwargs.get('headers', None)
             if client:
@@ -813,7 +878,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.logger_debug(f'[valid]{_pre_str} start checking')
 
         try:
-            if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'xtube.com', 'xtapes.to',
+            if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
+                                      'thisvid.com/embed', 'xtube.com', 'xtapes.to',
                                       'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
                 self.logger_debug(f'[valid]{_pre_str}:False')
                 return False
@@ -859,7 +925,14 @@ class SeleniumInfoExtractor(InfoExtractor):
                             valid = False
                             self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt download webpage')
                         else:
-                            valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken']) and not any(_ in webpage.lower() for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed', 'video unavailable', 'video is unavailable', 'video disabled', 'not allowed to watch', 'video not found', 'post not found', 'limit reached', 'xtube.com is no longer available', 'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
+                            valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
+                            valid = valid and not any(
+                                _ in webpage.lower()
+                                for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed',
+                                          'video unavailable', 'video is unavailable', 'video disabled',
+                                          'not allowed to watch', 'video not found', 'post not found',
+                                          'limit reached', 'xtube.com is no longer available',
+                                          'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
 
                             self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
 
