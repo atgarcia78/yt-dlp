@@ -94,9 +94,12 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         el_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url")))
         if el_login:
             el_login.click()
-        el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#login.form-control")))
-        el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
-        el_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input.btn.btn-submit")))
+        el_username = self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input#login.form-control")))
+        el_password = self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input#password.form-control")))
+        el_login = self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input.btn.btn-submit")))
         if el_username and el_password and el_login:
             el_username.send_keys(username)
             self.wait_until(driver, 2)
@@ -134,7 +137,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
 
 class BoyFriendTVIE(BoyFriendTVBaseIE):
-    IE_NAME = 'boyfriendtv'
+    IE_NAME = 'boyfriendtv'  # type: ignore
     _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/(?:videos|embed)/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
 
     def _get_entry(self, url, *args, **kwargs):
@@ -239,6 +242,9 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
 
     def _get_last_page(self, webpage):
         last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "")
+
+        assert last_page_url
+
         last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
         return last_page
 
@@ -247,6 +253,9 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         try:
             logger.debug(f"page: {url_page}")
             webpage = try_get(self._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+
+            assert webpage
+
             el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
             entries = []
             urls = []
@@ -341,7 +350,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
 
 
 class BoyFriendTVSearchIE(BoyFriendTVPLBaseIE):
-    IE_NAME = 'boyfriendtv:playlist:search'
+    IE_NAME = 'boyfriendtv:playlist:search'  # type: ignore
     IE_DESC = 'boyfriendtv:playlist:search'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/search/(?P<playlist_id>[^/?$]*)/?(\?(?P<query>.+))?'
     _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}search/%s/%d'
@@ -349,7 +358,7 @@ class BoyFriendTVSearchIE(BoyFriendTVPLBaseIE):
 
 
 class BoyFriendTVProfileFavIE(BoyFriendTVPLBaseIE):
-    IE_NAME = 'boyfriendtv:playlist:profilefav'
+    IE_NAME = 'boyfriendtv:playlist:profilefav'  # type: ignore
     IE_DESC = 'boyfriendtv:playlist:profilefav'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/profiles/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
     _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}profiles/%s/videos/favorites/?page=%d'
@@ -357,7 +366,7 @@ class BoyFriendTVProfileFavIE(BoyFriendTVPLBaseIE):
 
 
 class BoyFriendTVPlayListIE(BoyFriendTVPLBaseIE):
-    IE_NAME = 'boyfriendtv:playlist'
+    IE_NAME = 'boyfriendtv:playlist'  # type: ignore
     IE_DESC = 'boyfriendtv:playlist'
     _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)boyfriendtv\.com/playlists/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
     _BASE_URL = f'{BoyFriendTVBaseIE._SITE_URL}playlists/%s/%d'
