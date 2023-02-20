@@ -23,7 +23,7 @@ from .commonwebdriver import (
     dec_retry,
     limiter_0_01,
     limiter_0_1,
-    limiter_5,
+    limiter_1,
     SeleniumInfoExtractor,
     Dict
 )
@@ -121,7 +121,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _API = NSAPI()
     _STATUS: str = 'NORMAL'
     _LIMITERS = {
-        '403': limiter_5.ratelimit("nakedswordscene", delay=True),
+        '403': limiter_1.ratelimit("nakedswordscene", delay=True),
         'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
     _HEADERS = {"OPTIONS": {"AUTH": {
@@ -236,7 +236,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             raise ReExtractInfo("couldnt get m3u8 doc")
 
                         formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                            m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                            m3u8_doc, m3u8_url, ext='mp4', entry_protocol='m3u8_native', m3u8_id='hls')
                         if formats_m3u8:
                             formats.extend(formats_m3u8)
 
@@ -655,7 +655,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             if hasattr(self, 'args_ie'):
                 sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
 
-            logger.info(f"{premsg} sublist of movie scenes: {sublist}")
+                logger.info(f"{premsg} sublist of movie scenes: {sublist}")
 
             _raise_reextract = []
 
@@ -690,6 +690,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                 _entries.append(_entry)
                         except ReExtractInfo:
                             _raise_reextract.append(i)
+
+                            break
 
                     else:
                         _entries.append(_entry)
