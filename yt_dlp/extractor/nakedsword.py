@@ -44,12 +44,14 @@ logger = logging.getLogger('nakedsword')
 class NSAPI:
 
     def __init__(self):
+
         self.logger = logging.getLogger("NSAPI")
         self.call_lock = Lock()
         self.headers_api = {}
         self.ready = False
 
     def init(self, iens):
+
         self.iens = iens
         self.timer = ProgressTimer()
         self.get_auth()
@@ -124,94 +126,97 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         '403': limiter_1.ratelimit("nakedswordscene", delay=True),
         'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
-    _HEADERS = {"OPTIONS": {"AUTH": {
-        'Accept': '*/*',
-        'Accept-Language': 'en,es-ES;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Access-Control-Request-Method': 'POST',
-        'Access-Control-Request-Headers': 'authorization,x-ident',
-        'Referer': 'https://www.nakedsword.com/',
-        'Origin': 'https://www.nakedsword.com',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache'
-    }, "LOGOUT": {
-        'Accept': '*/*',
-        'Accept-Language': 'en,es-ES;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Access-Control-Request-Method': 'DELETE',
-        'Access-Control-Request-Headers': 'authorization,donotrefreshtoken,x-ident',
-        'Referer': 'https://www.nakedsword.com/',
-        'Origin': 'https://www.nakedsword.com',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache'
-    }}, "POST": {"AUTH": {
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': 'https://www.nakedsword.com',
-        'Connection': 'keep-alive',
-        'Referer': 'https://www.nakedsword.com/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-        'Content-Length': '0',
-        'TE': 'trailers',
-    }}, "DELETE": {"LOGOUT": {
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'doNotRefreshToken': 'true',
-        'Origin': 'https://www.nakedsword.com',
-        'Connection': 'keep-alive',
-        'Referer': 'https://www.nakedsword.com/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-        'Content-Length': '0',
-        'TE': 'trailers',
-    }}, "FINAL": {
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Authorization': None,
-        'x-ident': None,
-        'X-CSRF-TOKEN': None,
-        'Origin': 'https://www.nakedsword.com',
-        'Connection': 'keep-alive',
-        'Referer': 'https://www.nakedsword.com/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-        'TE': 'trailers'
-    }, "MPD": {
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Origin': 'https://www.nakedsword.com',
-        'Connection': 'keep-alive',
-        'Referer': 'https://www.nakedsword.com/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'cross-site',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-        'TE': 'trailers'
-    }}
+    _HEADERS = {
+        "OPTIONS": {
+            "AUTH": {
+                'Accept': '*/*',
+                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'authorization,x-ident',
+                'Referer': 'https://www.nakedsword.com/',
+                'Origin': 'https://www.nakedsword.com',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'},
+            "LOGOUT": {
+                'Accept': '*/*',
+                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Access-Control-Request-Method': 'DELETE',
+                'Access-Control-Request-Headers': 'authorization,donotrefreshtoken,x-ident',
+                'Referer': 'https://www.nakedsword.com/',
+                'Origin': 'https://www.nakedsword.com',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'}},
+        "POST": {
+            "AUTH": {
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Origin': 'https://www.nakedsword.com',
+                'Connection': 'keep-alive',
+                'Referer': 'https://www.nakedsword.com/',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache',
+                'Content-Length': '0',
+                'TE': 'trailers'}},
+        "DELETE": {
+            "LOGOUT": {
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'doNotRefreshToken': 'true',
+                'Origin': 'https://www.nakedsword.com',
+                'Connection': 'keep-alive',
+                'Referer': 'https://www.nakedsword.com/',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache',
+                'Content-Length': '0',
+                'TE': 'trailers'}},
+        "FINAL": {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Authorization': None,
+            'x-ident': None,
+            'X-CSRF-TOKEN': None,
+            'Origin': 'https://www.nakedsword.com',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.nakedsword.com/',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+            'TE': 'trailers'},
+        "MPD": {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Origin': 'https://www.nakedsword.com',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.nakedsword.com/',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'cross-site',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+            'TE': 'trailers'}}
 
     def get_formats(self, _types, _info):
 
@@ -649,7 +654,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
             info_streaming_scenes, details = self.get_streaming_info(_url_movie)
 
-            _entries = []
+            #  _entries = []
 
             sublist = []
             if hasattr(self, 'args_ie'):
@@ -680,21 +685,24 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                         "extractor": 'nakedswordscene'
                     }
 
-                    if not sublist or i in sublist:
+                    if (not sublist or i in sublist):
 
-                        try:
-                            formats = self.get_formats(_types, _info)
-                            if formats:
-                                _entry.update({'formats': formats})
-                                self.logger_debug(f"{premsg}[{i}][{_info.get('url')}]: OK got entry")
-                                _entries.append(_entry)
-                        except ReExtractInfo:
-                            _raise_reextract.append(i)
+                        if self._entries.get(i):
+                            self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: already got entry")
 
-                            break
+                        else:
+
+                            try:
+                                formats = self.get_formats(_types, _info)
+                                if formats:
+                                    _entry.update({'formats': formats})
+                                    self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: OK got entry")
+                                    self._entries[i] = _entry
+                            except ReExtractInfo:
+                                _raise_reextract.append(i)
 
                     else:
-                        _entries.append(_entry)
+                        self._entries[i] = _entry
 
                 except ReExtractInfo:
                     raise
@@ -703,13 +711,15 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                     raise
 
             if _raise_reextract:
-                logger.info(f"{premsg} ERROR to get format {_raise_reextract} from sublist of movie scenes: {sublist}")
+                logger.info(f"{premsg} ERROR to get format {_raise_reextract} from sublist of movie scenes: {sublist}. Already got {list(self._entries.keys())}")
                 self.API_LOGOUT()
                 self.API_AUTH()
                 raise ReExtractInfo("error in scenes of movie")
 
             else:
                 logger.info(f"{premsg} OK format for sublist of movie scenes: {sublist}")
+
+            _entries = [el[1] for el in sorted(self._entries.items())]
 
             if _force_list:
                 return _entries
@@ -736,6 +746,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     def _real_extract(self, url):
 
         try:
+            self._entries = {}
             return self.get_entries(url, _type="hls")
         except (ExtractorError, StatusStop):
             raise

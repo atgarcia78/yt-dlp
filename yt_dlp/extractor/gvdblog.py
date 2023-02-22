@@ -75,22 +75,21 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"')
                for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
 
-        list_urls = list(set([
-            item.get('data-litespeed-src', item.get('data-lazy-src', item.get('src', 'DUMMY')))
-            for item in p3 if all(
-                [_ not in item.get('data-litespeed-src', item.get('data-lazy-src', item.get('src', '')))
-                    for _ in ("youtube.com", "blogger.com", "DUMMY")])]))
+        list_urls = []
 
-        list_urls = list(set([
-            item.get('data-litespeed-src', item.get('data-lazy-src', item.get('src', 'DUMMY')))
-            for item in p3 if any(
-                [_ in item.get('data-litespeed-src', item.get('data-lazy-src', item.get('src', 'DUMMY')))
-                    for _ in ("//tubeload.co", "//dood.")])]))
+        for i, el in enumerate(p3):
+            _url = el.get('data-litespeed-src', el.get('data-lazy-src', el.get('src', 'DUMMY')))
+            if any([_ in _url for _ in ("//tubeload.co", "//dood.")]):
+                if i != 0 and "//tubeload.co" in _url and list_urls[-1]:
+                    list_urls.append(None)
+                list_urls.append(_url)
+                if "//dood." in _url:
+                    list_urls.append(None)
 
         _final_urls = []
 
-        if self.keyapi == 'gvdblog.net' and len(list_urls) <= 2 and not list_urls.count(None):
-            _final_urls.extend(list_urls)
+        if self.keyapi == 'gvdblog.net':
+            _final_urls = list_urls
 
         else:
             iedood = self._downloader.get_info_extractor('DoodStream')  # type: ignore
@@ -192,9 +191,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 re.search(r"(?:(class='related-tag' data-id='(?P<id1>\d+)')|(wp-json/wp/v2/posts/(?P<id2>\d+)))", post),
                 lambda x: traverse_obj(x.groupdict(), ('id1'), ('id2')))
             title = try_get(re.findall(r"title>([^<]+)<", post), lambda x: x[0])
-            _pattern = r'''(?x)
-                (?:(class='entry-time mi'><time class='published' datetime='[^']+'>(?P<date1>[^<]+)<)|
-                (calendar[\"']></i> Date: (?P<date2>[^<]+)<))'''
+            _pattern = r"(?:(class='entry-time mi'><time class='published' datetime='[^']+'>(?P<date1>[^<]+)<)|(calendar[\"']></i> Date: (?P<date2>[^<]+)<))"
             postdate = try_get(
                 re.search(_pattern, post),
                 lambda x: try_get(
