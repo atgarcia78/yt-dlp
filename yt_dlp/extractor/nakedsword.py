@@ -62,10 +62,13 @@ class NSAPI:
         if self.iens._logout_api():
             self.headers_api = {}
             self.logger.info("[logout] OK")
+            return "OK"
         else:
             self.logger.info("[logout] NOK")
+            return "NOK"
 
     @dec_retry
+    @dec_on_reextract
     def get_auth(self, **kwargs):
 
         with self.call_lock:
@@ -79,6 +82,8 @@ class NSAPI:
                     return True
                 else:
                     raise ExtractorError("couldnt auth")
+            except ReExtractInfo:
+                raise
             except Exception as e:
                 self.logger.exception(f"[get_auth] {str(e)}")
                 raise ExtractorError("error get auth")
@@ -126,6 +131,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         '403': limiter_1.ratelimit("nakedswordscene", delay=True),
         'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
+    _ENTRIES = {}
     _HEADERS = {
         "OPTIONS": {
             "AUTH": {
@@ -360,16 +366,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         xident = subprocess.run(
             ['node', self._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
             capture_output=True, encoding="utf-8").stdout.strip('\n')
-        _headers_post['x-ident'] = xident
-        token = try_get(
-            self._send_request(
-                "https://ns-api.nakedsword.com/frontend/auth/login", _type="POST", headers=_headers_post),
-            lambda x: traverse_obj(x.json(), ('data', 'jwt')))
-        if token:
-            _final = copy.deepcopy(self._HEADERS["FINAL"])
-            _final.update({'x-ident': xident, 'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
+        if xident:
+            _headers_post['x-ident'] = xident
+            token = try_get(
+                self._send_request(
+                    "https://ns-api.nakedsword.com/frontend/auth/login", _type="POST", headers=_headers_post),
+                lambda x: traverse_obj(x.json(), ('data', 'jwt')))
+            if token:
+                _final = copy.deepcopy(self._HEADERS["FINAL"])
+                _final.update({'x-ident': xident, 'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
 
-            return _final
+                return _final
         return {}
 
     def _refresh_api(self) -> bool:
@@ -687,7 +694,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
                     if (not sublist or i in sublist):
 
-                        if self._entries.get(i):
+                        if NakedSwordBaseIE._ENTRIES[url].get(i):
                             self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: already got entry")
 
                         else:
@@ -697,12 +704,12 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                 if formats:
                                     _entry.update({'formats': formats})
                                     self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: OK got entry")
-                                    self._entries[i] = _entry
+                                    NakedSwordBaseIE._ENTRIES[url][i] = _entry
                             except ReExtractInfo:
                                 _raise_reextract.append(i)
 
                     else:
-                        self._entries[i] = _entry
+                        NakedSwordBaseIE._ENTRIES[url][i] = _entry
 
                 except ReExtractInfo:
                     raise
@@ -711,7 +718,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                     raise
 
             if _raise_reextract:
-                logger.info(f"{premsg} ERROR to get format {_raise_reextract} from sublist of movie scenes: {sublist}. Already got {list(self._entries.keys())}")
+                logger.info(f"{premsg} ERROR to get format {_raise_reextract} from sublist of movie scenes: {sublist}. Already got {list(NakedSwordBaseIE._ENTRIES[url].keys())}")
                 self.API_LOGOUT()
                 self.API_AUTH()
                 raise ReExtractInfo("error in scenes of movie")
@@ -719,7 +726,9 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             else:
                 logger.info(f"{premsg} OK format for sublist of movie scenes: {sublist}")
 
-            _entries = [el[1] for el in sorted(self._entries.items())]
+            _entries = [el[1] for el in sorted(NakedSwordBaseIE._ENTRIES[url].items())]
+
+            NakedSwordBaseIE._ENTRIES.pop(url)
 
             if _force_list:
                 return _entries
@@ -746,7 +755,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     def _real_extract(self, url):
 
         try:
-            self._entries = {}
+            NakedSwordBaseIE._ENTRIES[url] = {}
             return self.get_entries(url, _type="hls")
         except (ExtractorError, StatusStop):
             raise
