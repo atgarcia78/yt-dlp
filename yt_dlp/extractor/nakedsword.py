@@ -9,7 +9,6 @@ from datetime import datetime
 from threading import Lock
 import base64
 import subprocess
-import copy
 
 from .commonwebdriver import (
     ConnectError,
@@ -303,7 +302,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         self._send_request(
             "https://ns-api.nakedsword.com/frontend/auth/logout", _type="OPTIONS",
             headers=self._HEADERS["OPTIONS"]["LOGOUT"])
-        _headers_del = copy.deepcopy(self._HEADERS["DELETE"]["LOGOUT"])
+        _headers_del = self._HEADERS["DELETE"]["LOGOUT"].copy()
         if (_headers := self.API_GET_HTTP_HEADERS()):
             _headers_del.update({'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
             if (resdel := self._send_request(
@@ -360,7 +359,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             "https://ns-api.nakedsword.com/frontend/auth/login",
             _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["AUTH"])
         username, pwd = self._get_login_info()
-        _headers_post = copy.deepcopy(self._HEADERS["POST"]["AUTH"])
+        _headers_post = self._HEADERS["POST"]["AUTH"].copy()
         _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
             f"{username}:{pwd}".encode()).decode('utf-8')
         xident = subprocess.run(
@@ -373,7 +372,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     "https://ns-api.nakedsword.com/frontend/auth/login", _type="POST", headers=_headers_post),
                 lambda x: traverse_obj(x.json(), ('data', 'jwt')))
             if token:
-                _final = copy.deepcopy(self._HEADERS["FINAL"])
+                _final = self._HEADERS["FINAL"].copy()
                 _final.update({'x-ident': xident, 'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
 
                 return _final
