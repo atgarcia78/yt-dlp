@@ -1,4 +1,3 @@
-import copy
 import contextlib
 import html
 import json
@@ -255,32 +254,39 @@ class ProgressTimer:
 
 class myHAR:
 
-    @dec_retry_on_exception
     @classmethod
+    @dec_retry_on_exception
     def get_har(cls, driver, _method="GET", _mimetype=None):
 
         _res = try_get(
             driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
             lambda x: x.get('entries') if x else None)
 
-        if _res:
+        if not _res:
+            raise Exception('no HAR entries')
+
+        else:
+            if _mimetype:
+                if isinstance(_mimetype, (list, tuple)):
+                    _mimetype_list = list(_mimetype)
+                else:
+                    _mimetype_list = [_mimetype]
+                _non_mimetype_list = []
+            else:
+                _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
+                _mimetype_list = []
 
             _res_filt = [el for el in _res if all(
                 [
                     traverse_obj(el, ('request', 'method'), default='') == _method,
                     int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,  # type: ignore
                     not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
-                             for _ in ('image', 'css', 'font', 'octet-stream')])
+                             for _ in _non_mimetype_list]),
+                    any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
+                        for _ in _mimetype_list])
                 ])]
 
-            if _mimetype:
-                if isinstance(_mimetype, str):
-                    _mimetype = [_mimetype]
-                _res_filt = [el for el in _res_filt if any(
-                    [_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
-                     for _ in _mimetype])]
-
-            return copy.deepcopy(_res_filt)
+            return _res_filt
 
     @classmethod
     def scan_har_for_request(
@@ -297,7 +303,7 @@ class myHAR:
 
         while True:
 
-            _newhar = cls.get_har(_driver, _method=_method, _mimetype=_mimetype)
+            _newhar = myHAR.get_har(_driver, _method=_method, _mimetype=_mimetype)
 
             assert _newhar
 
@@ -349,37 +355,37 @@ class myHAR:
                         if check_event.is_set():
                             raise StatusStop("stop event")
 
-                if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
-                    return (_list_hints)
+            if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
+                return (_list_hints)
 
-                if (time.monotonic() - _started) >= timeout:
-                    if _all:
-                        return (_list_hints)
-                    else:
-                        return
+            if (time.monotonic() - _started) >= timeout:
+                if _all:
+                    return (_list_hints)
                 else:
-                    if _all:
-                        _list_hints_old = _list_hints
-                        if _first:
-                            _first = False
-                            if not _list_hints:
-                                time.sleep(0.5)
-                            else:
-                                time.sleep(0.01)
-                        else:
-                            time.sleep(0.01)
-                    else:
-                        if _first:
-                            _first = False
+                    return
+            else:
+                if _all:
+                    _list_hints_old = _list_hints
+                    if _first:
+                        _first = False
+                        if not _list_hints:
                             time.sleep(0.5)
                         else:
                             time.sleep(0.01)
+                    else:
+                        time.sleep(0.01)
+                else:
+                    if _first:
+                        _first = False
+                        time.sleep(0.5)
+                    else:
+                        time.sleep(0.01)
 
     @classmethod
     def scan_har_for_json(
             cls, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
 
-        _hints = cls.scan_har_for_request(
+        _hints = myHAR.scan_har_for_request(
             _driver, _link, _method=_method, _mimetype="json", _all=_all,
             timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
@@ -801,15 +807,15 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return myHAR.scan_har_for_request(
             driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout,
-            response=response, inclheaders=inclheaders, check_event=self.check_stop())
+            response=response, inclheaders=inclheaders, check_event=self.check_stop)
 
     def scan_for_json(self, driver, _valid_url, _method="GET", _all=False, timeout=10, inclheaders=False):
 
         return myHAR.scan_har_for_json(
             driver, _valid_url, _method=_method, _all=_all, timeout=timeout,
-            inclheaders=inclheaders, check_event=self.check_stop())
+            inclheaders=inclheaders, check_event=self.check_stop)
 
-    def wait_until(self, driver, timeout=60, method=None, poll_freq=0.5):
+    def wait_until(self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None, poll_freq: float = 0.5):
 
         if not method:
             method = ec.title_is("DUMMYFORWAIT")
