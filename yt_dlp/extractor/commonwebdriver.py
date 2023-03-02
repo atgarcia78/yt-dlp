@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 from threading import Event, Lock
+import functools
 from urllib.parse import unquote, urlparse
 
 from backoff import constant, on_exception
@@ -28,6 +29,7 @@ from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import WebDriverException, TimeoutException
+from selenium.webdriver.remote.webelement import WebElement
 
 
 assert Keys  # for flake8
@@ -192,28 +194,53 @@ class scroll:
         To use as a predicate in the webdriver waits to scroll down to the end of the page
         when the page has an infinite scroll where it is adding new elements dynamically
     '''
+    _WAIT_TIME_SCROLL = 3
 
     def __init__(self, wait_time=2):
         self.wait_time = wait_time
+        self.last_height = 0
+        self.timer = ProgressTimer()
+
+        if self.wait_time <= self._WAIT_TIME_SCROLL:
+            self.exit_func = functools.partial(self.upt_height, lock=True)
+        else:
+            self.exit_func = lambda x: False
+
+        self._page = None
+
+        self._el_footer = 'NOTINIT'
+
+    def upt_height(self, driver, lock=False):
+        if (not lock and self.timer.has_elapsed(self._WAIT_TIME_SCROLL)) or (lock and self.timer.wait_haselapsed(self._WAIT_TIME_SCROLL)):
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == self.last_height:
+                return True
+            self.last_height = new_height
 
     def __call__(self, driver):
-        el_footer = driver.find_elements(By.CSS_SELECTOR, "div#footer")
-        if el_footer:
+        if self._el_footer == 'NOTINIT':
+            self._el_footer = try_get(driver.find_elements(By.CSS_SELECTOR, "div#footer"), lambda x: x[0])
+
+        if self._el_footer:
+            self._el_footer = cast(WebElement, self._el_footer)
             driver.execute_script(
-                "window.scrollTo(arguments[0]['x'], arguments[0]['y']);", el_footer[0].location)
+                "window.scrollTo(arguments[0]['x'], arguments[0]['y']);", self._el_footer.location)
             return True
 
         else:
-            last_height = driver.execute_script("return document.body.scrollHeight")
-            time_start = time.monotonic()
-            while ((time.monotonic() - time_start) <= self.wait_time):
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
-            new_height = driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height:
+            if not self._page:
+                self._page = driver.find_element(By.XPATH, "//body")
+            time_start = time.monotonic()
+            self.timer.reset()
+            while ((time.monotonic() - time_start) <= self.wait_time):
+                if self.upt_height(driver):
+                    return True
+                self._page.send_keys(Keys.PAGE_DOWN)
+
+            if self.exit_func(driver):
                 return True
-            else:
-                return False
+            return False
 
 
 class checkStop:
@@ -237,7 +264,7 @@ class ProgressTimer:
         return (f"{self.elapsed_seconds():.2f}")
 
     def reset(self):
-        self._last_ts += self.elapsed_seconds()
+        self._last_ts = self.TIMER_FUNC()
 
     def elapsed_seconds(self) -> float:
         return self.TIMER_FUNC() - self._last_ts
@@ -250,6 +277,13 @@ class ProgressTimer:
 
         self._last_ts += elapsed_seconds - elapsed_seconds % seconds
         return True
+
+    def wait_haselapsed(self, seconds: float):
+        while True:
+            if self.has_elapsed(seconds):
+                return True
+            else:
+                time.sleep(0.2)
 
 
 class myHAR:
