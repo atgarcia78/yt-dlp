@@ -65,9 +65,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     def get_urls(self, webpage, msg=None):
 
-        p1 = re.findall(
-            r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<', webpage,
-            flags=re.IGNORECASE)   # type: ignore
+        _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
+        p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2])
               for l1 in p1 if any(
             [(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])),
@@ -77,14 +76,28 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         list_urls = []
 
-        for i, el in enumerate(p3):
-            _url = el.get('data-litespeed-src', el.get('data-lazy-src', el.get('src', 'DUMMY')))
-            if any([_ in _url for _ in ("//tubeload.co", "//dood.")]):
-                if i != 0 and "//tubeload.co" in _url and list_urls[-1]:
+        def _get_url(el):
+            for key in el.keys():
+                if 'src' in key:
+                    return el[key]
+            return 'DUMMY'
+
+        _tb = False
+        for el in p3:
+            _url = _get_url(el)
+            if "//tubeload.co" in _url:
+                if _tb:
                     list_urls.append(None)
+                else:
+                    _tb = True
                 list_urls.append(_url)
-                if "//dood." in _url:
+            elif "//dood." in _url:
+                list_urls.append(_url)
+                if _tb:
                     list_urls.append(None)
+                    _tb = False
+        if _tb:
+            list_urls.append(None)
 
         _final_urls = []
 
@@ -263,9 +276,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             logger.exception(f"[get_entries_from_post] {repr(e)}")
         finally:
             premsg = f'[get_entries]:{self._get_url_print(url)}'
+            self.logger_debug(f"{postid} - {title} - {postdate} - {list_candidate_videos}")
             if not postdate or not title or not postid or not list_candidate_videos:
                 raise ExtractorError(f"[{url} no video info")
-            self.logger_debug(f"{postid} - {title} - {postdate} - {list_candidate_videos}")
 
         entries = []
 
