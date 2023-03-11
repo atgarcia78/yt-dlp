@@ -9,7 +9,8 @@ from ..utils import (
     traverse_obj,
     get_element_html_by_id,
     int_or_none,
-    get_domain)
+    get_domain,
+    unsmuggle_url)
 from .commonwebdriver import (
     unquote, dec_on_exception2, dec_on_exception3,
     SeleniumInfoExtractor, limiter_1, limiter_0_1, HTTPStatusError, ConnectError, cast, Tuple)
@@ -77,10 +78,14 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         list_urls = []
 
         def _get_url(el):
+            _res = 'DUMMY'
             for key in el.keys():
                 if 'src' in key:
-                    return el[key]
-            return 'DUMMY'
+                    if ("//tubeload.co" in el[key] or "//dood." in el[key]):
+                        return el[key]
+                    else:
+                        _res = el[key]
+            return _res
 
         _tb = False
         for el in p3:
@@ -371,7 +376,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         super()._real_initialize()
 
     def _real_extract(self, url):
-
+        url, _ = unsmuggle_url(url)
         self.keyapi = cast(str, get_domain(url))
         _check = True
         if try_get(re.search(self._VALID_URL, url), lambda x: x.group('nocheck')):
@@ -382,7 +387,8 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             raise ExtractorError("no videos")
 
         return self.playlist_result(
-            entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True))
+            entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True),
+            webpage_url=url, original_url=url)
 
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
