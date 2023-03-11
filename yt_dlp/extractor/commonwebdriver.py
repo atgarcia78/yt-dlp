@@ -19,7 +19,8 @@ from httpx import (
     HTTPStatusError,
     Limits,
     StreamError,
-    Timeout
+    Timeout,
+    Response
 )
 from pyrate_limiter import Duration, Limiter, RequestRate
 from selenium.webdriver import Firefox, FirefoxOptions
@@ -89,7 +90,7 @@ def my_limiter(seconds: Union[str, int, float]):
 
 def my_jitter(value: float) -> float:
 
-    return int(random.uniform(value, value * 1.25))
+    return int(random.uniform(value * 0.75, value * 1.25))
 
 
 def my_dec_on_exception(
@@ -622,17 +623,17 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass
 
-    @classmethod
-    def suitable(cls, url):
-        """Receives a URL and returns True if suitable for this IE."""
-        # This function must import everything it needs (except other extractors),
-        # so that lazy_extractors works correctly
-        return cls._match_valid_url(url.split("#__youtubedl_smuggle=")[0]) is not None
+    # @classmethod
+    # def suitable(cls, url):
+    #     """Receives a URL and returns True if suitable for this IE."""
+    #     # This function must import everything it needs (except other extractors),
+    #     # so that lazy_extractors works correctly
+    #     return cls._match_valid_url(url.split("#__youtubedl_smuggle=")[0]) is not None
 
     def initialize(self):
 
-        self._ready = False
         super().initialize()
+        self._ready = False
 
     def _real_initialize(self):
 
@@ -725,10 +726,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             _stopg = self.get_param('stop')
             _stop = None
-            if hasattr(self, 'indexdl'):
-                _stop = traverse_obj(self.get_param('stop_dl'), str(self.indexdl))
+            if (_index := getattr(self, 'indexdl', None)):
+                _stop = try_get(self.get_param('stop_dl'), lambda x: x.get(str(_index)))
 
-            if any([_stop and isinstance(_stop, Event) and _stop.is_set(), _stopg and _stopg.is_set()]):
+            if any([_stop and _stop.is_set(), _stopg and _stopg.is_set()]):
                 self.to_screen("stop event")
                 raise StatusStop("stop event")
 
@@ -1060,7 +1061,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             logger = logging.getLogger(self.IE_NAME)
             logger.debug(f"{premsg} {res}:{_msg_err}")
 
-    def send_http_request(self, url, **kwargs):
+    def send_http_request(self, url, **kwargs) -> Union[None, Response]:
 
         res = None
         req = None
@@ -1084,7 +1085,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 res.raise_for_status()
                 return res
             else:
-                return ""
+                return None
         except ConnectError as e:
             _msg_err = str(e)
             if 'errno 61' in _msg_err.lower():
