@@ -54,6 +54,8 @@ from typing import (
 assert Tuple
 assert Dict
 assert Iterable
+assert Type
+assert Optional
 
 T = TypeVar("T")
 _MaybeSequence = Union[T, Sequence[T]]
@@ -93,15 +95,13 @@ def my_jitter(value: float) -> float:
     return int(random.uniform(value * 0.75, value * 1.25))
 
 
-def my_dec_on_exception(
-        exception: _MaybeSequence[Type[Exception]], max_tries: Optional[_MaybeCallable[int]] = None,
-        myjitter: bool = False, raise_on_giveup: bool = True, interval: Union[int, float] = 1):
-    if not myjitter:
-        _jitter = None
-    else:
-        _jitter = my_jitter
+def my_dec_on_exception(exception, **kwargs):
+
+    if "jitter" in kwargs and kwargs["jitter"] == 'my_jitter':
+        kwargs["jitter"] = my_jitter
+
     return on_exception(
-        constant, exception, max_tries=max_tries, jitter=_jitter, raise_on_giveup=raise_on_giveup, interval=interval)
+        constant, exception, **kwargs)
 
 
 limiter_non = Limiter(RequestRate(10000, 0))

@@ -19,7 +19,8 @@ from .commonwebdriver import (
     ReExtractInfo,
     dec_on_exception2,
     dec_on_exception3,
-    dec_on_reextract,
+    my_dec_on_exception,
+    my_jitter,
     dec_retry,
     limiter_0_01,
     limiter_0_1,
@@ -27,7 +28,8 @@ from .commonwebdriver import (
     SeleniumInfoExtractor,
     Dict,
     Union,
-    Response
+    Response,
+    Callable
 )
 
 from ..utils import (
@@ -41,6 +43,20 @@ from ..utils import (
 )
 
 logger = logging.getLogger('nakedsword')
+
+dec_on_reextract = my_dec_on_exception(
+    ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=30)
+
+dec_on_reextract_1 = my_dec_on_exception(
+    ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=1)
+
+
+def wait_for_either(check: Callable, timeout: Union[float, int]):
+
+    start = time.monotonic()
+    while (time.monotonic() - start < timeout):
+        check()
+        time.sleep(1)
 
 
 class NSAPI:
@@ -59,19 +75,27 @@ class NSAPI:
         self.get_auth()
         self.ready = True
 
-    def logout(self):
+    def logout(self, msg=None):
+
+        _pre = ''
+        if msg:
+            _pre = msg
 
         if self.iens._logout_api():
             self.headers_api = {}
-            self.logger.info("[logout] OK")
+            self.logger.info(f"{_pre}[logout] OK")
             return "OK"
         else:
-            self.logger.info("[logout] NOK")
+            self.logger.info(f"{_pre}[logout] NOK")
             return "NOK"
 
     @dec_retry
     @dec_on_reextract
-    def get_auth(self, **kwargs):
+    def get_auth(self, msg=None):
+
+        _pre = ''
+        if msg:
+            _pre = msg
 
         with self.call_lock:
 
@@ -80,7 +104,7 @@ class NSAPI:
                 _headers = self.iens._get_api_basic_auth()
                 if _headers:
                     self.headers_api = _headers
-                    self.logger.info("[get_auth] OK")
+                    self.logger.info(f"{_pre}[get_auth] OK")
                     self.timer.reset()
                     return True
                 else:
@@ -91,7 +115,7 @@ class NSAPI:
                 _logout = True
                 raise ReExtractInfo("couldnt auth")
             except Exception as e:
-                self.logger.exception(f"[get_auth] {str(e)}")
+                self.logger.exception(f"{_pre}[get_auth] {str(e)}")
                 raise ExtractorError("error get auth")
             finally:
                 if _logout:
@@ -551,14 +575,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             logger.error(repr(e))
 
-    def API_AUTH(self):
-        return NakedSwordBaseIE._API.get_auth()
+    def API_AUTH(self, msg=None):
+        return NakedSwordBaseIE._API.get_auth(msg=msg)
 
     def API_REFRESH(self):
         return NakedSwordBaseIE._API.get_refresh()
 
-    def API_LOGOUT(self):
-        return NakedSwordBaseIE._API.logout()
+    def API_LOGOUT(self, msg=None):
+        return NakedSwordBaseIE._API.logout(msg=msg)
 
     def API_GET_HTTP_HEADERS(self):
         return NakedSwordBaseIE._API()
@@ -648,7 +672,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     _MOVIES_URL = "https://www.nakedsword.com/movies/"
     _MOVIES = {}
 
-    @dec_on_reextract
+    @dec_on_reextract_1
     def get_entries(self, url, **kwargs):
         _type = kwargs.get('_type', 'all')
         if _type == 'all':
@@ -672,9 +696,12 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             NakedSwordMovieIE._MOVIES.update({_url_movie: {'nok': [], 'ok': [], 'entries': {}, 'final': True}})
 
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
-            self.API_LOGOUT()
+
+            wait_for_either(self.check_stop, my_jitter(30))
+
+            self.API_LOGOUT(msg='[getentries]')
             time.sleep(5)
-            self.API_AUTH()
+            self.API_AUTH(msg='[getentries]')
             time.sleep(1)
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
