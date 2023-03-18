@@ -2,8 +2,8 @@ from hashlib import sha256
 import traceback
 import sys
 
-from ..utils import sanitize_filename, try_get, traverse_obj, get_domain
-from .commonwebdriver import dec_on_exception2, dec_on_exception, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError, ConnectError, Lock
+from ..utils import sanitize_filename, try_get, get_domain
+from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError, ConnectError
 
 from urllib.parse import unquote
 
@@ -17,9 +17,13 @@ class getvideourl:
             return False
 
 
+on_exception_vinfo = my_dec_on_exception(
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=2, interval=1)
+
+
 class DoodStreamIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'doodstream'
+    IE_NAME = 'doodstream'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?dood(?:stream)?\.[^/]+/[ed]/(?P<id>[a-z0-9]+)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?dood(?:stream)?\.[^/]+/[ed]/[a-z0-9]+)\1']
     _SITE_URL = 'https://dood.to/'
@@ -56,51 +60,49 @@ class DoodStreamIE(SeleniumInfoExtractor):
         }
     }]
 
-    @dec_on_exception3
+    @on_exception_vinfo
     @dec_on_exception2
     def _get_video_info(self, url, msg=None):
 
-        _host = get_domain(url)
+        # _host = get_domain(url)
+        pre = f'[get_video_info][{self._get_url_print(url)}]'
         if msg:
-            pre = f'{msg}[get_video_info]'
-        else:
-            pre = '[get_video_info]'
+            pre = f'{msg}{pre}'
 
-        with self.get_param('lock'):
-            if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                _sem = Lock()
-                self.get_param('sem').update({_host: _sem})
-
-        with limiter_1.ratelimit(f"dstr{_host}", delay=True):
+        # with limiter_1.ratelimit(f"dstr{_host}", delay=True):
+        with limiter_1.ratelimit("doodstream", delay=True):
             try:
-                with _sem:
-                    self.logger_debug(f"{pre} {self._get_url_print(url)}")
-                    return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+                return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"{pre} {self._get_url_print(url)}: error - {repr(e)}")
+                self.report_warning(f"{pre}: error - {repr(e)}")
 
-    @dec_on_exception
-    @limiter_1.ratelimit("doodstream", delay=True)
+    @dec_on_driver_timeout
+    @dec_on_exception3
+    @dec_on_exception2
+    @limiter_1.ratelimit("doodstream2", delay=True)
     def _send_request(self, url, driver=None, msg=None):
 
+        pre = f'[send_req][{self._get_url_print(url)}]'
         if msg:
-            pre = f'{msg}[send_req]'
+            pre = f'{msg}{pre}'
+
+        if driver:
+            self.logger_debug(f"{pre} send driver.get")
+            driver.get(url)
         else:
-            pre = '[send_req]'
-        self.logger_debug(f"{pre} {self._get_url_print(url)}")
-        driver.get(url)
+            self.report_warning(f"{pre} driver is None")
 
     def _get_entry(self, url, check=False, msg=None):
 
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if msg:
+            pre = f'{msg}{pre}'
+
+        driver = self.get_driver()
+
         try:
 
-            if msg:
-                pre = f'{msg}[get_entry][{self._get_url_print(url)}]'
-            else:
-                pre = f'[get_entry][{self._get_url_print(url)}]'
-
             video_id = self._match_id(url)
-            driver = self.get_driver()
             driver.delete_all_cookies()
             _url = f'https://dood.to/e/{video_id}'
             self._send_request(_url, driver=driver, msg=pre)
@@ -119,7 +121,12 @@ class DoodStreamIE(SeleniumInfoExtractor):
             }
 
             if check:
-                _videoinfo = self._get_video_info(video_url, msg=pre)
+                _host = get_domain(video_url)
+                _sem = self.get_ytdl_sem(_host)
+
+                with _sem:
+                    _videoinfo = self._get_video_info(video_url, msg=pre)
+
                 if not _videoinfo:
                     raise ExtractorError("error 404: no video info")
                 if _videoinfo and _videoinfo['filesize'] > 20:

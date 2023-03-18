@@ -35,8 +35,10 @@ from selenium.webdriver.remote.webelement import WebElement
 
 assert Keys  # for flake8
 
+from ..minicurses import MultilinePrinter, QuietMultilinePrinter
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
+from ..YoutubeDL import YoutubeDL
 
 from typing import (
     cast,
@@ -145,8 +147,8 @@ CONFIG_EXTRACTORS = {
     ('userload', 'evoload',): {
         'ratelimit': limiter_5,
         'maxsplits': 4},
-    ('doodstream', 'vidoza',): {
-        'ratelimit': limiter_0_1,
+    ('doodstream', 'vidoza', 'streamsb',): {
+        'ratelimit': limiter_1,
         'maxsplits': 5},
     ('highload', 'tubeload', 'embedo',
                  'thisvidgay', 'redload',
@@ -171,7 +173,7 @@ CONFIG_EXTRACTORS = {
      'gay0day', 'onlygayvideo',
      'txxx', 'thegay', 'homoxxx',
      'youporn', 'gaygo',
-     'youporngay', 'streamsb',
+     'youporngay',
      'hexupload', 'pornone',): {
         'ratelimit': limiter_1,
         'maxsplits': 16}
@@ -291,16 +293,26 @@ class myHAR:
 
     @classmethod
     @dec_retry_on_exception
-    def get_har(cls, driver, _method="GET", _mimetype=None):
+    def get_har(cls, driver=None, har=None, _method="GET", _mimetype=None):
 
-        _res = try_get(
-            driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
-            lambda x: x.get('entries') if x else None)
+        _res = None
+        if driver:
+            _res = try_get(
+                driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
+                lambda x: x.get('entries') if x else None)
+
+        elif har:
+            if isinstance(har, dict):
+                _res = traverse_obj(har, ('log', 'entries'))
+            elif isinstance(har, str):
+                with open(har, 'r') as f:
+                    _res = traverse_obj(json.load(f), ('log', 'entries'))
 
         if not _res:
             raise Exception('no HAR entries')
 
         else:
+            assert isinstance(_res, list)
             if _mimetype:
                 if isinstance(_mimetype, (list, tuple)):
                     _mimetype_list = list(_mimetype)
@@ -316,16 +328,16 @@ class myHAR:
                     traverse_obj(el, ('request', 'method'), default='') == _method,
                     int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,  # type: ignore
                     not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
-                             for _ in _non_mimetype_list]),
+                             for _ in _non_mimetype_list]) if _non_mimetype_list else True,
                     any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
-                        for _ in _mimetype_list])
+                        for _ in _mimetype_list]) if _mimetype_list else True
                 ])]
 
             return _res_filt
 
     @classmethod
     def scan_har_for_request(
-            cls, _driver, _valid_url, _method="GET", _mimetype=None, _all=False, timeout=10, response=True,
+            cls, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False, timeout=10, response=True,
             inclheaders=False, check_event=None):
 
         _har_old = []
@@ -338,7 +350,7 @@ class myHAR:
 
         while True:
 
-            _newhar = myHAR.get_har(_driver, _method=_method, _mimetype=_mimetype)
+            _newhar = myHAR.get_har(driver=driver, har=har, _method=_method, _mimetype=_mimetype)
 
             assert _newhar
 
@@ -418,10 +430,10 @@ class myHAR:
 
     @classmethod
     def scan_har_for_json(
-            cls, _driver, _link, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
+            cls, _link, driver=None, har=None, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
 
         _hints = myHAR.scan_har_for_request(
-            _driver, _link, _method=_method, _mimetype="json", _all=_all,
+            _link, driver=driver, har=har, _method=_method, _mimetype="json", _all=_all,
             timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
         def func_getter(x):
@@ -505,6 +517,60 @@ class myIP:
     @classmethod
     def get_myip(cls, key=None, timeout=1, ie=None):
         return cls.get_myiptryall(key=key, timeout=timeout, ie=ie)
+
+
+class YDLLogger:
+    def __init__(self, ydl):
+        _opts = ydl.params.copy()
+        _opts.pop('logger', None)
+        _opts['verbose'] = False
+        self._ydl = YoutubeDL(_opts, auto_init='no_verbose_header')  # type: ignore
+
+    def debug(self, message):
+        assert message
+
+    def info(self, message):
+        if self._ydl:
+            self._ydl.to_screen(f'[get_entries] {message}')
+
+    def warning(self, message, only_once=False):
+        if self._ydl:
+            self._ydl.report_warning(message, only_once)
+
+    def error(self, message):
+        if self._ydl:
+            self._ydl.report_error(message)
+
+    class ProgressBar(MultilinePrinter):
+        _DELAY, _timer = 0.05, 0
+
+        def print(self, message):
+            if time.time() - self._timer > self._DELAY:
+                self.print_at_line(f'[get_entries] {message}', 0)
+                self._timer = time.time()
+
+    def progress_bar(self):
+        """Return a context manager with a print method. (Optional)"""
+        # Do not print to files/pipes, loggers, or when --no-progress is used
+        if not self._ydl or self._ydl.params.get('noprogress') or self._ydl.params.get('logger'):
+            return
+        file = self._ydl._out_files.error
+        try:
+            if not file.isatty():
+                return
+        except BaseException:
+            return
+        return self.ProgressBar(file, preserve_output=False)
+
+
+def _create_progress_bar(logger):
+    if hasattr(logger, 'progress_bar'):
+        printer = logger.progress_bar()
+        if printer:
+            return printer
+    printer = QuietMultilinePrinter()
+    printer.print = lambda _: None  # type: ignore
+    return printer
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -796,7 +862,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 try:
                     _driver = Firefox(service=serv, options=opts)  # type: ignore
                     _driver.maximize_window()
-                    self.wait_until(_driver, timeout=1)
+                    #  self.wait_until(_driver, timeout=1)
                     _driver.set_script_timeout(20)
                     _driver.set_page_load_timeout(25)
                     return _driver
@@ -837,17 +903,17 @@ class SeleniumInfoExtractor(InfoExtractor):
                 shutil.rmtree(tempdir, ignore_errors=True)
 
     def scan_for_request(
-            self, driver, _valid_url, _method="GET", _mimetype=None, _all=False,
+            self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False,
             timeout=10, response=True, inclheaders=False):
 
         return myHAR.scan_har_for_request(
-            driver, _valid_url, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout,
+            _valid_url, driver=driver, har=har, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout,
             response=response, inclheaders=inclheaders, check_event=self.check_stop)
 
-    def scan_for_json(self, driver, _valid_url, _method="GET", _all=False, timeout=10, inclheaders=False):
+    def scan_for_json(self, _valid_url, driver=None, har=None, _method="GET", _all=False, timeout=10, inclheaders=False):
 
         return myHAR.scan_har_for_json(
-            driver, _valid_url, _method=_method, _all=_all, timeout=timeout,
+            _valid_url, driver=driver, har=har, _method=_method, _all=_all, timeout=timeout,
             inclheaders=inclheaders, check_event=self.check_stop)
 
     def wait_until(self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None, poll_freq: float = 0.5):
