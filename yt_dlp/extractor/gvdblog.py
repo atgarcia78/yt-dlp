@@ -2,6 +2,7 @@ import json
 import re
 from datetime import datetime
 import html
+from threading import Lock
 from ..utils import (
     ExtractorError,
     try_get,
@@ -12,6 +13,7 @@ from ..utils import (
     get_domain,
     unsmuggle_url)
 from .commonwebdriver import (
+    YDLLogger, _create_progress_bar,
     unquote, dec_on_exception2, dec_on_exception3,
     SeleniumInfoExtractor, limiter_1, limiter_0_1, HTTPStatusError, ConnectError, cast, Tuple)
 
@@ -24,6 +26,7 @@ logger = logging.getLogger("gvdblog")
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
     _SLOW_DOWN: bool = False
+    _LOCK = Lock()
 
     def get_entry_video(self, x, **kwargs):
 
@@ -38,28 +41,29 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _ie.IE_NAME: {'url': _url, 'ie': _ie}
             for _url in _x
             if (_ie := self._get_extractor(_url)) and hasattr(_ie, '_get_entry') and _ie.IE_NAME in (
-                'tubeload', 'doodstream')
+                'tubeload', 'highload', 'doodstream')
         }
 
         if not urldict:
-            logger.warning(f'{premsg} couldnt get any tubeload, doodstrem video from:\n{_x}')
+            logger.warning(f'{premsg} couldnt get any video from:\n{_x}')
             return
 
         _videos = []
-        for key in ('tubeload', 'doodstream'):
+        for key in ('tubeload', 'highload', 'doodstream'):
             if key in urldict:
-                ie = urldict[key]['ie']
-                el = urldict[key]['url']
                 try:
-                    _entry = ie._get_entry(el, check=check, msg=premsg)
+                    _ch = check
+                    if key == 'doodstream':
+                        _ch = False
+                    _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=_ch, msg=premsg)
                     if _entry:
-                        logger.debug(f"{premsg}[{self._get_url_print(el)}] OK got entry video")
+                        logger.debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video")
                         return _entry
                     else:
-                        logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING not entry video')
+                        logger.debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING not entry video")
                 except Exception as e:
-                    logger.debug(f'{premsg}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
-                _videos.append(el)
+                    logger.debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
+                _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
         logger.warning(_msg)
@@ -81,27 +85,43 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _res = 'DUMMY'
             for key in el.keys():
                 if 'src' in key:
-                    if ("//tubeload.co" in el[key] or "//dood." in el[key]):
+                    if any([_ in el[key] for _ in ('//tubeload.', '//highload.', '//dood.')]):
                         return el[key]
                     else:
                         _res = el[key]
             return _res
 
         _tb = False
+        _th = False
+        _td = False
         for el in p3:
             _url = _get_url(el)
-            if "//tubeload.co" in _url:
+            if '//tubeload.' in _url:
                 if _tb:
                     list_urls.append(None)
+                    _th = False
+                    _td = False
                 else:
                     _tb = True
                 list_urls.append(_url)
-            elif "//dood." in _url:
-                list_urls.append(_url)
-                if _tb:
+            elif '//highload.' in _url:
+                if _th:
                     list_urls.append(None)
                     _tb = False
-        if _tb:
+                    _td = False
+                else:
+                    _th = True
+                list_urls.append(_url)
+            elif "//dood." in _url:
+                if _td:
+                    list_urls.append(None)
+                    _tb = False
+                    _th = False
+                else:
+                    _td = True
+                list_urls.append(_url)
+
+        if any([_tb, _th, _td]):
             list_urls.append(None)
 
         _final_urls = []
@@ -235,9 +255,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_entries_from_blog_post(self, post, **kwargs):
 
         check = kwargs.get('check', True)
-        if GVDBlogBaseIE._SLOW_DOWN:
-            check = False
-
+        progress_bar = kwargs.get('progress_bar', None)
         url = None
         post_content = None
         postdate = None
@@ -247,97 +265,104 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         try:
 
-            if isinstance(post, str) and post.startswith('http'):
-                url = unquote(post)
-                self.report_extraction(url)
-                post_content = try_get(
-                    self._send_request(url),
-                    lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
-                if post_content:
-                    postdate, title, postid = self.get_info(post_content)
+            try:
+
+                if isinstance(post, str) and post.startswith('http'):
+                    url = unquote(post)
+                    self.report_extraction(url)
+                    post_content = try_get(
+                        self._send_request(url),
+                        lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+                    if post_content:
+                        postdate, title, postid = self.get_info(post_content)
+                        if self.keyapi == 'gvdblog.com':
+                            post_content = get_element_html_by_id('post-body', post_content)
+                        list_candidate_videos = self.get_urls(post_content, msg=url)
+
+                elif isinstance(post, dict):
                     if self.keyapi == 'gvdblog.com':
-                        post_content = get_element_html_by_id('post-body', post_content)
-                    list_candidate_videos = self.get_urls(post_content, msg=url)
+                        url = try_get(
+                            traverse_obj(post, ('link', -1, 'href')),
+                            lambda x: unquote(x) if x is not None else None)
+                        post_content = traverse_obj(post, ('content', '$t'))
+                    else:
+                        url = try_get(post.get('link'), lambda x: unquote(x) if x is not None else None)
+                        post_content = traverse_obj(post, ('content', 'rendered'))
 
-            elif isinstance(post, dict):
-                if self.keyapi == 'gvdblog.com':
-                    url = try_get(
-                        traverse_obj(post, ('link', -1, 'href')),
-                        lambda x: unquote(x) if x is not None else None)
-                    post_content = traverse_obj(post, ('content', '$t'))
+                    self.report_extraction(url)
+                    postdate, title, postid = self.get_info(post)
+                    if post_content:
+                        list_candidate_videos = self.get_urls(post_content, msg=url)
+
                 else:
-                    url = try_get(post.get('link'), lambda x: unquote(x) if x is not None else None)
-                    post_content = traverse_obj(post, ('content', 'rendered'))
+                    ExtractorError("incorrect type of data as post")
 
-                self.report_extraction(url)
-                postdate, title, postid = self.get_info(post)
-                if post_content:
-                    list_candidate_videos = self.get_urls(post_content, msg=url)
+            except Exception as e:
+                logger.exception(f"[get_entries_from_post] {repr(e)}")
+            finally:
+                premsg = f'[get_entries]:{self._get_url_print(url)}'
+                self.logger_debug(f"{postid} - {title} - {postdate} - {list_candidate_videos}")
+                if not postdate or not title or not postid or not list_candidate_videos:
+                    raise ExtractorError(f"[{url} no video info")
 
-            else:
-                ExtractorError("incorrect type of data as post")
+            entries = []
 
-        except Exception as e:
-            logger.exception(f"[get_entries_from_post] {repr(e)}")
-        finally:
-            premsg = f'[get_entries]:{self._get_url_print(url)}'
-            self.logger_debug(f"{postid} - {title} - {postdate} - {list_candidate_videos}")
-            if not postdate or not title or not postid or not list_candidate_videos:
-                raise ExtractorError(f"[{url} no video info")
+            try:
 
-        entries = []
+                if len(list_candidate_videos) > 1:
+                    with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
+                        futures = {
+                            exe.submit(self.get_entry_video, _el, check=check, msg=premsg): _el
+                            for _el in list_candidate_videos}
 
-        try:
+                    for fut in futures:
+                        try:
+                            if (_res := fut.result()):
+                                entries.append(_res)
+                            else:
+                                raise ExtractorError("no entry")
+                        except Exception as e:
+                            logger.debug(f'{premsg} entry [{futures[fut]}] {repr(e)}')
 
-            if len(list_candidate_videos) > 1:
-                with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
-                    futures = {
-                        exe.submit(self.get_entry_video, _el, check=check, msg=premsg): _el
-                        for _el in list_candidate_videos}
-
-                for fut in futures:
+                else:
                     try:
-                        if (_res := fut.result()):
-                            entries.append(_res)
-                        else:
-                            raise ExtractorError("no entry")
-                    except Exception as e:
-                        logger.debug(f'{premsg} entry [{futures[fut]}] {repr(e)}')
+                        _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=premsg)
+                        if _entry:
+                            entries.append(_entry)
+                    except Exception:
+                        pass
 
-            else:
-                try:
-                    _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=premsg)
-                    if _entry:
-                        entries.append(_entry)
-                except Exception:
-                    pass
+                if not entries:
+                    raise ExtractorError(f"{premsg} no video entries")
 
-            if not entries:
-                raise ExtractorError(f"{premsg} no video entries")
+                _entryupdate = {'original_url': url}
 
-            _entryupdate = {'original_url': url}
+                if postdate:
+                    _entryupdate.update({
+                        'release_date': postdate.strftime('%Y%m%d'),
+                        'release_timestamp': int(postdate.timestamp())})
 
-            if postdate:
-                _entryupdate.update({
-                    'release_date': postdate.strftime('%Y%m%d'),
-                    'release_timestamp': int(postdate.timestamp())})
+                for i, _el in enumerate(entries):
+                    _el.update(_entryupdate)
+                    _el.update({'__gvd_playlist_index': i + 1, '__gvd_playlist_count': len(entries)})
+                    if len(entries) > 1:
+                        _comment = f'{url} [{i + 1}]'
+                    else:
+                        _comment = f'{url}'
+                    _el.update({'meta_comment': _comment})
 
-            for i, _el in enumerate(entries):
-                _el.update(_entryupdate)
-                _el.update({'__gvd_playlist_index': i + 1, '__gvd_playlist_count': len(entries)})
-                if len(entries) > 1:
-                    _comment = f'{url} [{i + 1}]'
-                else:
-                    _comment = f'{url}'
-                _el.update({'meta_comment': _comment})
+                return (entries, title, postid)
 
-            return (entries, title, postid)
-
-        except ExtractorError:
-            raise
-        except Exception as e:
-            logger.debug(f'{premsg} {repr(e)}')
-            raise ExtractorError(f'{premsg} {repr(e)}')
+            except ExtractorError:
+                raise
+            except Exception as e:
+                logger.debug(f'{premsg} {repr(e)}')
+                raise ExtractorError(f'{premsg} {repr(e)}')
+        finally:
+            if progress_bar:
+                with GVDBlogBaseIE._LOCK:
+                    self._done += 1
+                    progress_bar.print(f'Entry OK {self._done}/{self._total}')  # type: ignore
 
     @dec_on_exception3
     @dec_on_exception2
@@ -364,6 +389,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def _real_initialize(self):
         super()._real_initialize()
         self.keyapi: str
+        self._done = 0
+        self._total: int
 
 
 class GVDBlogPostIE(GVDBlogBaseIE):
@@ -487,7 +514,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
         blog_posts_list = self.get_blog_posts_search(url)
 
-        if len(blog_posts_list) > 50:
+        if len(blog_posts_list) > 100:
             GVDBlogBaseIE._SLOW_DOWN = True
             check = False
 
@@ -514,7 +541,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         try:
             blog_posts_list = self.get_blog_posts_search(url)
 
-            logger.info(f'[blog_post_list] len[{len(blog_posts_list)}]')
+            self._total = len(blog_posts_list)
+
+            logger.info(f'[blog_post_list] len[{self._total}]')
 
             if len(blog_posts_list) >= 100:
                 GVDBlogBaseIE._SLOW_DOWN = True
@@ -537,11 +566,19 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-                with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
+                with _create_progress_bar(YDLLogger(self._downloader)) as progress_bar:
+                    with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
-                    futures = {
-                        ex.submit(self.get_entries_from_blog_post, _post_blog, check=check): _post_url
-                        for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
+                        # def _update_progress(future):
+                        #     with GVDBlogPlaylistIE._LOCK:
+                        #         self._done += 1
+                        #     progress_bar.print(f'Entry OK {self._done}/{self._total}')  # type: ignore
+
+                        futures = {
+                            ex.submit(self.get_entries_from_blog_post, _post_blog, check=check, progress_bar=progress_bar): _post_url
+                            for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
+                        # for fut in futures:
+                        #     fut.add_done_callback(_update_progress)
 
                 for fut in futures:
                     try:

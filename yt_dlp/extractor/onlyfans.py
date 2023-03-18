@@ -555,7 +555,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        driver = self.get_driver(devtools=True, noheadless=True)
+        driver = self.get_driver(devtools=True)
         #  self._login(driver)
         account, mode = try_get(re.search(self._VALID_URL, url),  # type: ignore
                                 lambda x: x.group("account", "mode"))
