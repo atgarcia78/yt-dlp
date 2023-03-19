@@ -29,7 +29,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 
                 # res = httpx.head(url, verify=(not self.get_param('nocheckcertificate')))
                 with HungYoungBritBaseIE._LOCK:
-                    res = HungYoungBritBaseIE._CLIENT.head(url)
+                    res = self._CLIENT.head(url)
 
                     if res.status_code > 400:
 
@@ -41,7 +41,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 
                         # self.to_screen(f"{url}:{_url}:{_filesize}")
                         if _filesize:
-                            # for key, value in HungYoungBritBaseIE._CLIENT.cookies.jar.__dict__['_cookies']['.xvid.com']['/'].items():
+                            # for key, value in self._CLIENT.cookies.jar.__dict__['_cookies']['.xvid.com']['/'].items():
                             #     self._set_cookie(domain='.xvid.com', name=key, value=value.value)
                             res = {'url': _url, 'filesize': _filesize}
                             return res
@@ -76,9 +76,9 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
             if _cookies:
 
                 for cookie in _cookies:
-                    HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
-                res = HungYoungBritBaseIE._CLIENT.get(_home_url)
+                res = self._CLIENT.get(_home_url)
 
                 if _home_url in str(res.url):
                     self.to_screen("login OK - 112")
@@ -127,9 +127,9 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                     json.dump(HungYoungBritBaseIE._COOKIES, f)
 
                 for cookie in HungYoungBritBaseIE._COOKIES:
-                    HungYoungBritBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
-                res = HungYoungBritBaseIE._CLIENT.get(_home_url)
+                res = self._CLIENT.get(_home_url)
 
                 if _home_url in str(res.url):
                     self.to_screen("login OK - 172")
@@ -163,12 +163,12 @@ class HungYoungBritIE(HungYoungBritBaseIE):
 
             with HungYoungBritBaseIE._LOCK:
 
-                res = HungYoungBritBaseIE._CLIENT.get(url)
+                res = self._CLIENT.get(url)
 
             webpage = re.sub('[\n\t]', '', html.unescape(res.text))
 
             mobj2 = re.findall(r'<title>([^<]+)<', webpage)
-            title = mobj2[0] if mobj2 else f'hyb_{self._match_id()}'
+            title = mobj2[0] if mobj2 else f'hyb_{self._match_id(url)}'
 
             mobj = re.findall(r'movie\[\"(?:1080|720|480)p\"\]\[\"([^\"]+)\"\]=\{path:\"([^\"]+)\"[^\}]+movie_width:\'(\d+)\',movie_height:\'(\d+)\'[^\}]+\}', webpage.replace(' ', ''))
             if not mobj:
@@ -230,7 +230,7 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
             self.report_extraction(url)
 
             with HungYoungBritBaseIE._LOCK:
-                res = HungYoungBritBaseIE._CLIENT.get(url)
+                res = self._CLIENT.get(url)
 
             webpage = re.sub('[\n\t]', '', html.unescape(res.text))
 
