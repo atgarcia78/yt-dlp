@@ -689,13 +689,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass
 
-    # @classmethod
-    # def suitable(cls, url):
-    #     """Receives a URL and returns True if suitable for this IE."""
-    #     # This function must import everything it needs (except other extractors),
-    #     # so that lazy_extractors works correctly
-    #     return cls._match_valid_url(url.split("#__youtubedl_smuggle=")[0]) is not None
-
     def initialize(self):
 
         super().initialize()

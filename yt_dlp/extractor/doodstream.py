@@ -1,20 +1,13 @@
 from hashlib import sha256
 import traceback
 import sys
+import random
+import string
+import time
+import html
 
 from ..utils import sanitize_filename, try_get, get_domain
-from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError, ConnectError
-
-from urllib.parse import unquote
-
-
-class getvideourl:
-    def __call__(self, driver):
-        el_vid = driver.find_element(By.ID, "video_player_html5_api")
-        if (_videourl := el_vid.get_attribute('src')):
-            return unquote(_videourl)
-        else:
-            return False
+from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError, limiter_0_1
 
 
 on_exception_vinfo = my_dec_on_exception(
@@ -62,35 +55,45 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
     @on_exception_vinfo
     @dec_on_exception2
-    def _get_video_info(self, url, msg=None):
+    def _get_video_info(self, url, **kwargs):
 
-        # _host = get_domain(url)
+        msg = kwargs.get('msg')
         pre = f'[get_video_info][{self._get_url_print(url)}]'
         if msg:
             pre = f'{msg}{pre}'
 
-        # with limiter_1.ratelimit(f"dstr{_host}", delay=True):
+        _headers = kwargs.get('headers', {})
+        _headers.update({'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+
         with limiter_1.ratelimit("doodstream", delay=True):
             try:
-                return self.get_info_for_format(url, headers={'Range': 'bytes=0-', 'Referer': self._SITE_URL, 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+                return self.get_info_for_format(url, headers=_headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre}: error - {repr(e)}")
 
     @dec_on_driver_timeout
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_1.ratelimit("doodstream2", delay=True)
-    def _send_request(self, url, driver=None, msg=None):
+    @limiter_0_1.ratelimit("doodstream2", delay=True)
+    def _send_request(self, url, **kwargs):
 
+        _kwargs = kwargs.copy()
         pre = f'[send_req][{self._get_url_print(url)}]'
-        if msg:
+        if (msg := _kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
+
+        driver = _kwargs.pop('driver', None)
 
         if driver:
             self.logger_debug(f"{pre} send driver.get")
             driver.get(url)
         else:
-            self.report_warning(f"{pre} driver is None")
+            try:
+                return self.send_http_request(url, **_kwargs)
+            except (HTTPStatusError, ConnectError) as e:
+                _msg_error = f"{repr(e)}"
+                self.logger_debug(f"{pre}: {_msg_error}")
+                return {"error_res": _msg_error}
 
     def _get_entry(self, url, check=False, msg=None):
 
@@ -98,25 +101,30 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if msg:
             pre = f'{msg}{pre}'
 
-        driver = self.get_driver()
-
         try:
 
             video_id = self._match_id(url)
-            driver.delete_all_cookies()
-            _url = f'https://dood.to/e/{video_id}'
-            self._send_request(_url, driver=driver, msg=pre)
+            url = f'https://dood.to/e/{video_id}'
+            webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
+            title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - DoodStream', ''))
+            if not title:
+                title = try_get(self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
 
-            video_url = self.wait_until(driver, timeout=30, method=getvideourl())
+            token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
+
+            headers = {'Referer': self._SITE_URL}
+
+            pass_md5 = self._html_search_regex(r"(/pass_md5.*?)'", webpage, 'pass_md5')
+            video_url = ''.join((try_get(self._send_request(f'https://dood.to{pass_md5}', headers=headers), lambda x: html.unescape(x.text)),  # type: ignore
+                                *(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
+                                f'?token={token}&expiry={int(time.time() * 1000)}'))
             if not video_url:
                 raise ExtractorError("couldnt get videourl")
-
-            title = try_get(driver.title, lambda x: x.replace(' - DoodStream', ''))
 
             _format = {
                 'format_id': 'http-mp4',
                 'url': video_url,
-                'http_headers': {'Referer': self._SITE_URL},
+                'http_headers': headers,
                 'ext': 'mp4'
             }
 
@@ -125,7 +133,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 _sem = self.get_ytdl_sem(_host)
 
                 with _sem:
-                    _videoinfo = self._get_video_info(video_url, msg=pre)
+                    _videoinfo = self._get_video_info(video_url, msg=pre, headers=headers)
 
                 if not _videoinfo:
                     raise ExtractorError("error 404: no video info")
@@ -149,8 +157,6 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         except Exception:
             raise
-        finally:
-            self.rm_driver(driver)
 
     def _real_initialize(self):
         super()._real_initialize()
