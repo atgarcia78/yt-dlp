@@ -687,16 +687,21 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
-            def _wait_for_either(check: Callable, timeout: Union[float, int]):
+            with self.create_progress_bar(msg=f'[wait][{url}]') as progress_bar:
 
-                logger.info(f'[wait][{url}] {timeout} start')
-                start = time.monotonic()
-                while (time.monotonic() - start < timeout):
-                    check()
-                    time.sleep(1)
-                logger.info(f'[wait][{url}] {timeout} end')
+                def _wait_for_either(check: Callable, timeout: Union[float, int]):
+                    t = 0
+                    logger.info(f'[wait][{url}] {timeout} start')
+                    start = time.monotonic()
+                    while (time.monotonic() - start < timeout):
+                        check()
+                        time.sleep(1)
+                        t += 1
+                        progress_bar.print(f' Waiting {t}/{timeout}')
 
-            _wait_for_either(self.check_stop, timeout=my_jitter(30))
+                    logger.info(f'[wait][{url}] {timeout} end')
+
+                _wait_for_either(self.check_stop, timeout=my_jitter(30))
 
             self.API_LOGOUT(msg='[getentries]')
             time.sleep(5)
@@ -781,7 +786,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                     raise ReExtractInfo("error in scenes of movie")
 
                 else:
-                    self.logger_debug(f"{premsg} OK format for sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
+                    self.logger_info(f"{premsg} OK format for sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
                     if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
                         NakedSwordMovieIE._MOVIES[_url_movie] = {'nok': [], 'ok': [], 'entries': {}, 'final': True}
                         # raise ReExtractInfo("error in scenes of movie")
