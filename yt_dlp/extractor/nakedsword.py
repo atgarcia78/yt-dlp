@@ -51,14 +51,6 @@ dec_on_reextract_1 = my_dec_on_exception(
     ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=1)
 
 
-def wait_for_either(check: Callable, timeout: Union[float, int]):
-
-    start = time.monotonic()
-    while (time.monotonic() - start < timeout):
-        check()
-        time.sleep(1)
-
-
 class NSAPI:
 
     def __init__(self):
@@ -686,8 +678,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         _force_list = kwargs.get('force', False)
 
-        # self.report_extraction(url)
-
         _url_movie = try_get(self._send_request(url), lambda x: str(x.url))
 
         assert _url_movie
@@ -697,7 +687,16 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
-            wait_for_either(self.check_stop, my_jitter(30))
+            def _wait_for_either(check: Callable, timeout: Union[float, int]):
+
+                logger.info(f'[wait][{url}] {timeout} start')
+                start = time.monotonic()
+                while (time.monotonic() - start < timeout):
+                    check()
+                    time.sleep(1)
+                logger.info(f'[wait][{url}] {timeout} end')
+
+            _wait_for_either(self.check_stop, timeout=my_jitter(30))
 
             self.API_LOGOUT(msg='[getentries]')
             time.sleep(5)
