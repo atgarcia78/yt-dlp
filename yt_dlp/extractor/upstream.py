@@ -65,7 +65,7 @@ class HLSStream(SeleniumInfoExtractor):
 
             _formats = None
 
-            m3u8_url, m3u8_doc = try_get(self.scan_for_request(driver, r"master.m3u8$"), lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+            m3u8_url, m3u8_doc = try_get(self.scan_for_request(r"master.m3u8$", driver=driver), lambda x: (x.get('url'), x.get('content')) if x else (None, None))  # type: ignore
             if m3u8_url:
                 if not m3u8_doc:
                     m3u8_doc = try_get(_send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))
@@ -104,6 +104,7 @@ class HLSStream(SeleniumInfoExtractor):
     def _real_initialize(self):
 
         super()._real_initialize()
+        self._SITE_URL: str
 
     def _real_extract(self, url):
 

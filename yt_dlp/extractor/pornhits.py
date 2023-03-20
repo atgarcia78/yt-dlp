@@ -175,7 +175,7 @@ class BasePornhitsIE(SeleniumInfoExtractor):
                 _headers = {'Referer': self._SITE_URL}
 
                 m3u8_url, m3u8_doc = try_get(
-                    self.scan_for_request(driver, r".mp4$"),  # type: ignore
+                    self.scan_for_request(r".mp4$", driver=driver),  # type: ignore
                     lambda x: (x.get('url'), x.get('content'))
                     if x else (None, None))
                 if m3u8_url:

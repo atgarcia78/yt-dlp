@@ -15,7 +15,8 @@ from .commonwebdriver import (
     limiter_0_1,
     limiter_non,
     my_dec_on_exception,
-    Tuple
+    Tuple,
+    cast
 )
 from ..utils import (
     ExtractorError,
@@ -136,7 +137,7 @@ class BaseloadIE(SeleniumInfoExtractor):
 
     def _getinfofromwebpage(self, _url, webpage, max_limit, pre) -> Tuple[str, str]:
         _args = None
-        title = None
+        _title = None
         if not webpage:
             webpage = try_get(
                 self._send_request(_url, max_limit=max_limit),
@@ -145,18 +146,27 @@ class BaseloadIE(SeleniumInfoExtractor):
                 raise ExtractorError("error 404 no webpage")
             self.logger.debug(f'{pre} size webpage dl: {len(webpage)}')
 
-        _title = try_get(
-            self._html_extract_title(webpage),
-            lambda x: x.replace('.mp4', '').strip('[_,-, ]') if x else None)
+        _title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
         if not _title:
             raise ExtractorError("error no title")
         else:
-            title = re.sub(r'(?i)((at )?%s$)' % get_domain(_url), '', _title)
+            _title = cast(str, _title)
             _args = self._get_args(webpage)
             if not _args:
                 raise ExtractorError("error extracting video args")
             cmd1 = f"node {self._JS_SCRIPT['deofus']} " + " ".join([str(el) for el in _args])
-            return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), title)
+            return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), _title)
+
+    def _get_metadata(self, url):
+        videoid = self._match_id(url)
+        _url = f"{self._SITE_URL}/e/{videoid}"
+        webpage = try_get(self._send_request(_url), lambda x: html.unescape(x.text))
+        if not webpage or '<title>404' in webpage:
+            raise ExtractorError("error 404 no webpage")
+        title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
+        if not title:
+            raise ExtractorError("error no title")
+        return {'id': videoid, 'title': sanitize_filename(title, restricted=True)}
 
     def _get_entry(self, url, **kwargs):
 
@@ -273,7 +283,6 @@ class TubeloadIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?tubeload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?tubeload\.co/e/.+?)\1']
     _MAINJS = 'https://tubeload.co/assets/js/main.min.js'
-    _DOMAIN = 'tubeload.co'
 
 
 class RedloadIE(BaseloadIE):
@@ -283,7 +292,6 @@ class RedloadIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?redload.co/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?redload\.co/e/.+?)\1']
     _MAINJS = 'https://redload.co/assets/js/main.min.js'
-    _DOMAIN = 'redload.co'
 
 
 class HighloadIE(BaseloadIE):
@@ -293,7 +301,6 @@ class HighloadIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?highload.to/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?highload\.to/e/.+?)\1']
     _MAINJS = 'https://highload.to/assets/js/master.js'
-    _DOMAIN = 'highload.co'
 
 
 class EmbedoIE(BaseloadIE):
@@ -303,4 +310,3 @@ class EmbedoIE(BaseloadIE):
     _VALID_URL = r'https?://(?:www\.)?embedo.co/e/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(www\.)?embedo\.co/e/.+?)\1']
     _MAINJS = 'https://embedo.co/assets/js/master.js'
-    _DOMAIN = 'embedo.co'

@@ -520,18 +520,23 @@ class myIP:
 
 
 class YDLLogger:
-    def __init__(self, ydl):
+    _pre = ''
+
+    def __init__(self, ydl, msg=None):
         _opts = ydl.params.copy()
         _opts.pop('logger', None)
+        _opts.pop('noprogress', None)
         _opts['verbose'] = False
         self._ydl = YoutubeDL(_opts, auto_init='no_verbose_header')  # type: ignore
+        if msg:
+            YDLLogger._pre = msg
 
     def debug(self, message):
         assert message
 
     def info(self, message):
         if self._ydl:
-            self._ydl.to_screen(f'[get_entries] {message}')
+            self._ydl.to_screen(f'{self._pre} {message}')
 
     def warning(self, message, only_once=False):
         if self._ydl:
@@ -542,16 +547,28 @@ class YDLLogger:
             self._ydl.report_error(message)
 
     class ProgressBar(MultilinePrinter):
-        _DELAY, _timer = 0.05, 0
+        _DELAY, _timer = 0.1, 0
+        _logger = logging.getLogger('progressbar')
+
+        # to stop sending events to loggers while progressbar is printing
+        def __enter__(self):
+            self._logger.parent.handlers[0].stop()  # type: ignore
+            return self
+
+        def __exit__(self, *args):
+            self._logger.parent.handlers[0].start()  # type: ignore
+            super().__exit__(*args)
 
         def print(self, message):
             if time.time() - self._timer > self._DELAY:
-                self.print_at_line(f'[get_entries] {message}', 0)
+                self.print_at_line(f'{YDLLogger._pre} {message}', 0)
                 self._timer = time.time()
 
     def progress_bar(self):
-        """Return a context manager with a print method. (Optional)"""
-        # Do not print to files/pipes, loggers, or when --no-progress is used
+        """
+        Return a context manager with a print method. (Optional)
+        Do not print to files/pipes, loggers, or when --no-progress is used
+        """
         if not self._ydl or self._ydl.params.get('noprogress') or self._ydl.params.get('logger'):
             return
         file = self._ydl._out_files.error
@@ -561,16 +578,6 @@ class YDLLogger:
         except BaseException:
             return
         return self.ProgressBar(file, preserve_output=False)
-
-
-def _create_progress_bar(logger):
-    if hasattr(logger, 'progress_bar'):
-        printer = logger.progress_bar()
-        if printer:
-            return printer
-    printer = QuietMultilinePrinter()
-    printer.print = lambda _: None  # type: ignore
-    return printer
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -614,18 +621,27 @@ class SeleniumInfoExtractor(InfoExtractor):
         if cls._YTDL:
             _logger = cls._YTDL.params.get('logger')
             if _logger:
-                _logger.info(f"[{cls.__name__[:-2].lower()}]{msg}")
+                _logger.info(f"[{cls.IE_NAME}]{msg}")
             else:
-                cls._YTDL.to_screen(f"[{cls.__name__[:-2].lower()}]{msg}")
+                cls._YTDL.to_screen(f"[{cls.IE_NAME}]{msg}")
 
     @classmethod
     def logger_debug(cls, msg):
         if cls._YTDL:
             _logger = cls._YTDL.params.get('logger')
             if _logger:
-                _logger.debug(f"[debug+][{cls.__name__[:-2].lower()}]{msg}")
+                _logger.debug(f"[debug+][{cls.IE_NAME}]{msg}")
             else:
-                cls._YTDL.to_screen(f"[debug][{cls.__name__[:-2].lower()}]{msg}")
+                cls._YTDL.to_screen(f"[debug][{cls.IE_NAME}]{msg}")
+
+    def create_progress_bar(self, msg=None):
+        ydllogger = YDLLogger(self._downloader, msg=msg)
+        printer = ydllogger.progress_bar()
+        if printer:
+            return printer
+        printer = QuietMultilinePrinter()
+        printer.print = lambda _: None  # type: ignore
+        return printer
 
     def _get_extractor(self, _args):
 
@@ -781,7 +797,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         raise ExtractorError(f"{msg}{_msg_error}")
 
     def check_stop(self):
-
         try:
             _stopg = self.get_param('stop')
             _stop = None

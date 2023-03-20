@@ -7,14 +7,17 @@ from .commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
-    Lock,
     SeleniumInfoExtractor,
     dec_on_exception,
     dec_on_exception2,
     dec_on_exception3,
     limiter_1,
 )
-from ..utils import ExtractorError, get_domain, sanitize_filename, traverse_obj, try_get
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    sanitize_filename,
+    try_get)
 
 
 class video_or_error:
@@ -35,7 +38,7 @@ class video_or_error:
 
 class HexUploadIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'hexupload'
+    IE_NAME = 'hexupload'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?hexupload\.net/(embed-)?(?P<id>[^\/$]+)(?:\/|$)'
     _SITE_URL = 'https://hexupload.net/'
 
@@ -51,15 +54,8 @@ class HexUploadIE(SeleniumInfoExtractor):
             _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-            _host = get_domain(url)
 
-            with self.get_param('lock'):
-                if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                    _sem = Lock()
-                    self.get_param('sem').update({_host: _sem})
-
-            with _sem:
-                return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -87,18 +83,20 @@ class HexUploadIE(SeleniumInfoExtractor):
         check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
 
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if msg:
+            pre = f'{msg}{pre}'
+        videoid = self._match_id(url)
+
+        driver = self.get_driver(devtools=True)
+
         try:
 
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg:
-                pre = f'{msg}{pre}'
-            videoid = self._match_id(url)
-            driver = self.get_driver(devtools=True)
             self._send_request(f'{self._SITE_URL}{videoid}', driver=driver)
             res = self.wait_until(driver, 30, video_or_error())
             video_url = None
             if res and res != "error":
-                video_url = try_get(self.scan_for_request(driver, 'video.mp4', response=False), lambda x: x.get('url'))
+                video_url = try_get(self.scan_for_request('video.mp4', driver=driver, response=False), lambda x: x.get('url'))
             if not video_url:
                 raise ExtractorError('404 video not found')
             title = driver.title.replace("mp4", "").replace("Download", "").strip()
@@ -111,11 +109,16 @@ class HexUploadIE(SeleniumInfoExtractor):
             }
 
             if check:
-                _videoinfo = self._get_video_info(video_url, msg=pre)
+                _host = get_domain(video_url)
+
+                _sem = self.get_ytdl_sem(_host)
+
+                with _sem:
+                    _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo:
                     raise ExtractorError("error 404: no video info")
-                else:
-                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+                assert isinstance(_videoinfo, dict)
+                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
             _entry_video = {
                 'id': videoid,

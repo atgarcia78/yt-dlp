@@ -59,6 +59,17 @@ class BBGroupIE(SeleniumInfoExtractor):
     _NUMDRIVERS = 0
     _MAXNUMDRIVERS = 8
     _SLOCK = threading.Lock()
+    _SITE_URL: str
+    _MAX_PAGE: int
+    _COOKIES: list
+    _LOGIN_URL: str
+    _LOCALQ: Queue
+    _SUFFIX: str
+    _TRAD_FROM_NEW_TO_OLD: dict
+    _MLOCK: threading.Lock
+    _NENTRIES: int
+    _BASE_URL_PL: str
+    _INIT: bool
 
     def _send_request(self, url, headers=None, driver=None):
 
@@ -131,6 +142,7 @@ class BBGroupIE(SeleniumInfoExtractor):
 
                 webpage = try_get(self._send_request(self._SITE_URL),
                                   lambda x: x.text.replace("\n", "").replace("\t", ""))
+                assert webpage
                 type(self)._MAX_PAGE = try_get(re.findall(r'>(\d+)</a></li></ul></div><!-- pagination-center -->', webpage),
                                                lambda x: int(x[0])) or 50
 
@@ -139,9 +151,9 @@ class BBGroupIE(SeleniumInfoExtractor):
 
         if not type(self)._COOKIES:
 
+            driver = self.get_driver()
             try:
 
-                driver = self.get_driver()
                 if (self._login(driver) == "OK"):
                     type(self)._COOKIES = driver.get_cookies()
                 else:
@@ -191,26 +203,22 @@ class BBGroupIE(SeleniumInfoExtractor):
                         if _txt == [' ', ' ']:
                             _res = [' ', '']
 
-                return f"{_txt[0]}{repl_dict[_key]}{_txt[1]}"
+                return f"{_txt[0]}{repl_dict[_key]}{_txt[1]}"  # type: ignore
+
+        pre = f"[extract_entry][page_{pid}]" if pid else "[extract_entry]"
+        self.logger_debug(f"{pre} start for {url}")
+
+        _driver = None
 
         try:
+            _driver = type(self)._LOCALQ.get(block=False)
+        except Empty:
+            _driver = self._new_driver()
+            if not _driver:
+                self.to_screen(f"{pre} waiting for driver in local queue")
+                _driver = type(self)._LOCALQ.get(block=True, timeout=180)
 
-            pre = f"[extract_entry][page_{pid}]" if pid else "[extract_entry]"
-            self.logger_debug(f"{pre} start for {url}")
-
-            _driver = None
-
-            try:
-                _driver = type(self)._LOCALQ.get(block=False)
-            except Empty:
-                _driver = self._new_driver()
-                if not _driver:
-                    self.to_screen(f"{pre} waiting for driver in local queue")
-                    _driver = type(self)._LOCALQ.get(block=True, timeout=180)
-
-            # if _res == "NOK":
-
-            #     return self.url_result(url, ie=self.ie_key().split('AllPages')[0].split('OnePage')[0], error="login NOK")
+        try:
 
             videoid = try_get(re.search(r'gallery\.php\?id=(?P<id>\d+)', url), lambda x: f"{x.group('id')}{self._SUFFIX}")
             if videoid in self._TRAD_FROM_NEW_TO_OLD:
@@ -218,9 +226,9 @@ class BBGroupIE(SeleniumInfoExtractor):
 
             self._send_request(url.split('&page')[0], driver=_driver)
 
-            title = re.sub(r'([ ]+)', ' ',
-                           re.sub(r'(.)?([\+\&\'-,])(.)?', replTxt,
-                                  try_get(self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.name"))),
+            title = re.sub(r'([ ]+)', ' ',  # type: ignore
+                           re.sub(r'(.)?([\+\&\'-,])(.)?', replTxt,  # type: ignore
+                                  try_get(self.wait_until(_driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "div.name"))),  # type: ignore
                                           lambda x: x.get_attribute('innerText'))))
 
             _title = sanitize_filename(title, restricted=True).upper()
@@ -257,7 +265,7 @@ class BBGroupIE(SeleniumInfoExtractor):
 
                     self.logger_debug(f"{pre} start scan har")
 
-                    m3u8_url, m3u8_doc = try_get(self.scan_for_request(_driver, r".m3u8"), lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                    m3u8_url, m3u8_doc = try_get(self.scan_for_request(r".m3u8", driver=_driver), lambda x: (x.get('url'), x.get('content')) if x else (None, None))  # type: ignore
                     if m3u8_url:
                         if "playlist" not in m3u8_url:
                             if m3u8_doc:
@@ -388,11 +396,12 @@ class BBGroupIE(SeleniumInfoExtractor):
 
         try:
 
-            res = self._send_request(url_pl.replace('members', 'www'))
-
-            url_list = try_get(re.findall(r'<a href="trailer\.php\?id=(\d+)"',
-                                          res.text.replace("\n", "").replace("\t", "")),
+            webpage = try_get(self._send_request(url_pl.replace('members', 'www')), lambda x: x.text.replace("\n", "").replace("\t", ""))
+            assert webpage
+            url_list = try_get(re.findall(r'<a href="trailer\.php\?id=(\d+)"', webpage),
                                lambda x: list(({f"{self._LOGIN_URL}/gallery.php?id=" + el: "" for el in x}).keys()))
+
+            assert isinstance(url_list, list)
             if nentr:
                 url_list = url_list[0:nentr]
             self.logger_debug(f'[page_{plid}] {len(url_list)} videos\n[{",".join(url_list)}]')
@@ -480,9 +489,9 @@ class SketchySexBaseIE(BBGroupIE):
 
     _INIT = False
 
-    _MAX_PAGE = None
+    _MAX_PAGE = 0
 
-    _COOKIES = None
+    _COOKIES = []
 
     _NENTRIES = 0
 
@@ -494,7 +503,7 @@ class SketchySexBaseIE(BBGroupIE):
 
 
 class SketchySexIE(SketchySexBaseIE):
-    IE_NAME = 'sketchysex'
+    IE_NAME = 'sketchysex'  # type: ignore
     IE_DESC = 'sketchysex'
     _VALID_URL = r'https://members\.sketchysex\.com/gallery\.php\?id=(?P<id>\d+)(&page=(?P<pid>\d+))?(&nent=(?P<nent>\d+))?'
 
@@ -509,7 +518,7 @@ class SketchySexIE(SketchySexBaseIE):
         self.report_extraction(url)
 
         try:
-            pid, nent = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid'), x.group('nent') or 1))
+            pid, nent = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid'), x.group('nent') or 1))  # type: ignore
             data = self._extract_from_video_page(url, pid, nent)
             if not data:
                 raise ExtractorError("not any video found")
@@ -524,7 +533,7 @@ class SketchySexIE(SketchySexBaseIE):
 
 
 class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
-    IE_NAME = 'sketchysex:playlist'
+    IE_NAME = 'sketchysex:playlist'  # type: ignore
     IE_DESC = 'sketchysex:playlist'
     _VALID_URL = r"https://members\.sketchysex\.com/index\.php(?:\?page=(?P<id>\d+)(?:&nentries=(?P<nent>\d+))?)?"
 
@@ -537,7 +546,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        playlistid, nent = re.search(self._VALID_URL, url).group("id", "nent")
+        playlistid, nent = re.search(self._VALID_URL, url).group("id", "nent")  # type: ignore
         if not playlistid:
             playlistid = '1'
         try:
@@ -556,7 +565,7 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
 
 
 class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
-    IE_NAME = 'sketchysex:allpages:playlist'
+    IE_NAME = 'sketchysex:allpages:playlist'  # type: ignore
     IE_DESC = 'sketchysex:allpages:playlist'
     _VALID_URL = r"https://members\.sketchysex\.com/index.php\?(fpage=(?P<pid>\d+)&)?npages=(?P<npages>(?:\d+|all))"
 
@@ -571,7 +580,7 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
         self.report_extraction(url)
 
         try:
-            fpage, npages = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid') or "1", x.group('npages')))
+            fpage, npages = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid') or "1", x.group('npages')))  # type: ignore
             entries = self._extract_all_list(fpage, npages)
             if not entries:
                 raise ExtractorError("no video list")
@@ -599,9 +608,9 @@ class BreederBrosBaseIE(BBGroupIE):
 
     _INIT = False
 
-    _MAX_PAGE = None
+    _MAX_PAGE = 0
 
-    _COOKIES = None
+    _COOKIES = []
 
     _NENTRIES = 0
 
@@ -613,7 +622,7 @@ class BreederBrosBaseIE(BBGroupIE):
 
 
 class BreederBrosIE(BreederBrosBaseIE):
-    IE_NAME = 'breederbros'
+    IE_NAME = 'breederbros'  # type: ignore
     IE_DESC = 'breederbros'
     _VALID_URL = r'https://members\.breederbros\.com/gallery\.php\?id=(?P<id>\d+)(&page=(?P<pid>\d+))?(&nent=(?P<nent>\d+))?'
 
@@ -628,7 +637,7 @@ class BreederBrosIE(BreederBrosBaseIE):
         self.report_extraction(url)
 
         try:
-            pid, nent = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid'), x.group('nent') or 1))
+            pid, nent = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid'), x.group('nent') or 1))  # type: ignore
             data = self._extract_from_video_page(url, pid, nent)
             if not data:
                 raise ExtractorError("not any video found")
@@ -643,7 +652,7 @@ class BreederBrosIE(BreederBrosBaseIE):
 
 
 class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
-    IE_NAME = 'breederbros:playlist'
+    IE_NAME = 'breederbros:playlist'  # type: ignore
     IE_DESC = 'breederbros:playlist'
     _VALID_URL = r"https://members\.breederbros\.com/index\.php(?:\?page=(?P<id>\d+)|$)"
 
@@ -656,7 +665,7 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        playlistid = re.search(self._VALID_URL, url).group("id") or '1'
+        playlistid = re.search(self._VALID_URL, url).group("id") or '1'  # type: ignore
 
         try:
 
@@ -674,7 +683,7 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
 
 
 class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
-    IE_NAME = 'breederbros:allpages:playlist'
+    IE_NAME = 'breederbros:allpages:playlist'  # type: ignore
     IE_DESC = 'breederbros:allpages:playlist'
     _VALID_URL = r"https://members\.breederbros\.com/index.php\?(fpage=(?P<pid>\d+)&)?npages=(?P<npages>(?:\d+|all))"
 
@@ -690,7 +699,7 @@ class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
 
         try:
 
-            fpage, npages = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid') or "1", x.group('npages')))
+            fpage, npages = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid') or "1", x.group('npages')))  # type: ignore
             entries = self._extract_all_list(fpage, npages)
             if not entries:
                 raise ExtractorError("no video list")

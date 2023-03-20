@@ -40,7 +40,9 @@ class MyLogger(logging.LoggerAdapter):
         'Downloading media selection JSON',
         'Loaded ',
         'Sort order given by user:',
-        'Formats sorted by:'
+        'Formats sorted by:',
+        'No video formats found!',
+        'Requested format is not available'
     ]
 
     _skip_phr = [
