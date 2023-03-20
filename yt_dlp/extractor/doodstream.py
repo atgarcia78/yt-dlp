@@ -93,7 +93,20 @@ class DoodStreamIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 _msg_error = f"{repr(e)}"
                 self.logger_debug(f"{pre}: {_msg_error}")
-                return {"error_res": _msg_error}
+
+    def _get_metadata(self, url):
+        video_id = self._match_id(url)
+        url = f'https://dood.to/e/{video_id}'
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
+        if not webpage or '<title>Video not found' in webpage:
+            raise ExtractorError("error 404 no webpage")
+
+        title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
+        if not title:
+            title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - DoodStream', ''))
+
+        return {'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
+                'title': sanitize_filename(title, restricted=True)}
 
     def _get_entry(self, url, check=False, msg=None):
 
@@ -106,9 +119,11 @@ class DoodStreamIE(SeleniumInfoExtractor):
             video_id = self._match_id(url)
             url = f'https://dood.to/e/{video_id}'
             webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
-            title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - DoodStream', ''))
+            if not webpage or '<title>Video not found' in webpage:
+                raise ExtractorError("error 404 no webpage")
+            title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
             if not title:
-                title = try_get(self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
+                title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - DoodStream', ''))
 
             token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 

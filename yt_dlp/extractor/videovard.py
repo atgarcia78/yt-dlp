@@ -34,7 +34,7 @@ class getvideourl:
 
 class VideovardIE(SeleniumInfoExtractor):
 
-    IE_NAME = "videovard"
+    IE_NAME = "videovard"  # type: ignore
     _SITE_URL = "https://videovard.sx/"
     _VALID_URL = r'https?://videovard\.\w\w/[e,v]/(?P<id>[^&]+)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://videovard\.\w\w/[e,v]/.+?)\1']
@@ -56,8 +56,7 @@ class VideovardIE(SeleniumInfoExtractor):
                 driver.get(url)
             except Exception as e:
                 self.report_warning(f"{pre}: error - {repr(e)}")
-                e.msg = f'no webpage {e.msg}'
-                raise e
+                raise ExtractorError(f'no webpage - {repr(e)}')
 
         else:
 
@@ -105,13 +104,16 @@ class VideovardIE(SeleniumInfoExtractor):
                         _info_video = self.send_multi_request(video_url, _type="info_video", headers=_headers)
                         if not _info_video:
                             raise ExtractorError("no info video")
+                        assert isinstance(_info_video, dict)
                         _formats = [{'format_id': 'http-mp4', 'url': _info_video['url'], 'filesize': _info_video['filesize'], 'ext': 'mp4'}]
 
                     elif "master.m3u8" in video_url:
-                        _formats = self._extract_m3u8_formats_and_subtitles(video_url, video_id=videoid, ext="mp4",
-                                                                            entry_protocol="m3u8_native", m3u8_id="hls", headers=_headers)
+                        _formats = self._extract_m3u8_formats_and_subtitles(
+                            video_url, video_id=videoid, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls", headers=_headers)
                 else:
-                    m3u8_url, m3u8_doc = try_get(self.scan_for_request(driver, r"master.m3u8"), lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                    m3u8_url, m3u8_doc = try_get(
+                        self.scan_for_request(r"master.m3u8", driver=driver), lambda x: (x.get('url'), x.get('content'))  # type: ignore
+                        if x else (None, None))
                     if m3u8_url:
                         if not m3u8_doc:
                             m3u8_doc = try_get(self.send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))
@@ -120,12 +122,11 @@ class VideovardIE(SeleniumInfoExtractor):
                             _formats, _ = self._parse_m3u8_formats_and_subtitles(
                                 m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
-            if _formats:
-                self._sort_formats(_formats)
-            else:
+            if not _formats:
                 raise ExtractorError(f"[{url}] Couldnt find any video format")
 
             for _format in _formats:
+                assert isinstance(_format, dict)
                 if (_head := _format.get('http_headers')):
                     _head.update(_headers)
                 else:

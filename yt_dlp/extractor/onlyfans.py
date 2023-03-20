@@ -341,7 +341,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         self.wait_until(driver, 60, scroll_chat(pre, self.to_screen))
 
         _reg_str = f'/api2/v2/chats/{userid}/messages'
-        data_json = self.scan_for_json(driver, _reg_str, _all=True)
+        data_json = self.scan_for_json(_reg_str, driver=driver, _all=True)
         entries = {}
         if data_json:
 
@@ -370,7 +370,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         _reg_str = r'/api2/v2/users/%s/posts/videos\?limit.*$' % userid
         pre = f'[get_videos_grid][{account}]'
         entries = {}
-        data_json = self.scan_for_json(driver, _reg_str, _all=_all)
+        data_json = self.scan_for_json(_reg_str, driver=driver, _all=_all)
         if data_json:
             # self.write_debug(data_json)
             if isinstance(data_json, list):
@@ -403,7 +403,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         entries = {}
         _reg_str = r'/api2/v2/posts/paid'
-        data_json = self.scan_for_json(driver, _reg_str, _all=True)
+        data_json = self.scan_for_json(_reg_str, driver=driver, _all=True)
         if data_json:
             logger.info(data_json)
             list_json = []
@@ -426,7 +426,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         self.send_driver_request(driver, OnlyFansActSubslistIE._ACT_SUBS_URL)
 
-        actsubs_json = self.scan_for_json(driver, _reg_str, _all=True)
+        actsubs_json = self.scan_for_json(_reg_str, driver=driver, _all=True)
         if actsubs_json:
             list_json = []
             for el in actsubs_json:
@@ -513,7 +513,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                 raise ExtractorError("Error 404: Post doesnt exists")
             #  self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "b-post__wrapper")))
             _pattern = r'/api2/v2/posts/%s\?skip_users=all$' % post
-            data_json = self.scan_for_json(driver, _pattern)
+            data_json = self.scan_for_json(_pattern, driver=driver)
 
         except ExtractorError:
             raise
@@ -572,7 +572,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             if not res or res[0] == "error404":
                 raise ExtractorError("Error 404: User profile doesnt exists")
 
-            userid = try_get(self.scan_for_json(driver, r'/api2/v2/users/%s$' % account), lambda x: x['id'])
+            userid = try_get(self.scan_for_json(r'/api2/v2/users/%s$' % account, driver=driver), lambda x: x['id'])
 
             #  self.to_screen(f"{userid}")
 
@@ -647,7 +647,7 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
 
             self.wait_until(driver, 600, scroll(10))
 
-            users_json = self.scan_for_json(driver, r'/api2/v2/users/list', _all=True)
+            users_json = self.scan_for_json(r'/api2/v2/users/list', driver=driver, _all=True)
             if users_json:
 
                 for _users in users_json:
@@ -840,7 +840,7 @@ class OnlyFansAllChatslistIE(OnlyFansBaseIE):
 
             self.wait_until(driver, 60, scroll(2))
 
-            users_json = self.scan_for_json(driver, '/api2/v2/users/list', _all=True)
+            users_json = self.scan_for_json('/api2/v2/users/list', driver=driver, _all=True)
             if users_json:
                 self.to_screen("users list attempt success")
 

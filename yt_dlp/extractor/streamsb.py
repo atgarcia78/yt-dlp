@@ -12,10 +12,15 @@ from .commonwebdriver import (
     By,
     ec
 )
-from ..utils import ExtractorError, sanitize_filename, try_get, traverse_obj, get_element_text_and_html_by_tag, get_elements_html_by_class
+from ..utils import (
+    ExtractorError,
+    sanitize_filename,
+    try_get,
+    traverse_obj,
+    get_element_text_and_html_by_tag,
+    get_elements_html_by_class)
 
 import logging
-
 logger = logging.getLogger('streamsb')
 
 
@@ -85,6 +90,68 @@ class StreamSBIE(SeleniumInfoExtractor):
                     self.logger_debug(f"{pre}: {_msg_error}")
                     return {"error_res": _msg_error}
 
+    def _get_entry_by_har(self, url, msg=None):
+
+        pre = f'[get_entry_by_har][{self._get_url_print(url)}]'
+        if msg:
+            pre = f'{msg}{pre}'
+
+        videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
+        url_dl = f"https://{dom}/e/{videoid}.html"
+        _har_file = f"/Users/antoniotorres/testing/dump_{videoid}.har"
+        cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={_har_file}"
+        _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+
+        driver = self.get_driver(host='127.0.0.1', port='8080')
+        ps = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE)
+
+        try:
+            ps.poll()
+            self.wait_until(driver, 5)
+            ps.poll()
+
+            self._send_request(url_dl, driver=driver)
+            self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
+            self.wait_until(driver, 5)
+
+            ps.terminate()
+
+            m3u8_url, m3u8_doc = try_get(
+                self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+
+            _formats = []
+            if m3u8_doc and m3u8_url:
+                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+
+            if not _formats:
+                raise ExtractorError('Couldnt get video formats')
+
+            for _format in _formats:
+                if (_head := _format.get('http_headers')):
+                    _head.update(_headers)
+                else:
+                    _format.update({'http_headers': _headers})
+
+            _title = traverse_obj(self.scan_for_json(r'/sources.+$', har=_har_file), ('stream_data', 'title'))
+
+            _entry = {
+                'id': videoid,
+                'title': sanitize_filename(_title, restricted=True),
+                'formats': _formats,
+                'ext': 'mp4',
+                'extractor_key': 'StreamSB',
+                'extractor': 'streamsb',
+                'webpage_url': url}
+
+            return _entry
+        except Exception as e:
+            self.report_warning(f"{pre} {repr(e)}")
+            raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
+        finally:
+            ps.terminate()
+            self.rm_driver(driver)
+
     def _get_entry(self, url, **kwargs):
 
         check = kwargs.get('check', False)
@@ -152,51 +219,11 @@ class StreamSBIE(SeleniumInfoExtractor):
             return _entry
 
         except Exception as e:
-            logger.debug(repr(e))
+            self.logger_debug(f"[get_entry] {repr(e)}")
             if driver:
                 self.rm_driver(driver)
-            url_dl = f"https://{dom}/e/{videoid}.html"
-            driver = self.get_driver(host='127.0.0.1', port='8080')
-            _har_file = f"/Users/antoniotorres/testing/dump_{videoid}.har"
-            cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={_har_file}"
-            ps = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE)
 
-            try:
-
-                ps.poll()
-                self.wait_until(driver, 5)
-                ps.poll()
-
-                self._send_request(url_dl, driver=driver)
-                self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                self.wait_until(driver, 5)
-                ps.terminate()
-                m3u8_url, m3u8_doc = try_get(
-                    self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
-                    lambda x: (x.get('url'), x.get('content')) if x else (None, None))
-                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
-                _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
-                for _format in _formats:
-                    if (_head := _format.get('http_headers')):
-                        _head.update(_headers)
-                    else:
-                        _format.update({'http_headers': _headers})
-                _title = traverse_obj(self.scan_for_json(r'/sources.+$', har=_har_file), ('stream_data', 'title'))
-                _entry = {
-                    'id': videoid,
-                    'title': sanitize_filename(_title, restricted=True),
-                    'formats': _formats,
-                    'ext': 'mp4',
-                    'extractor_key': 'StreamSB',
-                    'extractor': 'streamsb',
-                    'webpage_url': url}
-
-                return _entry
-            finally:
-                ps.terminate()
-        finally:
-            if driver:
-                self.rm_driver(driver)
+            return self._get_entry_by_har(url, msg=msg)
 
     def _real_initialize(self):
         super()._real_initialize()
