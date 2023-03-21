@@ -7,8 +7,15 @@ import threading
 import traceback
 
 
-from ..utils import ExtractorError, int_or_none, sanitize_filename
-from .commonwebdriver import By, ec, SeleniumInfoExtractor
+from ..utils import ExtractorError, int_or_none, sanitize_filename, get_elements_html_by_attribute, traverse_obj
+from .commonwebdriver import (
+    By, ec, SeleniumInfoExtractor,
+    limiter_0_1, dec_on_exception2,
+    dec_on_exception3, HTTPStatusError, ConnectError,
+    try_get, my_dec_on_exception)
+
+on_exception_vinfo = my_dec_on_exception(
+    (TimeoutError, ExtractorError, HTTPStatusError), raise_on_giveup=False, max_tries=3, interval=1)
 
 
 class HungYoungBritBaseIE(SeleniumInfoExtractor):
@@ -20,42 +27,50 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 
     _COOKIES = []
 
+    @on_exception_vinfo
     def _get_info_video(self, url):
 
-        count = 0
-        while (count < 5):
+        try:
+            with HungYoungBritBaseIE._LOCK:
+                res = self._CLIENT.head(url)
+                res.raise_for_status()
 
+                _filesize = int_or_none(res.headers.get('content-length'))
+                _url = str(res.url)
+                if _filesize:
+                    res = {'url': _url, 'filesize': _filesize}
+                    return res
+                else:
+                    raise ExtractorError('no filesize')
+
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise
+
+    @dec_on_exception3
+    @dec_on_exception2
+    @limiter_0_1.ratelimit("hungyoungbrit", delay=True)
+    def _send_request(self, url, **kwargs):
+
+        pre = f'[send_request][{self._get_url_print(url)}]'
+        if (msg := kwargs.get('msg')):
+            pre = f'{msg}{pre}'
+
+        driver = kwargs.pop('driver', None)
+
+        self.logger_debug(pre)
+        if driver:
+            driver.get(url)
+        else:
             try:
-
-                # res = httpx.head(url, verify=(not self.get_param('nocheckcertificate')))
-                with HungYoungBritBaseIE._LOCK:
-                    res = self._CLIENT.head(url)
-
-                    if res.status_code > 400:
-
-                        count += 1
-                    else:
-
-                        _filesize = int_or_none(res.headers.get('content-length'))
-                        _url = str(res.url)
-
-                        # self.to_screen(f"{url}:{_url}:{_filesize}")
-                        if _filesize:
-                            # for key, value in self._CLIENT.cookies.jar.__dict__['_cookies']['.xvid.com']['/'].items():
-                            #     self._set_cookie(domain='.xvid.com', name=key, value=value.value)
-                            res = {'url': _url, 'filesize': _filesize}
-                            return res
-                        else:
-                            count += 1
-
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-
-                count += 1
+                return self.send_http_request(url, **kwargs)
+            except (HTTPStatusError, ConnectError) as e:
+                _msg_error = f"{repr(e)}"
+                self.logger_debug(f"{pre}: {_msg_error}")
+                return {"error_res": _msg_error}
 
     def _real_initialize(self):
-
         super()._real_initialize()
 
         _home_url = "https://www.hungyoungbrit.com/members/category.php?id=5"
@@ -71,7 +86,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                 except Exception as e:
                     self.to_screen(str(e))
             else:
-                _cookies = HungYoungBritBaseIE._COOKIES
+                _cookies = HungYoungBritBaseIE._COOKIES.copy()
 
             if _cookies:
 
@@ -81,13 +96,14 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                 res = self._CLIENT.get(_home_url)
 
                 if _home_url in str(res.url):
-                    self.to_screen("login OK - 112")
+                    self.to_screen("[login] cookies valid for login")
                     HungYoungBritBaseIE._COOKIES = _cookies
                     return
+                else:
+                    self._CLIENT.cookies.clear()
 
             self.report_login()
-
-            driver = self.get_driver(noheadless=True)
+            driver = self.get_driver()
 
             try:
 
@@ -96,7 +112,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 
                 driver.get(_home_url)
                 self.wait_until(driver, 30, ec.url_changes(""))
-                self.to_screen(f"current url: {driver.current_url}")
+                self.to_screen(f"[login] current url: {driver.current_url}")
                 if _home_url not in driver.current_url:
 
                     el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
@@ -112,17 +128,14 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                     el_password.send_keys(password)
                     self.wait_until(driver, 2)
                     button_login.click()
-                    # self.wait_until(driver, 300, ec.url_changes(_url))
                     self.wait_until(driver, 300, ec.invisibility_of_element(button_login))
-
-                    # if driver.current_url != "https://www.hungyoungbrit.com/members/index.php": raise ExtractError("login error")
-
                     el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
                     assert el
                     if el.text != 'ACCOUNT':
                         raise ExtractorError("log in error")
 
-                # self.to_screen("login OK")
+                self.to_screen("[login] success with drivrer")
+
                 HungYoungBritBaseIE._COOKIES = driver.get_cookies()
 
                 with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
@@ -134,7 +147,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                 res = self._CLIENT.get(_home_url)
 
                 if _home_url in str(res.url):
-                    self.to_screen("login OK - 172")
+                    self.to_screen("[login] login valid for http client")
                 else:
                     raise ExtractorError("Error cookies")
 
@@ -151,26 +164,24 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 class HungYoungBritIE(HungYoungBritBaseIE):
 
     IE_NAME = "hungyoungbrit"  # type: ignore
-
     _VALID_URL = r'https?://(www\.)?hungyoungbrit\.com/members/gallery\.php\?id=(?P<id>\d+)&type=vids'
 
     def _real_initialize(self):
         super()._real_initialize()
+        self._done = 0
+        self._total = 0
 
-    def _real_extract(self, url):
+    def _get_entry(self, url, **kwargs):
+
+        progress_bar = kwargs.get('progress_bar')
 
         try:
+            webpage = try_get(self._send_request(url), lambda x: re.sub('[\n\t]', '', html.unescape(x.text)))
 
-            self.report_extraction(url)
+            if not webpage:
+                raise ExtractorError("fails getting webpage")
 
-            with HungYoungBritBaseIE._LOCK:
-
-                res = self._CLIENT.get(url)
-
-            webpage = re.sub('[\n\t]', '', html.unescape(res.text))
-
-            mobj2 = re.findall(r'<title>([^<]+)<', webpage)
-            title = mobj2[0] if mobj2 else f'hyb_{self._match_id(url)}'
+            title = self._html_extract_title(webpage)
 
             mobj = re.findall(r'movie\[\"(?:1080|720|480)p\"\]\[\"([^\"]+)\"\]=\{path:\"([^\"]+)\"[^\}]+movie_width:\'(\d+)\',movie_height:\'(\d+)\'[^\}]+\}', webpage.replace(' ', ''))
             if not mobj:
@@ -181,32 +192,39 @@ class HungYoungBritIE(HungYoungBritBaseIE):
 
             formats = []
 
-            for el in mobj:
+            for pos, el in enumerate(mobj):
 
-                _info_video = self._get_info_video(el[1])
+                _url = el[1]
+                _filesize = None
 
-                if _info_video:
-                    _url = _info_video['url']
-                    _filesize = _info_video['filesize']
-                else:
-                    _url = el[1]
-                    _filesize = None
+                if pos == 0:
+                    _info_video = self._get_info_video(el[1])
 
-                formats.append({'url': _url,
-                                'width': int(el[2]),
-                                'height': int(el[3]),
-                                'filesize': _filesize,
-                                'format_id': f'http{el[3]}',
-                                'ext': 'mp4'})
+                    if _info_video:
+                        _url = _info_video['url']
+                        _filesize = _info_video['filesize']
 
-            self._sort_formats(formats)
+                _format = {
+                    'url': _url,
+                    'width': int(el[2]),
+                    'height': int(el[3]),
+                    'format_id': f'http{el[3]}',
+                    'ext': 'mp4'}
+
+                if _filesize:
+                    _format['filesize'] = _filesize
+
+                formats.append(_format)
 
             return ({
                 'id': video_id,
                 'title': sanitize_filename(title, restricted=True).upper(),
-                'formats': formats
+                'formats': formats,
+                'ext': 'mp4',
+                'webpage_url': url,
+                'extractor_key': 'HungYoungBrit',
+                'extractor': 'hungyoungbrit',
             })
-            # self.to_screen(formats)
 
         except ExtractorError:
             raise
@@ -214,40 +232,107 @@ class HungYoungBritIE(HungYoungBritBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
             raise ExtractorError(str(e))
+        finally:
+            if progress_bar:
+                with HungYoungBritBaseIE._LOCK:
+                    self._done += 1
+                progress_bar.print(f'Entry OK {self._done}/{self._total}')
+
+    def _real_extract(self, url, **kwargs):
+
+        self.report_extraction(url)
+
+        return self._get_entry(url)
 
 
 class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
 
     IE_NAME = "hungyoungbrit:playlist"  # type: ignore
+    _VALID_URL = r'https?://(?:www\.)?hungyoungbrit\.com/members/category\.php\?id=5&(?P<query>.+)'
+    _PL_LOCK = threading.Lock()
 
-    _VALID_URL = r'https?://(?:www\.)?hungyoungbrit\.com/members/category\.php\?id=5(?:&page=(?P<page>\d+))?(?:&(?P<search>s=\w))?'
+    def _get_last_page(self):
+        base_url = 'https://www.hungyoungbrit.com/tour/category.php?id=5&page=%s&s=d'
+
+        _page_target = '1'
+
+        while True:
+            webpage = try_get(self._send_request(base_url % _page_target), lambda x: x.text)
+            _el = traverse_obj(get_elements_html_by_attribute('aria-label', 'Next Set', webpage), (0))
+            if _el:
+                _res = try_get(re.search(r'page=(?P<page>\d+)', _el), lambda x: x.groupdict().get('page'))
+                if _res:
+                    _page_target = _res
+                    continue
+            else:
+                return int(_page_target)
+
+    def get_pages_search(self, url):
+
+        query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+
+        assert query
+
+        params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+
+        if not params.get('s'):
+            params['s'] = 'd'
+
+        npages = params.pop('pages', 1)
+        firstpage = params.pop('from', 1)
+
+        query_str = "&".join([f"{_key}={_val}" for _key, _val in params.items()])
+        base_url = f'https://www.hungyoungbrit.com/members/category.php?id=5&page=%s&{query_str}'
+
+        last_page = self._get_last_page()
+
+        if npages == 'all':
+            _max = last_page
+        else:
+            _max = int(firstpage) + int(npages) - 1
+            if _max > last_page:
+                self.logger_debug(
+                    f'[{self._get_url_print(url)}] pages requested > max page website: will check up to max page')
+                _max = last_page
+
+        return [base_url % i for i in range(int(firstpage), _max + 1)]
+
+    def get_videos_page(self, urlpage):
+
+        webpage = try_get(self._send_request(urlpage), lambda x: re.sub('[\n\t]', '', html.unescape(x.text)))
+
+        if not webpage:
+            raise ExtractorError("fails getting webpage")
+
+        mobj = re.findall(r'data-setid="(\d+)"', webpage)
+        if not mobj:
+            self.write_debug(webpage)
+            raise ExtractorError("no video entries")
+
+        return [f"https://www.hungyoungbrit.com/members/gallery.php?id={_id}&type=vids"
+                for _id in mobj]
 
     def _real_initialize(self):
         super()._real_initialize()
 
     def _real_extract(self, url):
 
-        try:
+        _urls_pages = self.get_pages_search(url)
 
-            self.report_extraction(url)
+        _urls_videos = []
+        for _url in _urls_pages:
+            _urls_videos.extend(self.get_videos_page(_url))
 
-            with HungYoungBritBaseIE._LOCK:
-                res = self._CLIENT.get(url)
+        iehung = self._get_extractor("HungYoungBrit")
+        iehung._total = len(_urls_videos)
 
-            webpage = re.sub('[\n\t]', '', html.unescape(res.text))
+        with self.create_progress_bar(msg=f'[get_entries][{url}]') as progress_bar:
 
-            mobj = re.findall(r'data-setid="(\d+)"', webpage)
-            if not mobj:
-                self.write_debug(webpage)
-                raise ExtractorError("no video entries")
+            entries = [iehung._get_entry(_url_video, progress_bar=progress_bar) for _url_video in _urls_videos]
 
-            entries = [self.url_result(f"https://www.hungyoungbrit.com/members/gallery.php?id={_id}&type=vids", ie="HungYoungBrit") for _id in mobj]
+            progress_bar.print('')
 
-            return self.playlist_result(entries, playlist_id="HYBplaylist", playlist_title="HYBplaylist")
+        for _ent in entries:
+            _ent['original_url'] = url
 
-        except ExtractorError:
-            raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)} {str(e)} \n{'!!'.join(lines)}")
-            raise ExtractorError(str(e))
+        return self.playlist_result(entries, playlist_id="HYBplaylist", playlist_title="HYBplaylist")

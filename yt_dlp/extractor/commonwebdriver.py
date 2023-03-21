@@ -20,8 +20,8 @@ from httpx import (
     Limits,
     StreamError,
     Timeout,
-    Response
-)
+    Response)
+
 from pyrate_limiter import Duration, Limiter, RequestRate
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
@@ -31,7 +31,6 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import WebDriverException, TimeoutException
 from selenium.webdriver.remote.webelement import WebElement
-
 
 assert Keys  # for flake8
 
@@ -58,10 +57,6 @@ assert Dict
 assert Iterable
 assert Type
 assert Optional
-
-T = TypeVar("T")
-_MaybeSequence = Union[T, Sequence[T]]
-_MaybeCallable = Union[T, Callable[[], T]]
 
 
 class StatusError503(Exception):
@@ -160,6 +155,9 @@ CONFIG_EXTRACTORS = {
         'maxsplits': 16},
     ('nakedswordscene',): {
         'ratelimit': limiter_0_1,
+        'maxsplits': 16},
+    ('hungyoungbrit',): {
+        'ratelimit': limiter_5,
         'maxsplits': 16},
     ('videovard', 'fembed', 'streamtape',
      'gaypornvideos', 'gayforfans',

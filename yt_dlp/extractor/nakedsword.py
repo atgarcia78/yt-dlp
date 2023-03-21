@@ -687,21 +687,23 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
+            _timeout = my_jitter(30)
+            logger.info(f'[wait][{url}] start[{_timeout}]')
             with self.create_progress_bar(msg=f'[wait][{url}]') as progress_bar:
 
                 def _wait_for_either(check: Callable, timeout: Union[float, int]):
                     t = 0
-                    logger.info(f'[wait][{url}] {timeout} start')
                     start = time.monotonic()
                     while (time.monotonic() - start < timeout):
                         check()
                         time.sleep(1)
                         t += 1
-                        progress_bar.print(f' Waiting {t}/{timeout}')
+                        progress_bar.print(f' Waiting {t}/{timeout}')  # type: ignore
 
-                    logger.info(f'[wait][{url}] {timeout} end')
+                _wait_for_either(self.check_stop, timeout=_timeout)
+                progress_bar.print('')  # type: ignore
 
-                _wait_for_either(self.check_stop, timeout=my_jitter(30))
+            logger.info(f'[wait][{url}] end')
 
             self.API_LOGOUT(msg='[getentries]')
             time.sleep(5)
