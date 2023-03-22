@@ -452,7 +452,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                             ex.submit(self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, progress_bar=progress_bar): _post_url
                             for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
-                    progress_bar.print('')
+                    progress_bar.print('')  # type: ignore
 
                 for fut in futures:
                     try:
