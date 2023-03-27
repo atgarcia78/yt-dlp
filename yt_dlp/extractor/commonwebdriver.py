@@ -702,10 +702,11 @@ class SeleniumInfoExtractor(InfoExtractor):
             return self.ie_key()
 
     def _get_url_print(self, url):
-        if len(url) > 150:
-            return (f'{url[:140]}...{url[-10:]}')
-        else:
-            return url
+        if url:
+            if len(url) > 150:
+                return (f'{url[:140]}...{url[-10:]}')
+            else:
+                return url
 
     def close(self):
         try:

@@ -11,13 +11,11 @@ from ..utils import (
     unsmuggle_url)
 from .commonwebdriver import (
     unquote,
-    dec_on_exception2,
-    dec_on_exception3,
     SeleniumInfoExtractor,
     limiter_1,
     limiter_0_1,
-    HTTPStatusError,
-    ConnectError,
+    ReExtractInfo,
+    my_dec_on_exception,
     Tuple)
 
 from concurrent.futures import ThreadPoolExecutor
@@ -29,6 +27,8 @@ logger = logging.getLogger("gvdblog")
 _ie_names = ('highload', 'doodstream')
 _ie_urls = ('//highload.', '//dood.')
 _ie_data = {key: value for key, value in zip(_ie_names, _ie_urls)}
+
+on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
 
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
@@ -184,10 +184,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         try:
 
+            premsg = '[get_entries_from_post]'
             try:
 
                 if isinstance(post, str) and post.startswith('http'):
                     url = unquote(post)
+                    premsg += f'[{self._get_url_print(url)}]'
                     self.report_extraction(url)
                     post_content = try_get(
                         self._send_request(url),
@@ -200,23 +202,23 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 elif isinstance(post, dict):
 
                     url = try_get(post.get('link'), lambda x: unquote(x) if x is not None else None)
-                    post_content = traverse_obj(post, ('content', 'rendered'))
-
+                    premsg += f'[{self._get_url_print(url)}]'
                     self.report_extraction(url)
-                    postdate, title, postid = self.get_info(post)
+                    post_content = traverse_obj(post, ('content', 'rendered'))
                     if post_content:
+                        postdate, title, postid = self.get_info(post)
                         list_candidate_videos = self.get_urls(post_content, msg=url)
 
                 else:
                     ExtractorError("incorrect type of data as post")
 
             except Exception as e:
-                logger.exception(f"[get_entries_from_post] {repr(e)}")
-            finally:
-                premsg = f'[get_entries][{self._get_url_print(url)}]'
-                self.logger_debug(f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
-                if not postdate or not title or not postid or not list_candidate_videos:
-                    raise ExtractorError(f"[{url} no video info")
+                logger.debug(f"{premsg} {repr(e)}")
+                raise
+
+            self.logger_debug(f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
+            if not postdate or not title or not postid or not list_candidate_videos:
+                raise ExtractorError(f"[{url} no video info")
 
             entries = []
 
@@ -280,8 +282,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def _get_metadata(self, post):
         return self.get_entries_from_blog_post(post, lazy=True)
 
-    @dec_on_exception3
-    @dec_on_exception2
+    @on_exception_req
     def _send_request(self, url, **kwargs):
 
         driver = kwargs.get('driver', None)
@@ -296,8 +297,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             else:
                 try:
                     return self.send_http_request(url, **kwargs)
-                except (HTTPStatusError, ConnectError) as e:
-                    logger.warning(f"{pre}: error - {repr(e)}")
+                # except (HTTPStatusError, ConnectError) as e:
+                #    logger.warning(f"{pre}: error - {repr(e)}")
+                except ReExtractInfo as e:
+                    logger.debug(f"{pre}: error - {repr(e)}")
+                    raise ExtractorError(str(e))
                 except Exception as e:
                     logger.warning(f"{pre}: error - {repr(e)}")
                     raise
@@ -358,6 +362,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 self.logger_debug(f'[entries result] videos entries [{len(video_entries)}]')
 
                 return video_entries
+
         except Exception as e:
             logger.debug(repr(e))
             raise
@@ -400,7 +405,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             return final_entries
         except Exception as e:
-            logger.exception(f"{repr(e)}")
+            logger.debug(f"{repr(e)}")
             raise
 
     def iter_get_entries_search(self, url, check=True):
@@ -479,7 +484,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             return _entries
 
         except Exception as e:
-            logger.exception(f"{repr(e)}")
+            logger.debug(f"{repr(e)}")
             raise
 
     def _real_initialize(self):

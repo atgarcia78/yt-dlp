@@ -5,6 +5,7 @@ import random
 import string
 import time
 import html
+import re
 
 from ..utils import sanitize_filename, try_get, get_domain
 from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError, limiter_0_1
@@ -103,10 +104,16 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
         if not title:
-            title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - DoodStream', ''))
+            title = try_get(self._html_extract_title(webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
+        if not title or not isinstance(title, str):
+            raise ExtractorError("error with title")
+
+        mobj = re.findall(r'(1080p|720p|480p)', title)
+        if mobj:
+            title = title.split(mobj[0])[0]
 
         return {'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': sanitize_filename(title, restricted=True)}
+                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip(), restricted=True)}
 
     def _get_entry(self, url, check=False, msg=None):
 
@@ -123,7 +130,13 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 raise ExtractorError("error 404 no webpage")
             title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
             if not title:
-                title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - DoodStream', ''))
+                title = try_get(self._html_extract_title(webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
+            if not title or not isinstance(title, str):
+                raise ExtractorError("error with title")
+
+            mobj = re.findall(r'(1080p|720p|480p)', title)
+            if mobj:
+                title = title.split(mobj[0])[0]
 
             token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 
@@ -160,7 +173,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
             _entry = {
                 'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': sanitize_filename(title, restricted=True),
+                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip(), restricted=True),
                 'formats': [_format],
                 'ext': 'mp4',
                 'extractor_key': 'DoodStream',
