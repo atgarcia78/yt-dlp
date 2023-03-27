@@ -103,7 +103,7 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
                 for cookie in _cookies:
                     self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
-                _login_ok = try_get(self._send_request(_home_url), lambda x: _home_url in str(x.url) if x else None)
+                _login_ok = try_get(self._send_request(_home_url), lambda x: _home_url in str(x.url) if x else False)
                 if _login_ok:
                     self.to_screen("[login] cookies valid for login")
                     HungYoungBritBaseIE._COOKIES = _cookies.copy()
