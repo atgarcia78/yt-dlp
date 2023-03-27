@@ -57,6 +57,8 @@ assert Dict
 assert Iterable
 assert Type
 assert Optional
+assert Sequence
+assert TypeVar
 
 
 class StatusError503(Exception):
