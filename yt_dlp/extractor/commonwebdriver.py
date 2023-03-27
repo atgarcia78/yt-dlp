@@ -38,6 +38,7 @@ from ..minicurses import MultilinePrinter, QuietMultilinePrinter
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
 from ..YoutubeDL import YoutubeDL
+from ..cookies import extract_cookies_from_browser
 
 from typing import (
     cast,
@@ -593,6 +594,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         'Pragma': 'no-cache',
         'Cache-Control': 'no-cache',
     }
+    _COOKIES_JAR = []
 
     @classproperty
     def IE_NAME(cls):
@@ -633,6 +635,12 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _logger.debug(f"[debug+][{cls.IE_NAME}]{msg}")
             else:
                 cls._YTDL.to_screen(f"[debug][{cls.IE_NAME}]{msg}")
+
+    def extract_cookies(self):
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            if not SeleniumInfoExtractor._COOKIES_JAR:
+                self.to_screen("loading cookies from Firefox")
+                SeleniumInfoExtractor._COOKIES_JAR = extract_cookies_from_browser('firefox')
 
     def create_progress_bar(self, msg=None):
         ydllogger = YDLLogger(self._downloader, msg=msg)
