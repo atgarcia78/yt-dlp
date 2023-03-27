@@ -307,6 +307,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self._done = 0
         self._total: int
 
+        self.extract_cookies()
+        for cookie in self._COOKIES_JAR:
+            if 'gvdblog.net' in cookie.domain and 'cf_clearance' in cookie.name:
+                self.to_screen(f"cookie: {cookie}")
+                self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.net')  # type: ignore
+                break
+
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
