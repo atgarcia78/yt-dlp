@@ -168,7 +168,8 @@ class StreamSBIE(SeleniumInfoExtractor):
 
             url_dl = f"https://{dom}/d/{videoid}.html"
             webpage = try_get(self._send_request(url_dl, msg=pre), lambda x: html.unescape(x.text) if not isinstance(x, dict) else x)
-            self.raise_from_res(webpage, "no webpage")
+            if not webpage:
+                raise ExtractorError("error to get webpage")
 
             _title = try_get(get_element_text_and_html_by_tag('h1', webpage), lambda x: re.sub(r'\[?\d+p\]?', '', x[0].replace('Download ', '')).strip())
 
@@ -177,6 +178,9 @@ class StreamSBIE(SeleniumInfoExtractor):
             _data = [try_get(re.findall(r'download_video\(([^\)]+)\)', _source), lambda x: {key: val for key, val in zip(['code', 'mode', 'hash'], x[0].replace("'", "").split(","))}) for _source in _sources]
             _res = [try_get(re.findall(r'(\d+)p', try_get(get_element_text_and_html_by_tag("span", _source), lambda y: y[0])), lambda x: x[0])  # type: ignore
                     for _source in _sources]
+
+            if not _data or not _res:
+                ExtractorError("error to get video details")
 
             for res, data in zip(_res, _data):
                 if data and res:
