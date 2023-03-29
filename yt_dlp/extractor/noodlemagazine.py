@@ -1,14 +1,14 @@
 from ..utils import (
     parse_duration,
     parse_count,
-    traverse_obj,
     unified_strdate,
     ExtractorError,
     sanitize_filename,
-    try_get
+    try_get,
+    get_domain
 )
 import html
-from .commonwebdriver import dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError
+from .commonwebdriver import cast, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError
 
 
 class NoodleMagazineIE(SeleniumInfoExtractor):
@@ -31,65 +31,100 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
         }
     }
 
-    @dec_on_exception2
     @dec_on_exception3
+    @dec_on_exception2
     @limiter_5.ratelimit("noodlemagazine", delay=True)
+    def _get_info_for_format(self, url, **kwargs):
+
+        _headers = kwargs.get('headers', {})
+        _headers.update({'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+                         'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
+                         'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        self.logger_debug(f"[get_video_info] {url}")
+
+        try:
+            return self.get_info_for_format(url, headers=_headers)
+        except (HTTPStatusError, ConnectError) as e:
+            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            return {"error_res": f"{repr(e)}"}
+
+    @dec_on_exception3
+    @dec_on_exception2
+    @limiter_5.ratelimit("noodlemagazine2", delay=True)
     def _send_request(self, url, **kwargs):
 
-        _type = kwargs.get('_type', None)
-        headers = kwargs.get('headers', None)
+        try:
+            return self.send_http_request(url, **kwargs)
+        except (HTTPStatusError, ConnectError) as e:
+            self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
 
-        if not _type:
+    def _get_entry(self, url, **kwargs):
 
-            try:
-                self.logger_debug(f"[send_req] {self._get_url_print(url)}")
-                return (self.send_http_request(url, headers=headers))
-            except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
-
-        elif _type == 'json':
-
-            try:
-                self.logger_debug(f"[send_req] {self._get_url_print(url)}")
-                self._CLIENT.cookies.clear(domain=".noodlemagazine.com", path="/")
-                res = self.send_http_request(url, headers=headers)
-                info_json = res.json()
-                _file = traverse_obj(info_json, ('sources', 0, 'file'))
-                if not _file.startswith('http'):
-                    raise ExtractorError('not valid url')
-                else:
-                    return info_json
-            except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
-
-    def _real_extract(self, url):
         video_id = self._match_id(url)
-        # webpage = self._download_webpage(url, video_id)
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
+        if not webpage:
+            raise ExtractorError("no webpage")
+
+        key = try_get(self._og_search_video_url(webpage), lambda x: x.split('m=')[1])
+        if not key:
+            key = self._html_search_regex(rf'/{video_id}\?(?:.*&)?m=([^&"\'\s,]+)', webpage, 'key')
+
+        _headers = {'Referer': f'https://noodlemagazine.com/player/{video_id}?m={key}&a=1'}
+        try:
+            self._CLIENT.cookies.clear(domain='.noodlemagazine.com')
+        except Exception:
+            pass
+
+        video_info = try_get(self._send_request(f'https://noodlemagazine.com/playlist/{video_id}?m={key}', headers=_headers), lambda x: x.json())
+
+        if not video_info:
+            ExtractorError("no video info")
+
+        assert isinstance(video_info, dict)
+
+        formats = []
+
+        if (sources := video_info.get('sources')):
+            sources = sorted(sources, key=lambda x: int(x.get('label', "0")), reverse=True)
+
+            for i, source in enumerate(sources):
+
+                _url = source.get('file')
+                _format_id = source.get('label')
+                _format = {
+                    'format_id': _format_id,
+                    'url': _url,
+                    'height': int(source.get('label')),
+                    'ext': source.get('type'),
+                    'http_headers': {'Referer': 'https://noodlemagazine.com/'}}
+
+                if i == 0:
+                    _host = get_domain(_url)
+                    _sem = self.get_ytdl_sem(_host)
+
+                    with _sem:
+                        _info_video = self._get_info_for_format(_url, headers={'Referer': 'https://noodlemagazine.com/'})
+                    if _info_video:
+                        _info_video = cast(dict, _info_video)
+
+                    if not _info_video or 'error' in _info_video:
+                        self.logger_debug(f"[{url}][{_format_id}] no video info")
+                    else:
+                        _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+
+                formats.append(_format)
+
+        if not formats:
+            raise ExtractorError("no formats")
+
         title = self._og_search_title(webpage)
         duration = parse_duration(self._html_search_meta('video:duration', webpage, 'duration', default=None))
-        description = self._og_search_property('description', webpage, default='').replace(' watch online hight quality video', '')
-        tags = self._html_search_meta('video:tag', webpage, default='').split(', ')
+        description = try_get(self._og_search_property('description', webpage, default=''), lambda x: x.replace(' watch online hight quality video', ''))
+        tags = try_get(self._html_search_meta('video:tag', webpage, default=''), lambda x: x.split(', '))
         view_count = parse_count(self._html_search_meta('ya:ovs:views_total', webpage, default=None))
         like_count = parse_count(self._html_search_meta('ya:ovs:likes', webpage, default=None))
         upload_date = unified_strdate(self._html_search_meta('ya:ovs:upload_date', webpage, default=''))
-
-        key = self._html_search_regex(rf'/{video_id}\?(?:.*&)?m=([^&"\'\s,]+)', webpage, 'key')
-
-        # playlist_info = self._download_json(f'https://noodlemagazine.com/playlist/{video_id}?m={key}', video_id, headers={'Referer': f'https://noodlemagazine.com/player/{video_id}?m={key}&a=1'})
-
-        playlist_info = self._send_request(f'https://noodlemagazine.com/playlist/{video_id}?m={key}', _type="json", headers={'Referer': f'https://noodlemagazine.com/player/{video_id}?m={key}&a=1'})
-
-        self.logger_debug(playlist_info)
-
-        thumbnail = self._og_search_property('image', webpage, default=None) or playlist_info.get('image')
-
-        formats = [{
-            'format_id': source.get('label'),
-            'url': source.get('file'),
-            'height': int(source.get('label')),
-            'ext': source.get('type'),
-        } for source in playlist_info.get('sources')]
+        thumbnail = self._og_search_property('image', webpage, default=None) or video_info.get('image')
 
         return {
             'id': video_id.replace('-', '').replace('_', ''),
@@ -104,3 +139,8 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
             'upload_date': upload_date,
             'age_limit': 18
         }
+
+    def _real_extract(self, url):
+
+        self.report_extraction(url)
+        return self._get_entry(url)
