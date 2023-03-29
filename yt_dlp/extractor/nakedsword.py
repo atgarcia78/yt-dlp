@@ -6,7 +6,7 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from threading import Lock, Event
+from threading import Lock
 import base64
 import subprocess
 import time
@@ -65,8 +65,10 @@ class checkLogged:
     def __call__(self, driver):
 
         el_uas = driver.find_element(By.CSS_SELECTOR, "div.UserActions")
+        el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "LoginWrapper"), lambda x: x[0])
+
         if not self.ifnot:
-            el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "LoginWrapper"), lambda x: x[0])
+
             if not el_loggin:
                 el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "UserAction"), lambda x: x[1])
                 if el_loggin and el_loggin.text.upper() == "MY STUFF":
@@ -78,7 +80,7 @@ class checkLogged:
                 return "FALSE"
 
         elif self.ifnot:
-            el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "LoginWrapper"), lambda x: x[0])
+
             if not el_loggin:
                 el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "UserAction"), lambda x: x[0])
                 if el_loggin and el_loggin.text.upper() == "SIGN OUT":
@@ -91,6 +93,7 @@ class checkLogged:
 
 
 class toggleVideo:
+
     def __init__(self, logger, msg=None):
         self.init = False
         self.logger = logger
@@ -122,19 +125,14 @@ class toggleVideo:
             return "error"
 
 
-class NSAPI:
+class NSAUTH:
 
-    def __init__(self):
-        self.logger = logging.getLogger("NSAPI")
+    def __init__(self, iens):
+        self.logger = logging.getLogger("NSAUTH")
         self.call_lock = Lock()
         self.headers_api = {}
-        self.ready = Event()
         self.timer = ProgressTimer()
-
-    def init(self, iens):
-        self.ready.set()
         self.iens = iens
-        self.timer.reset()
         self.get_auth()
 
     def logout(self, msg=None):
@@ -216,7 +214,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _TAGS = {}
     _MAXPAGE_SCENES_LIST = 2
     _APP_DATA = {}
-    _API = NSAPI()
+    _API: NSAUTH
+    _CLIENT = None
     _STATUS: str = 'NORMAL'
     _LIMITERS = {
         '403': limiter_1.ratelimit("nakedswordscene", delay=True),
@@ -317,7 +316,36 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'Cache-Control': 'no-cache',
             'TE': 'trailers'}}
 
-    _CLIENT = None
+    def API_AUTH(self, msg=None):
+        return NakedSwordBaseIE._API.get_auth(msg=msg)
+
+    def API_REFRESH(self):
+        return NakedSwordBaseIE._API.get_refresh()
+
+    def API_LOGOUT(self, msg=None):
+        return NakedSwordBaseIE._API.logout(msg=msg)
+
+    def API_GET_HTTP_HEADERS(self):
+        return NakedSwordBaseIE._API()
+
+    @dec_on_exception2
+    @dec_on_exception3
+    @limiter_0_1.ratelimit("nakedsword", delay=True)
+    def _send_request(self, url, **kwargs) -> Union[None, Response]:
+
+        pre = f'[send_request][{self._get_url_print(url)}]'
+        if (msg := kwargs.get('msg')):
+            pre = f'{msg}{pre}'
+
+        driver = kwargs.get('driver', None)
+
+        if driver:
+            driver.get(url)
+        else:
+            try:
+                return (self.send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
+            except (HTTPStatusError, ConnectError) as e:
+                self.report_warning(f"[send_request_http] {self._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
     @dec_on_reextract_3
     def get_formats(self, _types, _info):
@@ -384,24 +412,71 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             else:
                 return formats
 
-    @dec_on_exception2
-    @dec_on_exception3
-    @limiter_0_1.ratelimit("nakedsword", delay=True)
-    def _send_request(self, url, **kwargs) -> Union[None, Response]:
+    class synchronized:
 
-        pre = f'[send_request][{self._get_url_print(url)}]'
-        if (msg := kwargs.get('msg')):
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with NakedSwordBaseIE._LOCK:
+                    return func(*args, **kwargs)
+            return wrapper
+
+    @synchronized()
+    def get_formats_by_har(self, url, videoid, msg=None):
+
+        pre = '[get_entry_by_har]'
+        if msg:
             pre = f'{msg}{pre}'
 
-        driver = kwargs.get('driver', None)
+        try:
 
-        if driver:
-            driver.get(url)
-        else:
-            try:
-                return (self.send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
-            except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"[send_request_http] {self._get_url_print(url)}: error - {repr(e)} - {str(e)}")
+            with self.get_har_logs(videoid, msg=pre):
+
+                driver = self.get_driver(host='127.0.0.1', port='8080')
+                assert self.har_file
+                try:
+                    self._login(driver)
+                    self._send_request(url, driver=driver)
+                    self.wait_until(driver, 3)
+                    elvid = self.wait_until(driver, 10, toggleVideo(self.logger_debug, msg=pre))
+                    if not elvid or elvid == "error":
+                        raise ReExtractInfo("couldnt reproduce video")
+                finally:
+                    self._logout(driver)
+                    self.rm_driver(driver)
+
+            m3u8_url, _status = try_get(
+                self.scan_for_request(r"playlist.m3u8$", har=self.har_file),  # type: ignore
+                lambda x: (x.get('url'), x.get('status')) if x else (None, None))
+
+            self.logger_debug(f'{pre} status[{_status}] m3u8url[{m3u8_url}]')
+            _formats = []
+            _headers = NakedSwordBaseIE._HEADERS["MPD"]
+            if m3u8_url and _status:
+                if int(_status) > 400:
+                    raise ReExtractInfo(f"raise status {_status}")
+                m3u8_doc = try_get(self._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"]), lambda x: (x.content).decode('utf-8', 'replace'))
+                if not m3u8_doc:
+                    raise ReExtractInfo("couldnt get m3u8 doc")
+                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", headers=_headers, entry_protocol='m3u8_native', m3u8_id="hls")
+
+            if not _formats:
+                raise ReExtractInfo('Couldnt get video formats')
+
+            for _format in _formats:
+                if (_head := _format.get('http_headers')):
+                    _head.update(_headers)
+                else:
+                    _format.update({'http_headers': _headers})
+
+            return _formats
+
+        except ReExtractInfo as e:
+            self.logger_debug(f'{pre}[reextractinfo] {repr(e)}')
+            raise
+        except Exception as e:
+            self.logger_debug(f"{pre} {repr(e)}")
+            raise ReExtractInfo(f"Couldnt get video formats - {repr(e)}")
 
     def _logout_api(self):
 
@@ -701,72 +776,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self._logout(driver)
             raise
 
-    class synchronized:
-
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with NakedSwordBaseIE._LOCK:
-                    return func(*args, **kwargs)
-            return wrapper
-
-    @synchronized()
-    def get_formats_by_har(self, url, videoid, msg=None):
-
-        pre = '[get_entry_by_har]'
-        if msg:
-            pre = f'{msg}{pre}'
-
-        try:
-
-            with self.get_har_logs(videoid, msg=pre):
-
-                driver = self.get_driver(host='127.0.0.1', port='8080')
-                assert self.har_file
-                try:
-                    self._login(driver)
-                    self._send_request(url, driver=driver)
-                    self.wait_until(driver, 3)
-                    elvid = self.wait_until(driver, 10, toggleVideo(self.logger_debug, msg=pre))
-                    if not elvid or elvid == "error":
-                        raise ReExtractInfo("couldnt reproduce video")
-                finally:
-                    self._logout(driver)
-                    self.rm_driver(driver)
-
-            m3u8_url, _status = try_get(
-                self.scan_for_request(r"playlist.m3u8$", har=self.har_file),  # type: ignore
-                lambda x: (x.get('url'), x.get('status')) if x else (None, None))
-
-            self.logger_debug(f'{pre} status[{_status}] m3u8url[{m3u8_url}]')
-            _formats = []
-            _headers = NakedSwordBaseIE._HEADERS["MPD"]
-            if m3u8_url and _status:
-                if int(_status) > 400:
-                    raise ReExtractInfo(f"raise status {_status}")
-                m3u8_doc = try_get(self._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"]), lambda x: (x.content).decode('utf-8', 'replace'))
-                if not m3u8_doc:
-                    raise ReExtractInfo("couldnt get m3u8 doc")
-                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", headers=_headers, entry_protocol='m3u8_native', m3u8_id="hls")
-
-            if not _formats:
-                raise ReExtractInfo('Couldnt get video formats')
-
-            for _format in _formats:
-                if (_head := _format.get('http_headers')):
-                    _head.update(_headers)
-                else:
-                    _format.update({'http_headers': _headers})
-
-            return _formats
-
-        except ReExtractInfo as e:
-            self.logger_debug(f'{pre}[reextractinfo] {repr(e)}')
-            raise
-        except Exception as e:
-            self.logger_debug(f"{pre} {repr(e)}")
-            raise ReExtractInfo(f"Couldnt get video formats - {repr(e)}")
-
     def _real_initialize(self):
 
         try:
@@ -776,25 +785,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             with NakedSwordBaseIE._LOCK:
                 if not NakedSwordBaseIE._CLIENT:
                     NakedSwordBaseIE._CLIENT = self._CLIENT
-                if not NakedSwordBaseIE._APP_DATA:
                     NakedSwordBaseIE._APP_DATA = self._get_data_app()
-                if not NakedSwordBaseIE._API.ready.is_set():
-                    NakedSwordBaseIE._API.init(self)
+                    NakedSwordBaseIE._API = NSAUTH(self)
 
         except Exception as e:
             logger.error(repr(e))
-
-    def API_AUTH(self, msg=None):
-        return NakedSwordBaseIE._API.get_auth(msg=msg)
-
-    def API_REFRESH(self):
-        return NakedSwordBaseIE._API.get_refresh()
-
-    def API_LOGOUT(self, msg=None):
-        return NakedSwordBaseIE._API.logout(msg=msg)
-
-    def API_GET_HTTP_HEADERS(self):
-        return NakedSwordBaseIE._API()
 
 
 class NakedSwordSceneIE(NakedSwordBaseIE):
