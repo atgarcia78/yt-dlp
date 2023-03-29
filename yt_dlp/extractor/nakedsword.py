@@ -1073,7 +1073,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                         formats = self.get_formats_by_har(_info.get('url'), scene_id, msg=f'[get_entries][{_info.get("url").split("movies/")[1]}]')
                                         if formats:
                                             _entry.update({'formats': formats})
-                                            self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: OK got entry by HAR\n{_entry}")
+                                            self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: OK got entry by HAR")
                                             NakedSwordMovieIE._MOVIES[_url_movie]['ok'].append(i)
                                             NakedSwordMovieIE._MOVIES[_url_movie]['entries'][i] = _entry
                                             if i in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
