@@ -20,6 +20,7 @@ from ..utils import (
     traverse_obj,
     url_or_none,
     urlencode_postdata,
+    try_get
 )
 
 _ENCODING_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
@@ -61,7 +62,15 @@ class InstagramBaseIE(InfoExtractor):
         #     r'window\._sharedData\s*=\s*({.+?});', login_webpage, 'shared data', default='{}'), None)
 
         shared_data = self._parse_json(self._search_regex(
-            r'native"\:(\{.+?\})\}', login_webpage, 'shared data', default='{}'), None)
+            [r'window\._sharedData\s*=\s*({.+?});', r'\["XIGSharedData",\s*\[\],\s*({.+?}),\d+\]'], login_webpage, 'shared data', default='{}'), None)
+
+        if shared_data:
+            if (_raw := shared_data.get('raw')):
+                if isinstance(_raw, str):
+                    shared_data['raw'] = self._parse_json(_raw, None)
+
+        csrf_token = try_get(traverse_obj(shared_data, (('native', 'raw'), 'config', 'csrf_token', {str}), get_all=True), lambda x: x[0] or x[1])
+        rollout_hash = try_get(traverse_obj(shared_data, (('native', 'raw'), 'rollout_hash', {str}), get_all=True), lambda x: x[0] or x[1])
 
         self.to_screen(shared_data)
 
@@ -69,8 +78,8 @@ class InstagramBaseIE(InfoExtractor):
             f'{self._LOGIN_URL}/ajax/', None, note='Logging in', headers={
                 **self._API_HEADERS,
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': shared_data['config']['csrf_token'],
-                'X-Instagram-AJAX': shared_data['rollout_hash'],
+                'X-CSRFToken': csrf_token,
+                'X-Instagram-AJAX': rollout_hash,
                 'Referer': 'https://www.instagram.com/',
             }, data=urlencode_postdata({
                 'enc_password': f'#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}',
