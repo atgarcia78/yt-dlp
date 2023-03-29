@@ -112,8 +112,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if mobj:
             title = title.split(mobj[0])[0]
 
+        title = re.sub(r'(\s*-\s*202)', ' 202', title)
+
         return {'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip(), restricted=True)}
+                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip().strip('-'), restricted=True)}
 
     def _get_entry(self, url, check=False, msg=None):
 
@@ -137,6 +139,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
             mobj = re.findall(r'(1080p|720p|480p)', title)
             if mobj:
                 title = title.split(mobj[0])[0]
+
+            title = re.sub(r'(\s*-\s*202)', ' 202', title)
 
             token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 
@@ -173,7 +177,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
             _entry = {
                 'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip(), restricted=True),
+                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip().strip('-'), restricted=True),
                 'formats': [_format],
                 'ext': 'mp4',
                 'extractor_key': 'DoodStream',
