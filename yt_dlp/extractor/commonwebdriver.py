@@ -710,6 +710,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def close(self):
         try:
+            assert self._CLIENT
             self._CLIENT.close()
         except Exception:
             pass
@@ -751,6 +752,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     SeleniumInfoExtractor._YTDL.params['stop'] = Event()
 
                 _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
+                _proxy = SeleniumInfoExtractor._YTDL.params.get('proxy')
 
                 self._CLIENT_CONFIG = {
                     'timeout': Timeout(20),
@@ -760,21 +762,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                     'verify': False,
                     'proxies': None}
 
-                _proxy = SeleniumInfoExtractor._YTDL.params.get('proxy')
                 if _proxy:
                     self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
 
-                # _config = self._CLIENT_CONFIG.copy()
-
-                # self._CLIENT = Client(
-                #     proxies=_config['proxies'], timeout=_config['timeout'],
-                #     limits=_config['limits'], headers=_config['headers'],
-                #     follow_redirects=_config['follow_redirects'], verify=_config['verify'])
-
                 self._CLIENT = Client(**self._CLIENT_CONFIG)
-
-                # self.indexdl = None
-                # self.args_ie = None
 
         except Exception as e:
             logger = logging.getLogger(self.IE_NAME)
@@ -954,12 +945,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         _msg_err = ""
         try:
 
-            client = kwargs.get('client', None)
+            client = kwargs.get('client', self._CLIENT)
             headers = kwargs.get('headers', None)
-            if client:
-                res = client.head(unquote(url), headers=headers, timeout=5)
-            else:
-                res = self._CLIENT.head(unquote(url), headers=headers, timeout=5)
+            assert client
+            res = client.head(unquote(url), headers=headers, timeout=5)
             res.raise_for_status()
             _filesize = int_or_none(res.headers.get('content-length'))
             _url = unquote(str(res.url))
@@ -1096,14 +1085,19 @@ class SeleniumInfoExtractor(InfoExtractor):
         res = None
         _msg_err = ""
 
+        client = kwargs.get('client', self._CLIENT)
+
         try:
 
             _kwargs = kwargs.copy()
             _kwargs.pop('msg', None)
             _kwargs.pop('chunk_size', None)
             _kwargs.pop('truncate', None)
+            _kwargs.pop('client', None)
 
-            with self._CLIENT.stream("GET", url, **_kwargs) as res:
+            assert client
+
+            with client.stream("GET", url, **_kwargs) as res:
                 res.raise_for_status()
 
                 if isinstance(truncate_after, str):
@@ -1155,15 +1149,20 @@ class SeleniumInfoExtractor(InfoExtractor):
         if msg:
             premsg = f'{msg}{premsg}'
 
+        client = kwargs.get('client', self._CLIENT)
+
         try:
 
             _kwargs = kwargs.copy()
 
             _kwargs.pop('_type', None)
             _kwargs.pop('msg', None)
+            _kwargs.pop('client', None)
 
-            req = self._CLIENT.build_request(_type, url, **_kwargs)
-            res = self._CLIENT.send(req)
+            assert client
+
+            req = client.build_request(_type, url, **_kwargs)
+            res = client.send(req)
             if res:
                 res.raise_for_status()
                 return res

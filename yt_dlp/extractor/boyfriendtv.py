@@ -84,6 +84,11 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         self.report_login()
 
         self._send_request(self._SITE_URL, driver)
+        el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+        if el_menu:
+            self.logger_debug("Login already")
+            return
+
         el_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url")))
         if el_login:
             el_login.click()
@@ -99,7 +104,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             el_password.send_keys(password)
             self.wait_until(driver, 2)
             el_login.submit()
-            el_menu = self.wait_until(driver, 15, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+            el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
 
             if not el_menu:
                 self.raise_login_required("Invalid username/password")
@@ -141,7 +146,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         _san_url = urljoin(self._SITE_URL, f'videos/{videoid}')
 
         try:
-            webpage = try_get(self._send_request(_san_url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+            webpage = try_get(self._send_request(_san_url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage:
                 raise ExtractorError("no webpage")
 
@@ -151,22 +156,24 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
             _rating = try_get(re.search(r'class="progress-big js-rating-title" title="(?P<rat>\d+)%"', webpage), lambda x: int(x.group('rat')))
 
-            info_sources = try_get(re.findall(r'sources:\s+(\{.*\})\,\s+poster', webpage), lambda x: json.loads(js_to_json(x[0])))
+            info_sources = try_get(re.findall(r'sources:\s+(\[\{.*\}\])\,\s+poster', webpage), lambda x: json.loads(js_to_json(x[0])))
 
             if not info_sources:
                 raise ExtractorError("no video sources")
 
-            if not info_sources.get('mp4'):
+            sources_mp4 = [source for source in info_sources if source.get('format') == 'mp4']
+
+            if not sources_mp4:
                 raise ExtractorError("no mp4 video sources")
 
-            mp4_sources = sorted(info_sources.get('mp4'), key=lambda x: int(x.get('desc', "0p")[:-1]), reverse=True)
+            sources_mp4 = sorted(sources_mp4, key=lambda x: int(x.get('desc', "0p")[:-1]), reverse=True)
 
             urlp = urlparse(_san_url)
             _headers = {'Referer': f"{urlp.scheme}//{urlp.netloc}/"}
 
             _formats = []
 
-            for i, _src in enumerate(mp4_sources):
+            for i, _src in enumerate(sources_mp4):
 
                 try:
 

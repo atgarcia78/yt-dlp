@@ -6,10 +6,13 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from threading import Lock
+from threading import Lock, Event
 import base64
 import subprocess
 import time
+import os.path
+import functools
+import contextlib
 
 from .commonwebdriver import (
     ConnectError,
@@ -22,14 +25,15 @@ from .commonwebdriver import (
     my_dec_on_exception,
     my_jitter,
     dec_retry,
-    limiter_0_01,
     limiter_0_1,
     limiter_1,
     SeleniumInfoExtractor,
     Dict,
     Union,
     Response,
-    Callable
+    Callable,
+    ec,
+    By
 )
 
 from ..utils import (
@@ -50,6 +54,81 @@ dec_on_reextract = my_dec_on_exception(
 dec_on_reextract_1 = my_dec_on_exception(
     ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=1)
 
+dec_on_reextract_3 = my_dec_on_exception(
+    ReExtractInfo, max_tries=3, jitter='my_jitter', raise_on_giveup=True, interval=2)
+
+
+class checkLogged:
+
+    def __init__(self, ifnot=False):
+        self.ifnot = ifnot
+
+    def __call__(self, driver):
+
+        el_uas = driver.find_element(By.CSS_SELECTOR, "div.UserActions")
+        if not self.ifnot:
+            el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "LoginWrapper"), lambda x: x[0])
+            if not el_loggin:
+                el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "UserAction"), lambda x: x[1])
+                if el_loggin and el_loggin.text.upper() == "MY STUFF":
+                    return "TRUE"
+                else:
+                    return False
+            else:
+                el_loggin.click()
+                return "FALSE"
+
+        elif self.ifnot:
+            el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "LoginWrapper"), lambda x: x[0])
+            if not el_loggin:
+                el_loggin = try_get(el_uas.find_elements(By.CLASS_NAME, "UserAction"), lambda x: x[0])
+                if el_loggin and el_loggin.text.upper() == "SIGN OUT":
+                    el_loggin.click()
+                    return "CHECK"
+                else:
+                    return False
+            else:
+                return "TRUE"
+
+
+class toggleVideo:
+    def __init__(self, logger, msg=None):
+        self.init = False
+        self.logger = logger
+        self.pre = '[togglevideo]'
+        if msg:
+            self.pre = f'{msg}{self.pre}'
+
+    def __call__(self, driver):
+        try:
+            if not self.init:
+                el_play = driver.find_elements(By.CSS_SELECTOR, "button.vjs-big-play-button")
+                if not el_play:
+                    # self.logger.info('[play] button not present yet')
+                    time.sleep(2)
+                    return False
+                # self.logger.info('[play] button present')
+                el_play[0].click()
+                self.init = True
+                time.sleep(1)
+
+            el_pause = driver.find_elements(By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing")
+            if not el_pause:
+                # self.logger.info('[pause] button not present yet')
+                time.sleep(2)
+                return False
+            # self.logger.info('[pause] button present')
+            try:
+                el_pause[0].click()
+                self.logger(f'{self.pre} play-pause ok')
+                return "ok"
+            except Exception as e:
+                self.logger(f'{self.pre} error click pause {repr(e)}')
+                return "error"
+        except Exception:
+            # self.logger.info(f'[outer] {repr(e)}')
+            raise
+
 
 class NSAPI:
 
@@ -58,14 +137,15 @@ class NSAPI:
         self.logger = logging.getLogger("NSAPI")
         self.call_lock = Lock()
         self.headers_api = {}
-        self.ready = False
+        self.ready = Event()
+        self.timer = ProgressTimer()
 
     def init(self, iens):
 
+        self.ready.set()
         self.iens = iens
-        self.timer = ProgressTimer()
+        self.timer.reset()
         self.get_auth()
-        self.ready = True
 
     def logout(self, msg=None):
 
@@ -155,12 +235,15 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _LIMITERS = {
         '403': limiter_1.ratelimit("nakedswordscene", delay=True),
         'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
+    _SEM = {
+        '403': Lock(),
+        'NORMAL': contextlib.nullcontext()}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
     _HEADERS = {
         "OPTIONS": {
             "AUTH": {
                 'Accept': '*/*',
-                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Access-Control-Request-Method': 'POST',
                 'Access-Control-Request-Headers': 'authorization,x-ident',
@@ -174,7 +257,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Cache-Control': 'no-cache'},
             "LOGOUT": {
                 'Accept': '*/*',
-                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Access-Control-Request-Method': 'DELETE',
                 'Access-Control-Request-Headers': 'authorization,donotrefreshtoken,x-ident',
@@ -248,6 +331,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'Cache-Control': 'no-cache',
             'TE': 'trailers'}}
 
+    _CLIENT = None
+
+    @dec_on_reextract_3
     def get_formats(self, _types, _info):
 
         with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]:
@@ -314,13 +400,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_0_01.ratelimit("nakedsword", delay=True)
+    @limiter_0_1.ratelimit("nakedsword", delay=True)
     def _send_request(self, url, **kwargs) -> Union[None, Response]:
 
-        try:
-            return (self.send_http_request(url, **kwargs))
-        except (HTTPStatusError, ConnectError) as e:
-            self.report_warning(f"[send_request_http] {self._get_url_print(url)}: error - {repr(e)} - {str(e)}")
+        pre = f'[send_request][{self._get_url_print(url)}]'
+        if (msg := kwargs.get('msg')):
+            pre = f'{msg}{pre}'
+
+        driver = kwargs.get('driver', None)
+
+        if driver:
+            driver.get(url)
+        else:
+            try:
+                return (self.send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
+            except (HTTPStatusError, ConnectError) as e:
+                self.report_warning(f"[send_request_http] {self._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
     def _logout_api(self):
 
@@ -542,26 +637,191 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             logger.exception(str(e))
             raise
 
+    def _is_logged(self, driver):
+
+        if 'nakedsword.com' not in driver.current_url:
+            self._send_request(self._SITE_URL, driver=driver)
+        logged_ok = (self.wait_until(driver, 10, checkLogged()) == "TRUE")
+        self.logger_debug(f"[is_logged] {logged_ok}")
+
+        return logged_ok
+
+    def _logout(self, driver):
+        try:
+
+            logged_out = False
+            if 'nakedsword.com' not in driver.current_url:
+                self._send_request(self._SITE_URL, driver=driver)
+
+            res = self.wait_until(driver, 10, checkLogged(ifnot=True))
+            if res == "TRUE":
+                logged_out = True
+            elif res == "CHECK":
+                self.wait_until(driver, 2)
+                res = self.wait_until(driver, 10, checkLogged(ifnot=True))
+                if res == "TRUE":
+                    logged_out = True
+                else:
+                    driver.delete_all_cookies()
+                    self.wait_until(driver, 2)
+                    res = self.wait_until(driver, 10, checkLogged(ifnot=True))
+                    if res == "TRUE":
+                        logged_out = True
+            if logged_out:
+                self.logger_debug("[logout] Logout OK")
+            else:
+                self.logger_debug("[logout] Logout NOK")
+        except Exception as e:
+            self.report_warning(f"[logout] Logout NOK {repr(e)}")
+
+    def _login(self, driver):
+
+        try:
+            if not self._is_logged(driver):
+
+                self.check_stop()
+
+                self.report_login()
+                username, password = self._get_login_info()
+                if not username or not password:
+                    self.raise_login_required(
+                        'A valid %s account is needed to access this media.'
+                        % self._NETRC_MACHINE)
+
+                el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.Input")))
+                el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.Input.Password")))
+                el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "button.SignInButton")))
+
+                assert el_username and el_psswd and el_submit
+
+                el_username.send_keys(username)
+                el_psswd.send_keys(password)
+                el_submit.click()
+
+                self.wait_until(driver, 2)
+
+                logged_ok = (self.wait_until(driver, 10, checkLogged()) == "TRUE")
+                if logged_ok:
+                    self.logger_debug("[login] Login OK")
+                    return True
+                else:
+                    raise ExtractorError("login nok")
+
+            else:
+                self.logger_debug("[login] Already logged")
+                return True
+        except Exception as e:
+            logger.exception(repr(e))
+            self._logout(driver)
+            raise
+
+    class synchronized:
+
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with NakedSwordBaseIE._LOCK:
+                    return func(*args, **kwargs)
+            return wrapper
+
+    @synchronized()
+    def get_formats_by_har(self, url, videoid, msg=None):
+
+        pre = '[get_entry_by_har]'
+        if msg:
+            pre = f'{msg}{pre}'
+
+        _har_file = f"/Users/antoniotorres/testing/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
+        cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={_har_file}"
+
+        ps = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE)
+
+        try:
+            ps.poll()
+            time.sleep(2)
+            ps.poll()
+            time.sleep(1)
+            if ps.returncode is not None:
+                _log = ''
+                if ps.stdout:
+                    _log = '\n'.join([line.decode('utf-8').strip() for line in ps.stdout])
+                self.logger_debug(f"{pre} error executing mitmdump, returncode[{ps.returncode}]\n{_log}")
+                raise ReExtractInfo("couldnt launch mitmdump")
+            driver = self.get_driver(host='127.0.0.1', port='8080')
+            try:
+                self._login(driver)
+                self._send_request(url, driver=driver)
+                self.wait_until(driver, 3)
+                elvid = self.wait_until(driver, 10, toggleVideo(self.logger_debug, msg=pre))
+                if not elvid or elvid == "error":
+                    raise ReExtractInfo("couldnt reproduce video")
+
+                ps.terminate()
+
+                def wait_for_file(file, timeout):
+                    start = time.monotonic()
+                    while (time.monotonic() - start < timeout):
+                        if not os.path.exists(file):
+                            time.sleep(0.2)
+                        else:
+                            return True
+                    return False
+
+                self.logger_debug(f'{pre} start wait for har file')
+                if not wait_for_file(_har_file, 5):
+                    raise ReExtractInfo("couldnt get har file")
+                self.logger_debug(f'{pre} har file ready')
+            finally:
+                self._logout(driver)
+                self.rm_driver(driver)
+
+            m3u8_url, _status = try_get(
+                self.scan_for_request(r"playlist.m3u8$", har=_har_file),  # type: ignore
+                lambda x: (x.get('url'), x.get('status')) if x else (None, None))
+
+            self.logger_debug(f'{pre} status[{_status}] m3u8url[{m3u8_url}]')
+            _formats = []
+            _headers = NakedSwordBaseIE._HEADERS["MPD"]
+            if m3u8_url and _status:
+                if int(_status) > 400:
+                    raise ReExtractInfo(f"raise status {_status}")
+                m3u8_doc = try_get(self._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"]), lambda x: (x.content).decode('utf-8', 'replace'))
+                if not m3u8_doc:
+                    raise ReExtractInfo("couldnt get m3u8 doc")
+                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", headers=_headers, entry_protocol='m3u8_native', m3u8_id="hls")
+
+            if not _formats:
+                raise ReExtractInfo('Couldnt get video formats')
+
+            for _format in _formats:
+                if (_head := _format.get('http_headers')):
+                    _head.update(_headers)
+                else:
+                    _format.update({'http_headers': _headers})
+
+            return _formats
+
+        except ReExtractInfo as e:
+            self.logger_debug(f'{pre}[reextractinfo] {repr(e)}')
+            raise
+        except Exception as e:
+            self.logger_debug(f"{pre} {repr(e)}")
+            raise ReExtractInfo(f"Couldnt get video formats - {repr(e)}")
+        finally:
+            ps.terminate()
+
     def _real_initialize(self):
 
         try:
             assert self._downloader
             super()._real_initialize()
 
-            _proxy = self._downloader.params.get('proxy')
-            if _proxy:
-                self.proxy = _proxy
-                self._key = _proxy.split(':')[-1]
-                self.logger_debug(f"proxy: [{self._key}]")
-
-            else:
-                self.proxy = None
-                self._key = "noproxy"
-
             with NakedSwordBaseIE._LOCK:
+                if not NakedSwordBaseIE._CLIENT:
+                    NakedSwordBaseIE._CLIENT = self._CLIENT
                 if not NakedSwordBaseIE._APP_DATA:
                     NakedSwordBaseIE._APP_DATA = self._get_data_app()
-                if not NakedSwordBaseIE._API.ready:
+                if not NakedSwordBaseIE._API.ready.is_set():
                     NakedSwordBaseIE._API.init(self)
 
         except Exception as e:
@@ -584,8 +844,14 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedswordscene'  # type: ignore
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)"
 
-    @dec_on_reextract
     def get_entry(self, url, **kwargs):
+
+        with NakedSwordBaseIE._SEM[NakedSwordBaseIE._STATUS]:
+
+            return self._get_entry(url, **kwargs)
+
+    @dec_on_reextract
+    def _get_entry(self, url, **kwargs):
 
         _type = kwargs.get('_type', 'all')
         if _type == 'all':
@@ -598,48 +864,73 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             lambda x: int(x) if x else 1)
 
         assert index_scene
-        premsg = f"[get_entry][{self._key}][{url}][{index_scene}]"
+        premsg = f"[get_entry][{url.split('movies/')[1]}]"
         if msg:
             premsg = f"{msg}{premsg}"
 
+        self.logger_debug(f"{premsg} start to get entry")
+        self.API_AUTH(msg='[get_entry]')
+        _url_movie = try_get(self._send_request(url.split('/scene/')[0]), lambda x: str(x.url))
+        _info, details = self.get_streaming_info(_url_movie, index=index_scene)
+
+        _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{index_scene}"
+        scene_id = traverse_obj(details, ('scenes', int(index_scene) - 1, 'id'))
+
+        _entry = {
+            "id": str(scene_id),
+            "title": _title,
+            "formats": [],
+            "ext": "mp4",
+            "webpage_url": url,
+            "extractor_key": 'NakedSwordScene',
+            "extractor": 'nakedswordscene'
+        }
+
         try:
-
-            self.logger_debug(f"{premsg} start to get entry")
-            _url_movie = try_get(self._send_request(url.split('/scene/')[0]), lambda x: str(x.url))
-            _info, details = self.get_streaming_info(_url_movie, index=index_scene)
-
-            _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{index_scene}"
-            scene_id = traverse_obj(details, ('scenes', int(index_scene) - 1, 'id'))
 
             formats = self.get_formats(_types, _info)
 
             if formats:
-
-                _entry = {
-                    "id": str(scene_id),
-                    "title": _title,
-                    "formats": formats,
-                    "ext": "mp4",
-                    "webpage_url": url,
-                    "extractor_key": 'NakedSwordScene',
-                    "extractor": 'nakedswordscene'
-                }
-
-                self.logger_debug(f"{premsg}: OK got entr {_entry}")
+                _entry.update({'formats': formats})
+                self.logger_info(f"{premsg}: OK got entr")
                 return _entry
 
             else:
                 raise ExtractorError(f'{premsg}: error - no formats')
 
-        except ReExtractInfo as e:
-            logger.error(f"[get_entries][{url} {str(e)}")
+        except ReExtractInfo:
+            try:
+                self.logger_info(f"{premsg}: error formats, will try with HAR")
+                formats = self.get_formats_by_har(url, str(scene_id), msg=premsg)
+                if formats:
+                    _entry.update({'formats': formats})
+                    self.logger_info(f"{premsg}: OK got formats by HAR")
+                    return _entry
+                else:
+                    raise ExtractorError(f'{premsg}: error - no formats')
+            except ReExtractInfo:
+                self.logger_info(f"{premsg}: error formats with HAR. Will retry again")
+                self.API_LOGOUT(msg='[get_entry]')
+                time.sleep(5)
+                if NakedSwordBaseIE._CLIENT:
+                    try:
+                        NakedSwordBaseIE._CLIENT.cookies.clear(domain='.nakedsword.com')
+                    except KeyError:
+                        pass
+                    try:
+                        NakedSwordBaseIE._CLIENT.cookies.clear(domain='nakedsword.com')
+                    except KeyError:
+                        pass
+                raise
 
-            raise
-        except (StatusStop, ExtractorError):
+        except StatusStop:
             raise
         except Exception as e:
             logger.exception(repr(e))
             raise ExtractorError(f'{premsg}: error - {repr(e)}')
+
+    def _real_initialize(self):
+        super()._real_initialize()
 
     def _real_extract(self, url):
 
@@ -672,7 +963,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         else:
             _types = [_type]
         msg = kwargs.get('msg')
-        premsg = f"[get_entries][{self._key}]"
+        premsg = "[get_entries]"
         if msg:
             premsg = f"{msg}{premsg}"
 
@@ -687,9 +978,21 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
+            self.API_LOGOUT(msg='[getentries]')
+            time.sleep(5)
+            if NakedSwordBaseIE._CLIENT:
+                try:
+                    NakedSwordBaseIE._CLIENT.cookies.clear(domain='.nakedsword.com')
+                except KeyError:
+                    pass
+                try:
+                    NakedSwordBaseIE._CLIENT.cookies.clear(domain='nakedsword.com')
+                except KeyError:
+                    pass
+
             _timeout = my_jitter(30)
-            logger.info(f'[wait][{url}] start[{_timeout}]')
-            with self.create_progress_bar(msg=f'[wait][{url}]') as progress_bar:
+            self.logger_info(f'{premsg}[{_url_movie.split("movies/")[1]}][wait] start[{_timeout}]')
+            with self.create_progress_bar(msg=f'[{_url_movie.split("movies/")[1]}][wait]') as progress_bar:
 
                 def _wait_for_either(check: Callable, timeout: Union[float, int]):
                     t = 0
@@ -703,35 +1006,34 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                 _wait_for_either(self.check_stop, timeout=_timeout)
                 progress_bar.print('')  # type: ignore
 
-            logger.info(f'[wait][{url}] end')
+            logger.info(f'[{_url_movie.split("movies/")[1]}][wait] end')
 
-            self.API_LOGOUT(msg='[getentries]')
-            time.sleep(5)
             self.API_AUTH(msg='[getentries]')
-            time.sleep(1)
+            time.sleep(5)
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-            for _ in range(2):
+            try:
 
-                info_streaming_scenes, details = self.get_streaming_info(_url_movie)
+                for _ in range(2):
 
-                #  _entries = []
+                    info_streaming_scenes, details = self.get_streaming_info(_url_movie)
 
-                sublist = []
-                if hasattr(self, 'args_ie'):
-                    sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
+                    #  _entries = []
 
-                    self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
+                    sublist = []
+                    if hasattr(self, 'args_ie'):
+                        sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
 
-                _raise_reextract = []
+                        self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
 
-                for _info in info_streaming_scenes:
+                    _raise_reextract = []
 
-                    self.check_stop()
+                    for _info in info_streaming_scenes:
 
-                    i = _info.get('index')
-                    try:
+                        self.check_stop()
+
+                        i = _info.get('index')
 
                         self.logger_debug(f"{premsg}[{i}]:\n{_info}")
 
@@ -767,45 +1069,58 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                             NakedSwordMovieIE._MOVIES[_url_movie]['nok'].remove(i)
 
                                 except ReExtractInfo:
-                                    _raise_reextract.append(i)
-                                    if i not in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
-                                        NakedSwordMovieIE._MOVIES[_url_movie]['nok'].append(i)
-                                    NakedSwordMovieIE._MOVIES[_url_movie]['final'] = False
+                                    try:
+                                        formats = self.get_formats_by_har(_info.get('url'), scene_id, msg=f'[get_entries][{_info.get("url").split("movies/")[1]}]')
+                                        if formats:
+                                            _entry.update({'formats': formats})
+                                            self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: OK got entry by HAR\n{_entry}")
+                                            NakedSwordMovieIE._MOVIES[_url_movie]['ok'].append(i)
+                                            NakedSwordMovieIE._MOVIES[_url_movie]['entries'][i] = _entry
+                                            if i in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
+                                                NakedSwordMovieIE._MOVIES[_url_movie]['nok'].remove(i)
+
+                                    except ReExtractInfo:
+                                        _raise_reextract.append(i)
+                                        if i not in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
+                                            NakedSwordMovieIE._MOVIES[_url_movie]['nok'].append(i)
+                                        NakedSwordMovieIE._MOVIES[_url_movie]['final'] = False
 
                         else:
                             NakedSwordMovieIE._MOVIES[_url_movie]['entries'][i] = _entry
 
-                    except ReExtractInfo:
-                        raise
-                    except Exception as e:
-                        logger.exception(f"{premsg}[{i}]: info streaming\n{_info} error - {str(e)}")
-                        raise
+                    if _raise_reextract:
+                        self.logger_info(f"{premsg} ERROR in {_raise_reextract} from sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
+                        #  self.API_LOGOUT()
+                        #  self.API_AUTH()
+                        raise ReExtractInfo("error in scenes of movie")
 
-                if _raise_reextract:
-                    self.logger_info(f"{premsg} ERROR in {_raise_reextract} from sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
-                    #  self.API_LOGOUT()
-                    #  self.API_AUTH()
-                    raise ReExtractInfo("error in scenes of movie")
-
-                else:
-                    self.logger_info(f"{premsg} OK format for sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
-                    if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
-                        NakedSwordMovieIE._MOVIES[_url_movie] = {'nok': [], 'ok': [], 'entries': {}, 'final': True}
-                        # raise ReExtractInfo("error in scenes of movie")
-                        continue
                     else:
-
-                        _entries = [el[1] for el in sorted(NakedSwordMovieIE._MOVIES[_url_movie]['entries'].items())]
-
-                        NakedSwordMovieIE._MOVIES.pop(_url_movie)
-
-                        if _force_list:
-                            return _entries
+                        self.logger_info(f"{premsg} OK format for sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
+                        if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
+                            NakedSwordMovieIE._MOVIES[_url_movie] = {'nok': [], 'ok': [], 'entries': {}, 'final': True}
+                            # raise ReExtractInfo("error in scenes of movie")
+                            continue
                         else:
-                            playlist_id = str(details.get('id'))
-                            pl_title = sanitize_filename(details.get('title'), restricted=True)
-                            return self.playlist_result(_entries, playlist_id=playlist_id, playlist_title=pl_title,
-                                                        webpage_url=_url_movie, original_url=_url_movie)
+
+                            _entries = [el[1] for el in sorted(NakedSwordMovieIE._MOVIES[_url_movie]['entries'].items())]
+
+                            NakedSwordMovieIE._MOVIES.pop(_url_movie)
+
+                            if _force_list:
+                                return _entries
+                            else:
+                                playlist_id = str(details.get('id'))
+                                pl_title = sanitize_filename(details.get('title'), restricted=True)
+                                return self.playlist_result(_entries, playlist_id=playlist_id, playlist_title=pl_title,
+                                                            webpage_url=_url_movie, original_url=_url_movie)
+
+            except ReExtractInfo:
+                raise
+            except StatusStop:
+                raise
+            except Exception as e:
+                logger.exception(f"{premsg} info streaming error - {repr(e)}")
+                raise
 
         else:
             details = self._get_api_details(self._match_id(_url_movie))
@@ -822,6 +1137,9 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                         getter=lambda x: f"{_url_movie.strip('/')}/scene/{x['index']}",
                         ie=NakedSwordSceneIE, playlist_id=playlist_id, playlist_title=pl_title,
                         webpage_url=_url_movie, original_url=_url_movie)
+
+    def _real_initialize(self):
+        super()._real_initialize()
 
     def _real_extract(self, url):
 
@@ -850,7 +1168,7 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
 
         _type = kwargs.get('_type', 'hls')
         msg = kwargs.get('msg')
-        premsg = f"[get_entries][{self._key}]"
+        premsg = "[get_entries]"
         if msg:
             premsg = f"{msg}{premsg}"
 
@@ -923,6 +1241,9 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
         except Exception as e:
             logger.exception(f"{premsg} {str(e)}")
             raise
+
+    def _real_initialize(self):
+        super()._real_initialize()
 
     def _real_extract(self, url):
 
@@ -1016,6 +1337,9 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
         except Exception as e:
             logger.exception(f"{premsg} {str(e)}")
             raise
+
+    def _real_initialize(self):
+        super()._real_initialize()
 
     def _real_extract(self, url):
 
