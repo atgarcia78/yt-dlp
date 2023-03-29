@@ -10,6 +10,8 @@ import time
 from threading import Event, Lock
 import functools
 from urllib.parse import unquote, urlparse
+import subprocess
+import os.path
 
 from backoff import constant, on_exception
 from httpx import (
@@ -457,6 +459,48 @@ class myHAR:
 
                 return _list_info_json
 
+    class getNetworkHAR:
+
+        def __init__(self, har_file, logger=None, msg=None):
+            self.har_file = har_file
+            self.cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={self.har_file}"
+            self.logger = logger if logger else logging.getLogger('getHAR').debug
+            self.pre = msg if msg else ''
+
+        def __enter__(self):
+            self.ps = subprocess.Popen(self.cmd.split(' '), stdout=subprocess.PIPE)
+            self.ps.poll()
+            time.sleep(2)
+            self.ps.poll()
+            if self.ps.returncode is not None:
+                _log = ''
+                if self.ps.stdout:
+                    _log = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stdout])
+                self.logger(f"{self.pre}error executing mitmdump, returncode[{self.ps.returncode}]\n{_log}")
+                raise Exception("couldnt launch mitmdump")
+            return self
+
+        def __exit__(self, *args):
+            self.ps.terminate()
+
+            def wait_for_file(file, timeout):
+                start = time.monotonic()
+                while (time.monotonic() - start < timeout):
+                    if not os.path.exists(file):
+                        time.sleep(0.2)
+                    else:
+                        return True
+                return False
+
+            if not wait_for_file(self.har_file, 5):
+                raise Exception("couldnt get har file")
+
+            self.logger(f'{self.pre} har file ready in {self.har_file}')
+
+    @classmethod
+    def network_har_handler(cls, videoid, logger=None, msg=None):
+        return cls.getNetworkHAR(videoid, logger=logger, msg=msg)
+
 
 from ipaddress import ip_address
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -641,6 +685,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if not SeleniumInfoExtractor._COOKIES_JAR:
                 self.to_screen("loading cookies from Firefox")
                 SeleniumInfoExtractor._COOKIES_JAR = extract_cookies_from_browser('firefox')
+        return SeleniumInfoExtractor._COOKIES_JAR
 
     def create_progress_bar(self, msg=None):
         ydllogger = YDLLogger(self._downloader, msg=msg)
@@ -909,6 +954,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
+
+    def get_har_logs(self, videoid, msg=None):
+        self.har_file = f"/Users/antoniotorres/.cache/yt-dlp/nakedsword/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
+        return myHAR.network_har_handler(self.har_file, logger=self.logger_debug, msg=msg)
 
     def scan_for_request(
             self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False,

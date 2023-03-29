@@ -290,6 +290,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
         _limiter = limiter_1 if GVDBlogBaseIE._SLOW_DOWN else limiter_0_1
+
         with _limiter.ratelimit("gvdblog", delay=True):
             self.logger_debug(f"{pre}: start")
             if driver:
@@ -297,8 +298,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             else:
                 try:
                     return self.send_http_request(url, **kwargs)
-                # except (HTTPStatusError, ConnectError) as e:
-                #    logger.warning(f"{pre}: error - {repr(e)}")
                 except ReExtractInfo as e:
                     logger.debug(f"{pre}: error - {repr(e)}")
                     raise ExtractorError(str(e))
@@ -311,8 +310,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self._done = 0
         self._total: int
 
-        self.extract_cookies()
-        for cookie in self._COOKIES_JAR:
+        for cookie in self.extract_cookies():
             if 'gvdblog.net' in cookie.domain and 'cf_clearance' in cookie.name:
                 self.to_screen(f"cookie: {cookie}")
                 self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.net')  # type: ignore

@@ -10,7 +10,6 @@ from threading import Lock, Event
 import base64
 import subprocess
 import time
-import os.path
 import functools
 import contextlib
 
@@ -100,40 +99,32 @@ class toggleVideo:
             self.pre = f'{msg}{self.pre}'
 
     def __call__(self, driver):
-        try:
-            if not self.init:
-                el_play = driver.find_elements(By.CSS_SELECTOR, "button.vjs-big-play-button")
-                if not el_play:
-                    # self.logger.info('[play] button not present yet')
-                    time.sleep(2)
-                    return False
-                # self.logger.info('[play] button present')
-                el_play[0].click()
-                self.init = True
-                time.sleep(1)
 
-            el_pause = driver.find_elements(By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing")
-            if not el_pause:
-                # self.logger.info('[pause] button not present yet')
+        if not self.init:
+            el_play = driver.find_elements(By.CSS_SELECTOR, "button.vjs-big-play-button")
+            if not el_play:
                 time.sleep(2)
                 return False
-            # self.logger.info('[pause] button present')
-            try:
-                el_pause[0].click()
-                self.logger(f'{self.pre} play-pause ok')
-                return "ok"
-            except Exception as e:
-                self.logger(f'{self.pre} error click pause {repr(e)}')
-                return "error"
-        except Exception:
-            # self.logger.info(f'[outer] {repr(e)}')
-            raise
+            el_play[0].click()
+            self.init = True
+            time.sleep(1)
+
+        el_pause = driver.find_elements(By.CSS_SELECTOR, "button.vjs-play-control.vjs-control.vjs-button.vjs-playing")
+        if not el_pause:
+            time.sleep(2)
+            return False
+        try:
+            el_pause[0].click()
+            self.logger(f'{self.pre} play-pause ok')
+            return "ok"
+        except Exception as e:
+            self.logger(f'{self.pre} error click pause {repr(e)}')
+            return "error"
 
 
 class NSAPI:
 
     def __init__(self):
-
         self.logger = logging.getLogger("NSAPI")
         self.call_lock = Lock()
         self.headers_api = {}
@@ -141,14 +132,12 @@ class NSAPI:
         self.timer = ProgressTimer()
 
     def init(self, iens):
-
         self.ready.set()
         self.iens = iens
         self.timer.reset()
         self.get_auth()
 
     def logout(self, msg=None):
-
         _pre = ''
         if msg:
             _pre = msg
@@ -165,12 +154,9 @@ class NSAPI:
     @dec_on_reextract
     def get_auth(self, msg=None):
 
-        _pre = ''
-        if msg:
-            _pre = msg
+        _pre = msg if msg else ''
 
         with self.call_lock:
-
             _logout = False
             try:
                 _headers = self.iens._get_api_basic_auth()
@@ -731,52 +717,25 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         if msg:
             pre = f'{msg}{pre}'
 
-        _har_file = f"/Users/antoniotorres/testing/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
-        cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={_har_file}"
-
-        ps = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE)
-
         try:
-            ps.poll()
-            time.sleep(2)
-            ps.poll()
-            time.sleep(1)
-            if ps.returncode is not None:
-                _log = ''
-                if ps.stdout:
-                    _log = '\n'.join([line.decode('utf-8').strip() for line in ps.stdout])
-                self.logger_debug(f"{pre} error executing mitmdump, returncode[{ps.returncode}]\n{_log}")
-                raise ReExtractInfo("couldnt launch mitmdump")
-            driver = self.get_driver(host='127.0.0.1', port='8080')
-            try:
-                self._login(driver)
-                self._send_request(url, driver=driver)
-                self.wait_until(driver, 3)
-                elvid = self.wait_until(driver, 10, toggleVideo(self.logger_debug, msg=pre))
-                if not elvid or elvid == "error":
-                    raise ReExtractInfo("couldnt reproduce video")
 
-                ps.terminate()
+            with self.get_har_logs(videoid, msg=pre):
 
-                def wait_for_file(file, timeout):
-                    start = time.monotonic()
-                    while (time.monotonic() - start < timeout):
-                        if not os.path.exists(file):
-                            time.sleep(0.2)
-                        else:
-                            return True
-                    return False
-
-                self.logger_debug(f'{pre} start wait for har file')
-                if not wait_for_file(_har_file, 5):
-                    raise ReExtractInfo("couldnt get har file")
-                self.logger_debug(f'{pre} har file ready')
-            finally:
-                self._logout(driver)
-                self.rm_driver(driver)
+                driver = self.get_driver(host='127.0.0.1', port='8080')
+                assert self.har_file
+                try:
+                    self._login(driver)
+                    self._send_request(url, driver=driver)
+                    self.wait_until(driver, 3)
+                    elvid = self.wait_until(driver, 10, toggleVideo(self.logger_debug, msg=pre))
+                    if not elvid or elvid == "error":
+                        raise ReExtractInfo("couldnt reproduce video")
+                finally:
+                    self._logout(driver)
+                    self.rm_driver(driver)
 
             m3u8_url, _status = try_get(
-                self.scan_for_request(r"playlist.m3u8$", har=_har_file),  # type: ignore
+                self.scan_for_request(r"playlist.m3u8$", har=self.har_file),  # type: ignore
                 lambda x: (x.get('url'), x.get('status')) if x else (None, None))
 
             self.logger_debug(f'{pre} status[{_status}] m3u8url[{m3u8_url}]')
@@ -807,8 +766,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             self.logger_debug(f"{pre} {repr(e)}")
             raise ReExtractInfo(f"Couldnt get video formats - {repr(e)}")
-        finally:
-            ps.terminate()
 
     def _real_initialize(self):
 
@@ -1019,8 +976,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
                     info_streaming_scenes, details = self.get_streaming_info(_url_movie)
 
-                    #  _entries = []
-
                     sublist = []
                     if hasattr(self, 'args_ie'):
                         sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
@@ -1090,15 +1045,12 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
                     if _raise_reextract:
                         self.logger_info(f"{premsg} ERROR in {_raise_reextract} from sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
-                        #  self.API_LOGOUT()
-                        #  self.API_AUTH()
                         raise ReExtractInfo("error in scenes of movie")
 
                     else:
                         self.logger_info(f"{premsg} OK format for sublist of movie scenes: {sublist}. [final]:{NakedSwordMovieIE._MOVIES[_url_movie]['final']} [ok]:{NakedSwordMovieIE._MOVIES[_url_movie]['ok']} [nok]:{NakedSwordMovieIE._MOVIES[_url_movie]['nok']}")
                         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
                             NakedSwordMovieIE._MOVIES[_url_movie] = {'nok': [], 'ok': [], 'entries': {}, 'final': True}
-                            # raise ReExtractInfo("error in scenes of movie")
                             continue
                         else:
 
@@ -1111,8 +1063,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                             else:
                                 playlist_id = str(details.get('id'))
                                 pl_title = sanitize_filename(details.get('title'), restricted=True)
-                                return self.playlist_result(_entries, playlist_id=playlist_id, playlist_title=pl_title,
-                                                            webpage_url=_url_movie, original_url=_url_movie)
+                                return self.playlist_result(
+                                    _entries, playlist_id=playlist_id, playlist_title=pl_title, webpage_url=_url_movie, original_url=_url_movie)
 
             except ReExtractInfo:
                 raise
