@@ -36,7 +36,7 @@ from selenium.webdriver.remote.webelement import WebElement
 
 assert Keys  # for flake8
 
-from ..minicurses import MultilinePrinter, QuietMultilinePrinter
+from ..minicurses import MultilinePrinter
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
 from ..YoutubeDL import YoutubeDL
@@ -614,15 +614,19 @@ class YDLLogger:
         Return a context manager with a print method. (Optional)
         Do not print to files/pipes, loggers, or when --no-progress is used
         """
-        if not self._ydl or self._ydl.params.get('noprogress') or self._ydl.params.get('logger'):
-            return
+        # if not self._ydl or self._ydl.params.get('noprogress') or self._ydl.params.get('logger'):
+        #     return
         file = self._ydl._out_files.error
-        try:
-            if not file.isatty():
-                return
-        except BaseException:
-            return
+        # try:
+        #     if not file.isatty():
+        #         return
+        # except BaseException:
+        #     return
         return self.ProgressBar(file, preserve_output=False)
+
+
+def raise_extractor_error(msg, expected=True):
+    raise ExtractorError(msg, expected=expected)
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -689,12 +693,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def create_progress_bar(self, msg=None):
         ydllogger = YDLLogger(self._downloader, msg=msg)
-        printer = ydllogger.progress_bar()
-        if printer:
-            return printer
-        printer = QuietMultilinePrinter()
-        printer.print = lambda _: None  # type: ignore
-        return printer
+        return ydllogger.progress_bar()
 
     def _get_extractor(self, _args):
 
@@ -838,8 +837,13 @@ class SeleniumInfoExtractor(InfoExtractor):
         if res and (isinstance(res, str) or not res.get('error_res')):
             return
 
-        _msg_error = try_get(res, lambda x: f" - {x.get('error_res')}") or ""
-        raise ExtractorError(f"{msg}{_msg_error}")
+        def _getter(_res):
+            for key, value in res.items():
+                if 'error' in key:
+                    return f" - {value}"
+            return ""
+
+        raise_extractor_error(f"{msg}{_getter(res)}")
 
     def check_stop(self):
         try:
