@@ -55,7 +55,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         try:
             return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
-            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             return {"error_res": f"{repr(e)}"}
 
     @dec_on_exception
@@ -70,7 +70,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             try:
                 return self.send_http_request(url, **kwargs)
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+                self.logger_debug(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
 
     def _login(self, driver):
 
@@ -148,11 +148,11 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         try:
             webpage = try_get(self._send_request(_san_url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage:
-                raise ExtractorError("no webpage")
+                raise ExtractorError("error 404 no webpage", expected=True)
 
             _title = try_get(self._html_extract_title(webpage), lambda x: x.replace(" - BoyFriendTV.com", "").strip())
             if _title and any(_ in _title.lower() for _ in ("deleted", "removed", "page not found")):
-                raise ExtractorError("Page not found 404")
+                raise ExtractorError("Page not found 404", expected=True)
 
             _rating = try_get(re.search(r'class="progress-big js-rating-title" title="(?P<rat>\d+)%"', webpage), lambda x: int(x.group('rat')))
 
@@ -209,7 +209,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
             if not _formats:
 
-                raise ExtractorError('404 no formats')
+                raise ExtractorError('404 no formats', expected=True)
 
             return ({
                 'id': videoid,
@@ -241,7 +241,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
+            raise ExtractorError(repr(e), expected=True)
 
 
 class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
@@ -260,7 +260,8 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
             logger.debug(f"page: {url_page}")
             webpage = try_get(self._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
 
-            assert webpage
+            if not webpage:
+                raise ExtractorError("error 404 no webpage", expected=True)
 
             el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
             entries = []
@@ -316,6 +317,8 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
         self.to_screen(params)
         webpage = try_get(self._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+        if not webpage:
+            raise ExtractorError("error 404 no webpage", expected=True)
         _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
         _min_rating = int(params.get('rating', 0))
         _q = try_get(params.get('q'), lambda x: x.split(','))
@@ -339,7 +342,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                 self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
 
         if not _entries:
-            raise ExtractorError("cant find any video")
+            raise ExtractorError("cant find any video", expected=True)
 
         return self.playlist_result(_entries, playlist_id, sanitize_filename(_title, restricted=True))
 
@@ -359,7 +362,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
+            raise ExtractorError(repr(e), expected=True)
 
 
 class BoyFriendTVSearchIE(BoyFriendTVPLBaseIE):

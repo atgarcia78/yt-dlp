@@ -20,7 +20,8 @@ from .commonwebdriver import (
     limiter_0_1,
     HTTPStatusError,
     By,
-    ConnectError)
+    ConnectError,
+    raise_extractor_error)
 
 import logging
 logger = logging.getLogger('myvidster')
@@ -29,7 +30,7 @@ _URL_NOT_VALID = [
     '//syndication', '?thumb=http', 'rawassaddiction.blogspot', 'twitter.com',
     'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed', 'xtube.com', 'xtapes.to',
     'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
-    'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/']
+    'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload']
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -55,7 +56,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
             self.logger_debug(f"[send_req] {self._get_url_print(url)}")
             return (self.send_http_request(url, **kwargs))
         except (HTTPStatusError, ConnectError) as e:
-            self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
 
     @dec_on_exception3
     @dec_on_exception2
@@ -65,12 +66,15 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         try:
             return self.get_info_for_format(url, **kwargs)
         except (HTTPStatusError, ConnectError) as e:
-            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
     def _login(self):
 
-        res = self._send_request(self._LOGIN_URL, _type="GET")
-        if res and "www.myvidster.com/user/home.php" in str(res.url):
+        _urlh, _ = try_get(
+            self._send_request(self._LOGIN_URL, _type="GET"),
+            lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)))) or (None, None)
+        # res = self._send_request(self._LOGIN_URL, _type="GET")
+        if _urlh and "www.myvidster.com/user/home.php" in _urlh:
             self.logger_debug("LOGIN already OK")
             return
         self.report_login()
@@ -99,19 +103,23 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
         try:
 
-            res = self._send_request(self._LOGIN_URL, _type="POST", data=data, headers=_headers_post)
-            if res and "www.myvidster.com/user/home.php" in str(res.url):
+            _urlh, _ = try_get(
+                self._send_request(self._LOGIN_URL, _type="POST", data=data, headers=_headers_post),
+                lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)))) or (None, None)
+            if _urlh and "www.myvidster.com/user/home.php" in _urlh:
                 self.logger_debug("LOGIN OK")
                 return
-            elif res and "www.myvidster.com/user" in str(res.url):
-                res2 = self._send_request(self._LOGIN_URL, _type="GET")
-                if res2 and "www.myvidster.com/user/home.php" in str(res2.url):
+            elif _urlh and "www.myvidster.com/user" in _urlh:
+                _urlh2, _ = try_get(
+                    self._send_request(self._LOGIN_URL, _type="GET"),
+                    lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)))) or (None, None)
+                if _urlh2 and "www.myvidster.com/user/home.php" in _urlh2:
                     self.logger_debug("LOGIN OK")
                     return
                 else:
-                    raise ExtractorError(f"Login failed: {res2} : {res2.url if res2 else None}")
+                    raise ExtractorError(f"Login failed: {_urlh2}")
             else:
-                raise ExtractorError(f"Login failed: {res} : {res.url if res else None}")
+                raise ExtractorError(f"Login failed:{_urlh}")
 
         except ExtractorError:
             raise
@@ -243,8 +251,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
                             return {"error_getbestvid": f"[{el}] not entry video"}
                     except Exception as e:
-                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
-                        return {"error_getbestvid": f"[{el}] error entry video - {repr(e)}"}
+                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {str(e)}')
+                        return {"error_getbestvid": f"[{el}] error entry video - {str(e)}"}
 
                 elif _extr_name != 'generic':
 
@@ -256,8 +264,10 @@ class MyVidsterIE(MyVidsterBaseIE):
                             return _ent
                         else:
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING not entry video')
+                            return {"error_getbestvid": f"[{el}] not entry video"}
                     except Exception as e:
-                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {repr(e)}')
+                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] WARNING error entry video {str(e)}')
+                        return {"error_getbestvid": f"[{el}] error entry video - {str(e)}"}
 
                 else:  # url generic
                     # logger.info("url generic")
@@ -273,20 +283,19 @@ class MyVidsterIE(MyVidsterBaseIE):
 
         _check = kwargs.get('check', True)
         _from_list = kwargs.get('from_list', None)
+        _progress_bar = kwargs.get('progress_bar', None)
         video_id = self._match_id(url)
         url = url.replace("vsearch", "video")
 
         try:
-            _res = try_get(
+            _urlh, webpage = try_get(
                 self._send_request(url),
-                lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text))))
-            if _res:
-                _urlh, webpage = _res
-            else:
-                raise ExtractorError("Couldnt download webpage")
-            if any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken', 'status=removed']):
-                raise ExtractorError("Error 404: Page not found")
-
+                lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)))) or (None, None)
+            if not webpage:
+                raise_extractor_error("Couldnt download webpage")
+            if not _urlh or any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken', 'status=removed']):
+                raise_extractor_error("Error 404: Page not found")
+            assert isinstance(webpage, str)
             title = try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1]
 
             postdate = try_get(re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage),
@@ -316,7 +325,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                     _info_video = self._get_infovideo(source_url_res, headers=_headers)
 
                     if not _info_video:
-                        raise ExtractorError('error 404: couldnt get info video details')
+                        raise_extractor_error('error 404: couldnt get info video details')
+
+                    assert isinstance(_info_video, dict)
 
                     _format_video = {
                         'format_id': 'http-mp4',
@@ -355,7 +366,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     if videolink_res and isinstance(videolink_res, dict):
                         _msg_error = videolink_res.get('error_getbestvid')
                         if _msg_error:
-                            raise ExtractorError(_msg_error)
+                            raise_extractor_error(_msg_error)
                         videolink_res.update({'original_url': url})
                         videolink_res.update(_entry)
                         if not videolink_res.get('title'):
@@ -369,12 +380,12 @@ class MyVidsterIE(MyVidsterBaseIE):
                         return videolink_res
 
                     if not videolink_res and not embedlink_res:
-                        raise ExtractorError("Error 404: no video urls found")
+                        raise_extractor_error("Error 404: no video urls found")
 
                 elif isinstance(embedlink_res, dict):
                     _msg_error = embedlink_res.get('error_getbestvid')
                     if _msg_error:
-                        raise ExtractorError(_msg_error)
+                        raise_extractor_error(_msg_error)
                     embedlink_res.update({'original_url': url})
                     embedlink_res.update(_entry)
                     if not embedlink_res.get('title'):
@@ -400,7 +411,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                         _videoent = {}
 
                     if not _videoent:
-                        raise ExtractorError("Unsupported URL")
+                        raise_extractor_error("Unsupported URL")
                     else:
                         _entry.update(_videoent)
                         _entry.update({'webpage_url': url})
@@ -409,14 +420,19 @@ class MyVidsterIE(MyVidsterBaseIE):
                         return _entry
 
                 else:
-                    raise ExtractorError("url video not found")
-        except Exception as e:
-            logger.exception(repr(e))
+                    raise_extractor_error("url video not found")
+        # except ExtractorError:
+        #     raise
+        # except Exception as e:
+        #     logger.exception(repr(e))
+        #     raise
         finally:
             if _from_list:
                 with MyVidsterBaseIE._LOCK:
                     MyVidsterBaseIE._NUM_VIDS_PL[_from_list] -= 1
-                    self.to_screen(f"[Num_videos_pl_pending] {MyVidsterBaseIE._NUM_VIDS_PL[_from_list]}")
+                    # self.to_screen(f"[Num_videos_pl_pending] {MyVidsterBaseIE._NUM_VIDS_PL[_from_list]}")
+                    if _progress_bar:
+                        _progress_bar.print(f"{MyVidsterBaseIE._NUM_VIDS_PL[_from_list]}")
 
     def _real_initialize(self):
         with MyVidsterBaseIE._LOCK:
@@ -432,7 +448,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            raise ExtractorError(repr(e))
+            raise_extractor_error(repr(e))
 
 
 class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
@@ -448,7 +464,9 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
             webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage:
-                raise ExtractorError("Couldnt download webpage")
+                raise_extractor_error("Couldnt download webpage")
+
+            assert isinstance(webpage, str)
 
             title = try_get(
                 re.findall(r'<title>([\w\s]+)</title>', webpage),
@@ -475,7 +493,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post),
                 lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage:
-                raise ExtractorError("Couldnt display channel")
+                raise_extractor_error("Couldnt display channel")
 
             el_videos = get_elements_by_class("thumbnail", webpage)
 
@@ -527,10 +545,16 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
                     MyVidsterBaseIE._NUM_VIDS_PL[url] = len(results)
 
-                    with ThreadPoolExecutor(thread_name_prefix='ex_channelpl') as ex:
-                        futures = {
-                            ex.submit(iemv._get_entry, el['url'], check=_check, from_list=url): el['url']
-                            for el in results}
+                    pre = f'[channel/{channelid}][Num_videos_pending]'
+
+                    with self.create_progress_bar(msg=pre) as pb:
+
+                        with ThreadPoolExecutor(thread_name_prefix='ex_channelpl') as ex:
+                            futures = {
+                                ex.submit(iemv._get_entry, el['url'], check=_check, from_list=url, progress_bar=pb): el['url']
+                                for el in results}
+
+                        pb.print('')
 
                     entries = []
 
@@ -544,9 +568,8 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                                     'release_timestamp': ent.get('release_timestamp')})
                                 entries.append(_res)
                         except Exception as e:
-                            self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
-                            if self.get_param('embed'):
-                                entries.append({'url': futures[fut], 'error': repr(e)})
+                            self.report_warning(f"[get_entries][{self._get_url_print(futures[fut])}] error - {str(e)}")
+                            entries.append({'url': futures[fut], 'error': str(e)})
 
                 else:
                     entries = results
@@ -560,13 +583,13 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                         'entries': entries,
                     }
 
-            raise ExtractorError("no entries found")
+            raise_extractor_error("no entries found")
 
         except ExtractorError:
             raise
         except Exception as e:
             self.to_screen(repr(e))
-            raise ExtractorError(repr(e))
+            raise_extractor_error(repr(e))
 
     def _real_initialize(self):
 
@@ -620,7 +643,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         last_page = self._get_last_page(base_search_url)
 
         if last_page == 0:
-            raise ExtractorError("no search results")
+            raise_extractor_error("no search results")
 
         if npages == 'all':
             _max = last_page
@@ -647,7 +670,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                     if _res:
                         list_videos += _res
                     else:
-                        raise ExtractorError("no entries")
+                        raise_extractor_error("no entries")
                 except Exception as e:
                     self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
 
@@ -688,11 +711,11 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                         'entries': entries,
                     }
 
-                raise ExtractorError("no entries found")
+                raise_extractor_error("no entries found")
 
         except Exception as e:
             self.to_screen(repr(e))
-            raise ExtractorError(repr(e))
+            raise_extractor_error(repr(e))
 
     def _real_initialize(self):
         with MyVidsterBaseIE._LOCK:
@@ -718,9 +741,11 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             self.to_screen(f'[getter] {_path}:{_profile}')
             _subs_link = urljoin("https://myvidster.com", _path)
             if not _profile:
-                res = self._send_request(_subs_link)
-                if res:
-                    _profile = try_get(re.findall(r'by <a href="/profile/([^"]+)"', res.text), lambda x: x[0])
+                webpage = try_get(self._send_request(_subs_link), lambda x: x.text)
+                if not webpage:
+                    raise_extractor_error("no webpage")
+                else:
+                    _profile = try_get(re.findall(r'by <a href="/profile/([^"]+)"', webpage), lambda x: x[0])
             return (_subs_link, _profile)
 
         except Exception as e:
@@ -760,13 +785,11 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             "Accept": "*/*"
         }
 
-        res = self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
-        res = self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post)
-        if not res:
-            self.to_screen('Couldnt get subscriptions')
+        self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
+        webpage = try_get(self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+        if not webpage:
+            raise_extractor_error('Couldnt get subscriptions')
         else:
-
-            webpage = re.sub('[\t\n]', '', html.unescape(res.text))
             subwebpages = webpage.split('<div class="vidthumbnail" style="margin-right:6px;margin-bottom:2px;">')
             for sub in subwebpages[1:]:
                 username = try_get(re.findall(r'<a href=[\'\"]/profile/([^\'\"]+)[\'\"]', sub), lambda x: x[0])
@@ -824,7 +847,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                         if _res:
                             results += _res
                         else:
-                            raise ExtractorError("no entries")
+                            raise_extractor_error("no entries")
                     except Exception:
                         pass
 
@@ -860,7 +883,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                         return self.playlist_result(
                             entries, playlist_id='myvidster_rss', playlist_title='myvidster_rss')
 
-                raise ExtractorError("no entries found")
+                raise_extractor_error("no entries found")
 
             else:
 
@@ -879,7 +902,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                         if _res:
                             results[futures[fut]] = _res
                         else:
-                            raise ExtractorError("no entries")
+                            raise_extractor_error("no entries")
                     except Exception:
                         # self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
                         pass
@@ -918,14 +941,14 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                         return self.playlist_result(
                             entries, playlist_id=query.replace(' ', '_'), playlist_title='SearchMyVidsterRSS')
 
-                raise ExtractorError("no entries found")
+                raise_extractor_error("no entries found")
 
         except ExtractorError as e:
             self.to_screen(repr(e))
             raise
         except Exception as e:
             self.to_screen(repr(e))
-            raise ExtractorError(repr(e))
+            raise_extractor_error(repr(e))
 
     def _real_initialize(self):
 
