@@ -1,9 +1,17 @@
-import sys
-import traceback
 import time
-
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import HTTPStatusError, ConnectError, WebDriverException, TimeoutException, dec_on_exception2, dec_on_exception3, dec_on_driver_timeout, SeleniumInfoExtractor, limiter_1, By, ec
+from .commonwebdriver import (
+    raise_extractor_error,
+    HTTPStatusError,
+    ConnectError,
+    WebDriverException,
+    TimeoutException,
+    dec_on_exception2,
+    dec_on_exception3,
+    SeleniumInfoExtractor,
+    limiter_1,
+    By,
+    ec)
 
 
 class getvideourl:
@@ -39,7 +47,6 @@ class VideovardIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://videovard\.\w\w/[e,v]/(?P<id>[^&]+)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://videovard\.\w\w/[e,v]/.+?)\1']
 
-    @dec_on_driver_timeout
     @dec_on_exception3
     @dec_on_exception2
     @limiter_1.ratelimit("videovard", delay=True)
@@ -55,8 +62,8 @@ class VideovardIE(SeleniumInfoExtractor):
                 driver.execute_script("window.stop();")
                 driver.get(url)
             except Exception as e:
-                self.report_warning(f"{pre}: error - {repr(e)}")
-                raise ExtractorError(f'no webpage - {repr(e)}')
+                self.logger_debug(f"{pre}: error - {repr(e)}")
+                raise
 
         else:
 
@@ -70,7 +77,7 @@ class VideovardIE(SeleniumInfoExtractor):
                 else:
                     return self.get_info_for_format(url, headers=headers)
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"{pre}: error - {repr(e)}")
+                self.logger_debug(f"{pre}: error - {repr(e)}")
 
     def _real_initialize(self):
 
@@ -87,15 +94,17 @@ class VideovardIE(SeleniumInfoExtractor):
 
             videoid = self._match_id(url)
 
-            _formats = None
-
             self.send_multi_request(_wurl := (url.replace('/e/', '/v/').replace('videovard.to', 'videovard.sx')), driver=driver)
 
             title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
 
+            assert title
+
             video_url = self.wait_until(driver, 60, getvideourl())
 
             _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
+
+            _formats = None
 
             if video_url:
                 if not video_url.startswith('blob'):
@@ -103,28 +112,24 @@ class VideovardIE(SeleniumInfoExtractor):
                     if ".m3u8" not in video_url:
                         _info_video = self.send_multi_request(video_url, _type="info_video", headers=_headers)
                         if not _info_video:
-                            raise ExtractorError("no info video")
+                            raise_extractor_error(f"[{url}] no info video")
                         assert isinstance(_info_video, dict)
                         _formats = [{'format_id': 'http-mp4', 'url': _info_video['url'], 'filesize': _info_video['filesize'], 'ext': 'mp4'}]
 
                     elif "master.m3u8" in video_url:
-                        _formats = self._extract_m3u8_formats_and_subtitles(
+                        _formats = self._extract_m3u8_formats(
                             video_url, video_id=videoid, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls", headers=_headers)
                 else:
-                    m3u8_url, m3u8_doc = try_get(
-                        self.scan_for_request(r"master.m3u8", driver=driver), lambda x: (x.get('url'), x.get('content'))  # type: ignore
-                        if x else (None, None))
+                    m3u8_url = try_get(
+                        self.scan_for_request(r"master.m3u8", driver=driver), lambda x: x.get('url')  # type: ignore
+                        if x else None)
                     if m3u8_url:
-                        if not m3u8_doc:
-                            m3u8_doc = try_get(self.send_multi_request(m3u8_url, headers=_headers), lambda x: (x.content).decode('utf-8', 'replace'))
-
-                        if m3u8_doc:
-                            _formats, _ = self._parse_m3u8_formats_and_subtitles(
-                                m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                        _formats = self._extract_m3u8_formats(
+                            m3u8_url, video_id=videoid, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls", headers=_headers)
 
             if not _formats:
-                raise ExtractorError(f"[{url}] Couldnt find any video format")
-
+                raise_extractor_error(f"[{url}] Couldnt find any video format")
+            assert _formats
             for _format in _formats:
                 assert isinstance(_format, dict)
                 if (_head := _format.get('http_headers')):
@@ -139,14 +144,12 @@ class VideovardIE(SeleniumInfoExtractor):
                 "webpage_url": _wurl,
                 "ext": "mp4"})
 
-        except (WebDriverException, TimeoutException) as e:
-            raise ExtractorError(f"error 404 - {e.msg}")
+        except (WebDriverException, TimeoutException):
+            raise_extractor_error(f"[{url}] error 404 couldnt get webpage")
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-            raise ExtractorError(f"{repr(e)} {str(e)}")
+            raise_extractor_error(f"[{url}] {str(e)}")
         finally:
             self.rm_driver(driver)
 
@@ -162,9 +165,7 @@ class VideovardIE(SeleniumInfoExtractor):
 
             return self._get_entry(url, check=_check)
 
-        except (ExtractorError, WebDriverException, TimeoutException):
+        except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
+            raise_extractor_error(repr(e))

@@ -424,25 +424,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                     raise_extractor_error("url video not found")
         except ExtractorError as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
-            # return ({
-            #     'id': video_id,
-            #     'title': video_id,
-            #     'formats': [],
-            #     'webpage_url': url,
-            #     'extractor_key': self.ie_key(),
-            #     'extractor': self.IE_NAME,
-            #     'error': str(e)})
             raise
         except Exception as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
-            # return ({
-            #     'id': video_id,
-            #     'title': video_id,
-            #     'formats': [],
-            #     'webpage_url': url,
-            #     'extractor_key': self.ie_key(),
-            #     'extractor': self.IE_NAME,
-            #     'error': str(e)})
             raise
         finally:
             if _from_list:
@@ -581,10 +565,14 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                             _res = fut.result()
                             if _res:
                                 # self.logger_debug(f"%no%[res]\n{_res}\n[ent]\n{ent}")
+                                if _res.get('webpage_url') == futures[fut]:
+                                    _orig_url = url
+                                else:
+                                    _orig_url = futures[fut]
                                 _res.update({
                                     'release_data': ent.get('release_data'),
                                     'release_timestamp': ent.get('release_timestamp'),
-                                    'original_url': futures[fut],
+                                    'original_url': _orig_url,
                                     'playlist_url': url})
                                 entries.append(_res)
                         except Exception as e:
@@ -719,7 +707,11 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                         try:
                             _res = fut.result()
                             if _res:
-                                _res['original_url'] = futures[fut]
+                                if _res.get('webpage_url') == futures[fut]:
+                                    _orig_url = url
+                                else:
+                                    _orig_url = futures[fut]
+                                _res['original_url'] = _orig_url
                                 _res['playlist_url'] = url
                                 entries.append(_res)
                         except Exception as e:
