@@ -3,6 +3,7 @@ import re
 from urllib.parse import unquote
 
 from .commonwebdriver import (
+    raise_extractor_error,
     By,
     ConnectError,
     HTTPStatusError,
@@ -11,7 +12,7 @@ from .commonwebdriver import (
     dec_on_exception2,
     dec_on_exception3,
     ec,
-    limiter_5,
+    limiter_1,
 )
 from ..utils import ExtractorError, sanitize_filename, try_get
 
@@ -33,7 +34,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
     _SITE_URL = 'https://gayforit.eu'
 
     @dec_on_exception
-    @limiter_5.ratelimit("gayforiteu", delay=True)
+    @limiter_1.ratelimit("gayforiteu", delay=True)
     def _send_request(self, url, **kwargs):
 
         if (driver := kwargs.get('driver')):
@@ -41,7 +42,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
 
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_5.ratelimit("gayforiteu", delay=True)
+    @limiter_1.ratelimit("gayforiteu", delay=True)
     def _get_video_info(self, url, **kwargs):
 
         try:
@@ -59,6 +60,9 @@ class GayForITEUIE(SeleniumInfoExtractor):
             videoid = self._match_id(_url)
             if not videoid:
                 el_video = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, 'video')))
+                if not el_video:
+                    raise_extractor_error('no el video')
+                assert el_video
                 videoid = el_video.get_attribute('poster').split('/')[-1].split('_')[-1].split('.')[0]
                 _url = f'{self._SITE_URL}/video/{videoid}'
                 self.to_screen({_url})
@@ -75,6 +79,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
             if not title:
                 title = try_get(re.findall(r'GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title, re.IGNORECASE), lambda x: x[0])
 
+            assert isinstance(title, str)
             self.logger_debug(f"[video_url] {video_url}")
 
             _headers = {"Referer": self._SITE_URL + "/"}
@@ -86,6 +91,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 for _el in el_quality:
 
                     _quality = try_get(re.search(r'(\d+p)', _el.get_attribute('innerText')), lambda x: x.groups()[0])
+                    assert _quality
                     self.to_screen(f"quality:[{_quality}]")
                     _vurl = f"{video_url.split('_')[0]}_{_quality}.mp4?&{_quality}"
                     _format_id = f'http-{_quality}'
@@ -102,6 +108,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                     if not _info_video:
                         self.report_warning(f"[{url}] {_format_id} no video info")
                     else:
+                        assert isinstance(_info_video, dict)
                         _info_video['url'] = _info_video['url'].replace("medialatest-cdn.gayforit.eu", "media.gayforit.eu")
                         _format.update(_info_video)
 
@@ -118,6 +125,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 if not _info_video:
                     raise ExtractorError("no video info")
                 else:
+                    assert isinstance(_info_video, dict)
                     _info_video['url'] = _info_video['url'].replace("medialatest-cdn.gayforit.eu", "media.gayforit.eu")
                     _formats[0].update(_info_video)
 

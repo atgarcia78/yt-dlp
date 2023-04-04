@@ -223,9 +223,25 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
         except ExtractorError as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
+            # return ({
+            #     'id': videoid,
+            #     'title': videoid,
+            #     'formats': [],
+            #     'webpage_url': _san_url,
+            #     'extractor_key': self.ie_key(),
+            #     'extractor': self.IE_NAME,
+            #     'error': str(e)})
             raise
         except Exception as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
+            # return ({
+            #     'id': videoid,
+            #     'title': videoid,
+            #     'formats': [],
+            #     'webpage_url': _san_url,
+            #     'extractor_key': self.ie_key(),
+            #     'extractor': self.IE_NAME,
+            #     'error': str(e)})
             raise ExtractorError(repr(e))
 
     def _real_initialize(self):
