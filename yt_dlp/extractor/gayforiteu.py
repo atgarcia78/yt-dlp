@@ -80,6 +80,7 @@ class GayForITEUIE(SeleniumInfoExtractor):
                 title = try_get(re.findall(r'GayForIt\.eu - Free Gay Porn Videos - (.+)', driver.title, re.IGNORECASE), lambda x: x[0])
 
             assert isinstance(title, str)
+
             self.logger_debug(f"[video_url] {video_url}")
 
             _headers = {"Referer": self._SITE_URL + "/"}
