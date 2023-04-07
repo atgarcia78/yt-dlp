@@ -1,4 +1,3 @@
-import contextlib
 import html
 import json
 import logging
@@ -498,8 +497,8 @@ class myHAR:
             self.logger(f'{self.pre} har file ready in {self.har_file}')
 
     @classmethod
-    def network_har_handler(cls, videoid, logger=None, msg=None):
-        return cls.getNetworkHAR(videoid, logger=logger, msg=msg)
+    def network_har_handler(cls, har_file, logger=None, msg=None):
+        return cls.getNetworkHAR(har_file, logger=logger, msg=msg)
 
 
 from ipaddress import ip_address
@@ -597,11 +596,17 @@ class YDLLogger:
 
         # to stop sending events to loggers while progressbar is printing
         def __enter__(self):
-            self._logger.parent.handlers[0].stop()  # type: ignore
+            try:
+                self._logger.parent.handlers[0].stop()  # type: ignore
+            except Exception:
+                pass
             return self
 
         def __exit__(self, *args):
-            self._logger.parent.handlers[0].start()  # type: ignore
+            try:
+                self._logger.parent.handlers[0].start()  # type: ignore
+            except Exception:
+                pass
             super().__exit__(*args)
 
         def print(self, message):
@@ -666,28 +671,22 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 return 'video'
 
-    @classmethod
-    def logger_info(cls, msg):
-        if cls._YTDL:
-            _logger = cls._YTDL.params.get('logger')
-            if _logger:
-                _logger.info(f"[{cls.IE_NAME}]{msg}")
-            else:
-                cls._YTDL.to_screen(f"[{cls.IE_NAME}]{msg}")
+    def logger_info(self, msg):
+        if (_logger := self.get_param('logger')):
+            _logger.info(f"[{self.IE_NAME}] {msg}")
+        else:
+            self.to_screen(msg)
 
-    @classmethod
-    def logger_debug(cls, msg):
-        if cls._YTDL:
-            _logger = cls._YTDL.params.get('logger')
-            if _logger:
-                _logger.debug(f"[debug+][{cls.IE_NAME}]{msg}")
-            else:
-                cls._YTDL.to_screen(f"[debug][{cls.IE_NAME}]{msg}")
+    def logger_debug(self, msg):
+        if (_logger := self.get_param('logger')):
+            _logger.debug(f"[debug+][{self.IE_NAME}] {msg}")
+        else:
+            self.to_screen(f"[debug] {msg}")
 
     def extract_cookies(self):
         with SeleniumInfoExtractor._MASTER_LOCK:
             if not SeleniumInfoExtractor._COOKIES_JAR:
-                self.to_screen("loading cookies from Firefox")
+                self.to_screen("Loading cookies from Firefox")
                 SeleniumInfoExtractor._COOKIES_JAR = extract_cookies_from_browser('firefox')
         return SeleniumInfoExtractor._COOKIES_JAR
 
@@ -697,12 +696,11 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _get_extractor(self, _args):
 
-        assert SeleniumInfoExtractor._YTDL
         assert self._downloader
 
         if _args.startswith('http'):
 
-            ies = SeleniumInfoExtractor._YTDL._ies
+            ies = self._downloader._ies
             ie_key = 'Generic'
             for key, ie in ies.items():
                 try:
@@ -770,44 +768,23 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         try:
             with SeleniumInfoExtractor._MASTER_LOCK:
-                if not SeleniumInfoExtractor._YTDL or SeleniumInfoExtractor._YTDL != self._downloader:
-                    if SeleniumInfoExtractor._YTDL:
-                        if not self._downloader.params.get('stop_dl'):
-                            self._downloader.params['stop_dl'] = SeleniumInfoExtractor._YTDL.params.get('stop_dl', {})
-                        if not self._downloader.params.get('sem'):
-                            self._downloader.params['sem'] = SeleniumInfoExtractor._YTDL.params.get('sem', {})
-                        if not self._downloader.params.get('lock'):
-                            self._downloader.params['lock'] = SeleniumInfoExtractor._YTDL.params.get('lock', Lock())
-                        if not self._downloader.params.get('stop'):
-                            self._downloader.params['stop'] = SeleniumInfoExtractor._YTDL.params.get('stop', Event())
-                        if not self._downloader.params.get('routing_table'):
-                            self._downloader.params['routing_table'] = SeleniumInfoExtractor._YTDL.params.get(
-                                'routing_table')
+                if self._YTDL != self._downloader:
+
+                    self._downloader.params.setdefault('stop_dl', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), {}) if x else {}))
+                    self._downloader.params.setdefault('sem', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('sem'), {}) if x else {}))
+                    self._downloader.params.setdefault('lock', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('lock'), Lock()) if x else Lock()))
+                    self._downloader.params.setdefault('stop', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop'), Event()) if x else Event()))
+                    self._downloader.params.setdefault('routing_table', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
 
                     SeleniumInfoExtractor._YTDL = self._downloader
-
-                if not SeleniumInfoExtractor._YTDL.params.get('stop_dl'):
-                    SeleniumInfoExtractor._YTDL.params['stop_dl'] = {}
-                if not SeleniumInfoExtractor._YTDL.params.get('sem'):
-                    SeleniumInfoExtractor._YTDL.params['sem'] = {}  # for the ytdlp cli
-                if not SeleniumInfoExtractor._YTDL.params.get('lock'):
-                    SeleniumInfoExtractor._YTDL.params['lock'] = Lock()
-                if not SeleniumInfoExtractor._YTDL.params.get('stop'):
-                    SeleniumInfoExtractor._YTDL.params['stop'] = Event()
-
-                _headers = SeleniumInfoExtractor._YTDL.params.get('http_headers', {}).copy()
-                _proxy = SeleniumInfoExtractor._YTDL.params.get('proxy')
 
                 self._CLIENT_CONFIG = {
                     'timeout': Timeout(20),
                     'limits': Limits(max_keepalive_connections=None, max_connections=None),
-                    'headers': _headers,
+                    'headers': self.get_param('http_headers', {}).copy(),
                     'follow_redirects': True,
                     'verify': False,
-                    'proxies': None}
-
-                if _proxy:
-                    self._CLIENT_CONFIG.update({'proxies': {'http://': _proxy, 'https://': _proxy}})
+                    'proxies': {'http://': _proxy, 'https://': _proxy} if (_proxy := self.get_param('proxy')) else None}
 
                 self._CLIENT = Client(**self._CLIENT_CONFIG)
 
@@ -828,7 +805,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         assert self._downloader
 
-        with self.get_param('lock', contextlib.nullcontext()):
+        with self._downloader.params.setdefault('lock', Lock()):
             self._downloader.params.setdefault('sem', {})
             return self._downloader.params['sem'].setdefault(_host, Lock())
 
@@ -960,8 +937,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 shutil.rmtree(tempdir, ignore_errors=True)
 
     def get_har_logs(self, videoid, msg=None):
-        self.har_file = f"/Users/antoniotorres/.cache/yt-dlp/nakedsword/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
-        return myHAR.network_har_handler(self.har_file, logger=self.logger_debug, msg=msg)
+        har_file = f"/Users/antoniotorres/.cache/yt-dlp/nakedsword/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
+        return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg)
 
     def scan_for_request(
             self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False,

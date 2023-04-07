@@ -4,12 +4,12 @@ import re
 
 from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, traverse_obj, url_basename, base_url
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError, Lock)
+    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError)
 
 
 class ThisvidgayIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'thisvidgay'
+    IE_NAME = 'thisvidgay'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?thisvidgay\.com/[^/]+/?$'
     _SITE_URL = 'https://thisvidgay.com/'
 
@@ -18,22 +18,15 @@ class ThisvidgayIE(SeleniumInfoExtractor):
     @limiter_5.ratelimit("thisvidgay2", delay=True)
     def _get_video_info(self, url, **kwargs):
 
-        headers = kwargs.get('headers', None)
+        headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+        _headers = {'Range': 'bytes=0-',
                     'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        _headers.update(headers)
         try:
-            _host = get_domain(url)
-
-            with self.get_param('lock'):
-                if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                    _sem = Lock()
-                    self.get_param('sem').update({_host: _sem})
-
-            with _sem:
-                return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -78,7 +71,7 @@ class ThisvidgayIE(SeleniumInfoExtractor):
 
             else:
 
-                query = re.search(self._VALID_URL, url).group('query')
+                query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query')) or ''
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
                 if not (_videoid := params.get('id')):
                     raise ExtractorError("no video info")
@@ -97,6 +90,7 @@ class ThisvidgayIE(SeleniumInfoExtractor):
             _embedurl = url
             _videoid = None
 
+        assert self._downloader
         iehtml5 = self._downloader._ies['HTML5MediaEmbed']
         gen = iehtml5.extract_from_webpage(self._downloader, _embedurl, webpage_embeds)
 
@@ -136,8 +130,11 @@ class ThisvidgayIE(SeleniumInfoExtractor):
 
         for f in _entry['formats']:
 
-            _videoinfo = self._get_video_info(f['url'], headers=f['http_headers'])
-            if _videoinfo:
+            _host = get_domain(f['url'])
+            _sem = self.get_ytdl_sem(_host)
+            with _sem:
+                _videoinfo = self._get_video_info(f['url'], headers=f['http_headers'])
+            if _videoinfo and isinstance(_videoinfo, dict):
                 f.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
         return _entry

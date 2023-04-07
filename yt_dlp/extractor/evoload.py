@@ -8,7 +8,6 @@ from .commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
-    Lock,
     SeleniumInfoExtractor,
     dec_on_exception2,
     dec_on_exception3,
@@ -21,7 +20,6 @@ from ..utils import (
     ExtractorError,
     get_domain,
     sanitize_filename,
-    traverse_obj,
     try_get,
 )
 
@@ -92,7 +90,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://evoload.io"
 
-    IE_NAME = 'evoload'
+    IE_NAME = 'evoload'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?evoload.io/(?:e|v)/(?P<id>[^\/$/?]+)'
 
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://evoload\.io/e/.+?)\1']
@@ -102,22 +100,14 @@ class EvoLoadIE(SeleniumInfoExtractor):
     @limiter_5.ratelimit("evoload", delay=True)
     def _get_video_info(self, url, **kwargs):
 
+        self.logger_debug(f"[get_video_info] {url}")
+
+        _headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video',
+                    'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
+                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         try:
-            self.logger_debug(f"[get_video_info] {url}")
 
-            _headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video',
-                        'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
-                        'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-
-            _host = get_domain(url)
-
-            with self.get_param('lock'):
-                if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                    _sem = Lock()
-                    self.get_param('sem').update({_host: _sem})
-
-            with _sem:
-                return self.get_info_for_format(url, headers=_headers, **kwargs)
+            return self.get_info_for_format(url, headers=_headers, **kwargs)
 
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
@@ -132,12 +122,11 @@ class EvoLoadIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, check=False, msg=None):
 
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if msg:
+            pre = f'{msg}{pre}'
+        driver = self.get_driver()
         try:
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg:
-                pre = f'{msg}{pre}'
-
-            driver = self.get_driver()
             driver.set_page_load_timeout(10)
             self._send_request(url.split('?')[0].replace('/v/', '/e/'), driver)
             video_url = self.wait_until(driver, 30, video_or_error_evoload(self.to_screen))
@@ -155,10 +144,15 @@ class EvoLoadIE(SeleniumInfoExtractor):
             videoid = self._match_id(url.split('?')[0])
 
             if check:
-                _videoinfo = self._get_video_info(video_url, msg=pre)
+                _host = get_domain(video_url)
+                _sem = self.get_ytdl_sem(_host)
+
+                with _sem:
+                    _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo:
                     raise ExtractorError("error 404: no video info")
                 else:
+                    assert isinstance(_videoinfo, dict)
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
             _entry_video = {
