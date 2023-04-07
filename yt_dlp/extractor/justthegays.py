@@ -4,12 +4,12 @@ import re
 
 from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, traverse_obj, url_basename
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError, Lock)
+    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError)
 
 
 class JustTheGaysIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'justthegays'
+    IE_NAME = 'justthegays'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?justthegays\.com/video/[^/]+/?$'
     _SITE_URL = 'https://justthegays.com/'
 
@@ -18,22 +18,15 @@ class JustTheGaysIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("justthegays", delay=True)
     def _get_video_info(self, url, **kwargs):
 
-        headers = kwargs.get('headers', None)
+        headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+        _headers = {'Range': 'bytes=0-',
                     'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        _headers.update(headers)
         try:
-            _host = get_domain(url)
-
-            with self.get_param('lock'):
-                if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                    _sem = Lock()
-                    self.get_param('sem').update({_host: _sem})
-
-            with _sem:
-                return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -63,6 +56,7 @@ class JustTheGaysIE(SeleniumInfoExtractor):
 
         _title = self._html_search_regex((r'>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
 
+        assert self._downloader
         iehtml5 = self._downloader._ies['HTML5MediaEmbed']
         gen = iehtml5.extract_from_webpage(self._downloader, url, webpage)
 
@@ -93,8 +87,11 @@ class JustTheGaysIE(SeleniumInfoExtractor):
 
         for f in _entry['formats']:
 
-            _videoinfo = self._get_video_info(f['url'], headers=f['http_headers'])
-            if _videoinfo:
+            _host = get_domain(f['url'])
+            _sem = self.get_ytdl_sem(_host)
+            with _sem:
+                _videoinfo = self._get_video_info(f['url'], headers=f['http_headers'])
+            if _videoinfo and isinstance(_videoinfo, dict):
                 f.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
         return _entry

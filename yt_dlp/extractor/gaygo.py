@@ -10,7 +10,7 @@ from .commonwebdriver import (
 
 class GaygoIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'gaygo'
+    IE_NAME = 'gaygo'  # type: ignore
     _VALID_URL = r'https?://(.+\.)?gaygo\.tv/(?:view|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://gaygo.tv/'
 
@@ -19,12 +19,13 @@ class GaygoIE(SeleniumInfoExtractor):
     @limiter_5.ratelimit("gaygo2", delay=True)
     def _get_video_info(self, url, **kwargs):
 
-        headers = kwargs.get('headers', None)
+        headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+        _headers = {'Range': 'bytes=0-',
                     'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        _headers.update(headers)
         try:
             # _host = get_domain(url)
 
@@ -69,6 +70,9 @@ class GaygoIE(SeleniumInfoExtractor):
 
         _title = self._html_search_regex((r'>([^<]+)</h3>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
         videourl = try_get(re.findall(r'data-videolink\s*=\s*"([^\"]+)"', webpage), lambda x: x[0])
+        if not videourl:
+            raise ExtractorError("no videourl")
+
         videourl += f'?rnd={int(datetime.timestamp(datetime.now())*1000)}'
 
         headers = {'Referer': self._SITE_URL}
@@ -85,6 +89,7 @@ class GaygoIE(SeleniumInfoExtractor):
             if not _videoinfo:
                 raise ExtractorError("error 404: no video info")
             else:
+                assert isinstance(_videoinfo, dict)
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
         _entry_video = {

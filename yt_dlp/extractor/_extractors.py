@@ -2570,6 +2570,7 @@ from .nakedsword import (
     NakedSwordSceneIE,
     NakedSwordMovieIE,
     NakedSwordScenesPlaylistIE,
+    NakedSwordMoviesPlaylistIE,
     NakedSwordJustAddedMoviesPlaylistIE,
     #NakedSwordMostWatchedIE,
     #NakedSwordStarsStudiosIE,

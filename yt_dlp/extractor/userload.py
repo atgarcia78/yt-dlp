@@ -3,11 +3,11 @@ import time
 import traceback
 from urllib.parse import unquote
 
-from ..utils import ExtractorError, sanitize_filename, traverse_obj, get_domain
+from ..utils import ExtractorError, sanitize_filename, get_domain
 from .commonwebdriver import (
     dec_on_exception2, dec_on_exception3,
     SeleniumInfoExtractor, limiter_5, By, HTTPStatusError, ConnectError,
-    Lock, TimeoutException, WebDriverException, dec_on_driver_timeout)
+    TimeoutException, WebDriverException, dec_on_driver_timeout)
 
 
 class video_or_error_userload:
@@ -40,7 +40,7 @@ class video_or_error_userload:
 
 class UserLoadIE(SeleniumInfoExtractor):
 
-    IE_NAME = 'userload'
+    IE_NAME = 'userload'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?userload\.co/(?:embed|e|f)/(?P<id>[^\/$]+)(?:\/|$)'
     _SITE_URL = 'https://userload.co/'
 
@@ -56,15 +56,8 @@ class UserLoadIE(SeleniumInfoExtractor):
             _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-            _host = get_domain(url)
 
-            with self.get_param('lock'):
-                if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                    _sem = Lock()
-                    self.get_param('sem').update({_host: _sem})
-
-            with _sem:
-                return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -91,14 +84,13 @@ class UserLoadIE(SeleniumInfoExtractor):
 
         check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if msg:
+            pre = f'{msg}{pre}'
+
+        driver = self.get_driver()
 
         try:
-
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg:
-                pre = f'{msg}{pre}'
-
-            driver = self.get_driver()
             self._send_request(url.replace('userload.co/embed/', 'userload.co/f/').replace('userload.co/e/', 'userload.co/f/'), driver=driver)
             video_url = self.wait_until(driver, 30, video_or_error_userload())
             if not video_url or video_url == 'error':
@@ -114,10 +106,15 @@ class UserLoadIE(SeleniumInfoExtractor):
             }
 
             if check:
-                _videoinfo = self._get_video_info(video_url, msg=pre)
+                _host = get_domain(video_url)
+                _sem = self.get_ytdl_sem(_host)
+
+                with _sem:
+                    _videoinfo = self._get_video_info(video_url, msg=pre)
                 if not _videoinfo:
                     raise ExtractorError("error 404: no video info")
                 else:
+                    assert isinstance(_videoinfo, dict)
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
             _entry_video = {

@@ -1,17 +1,17 @@
 import re
 from urllib.parse import unquote
 
-from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, traverse_obj, get_domain
+from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, get_domain
 from .commonwebdriver import (
     dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor,
-    limiter_1, HTTPStatusError, ConnectError, Lock)
+    limiter_1, HTTPStatusError, ConnectError)
 
 import html
 import json
 
 
 class VoeIE(SeleniumInfoExtractor):
-    IE_NAME = 'voe'
+    IE_NAME = 'voe'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?voe\.sx/(e/)?(?P<id>[^.]+)'
     _SITE_URL = 'https://voe.sx/'
 
@@ -30,14 +30,7 @@ class VoeIE(SeleniumInfoExtractor):
                         'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site',
                         'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
 
-            _host = get_domain(url)
-            with self.get_param('lock'):
-                if not (_sem := traverse_obj(self.get_param('sem'), _host)):
-                    _sem = Lock()
-                    self.get_param('sem').update({_host: _sem})
-
-            with _sem:
-                return self.get_info_for_format(url, headers=_headers, **kwargs)
+            return self.get_info_for_format(url, headers=_headers, **kwargs)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -88,10 +81,14 @@ class VoeIE(SeleniumInfoExtractor):
                 if res:
                     _format.update({'height': int(res)})
                 if check:
-                    _videoinfo = self._get_video_info(video_url, msg=pre)
+                    _host = get_domain(video_url)
+                    _sem = self.get_ytdl_sem(_host)
+                    with _sem:
+                        _videoinfo = self._get_video_info(video_url, msg=pre)
                     if not _videoinfo:
                         self.report_warning(f"{pre}[{_format['format-id']}] {video_url} - error 404: no video info")
                     else:
+                        assert isinstance(_videoinfo, dict)
                         _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
                         _formats.append(_format)
                 else:
