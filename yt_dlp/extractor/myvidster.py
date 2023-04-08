@@ -165,7 +165,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                     break
             except Exception:
                 break
-        return (i - 1)    
+        return (i - 1)
 
     def _get_videos(self, _urlq):
 
@@ -659,7 +659,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         if not params.get('filter_by'):
             params['filter_by'] = 'myvidster'
         if not params.get('cfilter_by'):
-            params['cfilter_by'] = 'all'
+            params['cfilter_by'] = 'gay'
         if not params.get('sortby'):
             params['sortby'] = 'utc_posted'
         _check = True
