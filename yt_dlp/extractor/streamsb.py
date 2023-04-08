@@ -1,7 +1,7 @@
 import re
 import html
 import time
-import subprocess
+import atexit
 from .commonwebdriver import (
     SeleniumInfoExtractor,
     dec_on_exception2,
@@ -9,6 +9,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ConnectError,
     limiter_1,
+    ReExtractInfo,
     By,
     ec
 )
@@ -16,9 +17,13 @@ from ..utils import (
     ExtractorError,
     sanitize_filename,
     try_get,
+    try_call,
     traverse_obj,
     get_element_text_and_html_by_tag,
     get_elements_html_by_class)
+
+import functools
+from threading import Lock
 
 import logging
 logger = logging.getLogger('streamsb')
@@ -41,9 +46,11 @@ class getvideourl:
 
 class StreamSBIE(SeleniumInfoExtractor):
 
-    _DOMAINS = r'(?:gaymovies\.top|sbanh\.com|sbbrisk\.com)'
+    _DOMAINS = r'(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top)'
     _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)(\.html)?''' % _DOMAINS
     IE_NAME = 'streamsb'  # type: ignore
+    _LOCK = Lock()
+    _DRIVER = None
 
     @dec_on_exception3
     @dec_on_exception2
@@ -90,32 +97,43 @@ class StreamSBIE(SeleniumInfoExtractor):
                     self.logger_debug(f"{pre}: {_msg_error}")
                     return {"error_res": _msg_error}
 
-    def _get_entry_by_har(self, url, msg=None):
+    class synchronized:
+
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with StreamSBIE._LOCK:
+                    return func(*args, **kwargs)
+            return wrapper
+
+    def close(self):
+        if StreamSBIE._DRIVER:
+            self.rm_driver(StreamSBIE._DRIVER)
+
+    @synchronized()
+    def _get_entry(self, url, **kwargs):
 
         pre = f'[get_entry_by_har][{self._get_url_print(url)}]'
-        if msg:
+        if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
         videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
         url_dl = f"https://{dom}/e/{videoid}.html"
-        _har_file = f"/Users/antoniotorres/testing/dump_{videoid}.har"
-        cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={_har_file}"
-        _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
-        driver = self.get_driver(host='127.0.0.1', port='8080')
-        ps = subprocess.Popen(cmd.split(' '), stdout=subprocess.PIPE)
+        if not StreamSBIE._DRIVER:
+            StreamSBIE._DRIVER = self.get_driver(host='127.0.0.1', port='8080')
+            atexit.register(self.close)
 
         try:
-            ps.poll()
-            self.wait_until(driver, 5)
-            ps.poll()
 
-            self._send_request(url_dl, driver=driver)
-            self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-            self.wait_until(driver, 5)
+            with self.get_har_logs('streamsb', videoid, msg=pre) as harlogs:
 
-            ps.terminate()
+                _har_file = harlogs.har_file
+                self._send_request(url_dl, driver=StreamSBIE._DRIVER)
+                self.wait_until(StreamSBIE._DRIVER, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
+                self.wait_until(StreamSBIE._DRIVER, 5)
 
+            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
             m3u8_url, m3u8_doc = try_get(
                 self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
                 lambda x: (x.get('url'), x.get('content')) if x else (None, None))
@@ -145,14 +163,12 @@ class StreamSBIE(SeleniumInfoExtractor):
                 'webpage_url': url}
 
             return _entry
+
         except Exception as e:
             self.report_warning(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
-        finally:
-            ps.terminate()
-            self.rm_driver(driver)
 
-    def _get_entry(self, url, **kwargs):
+    def _old_get_entry(self, url, **kwargs):
 
         check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
@@ -166,14 +182,14 @@ class StreamSBIE(SeleniumInfoExtractor):
 
         try:
 
-            url_dl = f"https://{dom}/d/{videoid}.html"
+            url_dl = f"https://{dom}/{videoid}.html"
             webpage = try_get(self._send_request(url_dl, msg=pre), lambda x: html.unescape(x.text) if not isinstance(x, dict) else x)
             if not webpage:
-                raise ExtractorError("error to get webpage")
-
-            _title = try_get(get_element_text_and_html_by_tag('h1', webpage), lambda x: re.sub(r'\[?\d+p\]?', '', x[0].replace('Download ', '')).strip())
-
+                raise ReExtractInfo("error to get webpage")
+            _title = try_get(try_call(lambda: get_element_text_and_html_by_tag('h1', webpage)[0]), lambda x: re.sub(r'\[?\d+p\]?', '', x.replace('Download ', '')).strip())
             _sources = get_elements_html_by_class("block py-3 rounded-3 mb-3 text-reset d-block", webpage)
+            if 'File owner disabled downloads' in webpage or not _title or not _sources:
+                raise ReExtractInfo("video without download page, lets get HAR")
 
             _data = [try_get(re.findall(r'download_video\(([^\)]+)\)', _source), lambda x: {key: val for key, val in zip(['code', 'mode', 'hash'], x[0].replace("'", "").split(","))}) for _source in _sources]
             _res = [try_get(re.findall(r'(\d+)p', try_get(get_element_text_and_html_by_tag("span", _source), lambda y: y[0])), lambda x: x[0])  # type: ignore
@@ -191,25 +207,35 @@ class StreamSBIE(SeleniumInfoExtractor):
 
             driver = self.get_driver()
 
-            for data in _data:
-                if data:
-                    self._send_request(data['url'], driver=driver)
-                    _videourl = self.wait_until(driver, 30, getvideourl())
+            try:
 
-                    _format = {
-                        'format_id': f"http-mp4-{data['res']}",
-                        'url': _videourl,
-                        'http_headers': {'Referer': f"https://{dom}/"},
-                        'ext': 'mp4',
-                        'height': data['res']
-                    }
+                for data in _data:
+                    if data:
+                        self._send_request(data['url'], driver=driver)
+                        _videourl = self.wait_until(driver, 30, getvideourl())
 
-                    if check:
-                        _video_info = self._get_video_info(_videourl, headers={'Referer': f"https://{dom}/"})
-                        self.raise_from_res(_video_info, "no video info")
-                        _format.update(_video_info)
+                        _format = {
+                            'format_id': f"http-mp4-{data['res']}",
+                            'url': _videourl,
+                            'http_headers': {'Referer': f"https://{dom}/"},
+                            'ext': 'mp4',
+                            'height': data['res']
+                        }
 
-                    _formats.append(_format)
+                        if check:
+                            _video_info = self._get_video_info(_videourl, headers={'Referer': f"https://{dom}/"})
+                            self.raise_from_res(_video_info, "no video info")
+                            _format.update(_video_info)
+
+                        _formats.append(_format)
+
+            except Exception as e:
+                logger.exception(f"[get_entry] {repr(e)}")
+            finally:
+                self.rm_driver(driver)
+
+            if not _formats:
+                raise ExtractorError("no formats")
 
             _entry = {
                 'id': videoid,
@@ -222,12 +248,11 @@ class StreamSBIE(SeleniumInfoExtractor):
 
             return _entry
 
+        except ReExtractInfo as e:
+            self.logger_info(f"{pre} {repr(e)}")
+            # return self._get_entry_by_har(url, msg=msg)
         except Exception as e:
-            self.logger_debug(f"[get_entry] {repr(e)}")
-            if driver:
-                self.rm_driver(driver)
-
-            return self._get_entry_by_har(url, msg=msg)
+            logger.exception(repr(e))
 
     def _real_initialize(self):
         super()._real_initialize()

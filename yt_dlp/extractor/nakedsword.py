@@ -8,9 +8,9 @@ from threading import Lock
 import base64
 import subprocess
 import time
-import functools
 import contextlib
 from queue import Empty, Queue
+import functools
 
 from .commonwebdriver import (
     ConnectError,
@@ -39,7 +39,8 @@ from ..utils import (
     sanitize_filename,
     traverse_obj,
     try_get,
-    js_to_json
+    js_to_json,
+
 )
 
 logger = logging.getLogger('nakedsword')
@@ -455,7 +456,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 pre = f"{_pre}[{_index}]"
                 _list_results[_index] = {}
                 try:
-                    with self.get_har_logs(scene['id'], msg=pre) as harlogs:
+                    with self.get_har_logs('nakedsword', scene['id'], msg=pre) as harlogs:
 
                         _list_results[_index]['har_file'] = harlogs.har_file
                         if i == 0:

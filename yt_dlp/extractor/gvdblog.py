@@ -28,8 +28,8 @@ import logging
 
 logger = logging.getLogger("gvdblog")
 
-_ie_names = ('highload', 'doodstream')
-_ie_urls = ('//highload.', '//dood.')
+_ie_names = ('doodstream', 'streamsb')
+_ie_urls = (r'//(?:www\.)?dood\.', r'//(?:.+?\.)?(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top)')
 _ie_data = {key: value for key, value in zip(_ie_names, _ie_urls)}
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
@@ -110,17 +110,19 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _th = False
         _td = False
+
         for el in p3:
             _url = _get_url(el)
 
-            if '//highload.' in _url:
+            if re.search(_ie_data['streamsb'], _url):
                 if _th:
                     list_urls.append(None)
                     _td = False
                 else:
                     _th = True
                 list_urls.append(_url)
-            elif "//dood." in _url:
+
+            elif re.search(_ie_data['doodstream'], _url):
                 if _td:
                     list_urls.append(None)
                     _th = False
