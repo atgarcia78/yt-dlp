@@ -1,10 +1,10 @@
-import sys
-import time
-import traceback
+import html
+import re
+import base64
 
 
 from .commonwebdriver import (
-    By,
+
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
@@ -13,27 +13,14 @@ from .commonwebdriver import (
     dec_on_exception3,
     limiter_1,
 )
+
+
 from ..utils import (
     ExtractorError,
     get_domain,
     sanitize_filename,
-    try_get)
-
-
-class video_or_error:
-
-    def __call__(self, driver):
-
-        if driver.find_elements(By.CSS_SELECTOR, '.alert'):
-            return "error"
-        button = driver.find_elements(By.CLASS_NAME, "vjs-icon-placeholder")
-        if not button:
-            return False
-        button[0].click()
-        time.sleep(2)
-        video = driver.find_element(By.ID, 'my_video_html5_api')
-        video.click()
-        return True
+    try_get,
+    try_call)
 
 
 class HexUploadIE(SeleniumInfoExtractor):
@@ -86,55 +73,46 @@ class HexUploadIE(SeleniumInfoExtractor):
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if msg:
             pre = f'{msg}{pre}'
+
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if not isinstance(x, dict) else x)
+        if not webpage:
+            raise ExtractorError("no webpage")
+        video_url = try_get(re.search(r'b4aa\.buy\("([^"]+)"', webpage), lambda x: try_call(lambda: base64.b64decode(x.groups()[0]).decode('utf-8')))
+        if not video_url:
+            raise ExtractorError("no videourl")
+
         videoid = self._match_id(url)
+        title = try_call(lambda: re.sub(r'(\s+-+\s+)?hexupload(\s+-+\s+)?|\.mp4', '', self._html_extract_title(webpage), flags=re.IGNORECASE))  # type: ignore
 
-        driver = self.get_driver(devtools=True)
+        _format = {
+            'format_id': 'http-mp4',
+            'url': video_url,
+            'ext': 'mp4',
+            'http_headers': {'Referer': self._SITE_URL}
+        }
 
-        try:
+        if check:
+            _host = get_domain(video_url)
 
-            self._send_request(f'{self._SITE_URL}{videoid}', driver=driver)
-            res = self.wait_until(driver, 30, video_or_error())
-            video_url = None
-            if res and res != "error":
-                video_url = try_get(self.scan_for_request('video.mp4', driver=driver, response=False), lambda x: x.get('url'))
-            if not video_url:
-                raise ExtractorError('404 video not found')
-            title = driver.title.replace("mp4", "").replace("Download", "").strip()
+            _sem = self.get_ytdl_sem(_host)
 
-            _format = {
-                'format_id': 'http-mp4',
-                'url': video_url,
-                'ext': 'mp4',
-                'http_headers': {'Referer': self._SITE_URL}
-            }
+            with _sem:
+                _videoinfo = self._get_video_info(video_url, msg=pre)
+            if not _videoinfo:
+                raise ExtractorError("error 404: no video info")
+            assert isinstance(_videoinfo, dict)
+            _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
-            if check:
-                _host = get_domain(video_url)
-
-                _sem = self.get_ytdl_sem(_host)
-
-                with _sem:
-                    _videoinfo = self._get_video_info(video_url, msg=pre)
-                if not _videoinfo:
-                    raise ExtractorError("error 404: no video info")
-                assert isinstance(_videoinfo, dict)
-                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
-
-            _entry_video = {
-                'id': videoid,
-                'title': sanitize_filename(title, restricted=True),
-                'formats': [_format],
-                'extractor_key': self.ie_key(),
-                'extractor': self.IE_NAME,
-                'ext': 'mp4',
-                'webpage_url': url
-            }
-            return _entry_video
-
-        except Exception:
-            raise
-        finally:
-            self.rm_driver(driver)
+        _entry_video = {
+            'id': videoid,
+            'title': sanitize_filename(title, restricted=True),
+            'formats': [_format],
+            'extractor_key': self.ie_key(),
+            'extractor': self.IE_NAME,
+            'ext': 'mp4',
+            'webpage_url': url
+        }
+        return _entry_video
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -155,6 +133,4 @@ class HexUploadIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
