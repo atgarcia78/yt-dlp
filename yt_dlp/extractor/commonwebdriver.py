@@ -146,7 +146,7 @@ CONFIG_EXTRACTORS = {
     ('userload', 'evoload',): {
         'ratelimit': limiter_5,
         'maxsplits': 4},
-    ('doodstream', 'vidoza', 'streamsb',): {
+    ('doodstream', 'vidoza',): {
         'ratelimit': limiter_1,
         'maxsplits': 5},
     ('highload', 'tubeload', 'embedo',
@@ -175,7 +175,7 @@ CONFIG_EXTRACTORS = {
      'gay0day', 'onlygayvideo',
      'txxx', 'thegay', 'homoxxx',
      'youporn', 'gaygo',
-     'youporngay',
+     'youporngay', 'streamsb',
      'hexupload', 'pornone',): {
         'ratelimit': limiter_1,
         'maxsplits': 16}
@@ -936,8 +936,11 @@ class SeleniumInfoExtractor(InfoExtractor):
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def get_har_logs(self, videoid, msg=None):
-        har_file = f"/Users/antoniotorres/.cache/yt-dlp/nakedsword/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
+    def get_har_logs(self, key, videoid, msg=None):
+        folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        har_file = f"{folder}/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
         return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg)
 
     def scan_for_request(
