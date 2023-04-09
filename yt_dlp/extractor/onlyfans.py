@@ -314,7 +314,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             "webpage_url": f'https://onlyfans.com/{data_post["id"]}/{account}',
                             "formats": _formats,
                             "duration": _media.get('info', {}).get('source', {}).get('duration', 0),
-                            "ext": "mp4"}
+                            "ext": "mp4",
+                            "extractor": "onlyfans:post:playlist",
+                            "extractor_key": "OnlyFansPostIE"}
 
                         _entries.append(_entry)
 

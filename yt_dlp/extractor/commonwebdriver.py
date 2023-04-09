@@ -169,7 +169,8 @@ CONFIG_EXTRACTORS = {
      'gayforiteu', 'xvidgay',): {
         'ratelimit': limiter_1,
         'maxsplits': 16},
-    ('odnoklassniki', 'thisvid',
+    ('onlyfans:post:playlist',
+     'odnoklassniki', 'thisvid',
      'gaystreamembed', 'pornhat',
      'yourporngod', 'ebembed',
      'gay0day', 'onlygayvideo',
