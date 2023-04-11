@@ -9,7 +9,6 @@ import base64
 import subprocess
 import time
 import contextlib
-from queue import Empty, Queue
 import functools
 
 from .commonwebdriver import (
@@ -29,7 +28,8 @@ from .commonwebdriver import (
     Union,
     Response,
     ec,
-    By
+    By,
+    Callable
 )
 
 from ..utils import (
@@ -1017,41 +1017,30 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                     pass
 
             _timeout = my_jitter(30)
-            _inputq = getattr(getattr(self.get_param('_downloaders', {}).get('AsyncHLSDownloader'), '_COUNTDOWNS', None), '_INPUT', None)
-            _simple_counter = self.get_param('_util_class', {}).get('SimpleCountDown')
-            _empty = object()
-            self.logger_info(f'{premsg}[wait] start[{_timeout}] inputq[{_inputq}] indexdl[{getattr(self, "indexdl", None)}]')
+
+            _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
+
+            self.logger_info(f'{premsg}[wait] start[{_timeout}] counter[{_simple_counter}] indexdl[{getattr(self, "indexdl", None)}]')
+
             with self.create_progress_bar(msg=f'[{_url_movie.split("movies/")[1]}][wait]') as progress_bar:
 
-                if not _simple_counter:
-                    def get_input(iq):
-                        if not iq:
-                            time.sleep(1)
-                            return _empty
-                        else:
-                            try:
-                                return iq.get(block=True, timeout=1)
-                            except Empty:
-                                return _empty
-                            except Exception as e:
-                                logger.exception(f'{premsg} {repr(e)}')
-
-                    def _wait_for_either(inputq: Union[Queue, None], timeout: Union[float, int]):
+                if _simple_counter:
+                    _counter = _simple_counter(progress_bar, None, self.check_stop, timeout=_timeout, indexdl=getattr(self, 'indexdl', None))
+                    _reswait = _counter()
+                    progress_bar.print('')
+                else:
+                    def _wait_for_either(check: Callable, timeout: Union[float, int]):
                         t = 0
                         start = time.monotonic()
                         while (time.monotonic() - start < timeout):
-                            self.check_stop()
-                            if (_input := get_input(inputq)) != _empty:
-                                return _input
+                            check()
+                            time.sleep(1)
                             t += 1
                             progress_bar.print(f' Waiting {t}/{timeout}')  # type: ignore
+                        return ''
 
-                    _reswait = _wait_for_either(_inputq, timeout=_timeout)
+                    _reswait = _wait_for_either(self.check_stop, timeout=_timeout)
                     progress_bar.print('')  # type: ignore
-                else:
-                    _counter = _simple_counter(progress_bar, _inputq, self.check_stop, timeout=_timeout, indexdl=getattr(self, 'indexdl', None))
-                    _reswait = _counter()
-                    progress_bar.print('')
 
             self.logger_info(f'{premsg}[wait][{_reswait}] end')
 
@@ -1117,26 +1106,11 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                                 NakedSwordMovieIE._MOVIES[_url_movie]['nok'].remove(i)
 
                                     except ReExtractInfo:
-                                        # self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: NOK, will try HAR")
-                                        try:
-                                            # formats, _error = try_get(self.get_formats_by_har(_entry, msg=f'[get_entries][{_info.get("url").split("movies/")[1]}]'), lambda x: (x.get(_entry['_index_scene'], {}).get('formats'), (x.get(_entry['_index_scene'], {}).get('error')))) or (None, None)
-                                            # if formats:
-                                            #     _entry.update({'formats': formats})
-                                            #     self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: OK got entry by HAR")
-                                            #     NakedSwordMovieIE._MOVIES[_url_movie]['ok'].append(i)
-                                            #     _entry.pop('_index_scene', None)
-                                            #     NakedSwordMovieIE._MOVIES[_url_movie]['entries'][i] = _entry
-                                            #     if i in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
-                                            #         NakedSwordMovieIE._MOVIES[_url_movie]['nok'].remove(i)
-                                            # else:
-                                            #     raise ReExtractInfo(_error)
-                                            raise
-                                        except ReExtractInfo:
-                                            self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: NOK, will try in common HAR")
-                                            _raise_reextract.append(i)
-                                            if i not in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
-                                                NakedSwordMovieIE._MOVIES[_url_movie]['nok'].append(i)
-                                            NakedSwordMovieIE._MOVIES[_url_movie]['final'] = False
+                                        self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: NOK, will try in common HAR")
+                                        _raise_reextract.append(i)
+                                        if i not in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
+                                            NakedSwordMovieIE._MOVIES[_url_movie]['nok'].append(i)
+                                        NakedSwordMovieIE._MOVIES[_url_movie]['final'] = False
                                 else:
                                     if i not in NakedSwordMovieIE._MOVIES[_url_movie]['har']:
                                         NakedSwordMovieIE._MOVIES[_url_movie]['har'].append(i)
