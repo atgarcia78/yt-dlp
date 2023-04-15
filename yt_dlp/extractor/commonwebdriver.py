@@ -10,7 +10,7 @@ from threading import Event, Lock
 import functools
 from urllib.parse import unquote, urlparse
 import subprocess
-import os.path
+import os
 
 from backoff import constant, on_exception
 from httpx import (
@@ -837,84 +837,87 @@ class SeleniumInfoExtractor(InfoExtractor):
         except StatusStop:
             raise
 
+    @classmethod
+    @dec_retry
+    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
+
+        if not temp_prof_dir:
+            tempdir = tempfile.mkdtemp(prefix='asyncall-')
+            shutil.rmtree(tempdir, ignore_errors=True)
+            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)
+            if res != tempdir:
+                raise ExtractorError("error when creating profile folder")
+        else:
+            tempdir = temp_prof_dir
+
+        opts = FirefoxOptions()
+
+        if not noheadless:
+            opts.add_argument("--headless")
+
+        # opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-application-cache")
+        # opts.add_argument("--disable-gpu")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--profile")
+        opts.add_argument(tempdir)
+
+        if devtools:
+            opts.add_argument("--devtools")
+            opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
+            opts.set_preference("devtools.netmonitor.persistlog", False)
+            opts.set_preference("devtools.debugger.skip-pausing", True)
+
+        if host and port:
+            opts.set_preference("network.proxy.type", 1)
+            opts.set_preference("network.proxy.http", host)
+            opts.set_preference("network.proxy.http_port", int(port))
+            opts.set_preference("network.proxy.https", host)
+            opts.set_preference("network.proxy.https_port", int(port))
+            opts.set_preference("network.proxy.ssl", host)
+            opts.set_preference("network.proxy.ssl_port", int(port))
+            opts.set_preference("network.proxy.ftp", host)
+            opts.set_preference("network.proxy.ftp_port", int(port))
+            opts.set_preference("network.proxy.socks", host)
+            opts.set_preference("network.proxy.socks_port", int(port))
+
+        else:
+            opts.set_preference("network.proxy.type", 0)
+
+        opts.set_preference("dom.webdriver.enabled", False)
+        opts.set_preference("useAutomationExtension", False)
+        opts.set_preference("fission.webContentIsolationStrategy", 0)
+        opts.set_preference("fission.bfcacheInParent", False)
+
+        opts.page_load_strategy = 'eager'  # type: ignore
+
+        serv = Service(log_path='/Users/antoniotorres/Projects/common/logs/geckodriver.log')  # type: ignore
+
+        def return_driver():
+            _driver = None
+            try:
+                _driver = Firefox(service=serv, options=opts)  # type: ignore
+                _driver.maximize_window()
+                #  self.wait_until(_driver, timeout=1)
+                _driver.set_script_timeout(20)
+                _driver.set_page_load_timeout(25)
+                return _driver
+            except Exception as e:
+                logger = logging.getLogger(cls.IE_NAME)
+                logger.exception(f'Firefox fails starting - {str(e)}')
+                if _driver:
+                    _driver.quit()
+
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            driver = return_driver()
+
+        if not driver:
+            shutil.rmtree(tempdir, ignore_errors=True)
+            raise ExtractorError("firefox failed init")
+
+        return (driver, opts)
+
     def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
-
-        @dec_retry
-        def _get_driver(noheadless, devtools, host, port, temp_prof_dir):
-
-            if not temp_prof_dir:
-                tempdir = tempfile.mkdtemp(prefix='asyncall-')
-                shutil.rmtree(tempdir, ignore_errors=True)
-                res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)
-                if res != tempdir:
-                    raise ExtractorError("error when creating profile folder")
-            else:
-                tempdir = temp_prof_dir
-
-            opts = FirefoxOptions()
-
-            if not noheadless:
-                opts.add_argument("--headless")
-
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-application-cache")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--profile")
-            opts.add_argument(tempdir)
-
-            if devtools:
-                opts.add_argument("--devtools")
-                opts.set_preference("devtools.toolbox.selectedTool", "netmonitor")
-                opts.set_preference("devtools.netmonitor.persistlog", False)
-                opts.set_preference("devtools.debugger.skip-pausing", True)
-
-            if host and port:
-                opts.set_preference("network.proxy.type", 1)
-                opts.set_preference("network.proxy.http", host)
-                opts.set_preference("network.proxy.http_port", int(port))
-                opts.set_preference("network.proxy.https", host)
-                opts.set_preference("network.proxy.https_port", int(port))
-                opts.set_preference("network.proxy.ssl", host)
-                opts.set_preference("network.proxy.ssl_port", int(port))
-                opts.set_preference("network.proxy.ftp", host)
-                opts.set_preference("network.proxy.ftp_port", int(port))
-                opts.set_preference("network.proxy.socks", host)
-                opts.set_preference("network.proxy.socks_port", int(port))
-
-            else:
-                opts.set_preference("network.proxy.type", 0)
-
-            opts.set_preference("dom.webdriver.enabled", False)
-            opts.set_preference("useAutomationExtension", False)
-
-            opts.page_load_strategy = 'eager'  # type: ignore
-
-            serv = Service(log_path="/dev/null")  # type: ignore
-
-            def return_driver():
-                _driver = None
-                try:
-                    _driver = Firefox(service=serv, options=opts)  # type: ignore
-                    _driver.maximize_window()
-                    #  self.wait_until(_driver, timeout=1)
-                    _driver.set_script_timeout(20)
-                    _driver.set_page_load_timeout(25)
-                    return _driver
-                except Exception as e:
-                    logger = logging.getLogger(self.IE_NAME)
-                    logger.exception(f'Firefox fails starting - {str(e)}')
-                    if _driver:
-                        _driver.quit()
-
-            with SeleniumInfoExtractor._MASTER_LOCK:
-                driver = return_driver()
-
-            if not driver:
-                shutil.rmtree(tempdir, ignore_errors=True)
-                raise ExtractorError("firefox failed init")
-
-            return driver
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
         if not host and _proxy and isinstance(_proxy, str):
@@ -923,7 +926,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             _host, _port = host, port
 
-        return _get_driver(noheadless, devtools, _host, _port, temp_prof_dir)
+        driver, _ = SeleniumInfoExtractor._get_driver(noheadless=noheadless, devtools=devtools, host=_host, port=_port, temp_prof_dir=temp_prof_dir)
+        return driver
 
     @classmethod
     def rm_driver(cls, driver):
