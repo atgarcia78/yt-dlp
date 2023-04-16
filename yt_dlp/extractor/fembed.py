@@ -17,14 +17,17 @@ class FembedIE(SeleniumInfoExtractor):
     @dec_on_exception3
     @dec_on_exception2
     @limiter_0_1.ratelimit("fembed", delay=True)
-    def _get_video_info(self, url, headers):
+    def _get_video_info(self, url, **kwargs):
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
-                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        _headers = kwargs.get('headers', {})
+        headers = {
+            'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'}
+        headers.update(_headers)
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -99,7 +102,7 @@ class FembedIE(SeleniumInfoExtractor):
                     'ext': 'mp4'
                 }
                 if check:
-                    _info_video = self._get_video_info(_videourl, _headers)
+                    _info_video = self._get_video_info(_videourl, headers=_headers)
                     if _info_video:
                         _f.update({'url': _info_video['url'], 'filesize': _info_video['filesize']})
                         _formats.append(_f)
@@ -131,7 +134,7 @@ class FembedIE(SeleniumInfoExtractor):
                         'ext': 'mp4'
                     }
                     if check:
-                        _info_video = self._get_video_info(_videourl, _headers)
+                        _info_video = self._get_video_info(_videourl, headers=_headers)
                         if _info_video:
                             _f.update({'url': _info_video['url'], 'filesize': _info_video['filesize']})
                             _formats.append(_f)

@@ -35,11 +35,12 @@ class EPlayVidIE(SeleniumInfoExtractor):
 
         pre = '[get_video_info]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
-        _headers = {'Range': 'bytes=0-', 'Referer': 'https://eplayvid.net/',
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
-                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers = {
+            'Range': 'bytes=0-', 'Referer': 'https://eplayvid.net/',
+            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+            'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
             # return self.get_info_for_format(url, headers={'Referer': 'https://eplayvid.net/'})
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")

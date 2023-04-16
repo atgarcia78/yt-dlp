@@ -49,11 +49,12 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     def _get_info_for_format(self, url, **kwargs):
 
         _headers = kwargs.get('headers', {})
-        _headers.update({'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers.update(_headers)
         self.logger_debug(f"[get_video_info] {url}")
 
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
             self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             return {"error_res": f"{repr(e)}"}
@@ -265,7 +266,8 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
     def _get_last_page(self, webpage):
         last_page_url = try_get(re.findall(r'class="rightKey" href="([^"]+)"', webpage), lambda x: x[-1] if x else "")
 
-        assert last_page_url
+        if not last_page_url:
+            return 1
 
         last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
         return last_page

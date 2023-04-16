@@ -16,13 +16,15 @@ class GayForFansIE(SeleniumInfoExtractor):
 
     @dec_on_exception
     @limiter_5.ratelimit("gayforfans", delay=True)
-    def _get_video_info(self, url, headers=None, msg=None):
+    def _get_video_info(self, url, **kwargs):
 
         pre = '[get_video_info]'
-        if msg:
+        if (msg := kwargs.get('msg')):
             pre = f'{msg}[get_video_info]'
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
-        _headers = {
+
+        _headers = kwargs.get('headers', {})
+        headers = {
             'Range': 'bytes=0-',
             'Referer': self._SITE_URL,
             'Sec-Fetch-Dest': 'video',
@@ -30,7 +32,9 @@ class GayForFansIE(SeleniumInfoExtractor):
             'Sec-Fetch-Site': 'same-site',
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache'}
-        return self.get_info_for_format(url, headers=_headers)
+        headers.update(_headers)
+
+        return self.get_info_for_format(url, headers=headers)
 
     @dec_on_exception
     @limiter_5.ratelimit("gayforfans", delay=True)

@@ -6,6 +6,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     SeleniumInfoExtractor,
     dec_on_exception3,
+    dec_on_exception2,
     limiter_1,
 )
 from ..utils import (
@@ -22,10 +23,9 @@ class StreamHideIE(SeleniumInfoExtractor):
 
     IE_NAME = "streamhide"  # type: ignore
     _DOMAINS = r'(?:guccihide\.com)'
-    _SITE_URL = "https://filemoon.sx/"
-    _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/(?:d|e)/(?P<id>[\dA-Za-z]+)''' % _DOMAINS
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1']
+    _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/(?:d|w|e)/(?P<id>[\dA-Za-z]+)''' % _DOMAINS
 
+    @dec_on_exception2
     @dec_on_exception3
     def _send_request(self, url, **kwargs):
 
@@ -74,9 +74,16 @@ class StreamHideIE(SeleniumInfoExtractor):
         for _format in formats:
             _format.update({'http_headers': _headers})
 
-        _vurl = f"https://{dom}/d/{videoid}"
+        _vurl = f"https://{dom}/w/{videoid}"
         webpage = try_get(self._send_request(_vurl), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
-        title = try_get(try_call(lambda: get_element_text_and_html_by_tag('h4', webpage)[0]), lambda x: re.sub(r'(\s+)?download(\s+)?|\.mp4|\.mkv', '', x, flags=re.IGNORECASE).strip())
+        if not webpage:
+            _vurl = f"https://{dom}/d/{videoid}"
+            webpage = try_get(self._send_request(_vurl), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+            if not webpage:
+                raise ExtractorError("no webpage d/w")
+            title = try_get(try_call(lambda: get_element_text_and_html_by_tag('h4', webpage)[0]), lambda x: re.sub(r'(\s+)?download(\s+)?|\.mp4|\.mkv', '', x, flags=re.IGNORECASE).strip())
+        else:
+            title = try_get(try_call(lambda: get_element_text_and_html_by_tag('h1', webpage)[0]), lambda x: re.sub(r'(\s+)?download(\s+)?|\.mp4|\.mkv', '', x, flags=re.IGNORECASE).strip())
 
         return ({
             "id": videoid,

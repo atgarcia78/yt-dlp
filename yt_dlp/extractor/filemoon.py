@@ -11,7 +11,7 @@ from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_excepti
 
 class FilemoonIE(SeleniumInfoExtractor):
 
-    IE_NAME = "filemoon"
+    IE_NAME = "filemoon"  # type: ignore
     _SITE_URL = "https://filemoon.sx/"
     _VALID_URL = r'https?://filemoon\.\w\w/[e,d]/(?P<id>[^\/$]+)(?:\/|$)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1']
@@ -53,14 +53,13 @@ class FilemoonIE(SeleniumInfoExtractor):
         if not webpage:
             raise ExtractorError("no webpage")
 
-        packed = self._search_regex(r'<script data-cfasync=[^>]+>eval\((.+)\)</script>', webpage, 'packed code')
-        if not packed:
-            raise ExtractorError("couldnt find js function")
-
         try:
-            unpacked = decode_packed_codes(packed)
+            unpacked = decode_packed_codes(webpage)
 
             m3u8_url = try_get(re.search(r'file:"(?P<url>[^"]+)"', unpacked), lambda x: x.group('url'))
+
+            if not m3u8_url:
+                raise ExtractorError("couldnt find m3u8 url")
 
         except Exception:
             self.logger_debug("Change to node")
@@ -83,16 +82,14 @@ class FilemoonIE(SeleniumInfoExtractor):
 
             m3u8_url = traverse_obj(options, ('sources', 0, 'file'))
 
-        if not m3u8_url:
-            raise ExtractorError("couldnt find m3u8 url")
+            if not m3u8_url:
+                raise ExtractorError("couldnt find m3u8 url")
 
         _headers = {'Referer': self._SITE_URL, 'Origin': self._SITE_URL.strip("/")}
 
         formats = self._extract_m3u8_formats(m3u8_url, videoid, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls", headers=_headers)
 
-        if formats:
-            self._sort_formats(formats)
-        else:
+        if not formats:
             raise ExtractorError(f"[{url}] Couldnt find any video format")
 
         for _format in formats:
