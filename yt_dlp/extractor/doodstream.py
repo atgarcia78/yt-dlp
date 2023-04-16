@@ -6,8 +6,15 @@ import string
 import time
 import html
 import re
+import json
 
-from ..utils import sanitize_filename, try_get, get_domain
+from ..utils import (
+    sanitize_filename,
+    try_get,
+    get_domain,
+    sanitize_url,
+    js_to_json)
+
 from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError, limiter_0_1
 
 
@@ -64,11 +71,13 @@ class DoodStreamIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
 
         _headers = kwargs.get('headers', {})
-        _headers.update({'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+
+        headers.update(_headers)
 
         with limiter_1.ratelimit("doodstream", delay=True):
             try:
-                return self.get_info_for_format(url, headers=_headers)
+                return self.get_info_for_format(url, headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 self.report_warning(f"{pre}: error - {repr(e)}")
 
@@ -175,10 +184,32 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 else:
                     raise ExtractorError(f"error filesize[{_videoinfo['filesize']}] < 20 bytes")
 
+            _subtitles = {}
+            list_subts = [subt for subt in [
+                json.loads(js_to_json(el)) for el in re.findall(r'addRemoteTextTrack\((\{[^\}]+\})', webpage)]
+                if subt.get('label', '').lower() in ('spanish', 'english')]
+
+            if list_subts:
+
+                def _get_info_subt(subt):
+                    _cc_lang = {'spanish': 'es', 'english': 'en'}
+                    if subt:
+                        ext = subt.get('src').rsplit('.', 1)[-1]
+                        lang = _cc_lang.get(subt.get('label').lower())
+                        if lang:
+                            return {'lang': lang, 'ext': ext, 'url': sanitize_url(subt.get('src'), scheme='https')}
+
+                for _subt in list_subts:
+                    _subtinfo = _get_info_subt(_subt)
+                    if not _subtinfo:
+                        continue
+                    _subtitles.setdefault(_subtinfo.get('lang'), []).append({'url': _subtinfo.get('url'), 'ext': _subtinfo.get('ext')})
+
             _entry = {
                 'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip().strip('-'), restricted=True),
+                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_'), restricted=True),
                 'formats': [_format],
+                'subtitles': _subtitles,
                 'ext': 'mp4',
                 'extractor_key': 'DoodStream',
                 'extractor': 'doodstream',

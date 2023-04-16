@@ -18,15 +18,15 @@ class ThisvidgayIE(SeleniumInfoExtractor):
     @limiter_5.ratelimit("thisvidgay2", delay=True)
     def _get_video_info(self, url, **kwargs):
 
-        headers = kwargs.get('headers', {})
+        _headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-',
+        headers = {'Range': 'bytes=0-',
                     'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-        _headers.update(headers)
+        headers.update(_headers)
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 

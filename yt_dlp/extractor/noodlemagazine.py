@@ -37,13 +37,16 @@ class NoodleMagazineIE(SeleniumInfoExtractor):
     def _get_info_for_format(self, url, **kwargs):
 
         _headers = kwargs.get('headers', {})
-        _headers.update({'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
-                         'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
-                         'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        headers = {
+            'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'}
+        headers.update(_headers)
+
         self.logger_debug(f"[get_video_info] {url}")
 
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             return {"error_res": f"{repr(e)}"}

@@ -944,7 +944,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def get_har_logs(self, key, videoid, msg=None):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
         if not os.path.exists(folder):
-            os.mkdir(folder)
+            os.makedirs(folder, exist_ok=True)
         har_file = f"{folder}/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
         return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg)
 

@@ -59,17 +59,18 @@ class StreamSBIE(SeleniumInfoExtractor):
         pre = f'[get_video_info][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
-        _headers = kwargs.get('headers', {})
 
-        _headers = {'Range': 'bytes=0-', 'Referer': _headers.get('Referer'),
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
-                    'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
-                    'Cache-Control': 'no-cache'}
+        _headers = kwargs.get('headers', {})
+        headers = {
+            'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'}
+        headers.update(_headers)
 
         with limiter_1.ratelimit(self.IE_NAME, delay=True):
             try:
                 self.logger_debug(pre)
-                return self.get_info_for_format(url, headers=_headers)
+                return self.get_info_for_format(url, headers=headers)
             except (HTTPStatusError, ConnectError) as e:
                 _msg_error = f"{repr(e)}"
                 self.logger_debug(f"{pre}: {_msg_error}")
@@ -139,8 +140,9 @@ class StreamSBIE(SeleniumInfoExtractor):
                 lambda x: (x.get('url'), x.get('content')) if x else (None, None))
 
             _formats = []
+            _subtitles = {}
             if m3u8_doc and m3u8_url:
-                _formats, _ = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
             if not _formats:
                 raise ExtractorError('Couldnt get video formats')
@@ -152,11 +154,30 @@ class StreamSBIE(SeleniumInfoExtractor):
                     _format.update({'http_headers': _headers})
 
             _title = traverse_obj(self.scan_for_json(r'/sources.+$', har=_har_file), ('stream_data', 'title'))
+            if not _subtitles:
+                list_subt_urls = try_get(
+                    self.scan_for_request(r"\.(?:srt|vtt)$", har=_har_file, _all=True),  # type: ignore
+                    lambda x: [el.get('url') for el in x] if x else [])
+                if list_subt_urls:
+                    def _get_info_subt(subturl):
+                        _cc_lang = {'spanish': 'es', 'english': 'en'}
+                        if subturl:
+                            ext = subturl.rsplit('.', 1)[-1]
+                            lang = _cc_lang.get(try_call(lambda: subturl.rsplit('.', 1)[0].rsplit('_', 1)[-1].lower()) or 'dummy')
+                            if lang:
+                                return {'lang': lang, 'ext': ext}
+
+                    for _url_subt in list_subt_urls:
+                        _subt = _get_info_subt(_url_subt)
+                        if not _subt:
+                            continue
+                        _subtitles.setdefault(_subt.get('lang'), []).append({'url': _url_subt, 'ext': _subt.get('ext')})
 
             _entry = {
                 'id': videoid,
                 'title': sanitize_filename(_title, restricted=True),
                 'formats': _formats,
+                'subtitles': _subtitles,
                 'ext': 'mp4',
                 'extractor_key': 'StreamSB',
                 'extractor': 'streamsb',
@@ -165,7 +186,7 @@ class StreamSBIE(SeleniumInfoExtractor):
             return _entry
 
         except Exception as e:
-            self.report_warning(f"{pre} {repr(e)}")
+            logger.exception(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
 
     def _old_get_entry(self, url, **kwargs):

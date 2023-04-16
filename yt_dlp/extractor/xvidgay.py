@@ -115,11 +115,12 @@ class XvidgayIE(SeleniumInfoExtractor):
     def _get_video_info(self, url):
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
-                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers = {
+            'Range': 'bytes=0-', 'Referer': self._SITE_URL,
+            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+            'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -134,11 +135,13 @@ class XvidgayIE(SeleniumInfoExtractor):
         check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
 
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if msg:
+            pre = f'{msg}{pre}'
+
+        driver = self.get_driver()
+
         try:
-            pre = f'[get_entry][{self._get_url_print(url)}]'
-            if msg:
-                pre = f'{msg}{pre}'
-            driver = self.get_driver()
 
             self._send_request(url, driver)
 
@@ -163,6 +166,7 @@ class XvidgayIE(SeleniumInfoExtractor):
                 if not _videoinfo:
                     raise ExtractorError("error 404: no video info")
                 else:
+                    assert isinstance(_videoinfo, dict)
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
             return ({
@@ -176,8 +180,6 @@ class XvidgayIE(SeleniumInfoExtractor):
             })
 
         except Exception:
-            # lines = traceback.format_exception(*sys.exc_info())
-            # self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise
         finally:
             self.rm_driver(driver)

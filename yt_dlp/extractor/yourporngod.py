@@ -12,14 +12,15 @@ class BaseKVSIE(SeleniumInfoExtractor):
     @limiter_1.ratelimit("basekvs", delay=True)
     def _get_video_info(self, url, **kwargs):
 
-        headers = kwargs.get('headers', None)
+        _headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': headers['Referer'],
+        headers = {'Range': 'bytes=0-',
                     'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers.update(_headers)
         try:
-            return self.get_info_for_format(url, headers=_headers)
+            return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
             self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
@@ -106,6 +107,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
 
             _videoinfo = self._get_video_info(_videourl, headers=_headers)
             if _videoinfo:
+                assert isinstance(_videoinfo, dict)
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
                 if not _format.get('height'):
                     _format['quality'] = 1
