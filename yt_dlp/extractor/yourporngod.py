@@ -15,9 +15,10 @@ class BaseKVSIE(SeleniumInfoExtractor):
         _headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        headers = {'Range': 'bytes=0-',
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
-                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers = {
+            'Range': 'bytes=0-',
+            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+            'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         headers.update(_headers)
         try:
             return self.get_info_for_format(url, headers=headers)
@@ -54,7 +55,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
 
         _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), html.unescape(x.text)) if x else (None, None)) or (None, None)
 
-        if not webpage or "/404.php" in _urlh or any(_ in webpage.lower() for _ in ("this video is a private video", "404 / page not found")):
+        if not webpage or _urlh and "/404.php" in _urlh or any(_ in webpage.lower() for _ in ("this video is a private video", "404 / page not found")):
             raise ExtractorError("404 webpage not found")
 
         display_id = self._search_regex(
@@ -75,7 +76,9 @@ class BaseKVSIE(SeleniumInfoExtractor):
             raise ExtractorError("404 video not found")
 
         _title = self._html_search_regex((r'<h1>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
-        title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME), '', _title).strip('[,-_ ').lower()
+        assert isinstance(_title, str)
+        title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME),
+                       '', _title).strip('[,-_ ').lower()
 
         if not videoid:
             videoid = flashvars.get('video_id')
@@ -152,54 +155,54 @@ class BaseKVSIE(SeleniumInfoExtractor):
 
 
 class TwinkVideosIE(BaseKVSIE):
-    IE_NAME = 'twinkvideos'
+    IE_NAME = 'twinkvideos'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?twinkvideos\.com/videos/(?P<id>\d+)'
     _SITE_URL = 'https://twinkvideos.com'
 
 
 class YourPornGodIE(BaseKVSIE):
 
-    IE_NAME = 'yourporngod'
+    IE_NAME = 'yourporngod'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?yourporngod\.com/(?:embed|videos)/(?P<id>\d+)'
     _SITE_URL = 'https://yourporngod.com'
 
 
 class OnlyGayVideoIE(BaseKVSIE):
-    IE_NAME = 'onlygayvideo'
+    IE_NAME = 'onlygayvideo'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?onlygayvideo\.com/(?:embed|videos)/(?P<id>\d+)'
     _SITE_URL = 'https://onlygayvideo.com'
 
 
 class EbembedIE(BaseKVSIE):
-    IE_NAME = 'ebembed'
+    IE_NAME = 'ebembed'  # type: ignore
     _VALID_URL = r'https?://(www\.)?ebembed\.com/(?:videos|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://ebembed.com'
 
 
 class Gay0DayIE(BaseKVSIE):
 
-    IE_NAME = 'gay0day'
+    IE_NAME = 'gay0day'  # type: ignore
     _VALID_URL = r'https?://(www\.)?gay0day\.com/(.+/)?(?:videos|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://gay0day.com'
 
 
 class PornHatIE(BaseKVSIE):
 
-    IE_NAME = 'pornhat'
+    IE_NAME = 'pornhat'  # type: ignore
     _VALID_URL = r'https?://(www\.)?pornhat\.com/(?:video|embed)/.+'
     _SITE_URL = 'https://pornhat.com'
 
 
 class HomoXXXIE(BaseKVSIE):
 
-    IE_NAME = 'homoxxx'
+    IE_NAME = 'homoxxx'  # type: ignore
     _VALID_URL = r'https?://(www\.)?homo\.xxx/(?:videos|embed)/(?P<id>\d+)'
     _SITE_URL = 'https://homo.xxx'
 
 
 class ThisVidIE(BaseKVSIE):
 
-    IE_NAME = 'thisvid'
+    IE_NAME = 'thisvid'  # type: ignore
     _VALID_URL = r'https?://(?:[^\.]+\.)?thisvid\.com/(?:(embed/(?P<id>\d+))|(videos/.*))'
     _SITE_URL = 'https://thisvid.com/'
     _EMBED_REGEX = [r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:[^\.]+\.)?thisvid\.com/embed/(?P<id>\d+))\1']
