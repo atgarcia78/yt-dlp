@@ -21,9 +21,10 @@ class ThisvidgayIE(SeleniumInfoExtractor):
         _headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        headers = {'Range': 'bytes=0-',
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
-                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers = {
+            'Range': 'bytes=0-',
+            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+            'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         headers.update(_headers)
         try:
             return self.get_info_for_format(url, headers=headers)
