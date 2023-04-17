@@ -917,6 +917,11 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                 _entry.pop('_index_scene', None)
                 _entry.update({'formats': formats})
                 self.logger_info(f"{premsg}: OK got entr")
+                try:
+                    _entry.update({'duration': self._extract_m3u8_vod_duration(formats[0]['url'], str(scene_id), headers=NakedSwordBaseIE._HEADERS["MPD"])})
+                except Exception as e:
+                    self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
+
                 return _entry
 
             else:
@@ -930,6 +935,10 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                     _entry.pop('_index_scene', None)
                     _entry.update({'formats': formats})
                     self.logger_info(f"{premsg}: OK got formats by HAR")
+                    try:
+                        _entry.update({'duration': self._extract_m3u8_vod_duration(formats[0]['url'], str(scene_id), headers=NakedSwordBaseIE._HEADERS["MPD"])})
+                    except Exception as e:
+                        self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
                     return _entry
                 else:
                     raise ReExtractInfo(_error)
@@ -1104,6 +1113,10 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                             NakedSwordMovieIE._MOVIES[_url_movie]['entries'][i] = _entry
                                             if i in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
                                                 NakedSwordMovieIE._MOVIES[_url_movie]['nok'].remove(i)
+                                            try:
+                                                _entry.update({'duration': self._extract_m3u8_vod_duration(formats[0]['url'], str(scene_id), headers=NakedSwordBaseIE._HEADERS["MPD"])})
+                                            except Exception as e:
+                                                self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
 
                                     except ReExtractInfo:
                                         self.logger_info(f"{premsg}[{i}][{_info.get('url')}]: NOK, will try in common HAR")
@@ -1138,6 +1151,10 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                     self.logger_info(f"{premsg}[{_index_scene}][{NakedSwordMovieIE._MOVIES[_url_movie]['entries'][_index_scene].get('webpage_url')}]: OK got entry by HAR")
                                     NakedSwordMovieIE._MOVIES[_url_movie]['ok'].append(_index_scene)
                                     NakedSwordMovieIE._MOVIES[_url_movie]['entries'][_index_scene].pop('_index_scene', None)
+                                    try:
+                                        NakedSwordMovieIE._MOVIES[_url_movie]['entries'][_index_scene].update({'duration': self._extract_m3u8_vod_duration(formats[0]['url'], NakedSwordMovieIE._MOVIES[_url_movie]['entries'][_index_scene].get('id'), headers=NakedSwordBaseIE._HEADERS["MPD"])})
+                                    except Exception as e:
+                                        self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
                                     if _index_scene in NakedSwordMovieIE._MOVIES[_url_movie]['nok']:
                                         NakedSwordMovieIE._MOVIES[_url_movie]['nok'].remove(_index_scene)
                                     if _index_scene in NakedSwordMovieIE._MOVIES[_url_movie]['har']:

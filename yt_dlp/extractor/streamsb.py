@@ -183,6 +183,11 @@ class StreamSBIE(SeleniumInfoExtractor):
                 'extractor': 'streamsb',
                 'webpage_url': url}
 
+            try:
+                _entry.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0].get('http_headers', {}))})
+            except Exception as e:
+                self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
+
             return _entry
 
         except Exception as e:
