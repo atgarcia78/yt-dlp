@@ -97,12 +97,19 @@ class FilemoonIE(SeleniumInfoExtractor):
 
         title = self._html_extract_title(webpage)
 
-        return ({
+        _entry = {
             "id": videoid,
             "title": sanitize_filename(title, restricted=True).replace("Watch_", ""),
             "formats": formats,
             "webpage_url": _wurl,
-            "ext": "mp4"})
+            "ext": "mp4"}
+
+        try:
+            _entry.update({'duration': self._extract_m3u8_vod_duration(formats[0]['url'], videoid, headers=formats[0].get('http_headers', {}))})
+        except Exception as e:
+            self.logger_info(f"error trying to get vod {repr(e)}")
+
+        return _entry
 
     def _real_extract(self, url):
 
