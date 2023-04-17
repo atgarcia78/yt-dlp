@@ -147,8 +147,14 @@ map_limiter = {
 
 
 def load_config_extractors():
-    with open('/Users/antoniotorres/Projects/async_downloader/config_extractors.json', 'r') as f:
-        data = json.loads(f.read())
+    try:
+
+        with open('/Users/antoniotorres/Projects/async_downloader/config_extractors.json', 'r') as f:
+            data = json.loads(f.read())
+
+    except Exception:
+        print("ERROR LOADING CONFIG EXTRACTORS FILE")
+        data = json.loads('''{"userload#evoload": {"ratelimit": 5, "maxsplits": 4}, "doodstream#vidoza": {"ratelimit": 1, "maxsplits": 5}, "highload#tubeload#embedo#thisvidgay#redload#biguz#gaytubes": {"ratelimit": 0.1, "maxsplits": 4}, "boyfriendtv#nakedswordscene": {"ratelimit": 0.1, "maxsplits": 16}, "hungyoungbrit": {"ratelimit": 5, "maxsplits": 16}, "videovard#fembed#streamtape#gaypornvideos#gayforfans#gayguytop#upstream#videobin#gayforiteu#xvidgay": {"ratelimit": 1, "maxsplits": 16}, "onlyfans:post:playlist#odnoklassniki#thisvid#gaystreamembed#pornhat#yourporngod#ebembed#gay0day#onlygayvideo#txxx#thegay#homoxxx#youporn#gaygo#youporngay#streamsb#hexupload#pornone": {"ratelimit": 1, "maxsplits": 16}}''')
 
     return {
         tuple(key.split('#')): {
@@ -157,9 +163,6 @@ def load_config_extractors():
         }
         for key, value in data.items()
     }
-
-
-CONFIG_EXTRACTORS = load_config_extractors()
 
 # CONFIG_EXTRACTORS = {
 #     ('userload', 'evoload',): {
@@ -200,6 +203,9 @@ CONFIG_EXTRACTORS = load_config_extractors()
 #         'ratelimit': limiter_1,
 #         'maxsplits': 16}
 # }
+
+
+CONFIG_EXTRACTORS = load_config_extractors()
 
 
 def getter(x):
