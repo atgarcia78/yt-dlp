@@ -141,46 +141,65 @@ dec_on_reextract = on_exception(
 retry_on_driver_except = on_exception(
     constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
 
+map_limiter = {
+    15: limiter_15, 10: limiter_10, 5: limiter_5, 2: limiter_2, 1: limiter_1,
+    0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, -1: limiter_non}
 
-CONFIG_EXTRACTORS = {
-    ('userload', 'evoload',): {
-        'ratelimit': limiter_5,
-        'maxsplits': 4},
-    ('doodstream', 'vidoza',): {
-        'ratelimit': limiter_1,
-        'maxsplits': 5},
-    ('highload', 'tubeload', 'embedo',
-                 'thisvidgay', 'redload',
-     'biguz', 'gaytubes',): {
-        'ratelimit': limiter_0_1,
-        'maxsplits': 4},
-    ('boyfriendtv', 'nakedswordscene',): {
-        'ratelimit': limiter_0_1,
-        'maxsplits': 16},
-    ('nakedswordscene',): {
-        'ratelimit': limiter_0_1,
-        'maxsplits': 16},
-    ('hungyoungbrit',): {
-        'ratelimit': limiter_5,
-        'maxsplits': 16},
-    ('videovard', 'fembed', 'streamtape',
-     'gaypornvideos', 'gayforfans',
-     'gayguytop', 'upstream', 'videobin',
-     'gayforiteu', 'xvidgay',): {
-        'ratelimit': limiter_1,
-        'maxsplits': 16},
-    ('onlyfans:post:playlist',
-     'odnoklassniki', 'thisvid',
-     'gaystreamembed', 'pornhat',
-     'yourporngod', 'ebembed',
-     'gay0day', 'onlygayvideo',
-     'txxx', 'thegay', 'homoxxx',
-     'youporn', 'gaygo',
-     'youporngay', 'streamsb',
-     'hexupload', 'pornone',): {
-        'ratelimit': limiter_1,
-        'maxsplits': 16}
-}
+
+def load_config_extractors():
+    with open('/Users/antoniotorres/Projects/async_downloader/config_extractors.json', 'r') as f:
+        data = json.loads(f.read())
+
+    return {
+        tuple(key.split('#')): {
+            'ratelimit': map_limiter[value.get('ratelimit', 1)],
+            'maxsplits': value.get('maxsplits', 16)
+        }
+        for key, value in data.items()
+    }
+
+
+CONFIG_EXTRACTORS = load_config_extractors()
+
+# CONFIG_EXTRACTORS = {
+#     ('userload', 'evoload',): {
+#         'ratelimit': limiter_5,
+#         'maxsplits': 4},
+#     ('doodstream', 'vidoza',): {
+#         'ratelimit': limiter_1,
+#         'maxsplits': 5},
+#     ('highload', 'tubeload', 'embedo',
+#                  'thisvidgay', 'redload',
+#      'biguz', 'gaytubes',): {
+#         'ratelimit': limiter_0_1,
+#         'maxsplits': 4},
+#     ('boyfriendtv', 'nakedswordscene',): {
+#         'ratelimit': limiter_0_1,
+#         'maxsplits': 16},
+#     ('nakedswordscene',): {
+#         'ratelimit': limiter_0_1,
+#         'maxsplits': 16},
+#     ('hungyoungbrit',): {
+#         'ratelimit': limiter_5,
+#         'maxsplits': 16},
+#     ('videovard', 'fembed', 'streamtape',
+#      'gaypornvideos', 'gayforfans',
+#      'gayguytop', 'upstream', 'videobin',
+#      'gayforiteu', 'xvidgay',): {
+#         'ratelimit': limiter_1,
+#         'maxsplits': 16},
+#     ('onlyfans:post:playlist',
+#      'odnoklassniki', 'thisvid',
+#      'gaystreamembed', 'pornhat',
+#      'yourporngod', 'ebembed',
+#      'gay0day', 'onlygayvideo',
+#      'txxx', 'thegay', 'homoxxx',
+#      'youporn', 'gaygo',
+#      'youporngay', 'streamsb',
+#      'hexupload', 'pornone',): {
+#         'ratelimit': limiter_1,
+#         'maxsplits': 16}
+# }
 
 
 def getter(x):
@@ -298,8 +317,8 @@ class myHAR:
     @dec_retry_on_exception
     def get_har(cls, driver=None, har=None, _method="GET", _mimetype=None):
 
-        _res = None
-        if driver:
+        _res = []
+        if driver and not har:
             _res = try_get(
                 driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
                 lambda x: x.get('entries') if x else None)
@@ -339,6 +358,13 @@ class myHAR:
             return _res_filt
 
     @classmethod
+    def headers_from_entry(cls, entry):
+        return {
+            header['name']: header['value']
+            for header in traverse_obj(entry, ('request', 'headers'))  # type: ignore
+            if header['name'] != 'Host'}
+
+    @classmethod
     def scan_har_for_request(
             cls, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False, timeout=10, response=True,
             inclheaders=False, check_event=None):
@@ -351,37 +377,24 @@ class myHAR:
 
         _started = time.monotonic()
 
-        while True:
+        while (time.monotonic() - _started) < timeout:
 
             _newhar = myHAR.get_har(driver=driver, har=har, _method=_method, _mimetype=_mimetype)
-
             assert _newhar
-
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
             for entry in _har:
 
-                _url = cast(str, traverse_obj(entry, ('request', 'url')))
-                if not _url:
-                    continue
-
-                if not re.search(_valid_url, _url):
-                    continue
-
                 _hint = {}
-
+                _url = cast(str, traverse_obj(entry, ('request', 'url')))
+                if not _url or not re.search(_valid_url, _url):
+                    continue
+                _hint.update({'url': _url})
                 if inclheaders:
-
-                    _req_headers = {header['name']: header['value']
-                                    for header in traverse_obj(entry, ('request', 'headers'))  # type: ignore
-                                    if header['name'] != 'Host'}
-
-                    _hint = {'headers': _req_headers}
-
+                    _hint.update({'headers': cls.headers_from_entry(entry)})
                 if not response:
-                    _hint.update({'url': _url})  # type: ignore
                     if not _all:
-                        return (_hint)
+                        return _hint
                     else:
                         _list_hints.append(_hint)
                 else:
@@ -389,7 +402,6 @@ class myHAR:
                     _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
 
                     _hint.update({
-                        'url': _url,  # type: ignore
                         'content': _resp_content,
                         'status': int_or_none(_resp_status)})
 
@@ -404,32 +416,35 @@ class myHAR:
                     elif isinstance(check_event, Event):
                         if check_event.is_set():
                             raise StatusStop("stop event")
+            if har:
+                break
 
-            if _all and not _first and (len(_list_hints) == len(_list_hints_old)):
-                return (_list_hints)
-
-            if (time.monotonic() - _started) >= timeout:
-                if _all:
-                    return (_list_hints)
-                else:
-                    return
-            else:
-                if _all:
-                    _list_hints_old = _list_hints
-                    if _first:
-                        _first = False
-                        if not _list_hints:
-                            time.sleep(0.5)
-                        else:
-                            time.sleep(0.01)
-                    else:
-                        time.sleep(0.01)
-                else:
-                    if _first:
-                        _first = False
+            if _all:
+                if not _first and (len(_list_hints) == len(_list_hints_old)):
+                    return _list_hints
+                if _first:
+                    _first = False
+                    if not _list_hints:
                         time.sleep(0.5)
                     else:
                         time.sleep(0.01)
+                else:
+                    time.sleep(0.01)
+
+                _list_hints_old = _list_hints
+
+            else:
+                if _first:
+                    _first = False
+                    time.sleep(0.5)
+                else:
+                    time.sleep(0.01)
+
+        # timeout or har file
+        if _all:
+            return _list_hints
+        else:
+            return
 
     @classmethod
     def scan_har_for_json(
@@ -439,25 +454,23 @@ class myHAR:
             _link, driver=driver, har=har, _method=_method, _mimetype="json", _all=_all,
             timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
-        def func_getter(x):
-            _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
-            if inclheaders:
-                return (_info_json, x.get('headers'))
-            else:
-                return _info_json
-
-        if not _all:
-            return try_get(_hints, func_getter)
+        if not _hints:
+            return
 
         else:
-            if _hints:
-                _list_info_json = []
-                for el in _hints:
-                    _info_json = try_get(el, func_getter)
-                    if _info_json:
-                        _list_info_json.append(_info_json)
 
-                return _list_info_json
+            def func_getter(x):
+                _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
+                if inclheaders:
+                    return (_info_json, x.get('headers'))
+                else:
+                    return _info_json
+
+            if not _all:
+                return try_get(_hints, func_getter)
+
+            else:
+                return [_info_json for el in _hints if (_info_json := try_get(el, func_getter))]
 
     class getNetworkHAR:
 
@@ -839,7 +852,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classmethod
     @dec_retry
-    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
+    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None, verbose=False):
 
         if not temp_prof_dir:
             tempdir = tempfile.mkdtemp(prefix='asyncall-')
@@ -891,14 +904,16 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         opts.page_load_strategy = 'eager'  # type: ignore
 
-        serv = Service(log_path='/Users/antoniotorres/Projects/common/logs/geckodriver.log')  # type: ignore
+        _logs = {True: '/Users/antoniotorres/Projects/common/logs/geckodriver.log', False: '/dev/null'}
+
+        serv = Service(log_path=_logs[verbose])  # type: ignore
 
         def return_driver():
             _driver = None
             try:
                 _driver = Firefox(service=serv, options=opts)  # type: ignore
                 _driver.maximize_window()
-                #  self.wait_until(_driver, timeout=1)
+                time.sleep(2)
                 _driver.set_script_timeout(20)
                 _driver.set_page_load_timeout(25)
                 return _driver
@@ -906,7 +921,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 logger = logging.getLogger(cls.IE_NAME)
                 logger.exception(f'Firefox fails starting - {str(e)}')
                 if _driver:
-                    _driver.quit()
+                    cls.rm_driver(_driver)
 
         with SeleniumInfoExtractor._MASTER_LOCK:
             driver = return_driver()
@@ -917,7 +932,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return (driver, opts)
 
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None):
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None, verbose=False):
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
         if not host and _proxy and isinstance(_proxy, str):
@@ -926,7 +941,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             _host, _port = host, port
 
-        driver, _ = SeleniumInfoExtractor._get_driver(noheadless=noheadless, devtools=devtools, host=_host, port=_port, temp_prof_dir=temp_prof_dir)
+        driver, _ = SeleniumInfoExtractor._get_driver(
+            noheadless=noheadless, devtools=devtools, host=_host, port=_port, temp_prof_dir=temp_prof_dir, verbose=verbose)
+
         return driver
 
     @classmethod
