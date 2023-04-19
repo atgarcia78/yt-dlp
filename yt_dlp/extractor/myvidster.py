@@ -12,12 +12,13 @@ from ..utils import (
     sanitize_filename,
     try_get,
     get_domain)
+
 from .commonwebdriver import (
     ec,
     dec_on_exception2,
     dec_on_exception3,
     SeleniumInfoExtractor,
-    limiter_0_1,
+    limiter_0_5,
     HTTPStatusError,
     By,
     ConnectError,
@@ -48,7 +49,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_0_1.ratelimit("myvidster", delay=True)
+    @limiter_0_5.ratelimit("myvidster", delay=True)
     def _send_request(self, url, **kwargs):
 
         try:
@@ -59,7 +60,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_0_1.ratelimit("myvidster", delay=True)
+    @limiter_0_5.ratelimit("myvidster", delay=True)
     def _get_infovideo(self, url, **kwargs):
 
         try:
@@ -607,7 +608,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                                     'playlist_url': url})
                                 entries.append(_res)
                         except Exception as e:
-                            self.report_warning(f"[get_entries][{self._get_url_print(futures[fut])}] error - {str(e)}")
+                            self.logger_debug(f"[get_entries][{self._get_url_print(futures[fut])}] error - {str(e)}")
                             _id = iemv.get_temp_id(futures[fut])
                             entries.append({'original_url': futures[fut], 'playlist_url': url, 'error': str(e), 'formats': [], 'id': _id, 'title': _id, 'ie_key': 'MyVidster'})
 
@@ -885,7 +886,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                                 if _res:
                                     entries.append(_res)
                             except Exception as e:
-                                self.report_warning(f"[get_entries][{futures[fut]}] error - {repr(e)}")
+                                self.logger_debug(f"[get_entries][{futures[fut]}] error - {repr(e)}")
 
                     else:
                         entries = [{

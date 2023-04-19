@@ -132,7 +132,8 @@ class XVideosIE(InfoExtractor):
                 'url': video_url,
                 'format_id': 'flv',
             })
-
+        else:
+            raise ExtractorError('no video url')
         for kind, _, format_url in re.findall(
                 r'setVideo([^(]+)\((["\'])(http.+?)\2\)', webpage):
             format_id = kind.lower()

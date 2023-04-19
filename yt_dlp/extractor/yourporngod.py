@@ -1,8 +1,11 @@
 import html
 import re
 
-from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, parse_resolution
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError
+from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, parse_resolution, get_domain
+from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, ReExtractInfo, HTTPStatusError, ConnectError, my_dec_on_exception
+
+dec_on_reextract = my_dec_on_exception(
+    ReExtractInfo, max_time=120, jitter='my_jitter', raise_on_giveup=True, interval=5)
 
 
 class BaseKVSIE(SeleniumInfoExtractor):
@@ -108,12 +111,14 @@ class BaseKVSIE(SeleniumInfoExtractor):
                 **(parse_resolution(format_id) or parse_resolution(flashvars[key]))
             }
 
-            _videoinfo = self._get_video_info(_videourl, headers=_headers)
-            if _videoinfo:
-                assert isinstance(_videoinfo, dict)
-                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
-                if not _format.get('height'):
-                    _format['quality'] = 1
+            with self.get_ytdl_sem(get_domain(_videourl)):
+
+                _videoinfo = self._get_video_info(_videourl, headers=_headers)
+                if _videoinfo:
+                    assert isinstance(_videoinfo, dict)
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+                    if not _format.get('height'):
+                        _format['quality'] = 1
 
                 formats.append(_format)
 
