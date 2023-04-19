@@ -41,7 +41,6 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     _LOCK = Lock()
     _COOKIES: Cookies = Cookies()
-    _RSS = {}
 
     _URLS_CHECKED = []
 
@@ -759,6 +758,8 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
     _RSS_URL = 'https://www.myvidster.com/subscriptions/Atgarcia'
     _SEARCH_URL = "https://www.myvidster.com/search/?%s&filter_by=user_%s"
 
+    _RSS = {}
+
     def _getter(self, x):
 
         try:
@@ -800,36 +801,38 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
             'disp_name': 'Atgarcia',
             'page': '1',
             'thumb_num': 100,
-            'count': 100
-        }
+            'count': 100}
 
         _headers_post = {
             "Referer": self._SITE_URL,
             "Origin": self._SITE_URL,
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
             "x-Requested-With": "XMLHttpRequest",
-            "Accept": "*/*"
-        }
+            "Accept": "*/*"}
 
-        self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
-        webpage = try_get(self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-        if not webpage:
-            raise_extractor_error('Couldnt get subscriptions')
-        else:
-            subwebpages = webpage.split('<div class="vidthumbnail" style="margin-right:6px;margin-bottom:2px;">')
-            for sub in subwebpages[1:]:
-                username = try_get(re.findall(r'<a href=[\'\"]/profile/([^\'\"]+)[\'\"]', sub), lambda x: x[0])
-                if username:
-                    _subsuser = try_get(self._query_rss(username), lambda x: x.text)
-                    assert _subsuser
-                    userid = try_get(re.findall(r'/(?:Atgarcia/user|images/profile)/(\d+)', _subsuser), lambda x: x[0])
-                    channels = re.findall(r'/Atgarcia/channel/(\d+)', _subsuser)
-                    collections = re.findall(r'/Atgarcia/gallery/(\d+)', _subsuser)
-                    MyVidsterBaseIE._RSS.update({
-                        username: {
-                            'userid': userid,
-                            'channels': channels,
-                            'collections': collections}})
+        try:
+            self._send_request(self._POST_URL, _type="POST", data={'action': 'loading'}, headers=_headers_post)
+            webpage = try_get(self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            if not webpage:
+                raise_extractor_error('Couldnt get subscriptions')
+            else:
+                subwebpages = webpage.split('<div class="vidthumbnail" style="margin-right:6px;margin-bottom:2px;">')
+                for sub in subwebpages[1:]:
+                    username = try_get(re.findall(r'<a href=[\'\"]/profile/([^\'\"]+)[\'\"]', sub), lambda x: x[0])
+                    if username:
+                        _subsuser = try_get(self._query_rss(username), lambda x: x.text)
+                        assert _subsuser
+                        userid = try_get(re.findall(r'/(?:Atgarcia/user|images/profile)/(\d+)', _subsuser), lambda x: x[0])
+                        channels = re.findall(r'/Atgarcia/channel/(\d+)', _subsuser)
+                        collections = re.findall(r'/Atgarcia/gallery/(\d+)', _subsuser)
+                        MyVidsterRSSPlaylistIE._RSS.update({
+                            username: {
+                                'userid': userid,
+                                'channels': channels,
+                                'collections': collections}})
+
+        except Exception as e:
+            self.report_warning(f'[getrss] error when fetching rss info {repr(e)}')
 
     def _query_rss(self, q):
         info = {
@@ -903,7 +906,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
                 assert query
 
                 _list_urls_rss_search = [self._SEARCH_URL % (query, val['userid'])
-                                         for user, val in MyVidsterBaseIE._RSS.items()]
+                                         for user, val in MyVidsterRSSPlaylistIE._RSS.items()]
                 with ThreadPoolExecutor(thread_name_prefix='ex_rss3pl') as ex:
                     futures = {ex.submit(self._get_videos, _url): _url for _url in _list_urls_rss_search}
 
@@ -966,13 +969,14 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
         with MyVidsterBaseIE._LOCK:
 
             super()._real_initialize()
-            if not MyVidsterBaseIE._RSS:
 
-                MyVidsterBaseIE._RSS = self.cache.load(self.ie_key(), 'rss')
-                if not MyVidsterBaseIE._RSS:
+            if not MyVidsterRSSPlaylistIE._RSS:
+                if not (_rss := self.cache.load(self.ie_key(), 'rss')):
                     self._get_rss()
-                    if MyVidsterBaseIE._RSS:
-                        self.cache.load(self.ie_key(), 'rss', MyVidsterBaseIE._RSS)
+                    if (_rss := MyVidsterRSSPlaylistIE._RSS):
+                        self.cache.store(self.ie_key(), 'rss', _rss)
+                else:
+                    MyVidsterRSSPlaylistIE._RSS = _rss
 
     def _real_extract(self, url):
 
