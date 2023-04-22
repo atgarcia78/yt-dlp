@@ -2,9 +2,7 @@ import html
 import json
 import logging
 import re
-import sys
 import threading
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote, urlparse
 
@@ -205,8 +203,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
                     _formats.append(_format)
                 except Exception as e:
-                    lines = traceback.format_exception(*sys.exc_info())
-                    self.logger_debug(f"{repr(e)}\n{'!!'.join(lines)}")
+                    self.logger_debug(repr(e))
 
             if not _formats:
 
@@ -256,8 +253,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
+            self.to_screen(repr(e))
             raise ExtractorError(repr(e), expected=True)
 
 
@@ -378,8 +374,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}  \n{'!!'.join(lines)}")
+            self.to_screen(repr(e))
             raise ExtractorError(repr(e), expected=True)
 
 

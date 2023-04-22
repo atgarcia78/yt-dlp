@@ -635,11 +635,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _list_urls = [f"{_pre}{i}&sort_by=newest" for i in range(1, pages + 1)]
         _movies_info = []
         for _url in _list_urls:
-            _movies_info.extend(
-                try_get(
-                    self._send_request(_url, headers=self.API_GET_HTTP_HEADERS()),  # type: ignore
-                    lambda x: traverse_obj(x.json(), ('data', 'movies'), default=[]) if x else []))
-
+            try:
+                _movies_info.extend(
+                    try_get(
+                        self._send_request(_url, headers=self.API_GET_HTTP_HEADERS()),  # type: ignore
+                        lambda x: traverse_obj(x.json(), ('data', 'movies'), default=[]) if x else []))
+            except Exception as e:
+                logger.exception(repr(e))
+        _movies_info.reverse()
         return _movies_info
 
     def _get_api_tags(self):
@@ -1377,7 +1380,7 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
 
             _movies = self._get_api_most_watched_movies(query, limit=limit)
 
-            _url_movies = list(set([try_get(
+            _url_movies = list(dict.fromkeys([try_get(
                 self._send_request(_url), lambda x: str(x.url))
                 for _url in [f'https://www.nakedsword.com/movies/{x["id"]}/_' for x in _movies]]))
 
@@ -1439,10 +1442,12 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
 
         try:
 
-            _movies = sorted(
-                self._get_api_newest_movies(),
-                key=lambda x: datetime.fromisoformat(extract_timezone(x.get('publish_start'))[1]))
-
+            # _movies = sorted(
+            #     self._get_api_newest_movies(),
+            #     key=lambda x: datetime.fromisoformat(extract_timezone(x.get('publish_start'))[1]))
+            _movies = self._get_api_newest_movies()
+            _movies_str = '\n'.join([_movie['publish_start'] + ' ' + _movie['title'] for _movie in _movies])
+            self.logger_debug(f"{premsg} newest movies:\n{_movies_str}")
             _query = try_get(self._match_valid_url(url), lambda x: x.groupdict().get('query'))
             if _query:
                 _params = {el.split('=')[0]: el.split('=')[1] for el in _query.split('&') if el.count('=') == 1}
@@ -1471,7 +1476,7 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
                 _mov for _mov in _movies
                 if _from <= datetime.fromisoformat(extract_timezone(_mov.get('publish_start'))[1]) <= _to]
 
-            _url_movies = list(set([try_get(
+            _url_movies = list(dict.fromkeys([try_get(
                 self._send_request(_url), lambda x: str(x.url))
                 for _url in [f'https://www.nakedsword.com/movies/{x["id"]}/_' for x in _movies_filtered]]))
 

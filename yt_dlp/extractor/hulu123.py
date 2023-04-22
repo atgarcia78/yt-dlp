@@ -130,7 +130,7 @@ class Hulu123IE(SeleniumInfoExtractor):
 
             # self.to_screen(f'vip:[{vip_url}]:userload:[{userload_url}]:evoload:[{evoload_url}]:streamtape:[{streamtape_url}]')
             self.to_screen(f'RESULT: {_res_urls}')
-            if list(set(vip_url)) == ['error'] and userload_url == "error" and evoload_url == "error" and streamtape_url == "error":
+            if list(dict.fromkeys(vip_url)) == ['error'] and userload_url == "error" and evoload_url == "error" and streamtape_url == "error":
                 raise ExtractorError("404 UserLoad & EverLoad $ StreamTape servers available but no video found in any")
             if vip_url == [] and userload_url == "" and evoload_url == "" and streamtape_url == "":
                 raise ExtractorError("no UserLoad & EverLoad & Streamtape servers available")
