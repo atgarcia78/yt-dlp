@@ -232,7 +232,7 @@ class MyVidsterIE(MyVidsterBaseIE):
             pre = f'{msg}{pre}'
 
         if isinstance(x, list):
-            _x = [unquote(_el) for _el in list(set(x))]
+            _x = [unquote(_el) for _el in list(dict.fromkeys(x))]
         else:
             _x = [unquote(x)]
 
