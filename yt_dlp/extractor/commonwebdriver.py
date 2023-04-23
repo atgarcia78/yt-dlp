@@ -135,7 +135,7 @@ dec_retry_raise = on_exception(
 dec_retry_error = on_exception(
     constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(
-    constant, TimeoutException, max_tries=2, raise_on_giveup=True, interval=5)
+    constant, TimeoutException, max_tries=3, raise_on_giveup=True, interval=5)
 dec_on_reextract = on_exception(
     constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
 retry_on_driver_except = on_exception(
@@ -480,9 +480,10 @@ class myHAR:
 
     class getNetworkHAR:
 
-        def __init__(self, har_file, logger=None, msg=None):
+        def __init__(self, har_file, logger=None, msg=None, port=8080):
             self.har_file = har_file
-            self.cmd = f"mitmdump -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={self.har_file}"
+            self.port = port
+            self.cmd = f"mitmdump -p {port} -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={self.har_file}"
             self.logger = logger if logger else logging.getLogger('getHAR').debug
             self.pre = msg if msg else ''
 
@@ -517,8 +518,8 @@ class myHAR:
             self.logger(f'{self.pre} har file ready in {self.har_file}')
 
     @classmethod
-    def network_har_handler(cls, har_file, logger=None, msg=None):
-        return cls.getNetworkHAR(har_file, logger=logger, msg=msg)
+    def network_har_handler(cls, har_file, logger=None, msg=None, port=8080):
+        return cls.getNetworkHAR(har_file, logger=logger, msg=msg, port=port)
 
 
 from ipaddress import ip_address
@@ -964,12 +965,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def get_har_logs(self, key, videoid, msg=None):
+    def get_har_logs(self, key, videoid, msg=None, port=8080):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
         har_file = f"{folder}/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
-        return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg)
+        return myHAR.network_har_handler(har_file, logger=self.logger_info, msg=msg, port=port)
 
     def scan_for_request(
             self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False,
@@ -987,18 +988,18 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def wait_until(self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None, poll_freq: float = 0.5):
 
+        _poll_freq = poll_freq
         if not method:
             method = ec.title_is("DUMMYFORWAIT")
+            _poll_freq = 0.01
         try:
-            el = WebDriverWait(
-                driver, timeout, poll_frequency=poll_freq).until(
+            return WebDriverWait(
+                driver, timeout, poll_frequency=_poll_freq).until(
                     ec.any_of(checkStop(self.check_stop), method))  # type: ignore
         except StatusStop:
             raise
         except Exception:
-            el = None
-
-        return el
+            pass
 
     def get_info_for_format(self, url, **kwargs):
 
