@@ -73,7 +73,6 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         _urlh, _ = try_get(
             self._send_request(self._LOGIN_URL, _type="GET"),
             lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)))) or (None, None)
-        # res = self._send_request(self._LOGIN_URL, _type="GET")
         if _urlh and "www.myvidster.com/user/home.php" in _urlh:
             self.logger_debug("LOGIN already OK")
             return
@@ -236,8 +235,6 @@ class MyVidsterIE(MyVidsterBaseIE):
         else:
             _x = [unquote(x)]
 
-        # logger.info(f"{pre} urls to check: {_x}")
-
         for el in _x:
 
             try:
@@ -303,7 +300,6 @@ class MyVidsterIE(MyVidsterBaseIE):
                         return {"error_getbestvid": f"[{el}] error entry video - {str(e)}"}
 
                 else:  # url generic
-                    # logger.info("url generic")
                     if self._is_valid(el, msg=pre):
                         return el
 
@@ -342,8 +338,6 @@ class MyVidsterIE(MyVidsterBaseIE):
                                      lambda x: self.getbestvid(x[0], msg='source_url') if x else None)
 
             if source_url_res:
-
-                # logger.info(f"source url: {source_url_res}")
 
                 if isinstance(source_url_res, dict):
                     source_url_res.update({'original_url': url})
@@ -464,7 +458,6 @@ class MyVidsterIE(MyVidsterBaseIE):
             if _from_list:
                 with MyVidsterBaseIE._LOCK:
                     MyVidsterBaseIE._NUM_VIDS_PL[_from_list] -= 1
-                    # self.to_screen(f"[Num_videos_pl_pending] {MyVidsterBaseIE._NUM_VIDS_PL[_from_list]}")
                     if _progress_bar:
                         _progress_bar.print(f"{MyVidsterBaseIE._NUM_VIDS_PL[_from_list]}")
 
@@ -596,7 +589,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                         try:
                             _res = fut.result()
                             if _res:
-                                # self.logger_debug(f"%no%[res]\n{_res}\n[ent]\n{ent}")
                                 if _res.get('webpage_url') == futures[fut]:
                                     _orig_url = url
                                 else:
