@@ -146,84 +146,84 @@ class selectHLS:
 
 
 class NSAUTH:
+    '''
+    Handles token/auth http headers for the NakedSword API
+    '''
+
+    call_lock = Lock()
+    timer = ProgressTimer()
+    logger = logging.getLogger("NSAUTH")
+    headers_api = {}
+    iens: SeleniumInfoExtractor
 
     def __init__(self, iens):
-        self.logger = logging.getLogger("NSAUTH")
-        self.call_lock = Lock()
-        self.headers_api = {}
-        self.timer = ProgressTimer()
-        self.iens = iens
-        self.get_auth()
+        NSAUTH.iens = iens
+        NSAUTH.get_auth()
 
-    def logout(self, msg=None):
-        _pre = ''
-        if msg:
-            _pre = msg
-
-        if self.iens._logout_api():
-            self.headers_api = {}
-            self.logger.debug(f"{_pre}[logout] OK")
+    @classmethod
+    def logout(cls, msg=None):
+        _pre = msg if msg else ''
+        if NakedSwordBaseIE._logout_api():
+            NSAUTH.headers_api = {}
+            NSAUTH.logger.debug(f"{_pre}[logout] OK")
             return "OK"
         else:
-            self.logger.warning(f"{_pre}[logout] NOK")
+            NSAUTH.logger.warning(f"{_pre}[logout] NOK")
             return "NOK"
 
+    @classmethod
     @dec_retry
     @dec_on_reextract
-    def get_auth(self, msg=None):
-
+    def get_auth(cls, msg=None):
         _pre = msg if msg else ''
-
         _logout = False
-        try:
-            with self.call_lock:
-                try:
-                    if (_headers := self.iens._get_api_basic_auth()):
-                        self.headers_api = _headers.copy()
-                        self.logger.debug(f"{_pre}[get_auth] OK")
-                        self.timer.reset()
-                        return True
-                    else:
-                        raise ExtractorError("couldnt auth")
-                except ReExtractInfo:
-                    raise
-                except ExtractorError:
-                    _logout = True
-                    raise ReExtractInfo("couldnt auth")
-                except Exception as e:
-                    self.logger.exception(f"{_pre}[get_auth] {str(e)}")
-                    raise ExtractorError("error get auth")
-        finally:
-            if _logout:
-                self.logout()
-
-    @dec_retry
-    def get_refresh(self):
-
-        with self.call_lock:
-
+        with NSAUTH.call_lock:
             try:
-                if self.iens._refresh_api():
-                    self.logger.debug("[refresh] OK")
-                    self.timer.reset()
+                if (_headers := NakedSwordBaseIE._get_api_basic_auth(NSAUTH.iens._get_login_info())):
+                    NSAUTH.headers_api = _headers.copy()
+                    NSAUTH.logger.debug(f"{_pre}[get_auth] OK")
+                    NSAUTH.timer.reset()
+                    return True
+                else:
+                    raise ExtractorError("couldnt auth")
+            except ReExtractInfo:
+                raise
+            except ExtractorError:
+                _logout = True
+                raise ReExtractInfo("couldnt auth")
+            except Exception as e:
+                NSAUTH.logger.exception(f"{_pre}[get_auth] {str(e)}")
+                raise ExtractorError("error get auth")
+            finally:
+                if _logout:
+                    NSAUTH.logout()
+
+    @classmethod
+    @dec_retry
+    def get_refresh(cls):
+        with NSAUTH.call_lock:
+            try:
+                if NakedSwordBaseIE._refresh_api():
+                    NSAUTH.logger.debug("[refresh] OK")
+                    NSAUTH.timer.reset()
                     return True
                 else:
                     raise ExtractorError("couldnt refresh")
             except Exception as e:
-                self.logger.error(f"[refresh] {str(e)}")
+                NSAUTH.logger.error(f"[refresh] {str(e)}")
                 raise ExtractorError("error refresh")
 
     def __call__(self):
-        if not self.headers_api:
-            self.get_auth()
-            return self.headers_api
+        if not NSAUTH.headers_api:
+            NSAUTH.get_auth()
+            return NSAUTH.headers_api
 
-        if not self.timer.has_elapsed(50):
-            return self.headers_api
+        if not NSAUTH.timer.has_elapsed(50):
+            return NSAUTH.headers_api
         else:
-            self.logger.debug("[call] timeout to token refresh")
-            if self.get_refresh():
-                return self.headers_api
+            NSAUTH.logger.debug("[call] timeout to token refresh")
+            if NSAUTH.get_refresh():
+                return NSAUTH.headers_api
 
 
 class NakedSwordBaseIE(SeleniumInfoExtractor):
@@ -353,12 +353,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def API_GET_HTTP_HEADERS(cls):
         return NakedSwordBaseIE._API()
 
+    @classmethod
     @dec_on_driver_timeout
     @dec_on_exception3
     @limiter_0_1.ratelimit("nakedsword", delay=True)
-    def _send_request(self, url, **kwargs) -> Union[None, Response]:
+    def _send_request(cls, url, **kwargs) -> Union[None, Response]:
 
-        pre = f'[send_request][{self._get_url_print(url)}]'
+        pre = f'[send_request][{cls._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
 
@@ -368,9 +369,107 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             driver.get(url)
         else:
             try:
-                return (self.send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
+                return (cls._send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"[send_request_http] {self._get_url_print(url)}: error - {repr(e)} - {str(e)}")
+                logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
+
+    @classmethod
+    def _logout_api(cls):
+
+        cls._send_request(
+            "https://ns-api.nakedsword.com/frontend/auth/logout", _type="OPTIONS",
+            headers=cls._HEADERS["OPTIONS"]["LOGOUT"])
+        _headers_del = cls._HEADERS["DELETE"]["LOGOUT"].copy()
+        if (_headers := NakedSwordBaseIE.API_GET_HTTP_HEADERS()):
+            _headers_del.update({'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
+            if (resdel := cls._send_request(
+                    "https://ns-api.nakedsword.com/frontend/auth/logout", _type="DELETE", headers=_headers_del)):
+                assert isinstance(resdel, Response)
+                return (resdel.status_code == 204)
+            else:
+                return False
+
+    @classmethod
+    def _get_api_basic_auth(cls, info) -> Dict:
+
+        cls._send_request(
+            "https://ns-api.nakedsword.com/frontend/auth/login",
+            _type="OPTIONS", headers=cls._HEADERS["OPTIONS"]["AUTH"])
+        username, pwd = info[0], info[1]
+        _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
+        _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
+            f"{username}:{pwd}".encode()).decode('utf-8')
+        xident = subprocess.run(
+            ['node', cls._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
+            capture_output=True, encoding="utf-8").stdout.strip('\n')
+        if xident:
+            _headers_post['x-ident'] = xident
+            token = try_get(
+                cls._send_request(
+                    "https://ns-api.nakedsword.com/frontend/auth/login", _type="POST", headers=_headers_post),
+                lambda x: traverse_obj(x.json(), ('data', 'jwt')))
+            if token:
+                _final = cls._HEADERS["FINAL"].copy()
+                _final.update({'x-ident': xident, 'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
+
+                return _final
+        return {}
+
+    @classmethod
+    def _refresh_api(cls) -> bool:
+
+        xident = subprocess.run(
+            ['node', NakedSwordBaseIE._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
+            capture_output=True, encoding="utf-8").stdout.strip('\n')
+        if xident:
+            NakedSwordBaseIE._API.headers_api['x-ident'] = xident
+            return True
+        else:
+            return False
+
+    def _get_data_app(self) -> Dict:
+
+        app_data = {
+            'PROPERTY_ID': None,
+            'PASSPHRASE': None,
+            'GTM_ID': None,
+            'GTM_AUTH': None,
+            'GTM_PREVIEW': None}
+
+        try:
+
+            _app_data = self.cache.load('nakedsword', 'app_data') or {}
+
+            if not _app_data:
+
+                js_content = try_get(
+                    self._send_request(
+                        try_get(
+                            re.findall(
+                                r'src="(/static/js/main[^"]+)',  # type: ignore
+                                try_get(
+                                    self._send_request(self._SITE_URL),  # type: ignore
+                                    lambda z: html.unescape(z.text))),
+                            lambda x: "https://www.nakedsword.com" + x[0])),
+                    lambda y: html.unescape(y.text))
+                if js_content:
+                    data_js = re.findall(r'REACT_APP_([A-Z_]+:"[^"]+")', js_content)
+                    data_js_str = "{" + f"{','.join(data_js)}" + "}"
+                    data = json.loads(js_to_json(data_js_str))
+                    if data:
+                        for key in app_data:
+                            app_data.update({key: data[key]})
+
+                        self.cache.store('nakedsword', 'app_data', app_data)
+
+            else:
+                app_data = _app_data
+
+            return app_data
+
+        except Exception as e:
+            logger.exception(str(e))
+            return app_data
 
     @dec_on_reextract_3
     def get_formats(self, _types, _info):
@@ -546,102 +645,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             # self._logout(driver)
             self.rm_driver(driver)
 
-    def _logout_api(self):
-
-        self._send_request(
-            "https://ns-api.nakedsword.com/frontend/auth/logout", _type="OPTIONS",
-            headers=self._HEADERS["OPTIONS"]["LOGOUT"])
-        _headers_del = self._HEADERS["DELETE"]["LOGOUT"].copy()
-        if (_headers := NakedSwordBaseIE.API_GET_HTTP_HEADERS()):
-            _headers_del.update({'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
-            if (resdel := self._send_request(
-                    "https://ns-api.nakedsword.com/frontend/auth/logout", _type="DELETE", headers=_headers_del)):
-                assert isinstance(resdel, Response)
-                return (resdel.status_code == 204)
-            else:
-                return False
-
-    def _get_data_app(self) -> Dict:
-
-        app_data = {
-            'PROPERTY_ID': None,
-            'PASSPHRASE': None,
-            'GTM_ID': None,
-            'GTM_AUTH': None,
-            'GTM_PREVIEW': None}
-
-        try:
-
-            _app_data = self.cache.load('nakedsword', 'app_data') or {}
-
-            if not _app_data:
-
-                js_content = try_get(
-                    self._send_request(
-                        try_get(
-                            re.findall(
-                                r'src="(/static/js/main[^"]+)',  # type: ignore
-                                try_get(
-                                    self._send_request(self._SITE_URL),  # type: ignore
-                                    lambda z: html.unescape(z.text))),
-                            lambda x: "https://www.nakedsword.com" + x[0])),
-                    lambda y: html.unescape(y.text))
-                if js_content:
-                    data_js = re.findall(r'REACT_APP_([A-Z_]+:"[^"]+")', js_content)
-                    data_js_str = "{" + f"{','.join(data_js)}" + "}"
-                    data = json.loads(js_to_json(data_js_str))
-                    if data:
-                        for key in app_data:
-                            app_data.update({key: data[key]})
-
-                        self.cache.store('nakedsword', 'app_data', app_data)
-
-            else:
-                app_data = _app_data
-
-            return app_data
-
-        except Exception as e:
-            logger.exception(str(e))
-            return app_data
-
-    def _get_api_basic_auth(self) -> Dict:
-
-        self._send_request(
-            "https://ns-api.nakedsword.com/frontend/auth/login",
-            _type="OPTIONS", headers=self._HEADERS["OPTIONS"]["AUTH"])
-        username, pwd = self._get_login_info()
-        _headers_post = self._HEADERS["POST"]["AUTH"].copy()
-        _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
-            f"{username}:{pwd}".encode()).decode('utf-8')
-        xident = subprocess.run(
-            ['node', self._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
-            capture_output=True, encoding="utf-8").stdout.strip('\n')
-        if xident:
-            _headers_post['x-ident'] = xident
-            token = try_get(
-                self._send_request(
-                    "https://ns-api.nakedsword.com/frontend/auth/login", _type="POST", headers=_headers_post),
-                lambda x: traverse_obj(x.json(), ('data', 'jwt')))
-            if token:
-                _final = self._HEADERS["FINAL"].copy()
-                _final.update({'x-ident': xident, 'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
-
-                return _final
-        return {}
-
-    def _refresh_api(self) -> bool:
-
-        xident = subprocess.run(
-            ['node', self._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
-            capture_output=True, encoding="utf-8").stdout.strip('\n')
-        if xident:
-            NakedSwordBaseIE._API.headers_api['x-ident'] = xident
-            return True
-        else:
-            return False
-
-    def _get_api_details(self, movieid, headers=None):
+    def _get_api_details(self, movieid):
         return try_get(
             self._send_request(
                 f"https://ns-api.nakedsword.com/frontend/movies/{movieid}/details",
