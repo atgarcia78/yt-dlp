@@ -764,7 +764,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             return self.ie_key()
 
-    def _get_url_print(self, url):
+    @staticmethod
+    def _get_url_print(url):
         if url:
             if len(url) > 150:
                 return (f'{url[:140]}...{url[-10:]}')
@@ -1202,16 +1203,21 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def send_http_request(self, url, **kwargs) -> Union[None, Response]:
 
+        kwargs.setdefault('client', self._CLIENT)
+        return SeleniumInfoExtractor._send_http_request(url, **kwargs)
+
+    @classmethod
+    def _send_http_request(cls, url, **kwargs) -> Union[None, Response]:
         res = None
         req = None
         _msg_err = ""
         _type = kwargs.get('_type', "GET")
         msg = kwargs.get('msg', None)
-        premsg = f'[send_http_request][{self._get_url_print(url)}][{_type}]'
+        premsg = f'[send_http_request][{cls._get_url_print(url)}][{_type}]'
         if msg:
             premsg = f'{msg}{premsg}'
 
-        client = kwargs.get('client', self._CLIENT)
+        client = kwargs.get('client')
 
         try:
 
@@ -1251,5 +1257,5 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            logger = logging.getLogger(self.IE_NAME)
+            logger = logging.getLogger(cls.IE_NAME)
             logger.debug(f"{premsg} {req}:{res}:{_msg_err}")
