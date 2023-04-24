@@ -741,7 +741,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 raise ReExtractInfo(f"{premsg} no details info")
 
             _urls_api = self._get_api_scene_urls(details)
-            self.logger_info(f"{premsg} urls api to get streaming info:\n{_urls_api}")
+            self.logger_debug(f"{premsg} urls api to get streaming info:\n{_urls_api}")
             num_scenes = len(details.get('scenes'))
 
             if index_scene:
@@ -1009,7 +1009,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
 class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'  # type: ignore
-    _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^/?#&]+)(?:(/?\?(?P<by>by=movie))|[/?#&])"
+    _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^?#&/]+)(?:/?\?(?P<by>by=movie))?"
     _MOVIES_URL = "https://www.nakedsword.com/movies/"
     _MOVIES = {}
 
@@ -1033,6 +1033,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         assert _url_movie
 
         premsg += f'[{_url_movie.split("movies/")[1]}]'
+
         _id_movie = self._match_id(_url_movie)
 
         if _url_movie not in NakedSwordMovieIE._MOVIES:
@@ -1041,16 +1042,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
             NakedSwordBaseIE.API_LOGOUT(msg='[getentries]')
-            time.sleep(2)
-            # if NakedSwordBaseIE._CLIENT:
-            #     try:
-            #         NakedSwordBaseIE._CLIENT.cookies.clear(domain='.nakedsword.com')
-            #     except KeyError:
-            #         pass
-            #     try:
-            #         NakedSwordBaseIE._CLIENT.cookies.clear(domain='nakedsword.com')
-            #     except KeyError:
-            #         pass
 
             _timeout = my_jitter(30)
 
@@ -1382,9 +1373,7 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
             premsg = f"{msg}{premsg}"
 
         try:
-
             info_url = try_get(self._match_valid_url(url), lambda x: x.groupdict())
-
             assert info_url
 
             query = "most_watched"
@@ -1406,9 +1395,6 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
                     query = f'studios_id={_id}'
                 else:
                     self.report_warning(f"{premsg} wrong url, thre is an id but not for stars or studios")
-
-            elif 'most-watched' in url:
-                query = "most_watched"
 
             limit = info_url.get('limit')
 
@@ -1507,9 +1493,6 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
                 else:
                     self.report_warning(f"{premsg} wrong url, thre is an id but not for stars or studios")
 
-            elif 'most-watched' in url:
-                query = "most_watched"
-
             limit = info_url.get('limit')
 
             _movies = self._get_api_most_watched_movies(query, limit=limit)
@@ -1581,9 +1564,6 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
 
         try:
 
-            # _movies = sorted(
-            #     self._get_api_newest_movies(),
-            #     key=lambda x: datetime.fromisoformat(extract_timezone(x.get('publish_start'))[1]))
             _movies = self._get_api_newest_movies()
             _movies_str = '\n'.join([_movie['publish_start'] + ' ' + _movie['title'] for _movie in _movies])
             self.logger_debug(f"{premsg} newest movies:\n{_movies_str}")
