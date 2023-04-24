@@ -1623,11 +1623,6 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
                     getter=lambda x: x,
                     ie=NakedSwordMovieIE, playlist_id=f'{sanitize_filename(_query, restricted=True)}',
                     playlist_title="JustAddedMovies")
-            # return self.playlist_from_matches(
-            #     _url_movies,
-            #     getter=lambda x: x,
-            #     ie=NakedSwordMovieIE, playlist_id=f'{sanitize_filename(_query, restricted=True)}',
-            #     playlist_title="JustAddedMovies")
 
         except Exception as e:
             logger.exception(f"{premsg} {str(e)}")
