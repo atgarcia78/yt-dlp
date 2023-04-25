@@ -581,8 +581,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                                 for el in results
                             }
 
-                        pb.print('')
-
                     entries = []
 
                     for fut, ent in zip(futures, results):
@@ -697,8 +695,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
 
                         with ThreadPoolExecutor(thread_name_prefix='ex_searchpl2') as ex:
                             futures = {ex.submit(iemv._get_entry, _url, check=_check, from_list=url, progress_bar=pb): _url for _url in list_videos}
-
-                        pb.print('')
 
                     for fut in futures:
                         try:

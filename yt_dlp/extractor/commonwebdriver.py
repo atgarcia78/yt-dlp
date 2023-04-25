@@ -629,6 +629,7 @@ class YDLLogger:
             except Exception:
                 pass
             super().__exit__(*args)
+            self.print('')
 
         def print(self, message):
             if time.time() - self._timer > self._DELAY:
