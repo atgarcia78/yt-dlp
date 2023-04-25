@@ -356,8 +356,6 @@ class HungYoungBritPlaylistIE(HungYoungBritBaseIE):
 
                 entries = [iehung._get_entry(_vid['url'], progress_bar=progress_bar) for _vid in _info_videos]
 
-                progress_bar.print('')  # type: ignore
-
             for _ent in entries:
                 _ent['original_url'] = url
 
