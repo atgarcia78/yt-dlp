@@ -154,7 +154,7 @@ def load_config_extractors():
 
     except Exception:
         print("ERROR LOADING CONFIG EXTRACTORS FILE")
-        data = json.loads('''{"userload#evoload": {"ratelimit": 5, "maxsplits": 4}, "doodstream#vidoza": {"ratelimit": 1, "maxsplits": 5}, "highload#tubeload#embedo#thisvidgay#redload#biguz#gaytubes": {"ratelimit": 0.1, "maxsplits": 4}, "boyfriendtv#nakedswordscene": {"ratelimit": 0.1, "maxsplits": 16}, "hungyoungbrit": {"ratelimit": 5, "maxsplits": 16}, "videovard#fembed#streamtape#gaypornvideos#gayforfans#gayguytop#upstream#videobin#gayforiteu#xvidgay": {"ratelimit": 1, "maxsplits": 16}, "onlyfans:post:playlist#odnoklassniki#thisvid#gaystreamembed#pornhat#yourporngod#ebembed#gay0day#onlygayvideo#txxx#thegay#homoxxx#youporn#gaygo#youporngay#streamsb#hexupload#pornone": {"ratelimit": 1, "maxsplits": 16}}''')
+        data = json.loads('''{"userload#evoload": {"ratelimit": 5, "maxsplits": 4}, "doodstream#vidoza": {"ratelimit": 1, "maxsplits": 5}, "highload#tubeload#embedo#thisvidgay#redload#biguz#gaytubes": {"ratelimit": 0.1, "maxsplits": 4}, "boyfriendtv#nakedswordscene": {"ratelimit": 0.1, "maxsplits": 16}, "hungyoungbrit": {"ratelimit": 5, "maxsplits": 16}, "videovard#fembed#streamtape#gaypornvideos#gayforfans#gayguytop#upstream#videobin#gayforiteu#xvidgay#xfileshare": {"ratelimit": 1, "maxsplits": 16}, "onlyfans:post:playlist#odnoklassniki#thisvid#gaystreamembed#pornhat#yourporngod#ebembed#gay0day#onlygayvideo#txxx#thegay#homoxxx#youporn#gaygo#youporngay#streamsb#hexupload#pornone": {"ratelimit": 1, "maxsplits": 16}}''')
 
     return {
         tuple(key.split('#')): {
@@ -163,46 +163,6 @@ def load_config_extractors():
         }
         for key, value in data.items()
     }
-
-# CONFIG_EXTRACTORS = {
-#     ('userload', 'evoload',): {
-#         'ratelimit': limiter_5,
-#         'maxsplits': 4},
-#     ('doodstream', 'vidoza',): {
-#         'ratelimit': limiter_1,
-#         'maxsplits': 5},
-#     ('highload', 'tubeload', 'embedo',
-#                  'thisvidgay', 'redload',
-#      'biguz', 'gaytubes',): {
-#         'ratelimit': limiter_0_1,
-#         'maxsplits': 4},
-#     ('boyfriendtv', 'nakedswordscene',): {
-#         'ratelimit': limiter_0_1,
-#         'maxsplits': 16},
-#     ('nakedswordscene',): {
-#         'ratelimit': limiter_0_1,
-#         'maxsplits': 16},
-#     ('hungyoungbrit',): {
-#         'ratelimit': limiter_5,
-#         'maxsplits': 16},
-#     ('videovard', 'fembed', 'streamtape',
-#      'gaypornvideos', 'gayforfans',
-#      'gayguytop', 'upstream', 'videobin',
-#      'gayforiteu', 'xvidgay',): {
-#         'ratelimit': limiter_1,
-#         'maxsplits': 16},
-#     ('onlyfans:post:playlist',
-#      'odnoklassniki', 'thisvid',
-#      'gaystreamembed', 'pornhat',
-#      'yourporngod', 'ebembed',
-#      'gay0day', 'onlygayvideo',
-#      'txxx', 'thegay', 'homoxxx',
-#      'youporn', 'gaygo',
-#      'youporngay', 'streamsb',
-#      'hexupload', 'pornone',): {
-#         'ratelimit': limiter_1,
-#         'maxsplits': 16}
-# }
 
 
 CONFIG_EXTRACTORS = load_config_extractors()
@@ -641,14 +601,7 @@ class YDLLogger:
         Return a context manager with a print method. (Optional)
         Do not print to files/pipes, loggers, or when --no-progress is used
         """
-        # if not self._ydl or self._ydl.params.get('noprogress') or self._ydl.params.get('logger'):
-        #     return
         file = self._ydl._out_files.error
-        # try:
-        #     if not file.isatty():
-        #         return
-        # except BaseException:
-        #     return
         return self.ProgressBar(file, preserve_output=False)
 
 
@@ -658,6 +611,7 @@ def raise_extractor_error(msg, expected=True):
 
 class SeleniumInfoExtractor(InfoExtractor):
 
+    _FF_BINARY = r'/Applications/Firefox Nightly.app/Contents/MacOS/firefox'
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
     _MASTER_LOCK = Lock()
     _YTDL = None
@@ -873,6 +827,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             tempdir = temp_prof_dir
 
         opts = FirefoxOptions()
+
+        opts.binary_location = SeleniumInfoExtractor._FF_BINARY
 
         if not noheadless:
             opts.add_argument("--headless")

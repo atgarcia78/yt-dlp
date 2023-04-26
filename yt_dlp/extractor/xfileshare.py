@@ -1,6 +1,5 @@
 import re
 
-from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
     decode_packed_codes,
@@ -8,7 +7,10 @@ from ..utils import (
     int_or_none,
     js_to_json,
     urlencode_postdata,
+    sanitize_filename
 )
+
+from .commonwebdriver import SeleniumInfoExtractor
 
 
 # based on openload_decode from 2bfeee69b976fe049761dd3012e30b637ee05a58
@@ -39,7 +41,7 @@ def aa_decode(aa_code):
     return ret
 
 
-class XFileShareIE(InfoExtractor):
+class XFileShareIE(SeleniumInfoExtractor):
     _SITES = (
         (r'aparat\.cam', 'Aparat'),
         (r'clipwatching\.com', 'ClipWatching'),
@@ -94,7 +96,7 @@ class XFileShareIE(InfoExtractor):
         'only_matching': True,
     }]
 
-    def _real_extract(self, url):
+    def _get_entry(self, url, **kwargs):
         host, video_id = self._match_valid_url(url).groups()
 
         url = 'https://%s/' % host + ('embed-%s.html' % video_id if host in ('govid.me', 'vidlo.us') else video_id)
@@ -130,6 +132,8 @@ class XFileShareIE(InfoExtractor):
             webpage, 'title', default=None) or self._og_search_title(
             webpage, default=None) or video_id).strip()
 
+        title = re.sub(r'\[?\d+p\]?.*|(\s+)?download(\s+)?|\.mp4|\.mkv', '', title, flags=re.IGNORECASE).strip()
+
         for regex, func in (
                 (r'(eval\(function\(p,a,c,k,e,d\){.+)', decode_packed_codes),
                 (r'(ﾟ.+)', aa_decode)):
@@ -138,6 +142,7 @@ class XFileShareIE(InfoExtractor):
                 webpage = webpage.replace(obf_code, func(obf_code))
 
         formats = []
+        subtitles = {}
 
         jwplayer_data = self._search_regex(
             [
@@ -149,9 +154,12 @@ class XFileShareIE(InfoExtractor):
             jwplayer_data = self._parse_json(
                 jwplayer_data.replace(r"\'", "'"), video_id, js_to_json)
             if jwplayer_data:
-                formats = self._parse_jwplayer_data(
+                _formats = self._parse_jwplayer_data(
                     jwplayer_data, video_id, False,
-                    m3u8_id='hls', mpd_id='dash')['formats']
+                    m3u8_id='hls', mpd_id='dash').get('formats')
+
+                if _formats:
+                    formats.extend(_formats)
 
         if not formats:
             urls = []
@@ -170,13 +178,17 @@ class XFileShareIE(InfoExtractor):
             if sources:
                 urls.extend(self._parse_json(sources, video_id))
 
-            formats = []
             for video_url in urls:
                 if determine_ext(video_url) == 'm3u8':
-                    formats.extend(self._extract_m3u8_formats(
+                    _formats, _subts = self._extract_m3u8_formats_and_subtitles(
                         video_url, video_id, 'mp4',
                         entry_protocol='m3u8_native', m3u8_id='hls',
-                        fatal=False))
+                        fatal=False)
+
+                    if _formats:
+                        formats.extend(_formats)
+                    if _subts:
+                        subtitles = self._merge_subtitles(subtitles, _subts)
                 else:
                     formats.append({
                         'url': video_url,
@@ -189,10 +201,23 @@ class XFileShareIE(InfoExtractor):
                 r'(?:image|poster)\s*:\s*["\'](http[^"\']+)["\'],',
             ], webpage, 'thumbnail', default=None)
 
-        return {
+        _entry = {
             'id': video_id,
-            'title': title,
+            'title': sanitize_filename(title, restricted=True),
             'thumbnail': thumbnail,
             'formats': formats,
-            'http_headers': {'Referer': url}
+            'subtitles': subtitles,
+            'http_headers': {'Referer': url},
+            'extractor': 'xfileshare',
+            'extractor_key': 'XFileShare',
+            'webpage_url': url
         }
+
+        # self.write_debug(_entry)
+        return _entry
+
+    def _real_extract(self, url):
+
+        self.report_extraction(url)
+
+        return self._get_entry(url)
