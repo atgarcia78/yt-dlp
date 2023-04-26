@@ -28,8 +28,8 @@ import logging
 
 logger = logging.getLogger("gvdblog")
 
-_ie_names = ('doodstream', 'streamsb')
-_ie_urls = (r'//(?:www\.)?dood\.', r'//(?:.+?\.)?(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top)')
+_ie_names = ('doodstream', 'xfileshare', 'streamsb')
+_ie_urls = (r'//(?:www\.)?dood\.', r'//(?:.+?\.)?(?:wolfstream\.tv)', r'//(?:.+?\.)?(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top)')
 _ie_data = {key: value for key, value in zip(_ie_names, _ie_urls)}
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
@@ -79,7 +79,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _entry['extractor'] = key
                         return _entry
                 except Exception as e:
-                    logger.debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
+                    logger.exception(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
@@ -89,12 +89,15 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
         p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
+        self.logger_debug(f"p1:\n{p1}")
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2])
               for l1 in p1 if any(
             [(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])),
              (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
+        self.logger_debug(f"p2:\n{p2}")
         p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"')
                for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
+        self.logger_debug(f"p3:\n{p3}")
 
         list_urls = []
 
@@ -110,6 +113,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _th = False
         _td = False
+        _tw = False
 
         for el in p3:
             _url = _get_url(el)
@@ -130,7 +134,15 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     _td = True
                 list_urls.append(_url)
 
-        if any([_th, _td]):
+            elif re.search(_ie_data['xfileshare'], _url):
+                if _tw:
+                    list_urls.append(None)
+                    _tw = False
+                else:
+                    _tw = True
+                list_urls.append(_url)
+
+        if any([_th, _td, _tw]):
             list_urls.append(None)
 
         _subvideo = []
