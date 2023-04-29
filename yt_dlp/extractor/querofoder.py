@@ -27,7 +27,7 @@ class QueroFoderIE(SeleniumInfoExtractor):
         def getter(x):
             if len(x) > 1:
                 for el in x:
-                    if 'dood.' in el:
+                    if re.search(r'd(oo)*d\.', el):
                         return el
             else:
                 return x[0]
