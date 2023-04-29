@@ -25,8 +25,8 @@ on_exception_vinfo = my_dec_on_exception(
 class DoodStreamIE(SeleniumInfoExtractor):
 
     IE_NAME = 'doodstream'  # type: ignore
-    _VALID_URL = r'https?://(?:www\.)?dood(?:stream)?\.[^/]+/[ed]/(?P<id>[a-z0-9]+)'
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?dood(?:stream)?\.[^/]+/[ed]/[a-z0-9]+)\1']
+    _VALID_URL = r'https?://(?:www\.)?d(oo)+d(?:stream)?\.[^/]+/[ed]/(?P<id>[a-z0-9]+)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?d(oo)*d(?:stream)?\.[^/]+/[ed]/[a-z0-9]+)\1']
     _SITE_URL = 'https://dood.to/'
 
     _TESTS = [{
