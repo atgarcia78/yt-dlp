@@ -1059,7 +1059,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
             NakedSwordBaseIE.API_LOGOUT(msg='[getentries]')
-            _timeout = my_jitter(60)
+            _timeout = my_jitter(30)
             _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
 
             self.logger_info(
