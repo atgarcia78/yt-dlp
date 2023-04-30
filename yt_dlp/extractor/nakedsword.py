@@ -162,6 +162,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _API_URLS = {
         'login': 'https://ns-api.nakedsword.com/frontend/auth/login',
         'logout': 'https://ns-api.nakedsword.com/frontend/auth/logout',
+        'refresh': 'https://ns-api.nakedsword.com/frontend/auth/refresh',
         'movies': 'https://ns-api.nakedsword.com/frontend/movies',
         'scenes': 'https://ns-api.nakedsword.com/frontend/scenes',
         'streaming': 'https://ns-api.nakedsword.com/frontend/streaming'
@@ -214,7 +215,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Sec-Fetch-Mode': 'cors',
                 'Sec-Fetch-Site': 'same-site',
                 'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache'}},
+                'Cache-Control': 'no-cache'},
+            "REFRESH": {
+                'Accept': '*/*',
+                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Access-Control-Request-Method': 'GET',
+                'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
+                'Referer': 'https',
+                'Origin': 'https',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache',
+                'TE': 'trailers'}},
         "POST": {
             "AUTH": {
                 'Accept': 'application/json, text/plain, */*',
@@ -308,18 +324,33 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     @dec_retry
     def API_REFRESH(cls):
+        try:
+            NakedSwordBaseIE.API_GET_XIDENT()
+            with NakedSwordBaseIE.call_lock:
+                if NakedSwordBaseIE._refresh_api():
+                    logger.debug("[refresh_api] ok")
+                    return True
+                else:
+                    raise ExtractorError("refresh nok")
+        except Exception as e:
+            logger.error(f"[refresh_api] {str(e)}")
+            raise ExtractorError("error refresh")
+
+    @classmethod
+    @dec_retry
+    def API_GET_XIDENT(cls):
         with NakedSwordBaseIE.call_lock:
             try:
-                if (xident := NakedSwordBaseIE._refresh_api()):
+                if (xident := NakedSwordBaseIE._get_api_xident()):
                     NakedSwordBaseIE.headers_api['xident'] = xident
-                    logger.debug("[refresh] OK")
+                    logger.debug("[get_xident] OK")
 
                     return True
                 else:
-                    raise ExtractorError("couldnt refresh")
+                    raise ExtractorError("couldnt get new xident")
             except Exception as e:
-                logger.error(f"[refresh] {str(e)}")
-                raise ExtractorError("error refresh")
+                logger.error(f"[get_xident] {str(e)}")
+                raise ExtractorError("error new xident")
 
     @classmethod
     def API_LOGOUT(cls, msg=None):
@@ -342,8 +373,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         elif not NakedSwordBaseIE.timer.has_elapsed(50):
             return NakedSwordBaseIE.headers_api
         else:
-            logger.debug("[call] timeout to token refresh")
-            NakedSwordBaseIE.API_REFRESH()
+            logger.debug("[call] timeout to new xident")
+            NakedSwordBaseIE.API_GET_XIDENT()
             return NakedSwordBaseIE.headers_api
 
     @classmethod
@@ -403,7 +434,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
             f"{username}:{pwd}".encode()).decode('utf-8')
 
-        if (xident := NakedSwordBaseIE._refresh_api()):
+        if (xident := NakedSwordBaseIE._get_api_xident()):
             _headers_post['x-ident'] = xident
             if (token := try_get(
                     cls._send_request(NakedSwordBaseIE._API_URLS['login'], _type="POST", headers=_headers_post),
@@ -419,6 +450,24 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     def _refresh_api(cls):
+        cls._send_request(
+            NakedSwordBaseIE._API_URLS['refresh'],
+            _type="OPTIONS", headers=cls._HEADERS["OPTIONS"]["REFRESH"])
+        time.sleep(0.5)
+        if (data := try_get(
+                cls._send_request(NakedSwordBaseIE._API_URLS['refresh'], headers=NakedSwordBaseIE.headers_api),
+                lambda x: x.json())):
+
+            token = traverse_obj(data, ('data', 'jwt'))
+            print('DATA REFRESH', data, token)
+            if token:
+                NakedSwordBaseIE._USERTOKEN = token
+                NakedSwordBaseIE.headers_api.update({'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
+                return True
+        return False
+
+    @classmethod
+    def _get_api_xident(cls):
         if (xident := subprocess.run(
                 ['node', NakedSwordBaseIE._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
                 capture_output=True, encoding="utf-8").stdout.strip('\n')):
@@ -578,11 +627,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             self.logger_debug(f'{pre} 1st toggle video result[{elvid}]')
                             if not elvid or elvid == "error":
                                 return
-                            refresh = self.wait_until(driver, 30, selectHLS())
-                            self.logger_debug(f'{pre} selectHLS result[{refresh}]')
-                            if not refresh or refresh == "error":
+                            repeat = self.wait_until(driver, 30, selectHLS())
+                            self.logger_debug(f'{pre} selectHLS result[{repeat}]')
+                            if not repeat or repeat == "error":
                                 return
-                            elif refresh == "TRUE":
+                            elif repeat == "TRUE":
 
                                 self._send_request(scene['webpage_url'], driver=driver)
                                 self.wait_until(driver, 3)
@@ -1010,7 +1059,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
             NakedSwordBaseIE.API_LOGOUT(msg='[getentries]')
-            _timeout = my_jitter(30)
+            _timeout = my_jitter(60)
             _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
 
             self.logger_info(
@@ -1027,7 +1076,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             self.logger_info(f'{premsg}[wait][{_reswait}] end')
 
             NakedSwordBaseIE.API_LOGIN(msg='[getentries]')
-            time.sleep(2)
+            time.sleep(1)
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
