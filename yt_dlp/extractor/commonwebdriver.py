@@ -148,7 +148,7 @@ retry_on_driver_except = on_exception(
 
 map_limiter = {
     15: limiter_15, 10: limiter_10, 5: limiter_5, 2: limiter_2, 1: limiter_1,
-    0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, -1: limiter_non}
+    0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, 0: limiter_non}
 
 
 def load_config_extractors():
@@ -163,6 +163,7 @@ def load_config_extractors():
 
     return {
         tuple(key.split('#')): {
+            'interval': value.get('ratelimit', 1),
             'ratelimit': map_limiter[value.get('ratelimit', 1)],
             'maxsplits': value.get('maxsplits', 16)
         }
