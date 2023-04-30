@@ -63,6 +63,11 @@ assert Sequence
 assert TypeVar
 
 
+def get_host(url: str) -> str:
+    _host = urlparse(url).netloc
+    return re.sub(r'^www\.', '', _host)
+
+
 class StatusError503(Exception):
     """Error during info extraction."""
 
