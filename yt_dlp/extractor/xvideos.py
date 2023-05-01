@@ -8,6 +8,7 @@ from ..utils import (
     ExtractorError,
     int_or_none,
     parse_duration,
+    sanitize_filename
 )
 
 
@@ -125,15 +126,15 @@ class XVideosIE(InfoExtractor):
 
         formats = []
 
-        video_url = compat_urllib_parse_unquote(self._search_regex(
-            r'flv_url=(.+?)&', webpage, 'video URL', default=''))
+        video_url = compat_urllib_parse_unquote(
+            self._search_regex(r'flv_url=(.+?)&', webpage, 'video URL', default=''))  # type: ignore
+
         if video_url:
             formats.append({
                 'url': video_url,
                 'format_id': 'flv',
             })
-        else:
-            raise ExtractorError('no video url')
+
         for kind, _, format_url in re.findall(
                 r'setVideo([^(]+)\((["\'])(http.+?)\2\)', webpage):
             format_id = kind.lower()
@@ -153,7 +154,7 @@ class XVideosIE(InfoExtractor):
         return {
             'id': video_id,
             'formats': formats,
-            'title': title,
+            'title': sanitize_filename(title, restricted=True),
             'duration': duration,
             'thumbnails': thumbnails,
             'age_limit': 18,
@@ -161,7 +162,7 @@ class XVideosIE(InfoExtractor):
 
 
 class XVideosQuickiesIE(InfoExtractor):
-    IE_NAME = 'xvideos:quickies'
+    IE_NAME = 'xvideos:quickies'  # type: ignore
     _VALID_URL = r'https?://(?P<domain>(?:[^/]+\.)?xvideos2?\.com)/amateur-channels/[^#]+#quickies/a/(?P<id>\d+)'
     _TESTS = [{
         'url': 'https://www.xvideos.com/amateur-channels/wifeluna#quickies/a/47258683',
@@ -177,5 +178,5 @@ class XVideosQuickiesIE(InfoExtractor):
     }]
 
     def _real_extract(self, url):
-        domain, id_ = self._match_valid_url(url).group('domain', 'id')
+        domain, id_ = self._match_valid_url(url).group('domain', 'id')  # type: ignore
         return self.url_result(f'https://{domain}/video{id_}/_', XVideosIE, id_)

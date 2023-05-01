@@ -917,6 +917,28 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self._logout(driver)
             raise
 
+    def wait_with_pb(self, timeout, premsg):
+
+        NakedSwordBaseIE.API_LOGOUT(msg='[getentries]')
+        _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
+
+        self.logger_info(
+            f'{premsg}[wait] start[{timeout}] counter[{try_get(_simple_counter, lambda x: x.__name__)}] indexdl[{getattr(self, "indexdl", None)}]')
+
+        with self.create_progress_bar(msg=f'[{premsg}][wait]') as progress_bar:
+
+            if _simple_counter:
+                _counter = _simple_counter(
+                    progress_bar, None, self.check_stop, timeout=timeout, indexdl=getattr(self, 'indexdl', None))
+                _reswait = _counter()
+            else:
+                _reswait = _wait_for_either(progress_bar, self.check_stop, timeout=timeout)
+
+        self.logger_info(f'{premsg}[wait][{_reswait}] end')
+
+        NakedSwordBaseIE.API_LOGIN(msg='[getentries]')
+        time.sleep(1)
+
     def _real_initialize(self):
 
         try:
@@ -935,6 +957,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 class NakedSwordSceneIE(NakedSwordBaseIE):
     IE_NAME = 'nakedswordscene'  # type: ignore
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)"
+    _SCENES = {}
 
     def get_entry(self, url, **kwargs):
 
@@ -942,7 +965,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
             return self._get_entry(url, **kwargs)
 
-    @dec_on_reextract
+    @dec_on_reextract_1
     def _get_entry(self, url, **kwargs):
 
         _type = kwargs.get('_type', 'all')
@@ -962,45 +985,51 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
         self.logger_debug(f"{premsg} start to get entry")
 
-        _url_movie = try_get(self._send_request(url.split('/scene/')[0]), lambda x: str(x.url))
-        _info, details = self.get_streaming_info(_url_movie, index=index_scene)
+        if url not in NakedSwordSceneIE._SCENES:
+            NakedSwordSceneIE._SCENES.update(
+                {url: {'final': True}})
 
-        _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{index_scene}"
-        scene_id = traverse_obj(details, ('scenes', int(index_scene) - 1, 'id'))
-        _id_movie = str(details.get('id'))
-        _n_entries = len(details.get('scenes', []))
-
-        _entry = {
-            "id": str(scene_id),
-            "_id_movie": _id_movie,
-            "title": _title,
-            "formats": [],
-            "ext": "mp4",
-            "webpage_url": url,
-            "_index_scene": int(index_scene),
-            "_n_entries": _n_entries,
-            "extractor_key": 'NakedSwordScene',
-            "extractor": 'nakedswordscene'
-        }
+        if not NakedSwordSceneIE._SCENES[url]['final']:
+            _timeout = my_jitter(30)
+            self.wait_with_pb(_timeout, premsg)
 
         try:
+            _url_movie = try_get(self._send_request(url.split('/scene/')[0]), lambda x: str(x.url))
+            _info, details = self.get_streaming_info(_url_movie, index=index_scene)
+
+            _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{index_scene}"
+            scene_id = traverse_obj(details, ('scenes', int(index_scene) - 1, 'id'))
+            _id_movie = str(details.get('id'))
+            _n_entries = len(details.get('scenes', []))
+
+            _entry = {
+                "id": str(scene_id),
+                "_id_movie": _id_movie,
+                "title": _title,
+                "formats": [],
+                "ext": "mp4",
+                "webpage_url": url,
+                "_index_scene": int(index_scene),
+                "_n_entries": _n_entries,
+                "extractor_key": 'NakedSwordScene',
+                "extractor": 'nakedswordscene'
+            }
+
             formats = self.get_formats(_types, _info)
             if formats:
                 _entry.update({'formats': formats})
                 self.logger_info(f"{premsg}: OK got entr")
                 try:
                     _entry.update({'duration': self._extract_m3u8_vod_duration(formats[0]['url'], str(scene_id), headers=NakedSwordBaseIE._HEADERS["MPD"])})
+                    NakedSwordSceneIE._SCENES[url]['final'] = True
                 except Exception as e:
                     self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
                 return _entry
             else:
-                raise ExtractorError(f'{premsg}: error - no formats')
+                raise ReExtractInfo(f'{premsg}: error - no formats')
         except ReExtractInfo:
             self.logger_info(f"{premsg}: error format, will retry again")
-            NakedSwordBaseIE.API_LOGOUT(msg='[get_entry]')
-            time.sleep(2)
-            NakedSwordBaseIE.API_LOGIN(msg='[get_entry]')
-            time.sleep(2)
+            NakedSwordSceneIE._SCENES[url]['final'] = False
             raise
         except StatusStop:
             raise
@@ -1058,25 +1087,9 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if not NakedSwordMovieIE._MOVIES[_url_movie]['final']:
 
-            NakedSwordBaseIE.API_LOGOUT(msg='[getentries]')
             _timeout = my_jitter(30)
-            _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
 
-            self.logger_info(
-                f'{premsg}[wait] start[{_timeout}] counter[{try_get(_simple_counter, lambda x: x.__name__)}] indexdl[{getattr(self, "indexdl", None)}]')
-
-            with self.create_progress_bar(msg=f'[{_url_movie.split("movies/")[1]}][wait]') as progress_bar:
-
-                if _simple_counter:
-                    _counter = _simple_counter(progress_bar, None, self.check_stop, timeout=_timeout, indexdl=getattr(self, 'indexdl', None))
-                    _reswait = _counter()
-                else:
-                    _reswait = _wait_for_either(progress_bar, self.check_stop, timeout=_timeout)
-
-            self.logger_info(f'{premsg}[wait][{_reswait}] end')
-
-            NakedSwordBaseIE.API_LOGIN(msg='[getentries]')
-            time.sleep(1)
+            self.wait_with_pb(_timeout, premsg)
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
