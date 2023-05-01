@@ -449,7 +449,7 @@ class myHAR:
         def __init__(self, har_file, logger=None, msg=None, port=8080):
             self.har_file = har_file
             self.port = port
-            self.cmd = f"mitmdump -p {port} -s /Users/antoniotorres/Projects/async_downloader/har_dump.py --set hardump={self.har_file}"
+            self.cmd = f"mitmdump -p {port} -s /Users/antoniotorres/Projects/async_downloader/share/har_dump.py --set hardump={self.har_file}"
             self.logger = logger if logger else logging.getLogger('getHAR').debug
             self.pre = msg if msg else ''
 
