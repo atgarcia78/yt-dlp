@@ -424,9 +424,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     def _get_actsubs(self, driver):
         entries = {}
-        _reg_str = r'/api2/v2/subscriptions/subscribes'
+        _reg_str = r'/api2/v2/lists/994217785/users\?.*$'  # r'/api2/v2/subscriptions/subscribes'
 
-        self.send_driver_request(driver, OnlyFansActSubslistIE._ACT_SUBS_URL)
+        self.send_driver_request(driver, OnlyFansActSubslistIE._ACT_SUBS_PAID_URL)
+
+        self.wait_until(driver, 60, scroll(2))
 
         actsubs_json = self.scan_for_json(_reg_str, driver=driver, _all=True)
         if actsubs_json:
@@ -682,6 +684,7 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
     IE_DESC = 'onlyfansactsubslist:playlist'
     _VALID_URL = r"https?://(?:www\.)?onlyfans\.com/actsubs"
     _ACT_SUBS_URL = "https://onlyfans.com/my/subscriptions/active"
+    _ACT_SUBS_PAID_URL = "https://onlyfans.com/collections/user-lists/994217785"
 
     def _get_videos_from_actsubs(self, userid, account):
 
@@ -731,7 +734,7 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
         try:
 
             self.to_screen("start getting act subs")
-            self.send_driver_request(driver, OnlyFansActSubslistIE._ACT_SUBS_URL)
+            #  self.send_driver_request(driver, OnlyFansActSubslistIE._ACT_SUBS_PAID_URL)
 
             actsubs_dict = self._get_actsubs(driver)
             entries = []

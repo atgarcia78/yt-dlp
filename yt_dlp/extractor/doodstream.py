@@ -15,7 +15,7 @@ from ..utils import (
     sanitize_url,
     js_to_json)
 
-from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError, limiter_0_1
+from .commonwebdriver import dec_on_driver_timeout, my_dec_on_exception, dec_on_exception2, dec_on_exception3, ExtractorError, SeleniumInfoExtractor, HTTPStatusError, ConnectError, limiter_0_1
 
 
 on_exception_vinfo = my_dec_on_exception(
@@ -75,7 +75,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         headers.update(_headers)
 
-        with limiter_1.ratelimit("doodstream", delay=True):
+        #  with limiter_0_1.ratelimit("doodstream", delay=True):
+        with self.IE_LIMITER:
             try:
                 return self.get_info_for_format(url, headers=headers)
             except (HTTPStatusError, ConnectError) as e:
