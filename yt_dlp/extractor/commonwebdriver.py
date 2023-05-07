@@ -23,7 +23,7 @@ from httpx import (
     Timeout,
     Response)
 
-from pyrate_limiter import Duration, Limiter, RequestRate
+from pyrate_limiter import Duration, Limiter, RequestRate, LimitContextDecorator
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -151,7 +151,10 @@ map_limiter = {
     0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, 0: limiter_non}
 
 
-def load_config_extractors():
+CONFIG_EXTRACTORS_MODE = "ieperkey"
+
+
+def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
     try:
 
         with open('/Users/antoniotorres/Projects/async_downloader/config_extractors.json', 'r') as f:
@@ -160,26 +163,51 @@ def load_config_extractors():
     except Exception:
         print("ERROR LOADING CONFIG EXTRACTORS FILE")
         data = json.loads('''{"userload#evoload": {"ratelimit": 5, "maxsplits": 4}, "doodstream#vidoza": {"ratelimit": 1, "maxsplits": 5}, "highload#tubeload#embedo#thisvidgay#redload#biguz#gaytubes": {"ratelimit": 0.1, "maxsplits": 4}, "boyfriendtv#nakedswordscene": {"ratelimit": 0.1, "maxsplits": 16}, "hungyoungbrit": {"ratelimit": 5, "maxsplits": 16}, "videovard#fembed#streamtape#gaypornvideos#gayforfans#gayguytop#upstream#videobin#gayforiteu#xvidgay#xfileshare": {"ratelimit": 1, "maxsplits": 16}, "onlyfans:post:playlist#odnoklassniki#thisvid#gaystreamembed#pornhat#yourporngod#ebembed#gay0day#onlygayvideo#txxx#thegay#homoxxx#youporn#gaygo#youporngay#streamsb#hexupload#pornone": {"ratelimit": 1, "maxsplits": 16}}''')
-
-    return {
-        tuple(key.split('#')): {
-            'interval': value.get('ratelimit', 1),
-            'ratelimit': map_limiter[value.get('ratelimit', 1)],
-            'maxsplits': value.get('maxsplits', 16)
+    if mode == "legacy":
+        return {
+            tuple(key.split('#')): {
+                'interval': value.get('ratelimit', 1),
+                'ratelimit': map_limiter[value.get('ratelimit', 1)],
+                'maxsplits': value.get('maxsplits', 16)
+            }
+            for key, value in data.items()
         }
-        for key, value in data.items()
-    }
+    else:
+        return {
+            ie: {
+                'interval': value.get('ratelimit', 1),
+                'ratelimit': map_limiter[value.get('ratelimit', 1)],
+                'maxsplits': value.get('maxsplits', 16)
+            }
+            for key, value in data.items() for ie in key.split('#')
+        }
 
 
-CONFIG_EXTRACTORS = load_config_extractors()
+# CONFIG_EXTRACTORS = load_config_extractors()
+def getter_basic_config_extr(x, config, mode=CONFIG_EXTRACTORS_MODE):
+    if not x or x.lower() == "generic":
+        return
+    if mode == "legacy":
+        value, key_text = try_get(
+            [(v, sk) for k, v in config.items() for sk in k if sk == x],
+            lambda y: y[0]) or (None, None)
+    else:
+        key_text = x
+        value = config.get(x)
+    if value:
+        return (value, key_text)
 
 
-def getter(x):
+def getter_config_extr(x, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitContextDecorator:
 
     if x != 'generic':
-        value, key_text = try_get(
-            [(v, sk) for k, v in SeleniumInfoExtractor._CONFIG_REQ.items() for sk in k if sk == x],
-            lambda y: y[0]) or ("", "")
+        if mode == "legacy":
+            value, key_text = try_get(
+                [(v, sk) for k, v in config.items() for sk in k if sk == x],
+                lambda y: y[0]) or ("", "")
+        else:
+            key_text = x
+            value = config.get(x)
         if value:
             return (value['ratelimit'].ratelimit(key_text, delay=True))
 
@@ -621,7 +649,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
     _MASTER_LOCK = Lock()
     _YTDL = None
-    _CONFIG_REQ = CONFIG_EXTRACTORS.copy()
+    _CONFIG_REQ = load_config_extractors()
     _FIREFOX_HEADERS = {
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
@@ -634,6 +662,10 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classproperty
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()  # type: ignore
+
+    @classproperty
+    def IE_LIMITER(cls) -> LimitContextDecorator:
+        return getter_config_extr(cls.IE_NAME, cls._CONFIG_REQ)
 
     @classproperty(cache=True)  # type: ignore
     def _RETURN_TYPE(cls):
@@ -1030,27 +1062,24 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if _extr_name in ['xhamster', 'xhamsterembed']:
                     return True
                 else:
-                    _decor = getter(_extr_name)
+                    _decor = getter_config_extr(_extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
                 @dec_on_exception3
                 @dec_on_exception2
                 @_decor
-                def _throttle_isvalid(_url, short):
+                def _throttle_isvalid(_url, short) -> Union[None, Response]:
                     try:
                         _headers = SeleniumInfoExtractor._FIREFOX_HEADERS.copy()
                         if short:
                             _headers.update({'Range': 'bytes=0-100'})
-                        res = self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
-                        if not res:
-                            return ""
-                        else:
-                            return res
+                        return self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
                     except (HTTPStatusError, ConnectError) as e:
                         self.report_warning(f"[valid]{_pre_str}:{e}")
 
                 res = _throttle_isvalid(url, True)
 
-                if res:
+                if res and isinstance(res, Response):
+
                     if res.headers.get('content-type') == "video/mp4":
                         valid = True
                         self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')

@@ -21,20 +21,21 @@ from .commonwebdriver import (
     my_dec_on_exception,
     Tuple,
     cast)
-from .doodstream import DoodStreamIE
-from .xfileshare import XFileShareIE
-from .streamsb import StreamSBIE
+
 
 from concurrent.futures import ThreadPoolExecutor
 
 import logging
 
-logger = logging.getLogger("gvdblog")
+from .doodstream import DoodStreamIE
+from .xfileshare import XFileShareIE
+from .streamsb import StreamSBIE
 
 _ies = (DoodStreamIE, XFileShareIE, StreamSBIE)
 _ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in _ies}
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
+logger = logging.getLogger("gvdblog")
 
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
@@ -66,8 +67,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             if key in urldict:
                 try:
                     _ch = check
-                    if key == 'doodstream':
-                        _ch = False
+                    # if key == 'doodstream':
+                    #     _ch = False
                     if not lazy:
                         _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=_ch, msg=premsg)
                         if _entry:
@@ -120,15 +121,20 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _check = {iename: False for iename in _ie_data}
 
         for el in p3:
+            if not el:
+                continue
             _url = _get_url(el)
+            if _url == 'DUMMY':
+                continue
             for key, value in _ie_data.items():
                 if re.search(value, _url):
                     if _check[key]:
                         list_urls.append(None)
-                        _check.update({iename: False for iename in _ie_data})
+                        _check.update({iename: False for iename in _ie_data if iename != key})
                     else:
                         _check[key] = True
                     list_urls.append(_url)
+                    break
 
         if any([_check[iename] for iename in _ie_data]):
             list_urls.append(None)
