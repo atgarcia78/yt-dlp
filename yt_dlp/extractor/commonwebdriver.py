@@ -24,7 +24,7 @@ from httpx import (
     Response)
 
 from pyrate_limiter import Duration, Limiter, RequestRate, LimitContextDecorator
-from selenium.webdriver import Firefox, FirefoxOptions
+from seleniumwire.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
@@ -663,8 +663,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()  # type: ignore
 
-    @classproperty
-    def IE_LIMITER(cls) -> LimitContextDecorator:
+    @classproperty(cache=True)  # type: ignore
+    def IE_LIMITER(cls):
         return getter_config_extr(cls.IE_NAME, cls._CONFIG_REQ)
 
     @classproperty(cache=True)  # type: ignore

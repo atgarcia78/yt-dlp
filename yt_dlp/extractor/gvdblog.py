@@ -31,8 +31,7 @@ from .doodstream import DoodStreamIE
 from .xfileshare import XFileShareIE
 from .streamsb import StreamSBIE
 
-_ies = (DoodStreamIE, XFileShareIE, StreamSBIE)
-_ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in _ies}
+_ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in (DoodStreamIE, XFileShareIE, StreamSBIE)}
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
 logger = logging.getLogger("gvdblog")
