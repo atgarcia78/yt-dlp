@@ -4,16 +4,34 @@ import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from typing import cast
 
 import httpx
-import atexit
 
 from ..utils import ExtractorError, int_or_none, try_get, traverse_obj
 from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, scroll, By, ec, Keys
 
-from queue import Queue, Empty
+from queue import Queue
 
 import logging
+
+import importlib.util
+import inspect
+
+spec = importlib.util.spec_from_file_location(
+    'account_base', '/Users/antoniotorres/Projects/onlyfans-dynamic-rules/python/account_base.py')
+account_base = importlib.util.module_from_spec(spec)  # type: ignore
+sys.modules['account_base'] = account_base
+spec.loader.exec_module(account_base)  # type: ignore
+spec = importlib.util.spec_from_file_location(
+    'account', '/Users/antoniotorres/Projects/onlyfans-dynamic-rules/python/account.py')
+account = importlib.util.module_from_spec(spec)  # type: ignore
+sys.modules['account'] = account
+spec.loader.exec_module(account)  # type: ignore
+
+classes = inspect.getmembers(account, lambda obj: inspect.isclass(obj) and obj.__name__ == 'Account')
+Account = classes[0][1]
+
 
 logger = logging.getLogger('onlyfans')
 
@@ -133,8 +151,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _SITE_URL = "https://onlyfans.com"
     _NETRC_MACHINE = 'twitter2'
     _LOCK = threading.Lock()
-
     _USERS = {}
+    conn_api: Account
 
     @dec_on_exception
     @limiter_0_1.ratelimit("onlyfans1", delay=True)
@@ -151,6 +169,45 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         driver.execute_script("window.stop();")
         driver.get(url)
+
+    def _get_conn_api(self):
+
+        driver = self.get_driver()
+
+        try:
+            _auth_config = self.cache.load('onlyfans', 'auth_config')
+            if not _auth_config:
+                _auth_config = self._get_auth_headers(driver)
+            OnlyFansBaseIE.conn_api = Account(_auth_config.get('cookie'), _auth_config.get('x-bc'), _auth_config.get('user-agent'), self)
+
+            with limiter_0_1.ratelimit("onlyfans2", delay=True):
+                if OnlyFansBaseIE.conn_api.getMe():
+                    return True
+                else:
+                    _auth_config = self._get_auth_headers(driver)
+                    OnlyFansBaseIE.conn_api = Account(_auth_config.get('cookie'), _auth_config.get('x-bc'), _auth_config.get('user-agent'), self)
+                    if OnlyFansBaseIE.conn_api .getMe():
+                        return True
+                    self.report_warning('[get_conn_api] fail when checking config')
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'[get_conn_api] {repr(e)} \n{"!!".join(lines)}')
+            raise ExtractorError(f'[get_conn_api] {repr(e)}')
+        finally:
+            self.rm_driver(driver)
+
+    def _get_auth_headers(self, driver):
+        _auth_config = {}
+        del driver.requests
+        self._login(driver)
+        del driver.requests
+        self.send_driver_request(driver, self._SITE_URL)
+        req = driver.wait_for_request('onlyfans.com/api2/v2')
+        if req:
+            for _header_name in ('cookie', 'x-bc', 'user-agent'):
+                _auth_config.update({_header_name: req.headers.get(_header_name)})
+            self.cache.store('onlyfans', 'auth_config', _auth_config)
+        return _auth_config
 
     def _login(self, driver):
 
@@ -244,60 +301,76 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                     videoid = _media['id']
                     _formats = []
-                    orig_width = orig_height = None
 
-                    if (_url := traverse_obj(_media, ('source', 'source'))):
-                        #  _filesize = self._get_filesize(_url)
+                    # # de momento disabled
+                    # if (_drm := traverse_obj(_media, ('ffffffffffiles', 'drm'))):
+                    #     if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
+                    #         _signature = cast(dict, traverse_obj(_drm, ('signature', 'dash'), default={}))
 
-                        _formats.append({
-                            'url': _url,
-                            'width': (orig_width := _media.get('info', {}).get('source', {}).get('width')),
-                            'height': (orig_height := _media.get('info', {}).get('source', {}).get('height')),
-                            'format_id': f"{orig_height}p-orig",
-                            #  'filesize': _filesize,
-                            'format_note': "original",
-                            'ext': "mp4"
-                        })
+                    #         _cookie = "; ".join([f'{key}={val}' for key, val in _signature.items()]) + "; " + OnlyFansBaseIE.conn_api.cookies
+                    #         _headers = {'cookie': _cookie, 'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
+                    #         _formats_dash, _ = self._extract_mpd_formats_and_subtitles(_mpd_url, videoid, mpd_id='dash', headers=_headers)
+                    #         for _fmt in _formats_dash:
+                    #             if (_head := _fmt.get('http_headers')):
+                    #                 _head.update(_headers)
+                    #             else:
+                    #                 _fmt.update({'http_headers': _headers})
+                    #         _formats.extend(_formats_dash)
+                    # else:
+                    if True:
+                        orig_width = orig_height = None
+                        if (_url := traverse_obj(_media, ('source', 'source'))):
+                            #  _filesize = self._get_filesize(_url)
 
-                    if _url2 := _media.get('videoSources', {}).get('720'):
-                        #  _filesize2 = self._get_filesize(_url2)
+                            _formats.append({
+                                'url': _url,
+                                'width': (orig_width := _media.get('info', {}).get('source', {}).get('width')),
+                                'height': (orig_height := _media.get('info', {}).get('source', {}).get('height')),
+                                'format_id': f"{orig_height}p-orig",
+                                #  'filesize': _filesize,
+                                'format_note': "original",
+                                'ext': "mp4"
+                            })
 
-                        if orig_width and orig_height and (orig_width > orig_height):
-                            height = 720
-                            width = 1280
-                        else:
-                            width = 720
-                            height = 1280
+                        if _url2 := _media.get('videoSources', {}).get('720'):
+                            #  _filesize2 = self._get_filesize(_url2)
 
-                        _formats.append({
-                            'format_id': f"{height}p",
-                            'url': _url2,
-                            'format_note': "720",
-                            'height': height,
-                            'width': width,
-                            #  'filesize': _filesize2,
-                            'ext': "mp4"
-                        })
+                            if orig_width and orig_height and (orig_width > orig_height):
+                                height = 720
+                                width = 1280
+                            else:
+                                width = 720
+                                height = 1280
 
-                    if _url3 := _media.get('videoSources', {}).get('240'):
-                        #  _filesize3 = self._get_filesize(_url3)
+                            _formats.append({
+                                'format_id': f"{height}p",
+                                'url': _url2,
+                                'format_note': "720",
+                                'height': height,
+                                'width': width,
+                                #  'filesize': _filesize2,
+                                'ext': "mp4"
+                            })
 
-                        if orig_width and orig_height and (orig_width > orig_height):
-                            height = 240
-                            width = 426
-                        else:
-                            width = 426
-                            height = 240
+                        if _url3 := _media.get('videoSources', {}).get('240'):
+                            #  _filesize3 = self._get_filesize(_url3)
 
-                        _formats.append({
-                            'format_id': f"{height}p",
-                            'url': _url3,
-                            'format_note': "240",
-                            'height': height,
-                            'width': width,
-                            #  'filesize': _filesize3,
-                            'ext': "mp4"
-                        })
+                            if orig_width and orig_height and (orig_width > orig_height):
+                                height = 240
+                                width = 426
+                            else:
+                                width = 426
+                                height = 240
+
+                            _formats.append({
+                                'format_id': f"{height}p",
+                                'url': _url3,
+                                'format_note': "240",
+                                'height': height,
+                                'width': width,
+                                #  'filesize': _filesize3,
+                                'ext': "mp4"
+                            })
 
                     if _formats:
 
@@ -440,45 +513,28 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             for user_json in list_json:
                 entries.update({user_json['id']: user_json['username']})
 
-        return (entries)
+        return entries
 
     def _real_initialize(self):
 
         super()._real_initialize()
+        with OnlyFansBaseIE._LOCK:
+            if not hasattr(OnlyFansBaseIE, 'conn_api'):
+                self._get_conn_api()
+        assert OnlyFansBaseIE.conn_api
+        OnlyFansBaseIE.conn_api = cast(account.Account, OnlyFansBaseIE.conn_api)
 
 
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'  # type: ignore
     IE_DESC = 'onlyfans:post:playlist'
     _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<post>[\d]+)/(?P<account>[\da-zA-Z]+)"
-    _DRIVER_QUEUE = None
-    _COUNT_DRIVERS = 0
-
-    def close(self):
-
-        if OnlyFansPostIE._DRIVER_QUEUE:
-
-            try:
-                driver = OnlyFansPostIE._DRIVER_QUEUE.get(block=False)
-                self.rm_driver(driver)
-            except Empty:
-                pass
-
-        super().close()
 
     def _real_initialize(self):
         super()._real_initialize()
-        with OnlyFansBaseIE._LOCK:
-            if not OnlyFansPostIE._DRIVER_QUEUE:
-                OnlyFansPostIE._DRIVER_QUEUE = Queue()
-                OnlyFansPostIE._DRIVER_QUEUE.put_nowait(self.get_driver(devtools=True))
-                OnlyFansPostIE._COUNT_DRIVERS += 1
-                atexit.register(self.close)
 
     def _real_extract(self, url: str):
 
-        if not url:
-            raise ExtractorError('url cant be none')
         self.report_extraction(url)
 
         post, account = try_get(re.search(self._VALID_URL, url),  # type: ignore
@@ -488,45 +544,10 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 
         entries = {}
 
-        assert isinstance(OnlyFansPostIE._DRIVER_QUEUE, Queue)
+        assert OnlyFansBaseIE.conn_api
 
-        with OnlyFansBaseIE._LOCK:
-            if OnlyFansPostIE._COUNT_DRIVERS >= 3:
-                _block = True
-            else:
-                _block = False
-
-        try:
-            driver = OnlyFansPostIE._DRIVER_QUEUE.get(block=_block)
-        except Empty:
-            with OnlyFansBaseIE._LOCK:
-                OnlyFansPostIE._COUNT_DRIVERS += 1
-            driver = self.get_driver(devtools=True)
-
-        try:
-
-            # with OnlyFansPostIE._LOCK:
-
-            #     driver = self.get_driver(devtools=True)
-            #     self._login(driver)
-
-            self.send_driver_request(driver, url)
-            res = self.wait_until(driver, 30, error404_or_found("b-post__wrapper"))
-
-            if not res or "error404" in res:
-                raise ExtractorError("Error 404: Post doesnt exists")
-            #  self.wait_until(driver, 30, ec.presence_of_element_located((By.CLASS_NAME, "b-post__wrapper")))
-            _pattern = r'/api2/v2/posts/%s\?skip_users=all$' % post
-            data_json = self.scan_for_json(_pattern, driver=driver)
-
-        except ExtractorError:
-            raise
-        except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
-            raise ExtractorError(repr(e))
-        finally:
-            OnlyFansPostIE._DRIVER_QUEUE.put_nowait(driver)
+        with limiter_0_1.ratelimit("onlyfans2", delay=True):
+            data_json = OnlyFansBaseIE.conn_api.getPost(post)
 
         if data_json:
             #  self.to_screen(data_json)
@@ -551,16 +572,55 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'  # type: ignore
     IE_DESC = 'onlyfans:playlist'
     _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/((?P<mode>(?:all|latest|chat|favorites|tips))/?)$"
-    _MODE_DICT = {"favorites": "?order=favorites_count_desc", "tips": "?order=tips_summ_desc", "all": "", "latest": ""}
+    _MODE_DICT = {"favorites": {"order": "favorites_count_desc", "num": 25},
+                  "tips": {"order": "tips_summ_desc", "num": 25},
+                  "all": {"order": "publish_date_desc", "num": -1},
+                  "latest": {"order": "publish_date_desc", "num": 10}}
 
     def _real_initialize(self):
         super()._real_initialize()
 
+    def _get_videos_from_subs(self, userid, account, mode):
+
+        _url_videos = f"https://onlyfans.com/{account}/videos"
+        self.report_extraction(_url_videos)
+        pre = f'[get_videos_act_subs][{account}]'
+        try:
+
+            list_json = OnlyFansBaseIE.conn_api.getVideosUser(userid, **self._MODE_DICT.get(mode, {}))
+
+            if not list_json:
+                raise ExtractorError(f"[{_url_videos}] no entries")
+
+            with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
+                futures = {exe.submit(self._extract_from_json, info_json, user_profile=account): info_json for info_json in list_json}
+
+            entries = {}
+            for fut in futures:
+                try:
+                    _entry = fut.result()
+                    if _entry:
+                        for _video in _entry:
+                            if not _video['id'] in entries:
+                                entries[_video['id']] = _video
+                            else:
+                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                    entries[_video['id']] = _video
+                except Exception as e:
+                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')}/{account} - {repr(e)}")
+
+            return entries
+
+        except ExtractorError:
+            raise
+        except Exception as e:
+            lines = traceback.format_exception(*sys.exc_info())
+            self.to_screen(f'[{_url_videos}] {repr(e)} \n{"!!".join(lines)}')
+            raise ExtractorError(f'[{_url_videos}] {repr(e)}')
+
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        driver = self.get_driver(devtools=True)
-        #  self._login(driver)
         account, mode = try_get(re.search(self._VALID_URL, url),  # type: ignore
                                 lambda x: x.group("account", "mode"))
         if not mode:
@@ -568,36 +628,20 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
 
         entries = {}
 
+        driver = None
         #  self.to_screen(f"{account}:{mode}")
 
         try:
-            self.send_driver_request(driver, f"{self._SITE_URL}/{account}")
-            res = self.wait_until(driver, 60, error404_or_found())
-            if not res or res[0] == "error404":
-                raise ExtractorError("Error 404: User profile doesnt exists")
 
-            userid = try_get(self.scan_for_json(r'/api2/v2/users/%s$' % account, driver=driver), lambda x: x['id'])
-
-            #  self.to_screen(f"{userid}")
+            userid = OnlyFansBaseIE.conn_api.getUserId(account)
 
             if mode in ("all", "latest", "favorites", "tips"):
 
-                _url = f"{self._SITE_URL}/{account}/videos{self._MODE_DICT[mode]}"
-
-                #  self.to_screen(f"{_url}")
-
-                self.send_driver_request(driver, _url)
-                self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos.g-negative-sides-gaps")))
-                if mode == 'latest':
-                    entries = self._get_videos_from_userid_grid(driver, userid, account)
-
-                else:
-                    # lets scroll down in the videos pages till the end
-                    self.wait_until(driver, 600, scroll(10))
-                    entries = self._get_videos_from_userid_grid(driver, userid, account, _all=True)
+                entries = self._get_videos_from_subs(userid, account, mode)
 
             elif mode in ("chat"):
-
+                driver = self.get_driver(devtools=True)
+                self._login(driver)
                 entries = self._get_videos_from_userid_chat(driver, userid, account)
 
             if entries:
@@ -615,7 +659,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(repr(e))
         finally:
-            self.rm_driver(driver)
+            if driver:
+                self.rm_driver(driver)
 
 
 class OnlyFansPaidlistIE(OnlyFansBaseIE):
@@ -690,22 +735,31 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
 
         _url_videos = f"https://onlyfans.com/{account}/videos"
         self.report_extraction(_url_videos)
-        driver = self.get_driver(devtools=True)
-
+        pre = f'[get_videos_act_subs][{account}]'
         try:
 
-            # with OnlyFansActSubslistIE._LOCK:
-            #     driver = self.get_driver(devtools=True)
-            #     self._login(driver)
+            list_json = try_get(OnlyFansBaseIE.conn_api.getVideosUser(userid), lambda x: x.get('list'))
 
-            self.send_driver_request(driver, _url_videos)
-            self.wait_until(driver, 60, ec.presence_of_all_elements_located((By.CLASS_NAME, "b-photos__item.m-video-item")))
-
-            # only get the first ones
-            entries = self._get_videos_from_userid_grid(driver, userid, account)
-
-            if not entries:
+            if not list_json:
                 raise ExtractorError(f"[{_url_videos}] no entries")
+
+            with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
+                futures = {exe.submit(self._extract_from_json, info_json, user_profile=account): info_json for info_json in list_json}
+
+            entries = {}
+            for fut in futures:
+                try:
+                    _entry = fut.result()
+                    if _entry:
+                        for _video in _entry:
+                            if not _video['id'] in entries:
+                                entries[_video['id']] = _video
+                            else:
+                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                    entries[_video['id']] = _video
+                except Exception as e:
+                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')}/{account} - {repr(e)}")
+
             return list(entries.values())
 
         except ExtractorError:
@@ -714,8 +768,6 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'[{_url_videos}] {repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(f'[{_url_videos}] {repr(e)}')
-        finally:
-            self.rm_driver(driver)
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -724,24 +776,16 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
 
         self.report_extraction(url)
 
-        # with OnlyFansActSubslistIE._LOCK:
-
-        #     driver = self.get_driver(devtools=True)
-        #     self._login(driver)
-
-        driver = self.get_driver(devtools=True)
-
         try:
 
             self.to_screen("start getting act subs")
-            #  self.send_driver_request(driver, OnlyFansActSubslistIE._ACT_SUBS_PAID_URL)
 
-            actsubs_dict = self._get_actsubs(driver)
+            actsubs_dict = OnlyFansBaseIE.conn_api.getActSubs()
             entries = []
             if actsubs_dict:
                 self.to_screen(f"act_subs:\n{actsubs_dict}")
-                with ThreadPoolExecutor(thread_name_prefix='OFPlaylist', max_workers=len(actsubs_dict)) as ex:
-                    futures = [ex.submit(self._get_videos_from_actsubs, _userid, _account) for _userid, _account in list(actsubs_dict.items())]
+                with ThreadPoolExecutor(thread_name_prefix='OFPlaylist') as ex:
+                    futures = [ex.submit(self._get_videos_from_actsubs, _userid, _account) for _account, _userid in list(actsubs_dict.items())]
 
                 for fut in futures:
                     try:
@@ -764,8 +808,6 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'{repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(repr(e))
-        finally:
-            self.rm_driver(driver)
 
 
 class OnlyFansAllChatslistIE(OnlyFansBaseIE):
