@@ -2535,7 +2535,7 @@ from .gaybeeg import (
     GayBeegIE,
     GayBeegPlaylistIE,
     GayBeegPlaylistPageIE,
-    
+
 )
 from .gayforfans import (
     GayForFansIE,
@@ -2552,7 +2552,7 @@ from .britfuckers import BritFuckersIE
 from .gayqt import GayQTIE
 from .slamrush import (
     SlamRushIE,
-    SlamRushPlaylistIE,    
+    SlamRushPlaylistIE,
 )
 from .sketboy import SketBoyIE
 from .mat6tube import Mat6TubeIE
@@ -2574,19 +2574,18 @@ from .nakedsword import (
 from .monstercockinfo import MonsterCockInfoIE
 from .onlyfans import (
     OnlyFansPostIE,
-    OnlyFansPlaylistIE,    
+    OnlyFansPlaylistIE,
     OnlyFansPaidlistIE,
-    OnlyFansActSubslistIE,
-    OnlyFansAllChatslistIE
+    OnlyFansActSubslistIE
 )
 from .netdna import NetDNAIE
 from .bbgroup import (
-    BreederBrosIE,    
+    BreederBrosIE,
     BreederBrosOnePagePlaylistIE,
     BreederBrosAllPagesPlaylistIE,
-    SketchySexIE,    
+    SketchySexIE,
     SketchySexOnePagePlaylistIE,
-    SketchySexAllPagesPlaylistIE,    
+    SketchySexAllPagesPlaylistIE,
 )
 from .youngbastards import YoungBastardsIE
 from .boyfriendtv import (

@@ -151,7 +151,7 @@ map_limiter = {
     0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, 0: limiter_non}
 
 
-CONFIG_EXTRACTORS_MODE = "ieperkey"
+CONFIG_EXTRACTORS_MODE = "ie_per_key"
 
 
 def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
@@ -162,7 +162,8 @@ def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
 
     except Exception:
         print("ERROR LOADING CONFIG EXTRACTORS FILE")
-        data = json.loads('''{"userload#evoload": {"ratelimit": 5, "maxsplits": 4}, "doodstream#vidoza": {"ratelimit": 1, "maxsplits": 5}, "highload#tubeload#embedo#thisvidgay#redload#biguz#gaytubes": {"ratelimit": 0.1, "maxsplits": 4}, "boyfriendtv#nakedswordscene": {"ratelimit": 0.1, "maxsplits": 16}, "hungyoungbrit": {"ratelimit": 5, "maxsplits": 16}, "videovard#fembed#streamtape#gaypornvideos#gayforfans#gayguytop#upstream#videobin#gayforiteu#xvidgay#xfileshare": {"ratelimit": 1, "maxsplits": 16}, "onlyfans:post:playlist#odnoklassniki#thisvid#gaystreamembed#pornhat#yourporngod#ebembed#gay0day#onlygayvideo#txxx#thegay#homoxxx#youporn#gaygo#youporngay#streamsb#hexupload#pornone": {"ratelimit": 1, "maxsplits": 16}}''')
+        raise
+
     if mode == "legacy":
         return {
             tuple(key.split('#')): {
@@ -184,9 +185,11 @@ def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
 
 
 # CONFIG_EXTRACTORS = load_config_extractors()
-def getter_basic_config_extr(x, config, mode=CONFIG_EXTRACTORS_MODE):
-    if not x or x.lower() == "generic":
+def getter_basic_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE):
+
+    if not ie_name or ie_name.lower() == "generic":
         return
+    x = ie_name.split(':')[0]
     if mode == "legacy":
         value, key_text = try_get(
             [(v, sk) for k, v in config.items() for sk in k if sk == x],
@@ -198,8 +201,9 @@ def getter_basic_config_extr(x, config, mode=CONFIG_EXTRACTORS_MODE):
         return (value, key_text)
 
 
-def getter_config_extr(x, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitContextDecorator:
+def getter_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitContextDecorator:
 
+    x = ie_name.split(':')[0]
     if x != 'generic':
         if mode == "legacy":
             value, key_text = try_get(
