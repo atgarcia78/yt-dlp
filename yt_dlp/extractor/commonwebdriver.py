@@ -24,7 +24,8 @@ from httpx import (
     Response)
 
 from pyrate_limiter import Duration, Limiter, RequestRate, LimitContextDecorator
-from seleniumwire.webdriver import Firefox, FirefoxOptions
+from selenium.webdriver import Firefox, FirefoxOptions
+from seleniumwire.webdriver import Firefox as Firefoxwire, FirefoxOptions as FirefoxOptionswire
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
@@ -662,6 +663,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         'Cache-Control': 'no-cache',
     }
     _COOKIES_JAR = []
+    _SELENIUM_FACTORY = {'wire': {'ff': Firefoxwire, 'ffopts': FirefoxOptionswire}, 'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
     @classproperty
     def IE_NAME(cls):
@@ -857,18 +859,15 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classmethod
     @dec_retry
-    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None, verbose=False):
+    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, selenium_factory="standard", verbose=False):
 
-        if not temp_prof_dir:
-            tempdir = tempfile.mkdtemp(prefix='asyncall-')
-            shutil.rmtree(tempdir, ignore_errors=True)
-            res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)
-            if res != tempdir:
-                raise ExtractorError("error when creating profile folder")
-        else:
-            tempdir = temp_prof_dir
+        tempdir = tempfile.mkdtemp(prefix='asyncall-')
+        shutil.rmtree(tempdir, ignore_errors=True)
+        res = shutil.copytree(SeleniumInfoExtractor._FF_PROF, tempdir, dirs_exist_ok=True)
+        if res != tempdir:
+            raise ExtractorError("error when creating profile folder")
 
-        opts = FirefoxOptions()
+        opts = cls._SELENIUM_FACTORY[selenium_factory]['ffopts']()
 
         opts.binary_location = SeleniumInfoExtractor._FF_BINARY
 
@@ -918,7 +917,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         def return_driver():
             _driver = None
             try:
-                _driver = Firefox(service=serv, options=opts)  # type: ignore
+                _driver = cls._SELENIUM_FACTORY[selenium_factory]['ff'](service=serv, options=opts)  # type: ignore
                 _driver.maximize_window()
                 time.sleep(2)
                 _driver.set_script_timeout(20)
@@ -939,7 +938,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return (driver, opts)
 
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, temp_prof_dir=None, verbose=False):
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, selenium_factory="standard", verbose=False):
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
         if not host and _proxy and isinstance(_proxy, str):
@@ -949,7 +948,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             _host, _port = host, port
 
         driver, _ = SeleniumInfoExtractor._get_driver(
-            noheadless=noheadless, devtools=devtools, host=_host, port=_port, temp_prof_dir=temp_prof_dir, verbose=verbose)
+            noheadless=noheadless, devtools=devtools, host=_host, port=_port, selenium_factory=selenium_factory, verbose=verbose)
 
         return driver
 
@@ -1017,6 +1016,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             _accept_ranges = any([res.headers.get('accept-ranges'), res.headers.get('content-range')])
             if _filesize:
                 return ({'url': _url, 'filesize': _filesize, 'accept_ranges': _accept_ranges})
+            else:
+                raise ReExtractInfo('no filesize')
         except ConnectError as e:
             _msg_err = f'{repr(e)} - {str(e)}'
             if 'errno 61' in _msg_err.lower():
@@ -1031,6 +1032,9 @@ class SeleniumInfoExtractor(InfoExtractor):
                 raise StatusError503(_msg_err)
             else:
                 raise
+        except ReExtractInfo as e:
+            _msg_err = f'{repr(e)} - {str(e)}'
+            raise
         except Exception as e:
             _msg_err = f'{repr(e)} - {str(e)}'
             if not res:

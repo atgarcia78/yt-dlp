@@ -37,6 +37,8 @@ urllib3_url._encode_invalid_chars = hook_invalid_chars  # type: ignore
 
 
 class AccountBase:
+    _CONFIG_RULES = 'https://raw.githubusercontent.com/SneakyOvis/onlyfans-dynamic-rules/main/rules.json'
+
     def __init__(self, **kwargs):
         self.cookies = kwargs.get('cookie', '')
         self.xbc = kwargs.get('x-bc')
@@ -48,7 +50,7 @@ class AccountBase:
         self.authID = self.getAuthID()
         self.session = requests.Session()
 
-        rules = requests.get('https://raw.githubusercontent.com/SneakyOvis/onlyfans-dynamic-rules/main/rules.json').json()
+        rules = requests.get(AccountBase._CONFIG_RULES).json()
         self.appToken = rules['app-token']
         self.signStaticParam = rules['static_param']
         self.signChecksumConstant = rules['checksum_constant']
@@ -86,7 +88,7 @@ class AccountBase:
             headers = self.createHeaders(path)
             response = self.session.get(f'https://onlyfans.com{path}', headers=headers)
 
-            self.logger.debug(f'--get {response.request.url}')
+            self.logger.debug(f'[get] {response.request.url}')
 
             if response.status_code == 200:
                 return response.json()
@@ -110,15 +112,17 @@ class Account(AccountBase):
     def getActSubs(self) -> dict:
         offset = 0
         subs = {}
+        _base_url = '/api2/v2/lists/994217785/users?offset=%s&limit=10'
         while True:
-            data = self.get(f'/api2/v2/lists/994217785/users?offset={offset}&limit=10')
+            _url = _base_url % offset
+            data = self.get(_url)
             if not data:
                 break
-
             subs.update({user['username']: user['id'] for user in data})
-            offset += 10
             if len(data) == 0 or len(data) < 10:
                 break
+            offset += 10
+
         return subs
 
     def getVideoPosts(self, userid, order="publish_date_desc", num=10):
@@ -339,7 +343,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     def _get_conn_api(self):
 
-        driver = self.get_driver()
+        driver = self.get_driver(selenium_factory="wire")
 
         try:
             _auth_config = self.cache.load('onlyfans', 'auth_config')
