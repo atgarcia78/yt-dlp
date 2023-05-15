@@ -83,10 +83,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
 
         _headers = kwargs.get('headers', {})
-        headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+                   'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
 
         headers.update(_headers)
-
         limiter = cast(LimitContextDecorator, self.IE_LIMITER)
         with limiter:
             try:
