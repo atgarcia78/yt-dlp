@@ -95,7 +95,7 @@ class cached_classproperty(cached_property):
             raise TypeError("Cannot use cached_classproperty instance without calling __set_name__ on it.")
         try:
             cache = owner.__dict__
-        except AttributeError:  # not all objects have __dict__ (e.g. class defines slots)
+        except AttributeError:
             msg = f"No '__dict__' attribute on {owner.__name__!r} " f"to cache {self.attrname!r} property."
             raise TypeError(msg) from None
         val = cache.get(self.attrname, _NOT_FOUND)
