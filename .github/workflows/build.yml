@@ -99,8 +99,6 @@ jobs:
           sudo apt-get -y install zip pandoc man sed
           python -m pip install -U pip setuptools wheel
           python -m pip install -U Pyinstaller -r requirements.txt
-          python -m pip install --force 'selenium-wire@git+https://github.com/atgarcia78/selenium-wire.git'
-          python -m pip install --force 'h2@git+https://github.com/atgarcia78/h2.git'
           reqs=$(mktemp)
           cat > $reqs << EOF
           python=3.10.*
@@ -187,8 +185,8 @@ jobs:
           run: |
             cd repo
             python3.8 -m pip install -U Pyinstaller -r requirements.txt  # Cached version may be out of date
-            python3.8 -m pip install --force 'selenium-wire@git+https://github.com/atgarcia78/selenium-wire.git'
-            python3.8 -m pip install --force 'h2@git+https://github.com/atgarcia78/h2.git'
+            
+            
             python3.8 devscripts/update-version.py -c ${{ inputs.channel }} ${{ inputs.version }}
             python3.8 devscripts/make_lazy_extractors.py
             python3.8 pyinst.py
@@ -312,9 +310,6 @@ jobs:
         run: | # Custom pyinstaller built with https://github.com/yt-dlp/pyinstaller-builds
           python -m pip install -U pip setuptools wheel py2exe
           pip install -U "https://yt-dlp.github.io/Pyinstaller-Builds/x86_64/pyinstaller-5.8.0-py3-none-any.whl" -r requirements.txt
-          python -m pip install --force 'selenium-wire@git+https://github.com/atgarcia78/selenium-wire.git'
-          python -m pip install --force 'h2@git+https://github.com/atgarcia78/h2.git'
-
       - name: Prepare
         run: |
           python devscripts/update-version.py -c ${{ inputs.channel }} ${{ inputs.version }}
@@ -362,8 +357,8 @@ jobs:
         run: |
           python -m pip install -U pip setuptools wheel
           pip install -U "https://yt-dlp.github.io/Pyinstaller-Builds/i686/pyinstaller-5.8.0-py3-none-any.whl" -r requirements.txt
-          python -m pip install --force 'selenium-wire@git+https://github.com/atgarcia78/selenium-wire.git'
-          python -m pip install --force 'h2@git+https://github.com/atgarcia78/h2.git'
+          
+          
 
       - name: Prepare
         run: |

@@ -8,3 +8,5 @@ backoff
 pyrate-limiter
 selenium
 httpx
+selenium-wire @ git+https://github.com/atgarcia78/selenium-wire.git@8b36b5c2c7d52d060623a7f68ca2b9c78343678e
+h2 @ git+https://github.com/atgarcia78/h2.git@a965c668baf82a5ab88629c67593e82db0845bdf
