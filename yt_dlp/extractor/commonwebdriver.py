@@ -714,7 +714,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classproperty
     def LOGGER(cls):
-        return logging.getLogger(cls.IE_NAME)
+        return logging.getLogger('yt_dlp')
 
     #  @classproperty(cache=True)  # type: ignore
     @cached_classproperty
@@ -743,7 +743,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     @cached_classproperty
     def _COOKIES_JAR(cls):
         with SeleniumInfoExtractor._MASTER_LOCK:
-            cls.LOGGER.info("Loading cookies from Firefox")
+            cls.LOGGER.info(f"[{cls.IE_NAME}] Loading cookies from Firefox")
             return extract_cookies_from_browser('firefox')
 
     def logger_info(self, msg):
@@ -967,7 +967,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _driver.set_page_load_timeout(25)
                 return _driver
             except Exception as e:
-                cls.LOGGER.exception(f'Firefox fails starting - {str(e)}')
+                cls.LOGGER.exception(f"[{cls.IE_NAME}] Firefox fails starting - {str(e)}")
                 if _driver:
                     cls.rm_driver(_driver)
 
@@ -1295,4 +1295,4 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            cls.LOGGER.debug(f"{premsg} {req}:{res}:{_msg_err}")
+            cls.LOGGER.debug(f"[{cls.IE_NAME}] {premsg} {req}:{res}:{_msg_err}")
