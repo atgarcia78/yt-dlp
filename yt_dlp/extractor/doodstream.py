@@ -232,7 +232,6 @@ class DoodStreamIE(SeleniumInfoExtractor):
         self.report_extraction(url)
 
         try:
-
             if not self.get_param('embed'):
                 _check = True
             else:
