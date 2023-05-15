@@ -160,7 +160,7 @@ CONFIG_EXTRACTORS_MODE = "ie_per_key"
 def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
     try:
 
-        data = httpx.get('https://raw.githubusercontent.com/atgarcia78/async_downloader/main/config_extractors.json?token=GHSAT0AAAAAACAUCGA5P3C3KDJMBL4B6LNAZDBYM6Q').json()
+        data = httpx.get('https://raw.githubusercontent.com/atgarcia78/yt-dlp/master/config_extractors.json').json()
 
     except Exception:
         print("ERROR LOADING CONFIG EXTRACTORS FILE")
