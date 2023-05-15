@@ -87,7 +87,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         headers.update(_headers)
 
-        limiter = cast(LimitContextDecorator, DoodStreamIE.IE_LIMITER)
+        limiter = cast(LimitContextDecorator, self.IE_LIMITER)
         with limiter:
             try:
                 return self.get_info_for_format(url, headers=headers)
