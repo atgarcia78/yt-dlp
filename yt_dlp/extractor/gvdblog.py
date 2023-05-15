@@ -333,7 +333,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self._total: int
         self.keyapi: str
 
-        for cookie in self.extract_cookies():
+        for cookie in SeleniumInfoExtractor._COOKIES_JAR:
             if 'gvdblog.net' in cookie.domain and 'cf_clearance' in cookie.name:
                 self.to_screen(f"cookie: {cookie}")
                 self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.net')  # type: ignore
