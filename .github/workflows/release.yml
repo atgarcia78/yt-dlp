@@ -110,8 +110,8 @@ jobs:
           sudo apt-get -y install pandoc man
           python -m pip install -U pip setuptools wheel twine
           python -m pip install -U -r requirements.txt
-          python -m pip install --force 'selenium-wire@git+https://github.com/atgarcia78/selenium-wire.git'
-          python -m pip install --force 'h2@git+https://github.com/atgarcia78/h2.git'
+          
+          
 
       - name: Prepare
         run: |
