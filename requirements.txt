@@ -8,4 +8,5 @@ backoff
 pyrate-limiter
 selenium
 selenium-wire
+cached-classproperty
 httpx
