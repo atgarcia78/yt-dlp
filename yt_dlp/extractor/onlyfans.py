@@ -21,7 +21,6 @@ from .commonwebdriver import (
 from ..utils import ExtractorError, int_or_none, traverse_obj, try_get
 
 import hashlib
-import requests
 import time
 import urllib3.util.url as urllib3_url
 
@@ -39,18 +38,19 @@ urllib3_url._encode_invalid_chars = hook_invalid_chars  # type: ignore
 class AccountBase:
     _CONFIG_RULES = 'https://raw.githubusercontent.com/SneakyOvis/onlyfans-dynamic-rules/main/rules.json'
 
-    def __init__(self, **kwargs):
+    def __init__(self, ie, **kwargs):
         self.cookies = kwargs.get('cookie', '')
         self.xbc = kwargs.get('x-bc')
         self.userAgent = kwargs.get('user-agent')
+        self.ie = ie
 
         if any([not self.cookies, not self.xbc, not self.userAgent]):
             raise Exception('error when init account')
 
         self.authID = self.getAuthID()
-        self.session = requests.Session()
+        self.session = self.ie._CLIENT
 
-        rules = requests.get(AccountBase._CONFIG_RULES).json()
+        rules = self.session.get(AccountBase._CONFIG_RULES).json()
         self.appToken = rules['app-token']
         self.signStaticParam = rules['static_param']
         self.signChecksumConstant = rules['checksum_constant']
@@ -355,7 +355,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 return True
             else:
                 _auth_config = self._get_auth_config(driver)
-                OnlyFansBaseIE.conn_api = Account(**_auth_config)
+                OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
                 if OnlyFansBaseIE.conn_api .getMe():
                     return True
                 self.report_warning('[get_conn_api] fail when checking config')
