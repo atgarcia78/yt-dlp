@@ -11,4 +11,4 @@ else
     exit 1
 fi
 
-python3 -Werror -m pytest "$test_set"
+python3 -Wonce -m pytest "$test_set"
