@@ -7,4 +7,5 @@ certifi
 backoff
 pyrate-limiter
 selenium
+selenium-wire
 httpx
