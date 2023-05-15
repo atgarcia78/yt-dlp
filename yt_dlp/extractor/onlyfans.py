@@ -197,7 +197,7 @@ class Account(AccountBase):
         return videos
 
 
-def upt_dict(info_dict: Union[dict, list[dict]], **kwargs) -> Union[dict, list[dict]]:
+def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
     if isinstance(info_dict, dict):
         info_dict_list = [info_dict]
     else:
