@@ -55,6 +55,8 @@ from typing import (
     Iterable,
 )
 
+from cached_classproperty import cached_classproperty
+
 assert Tuple
 assert Dict
 assert Iterable
@@ -662,18 +664,23 @@ class SeleniumInfoExtractor(InfoExtractor):
         'Pragma': 'no-cache',
         'Cache-Control': 'no-cache',
     }
-    _COOKIES_JAR = []
     _SELENIUM_FACTORY = {'wire': {'ff': Firefoxwire, 'ffopts': FirefoxOptionswire}, 'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
     @classproperty
     def IE_NAME(cls):
         return cls.__name__[:-2].lower()  # type: ignore
 
-    @classproperty(cache=True)  # type: ignore
+    @classproperty
+    def LOGGER(cls):
+        return logging.getLogger(cls.IE_NAME)
+
+    #  @classproperty(cache=True)  # type: ignore
+    @cached_classproperty
     def IE_LIMITER(cls):
         return getter_config_extr(cls.IE_NAME, cls._CONFIG_REQ)
 
-    @classproperty(cache=True)  # type: ignore
+    # @classproperty(cache=True)  # type: ignore
+    @cached_classproperty
     def _RETURN_TYPE(cls):
         """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
         tests = tuple(cls.get_testcases(include_onlymatching=False))
@@ -691,6 +698,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 return 'video'
 
+    @cached_classproperty
+    def _COOKIES_JAR(cls):
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            cls.LOGGER.info("Loading cookies from Firefox")
+            return extract_cookies_from_browser('firefox')
+
     def logger_info(self, msg):
         if (_logger := self.get_param('logger')):
             _logger.info(f"[{self.IE_NAME}] {msg}")
@@ -702,13 +715,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             _logger.debug(f"[debug+][{self.IE_NAME}] {msg}")
         else:
             self.to_screen(f"[debug] {msg}")
-
-    def extract_cookies(self):
-        with SeleniumInfoExtractor._MASTER_LOCK:
-            if not SeleniumInfoExtractor._COOKIES_JAR:
-                self.to_screen("Loading cookies from Firefox")
-                SeleniumInfoExtractor._COOKIES_JAR = extract_cookies_from_browser('firefox')
-        return SeleniumInfoExtractor._COOKIES_JAR
 
     def create_progress_bar(self, msg=None):
         ydllogger = YDLLogger(self._downloader, msg=msg)
@@ -787,31 +793,26 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         assert self._downloader
 
-        try:
-            with SeleniumInfoExtractor._MASTER_LOCK:
-                if self._YTDL != self._downloader:
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            if self._YTDL != self._downloader:
 
-                    self._downloader.params.setdefault('stop_dl', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), {}) if x else {}))
-                    self._downloader.params.setdefault('sem', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('sem'), {}) if x else {}))
-                    self._downloader.params.setdefault('lock', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('lock'), Lock()) if x else Lock()))
-                    self._downloader.params.setdefault('stop', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop'), Event()) if x else Event()))
-                    self._downloader.params.setdefault('routing_table', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
+                self._downloader.params.setdefault('stop_dl', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), {}) if x else {}))
+                self._downloader.params.setdefault('sem', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('sem'), {}) if x else {}))
+                self._downloader.params.setdefault('lock', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('lock'), Lock()) if x else Lock()))
+                self._downloader.params.setdefault('stop', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop'), Event()) if x else Event()))
+                self._downloader.params.setdefault('routing_table', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
 
-                    SeleniumInfoExtractor._YTDL = self._downloader
+                SeleniumInfoExtractor._YTDL = self._downloader
 
-                self._CLIENT_CONFIG = {
-                    'timeout': Timeout(20),
-                    'limits': Limits(max_keepalive_connections=None, max_connections=None),
-                    'headers': self.get_param('http_headers', {}).copy(),
-                    'follow_redirects': True,
-                    'verify': False,
-                    'proxies': {'http://': _proxy, 'https://': _proxy} if (_proxy := self.get_param('proxy')) else None}
+            self._CLIENT_CONFIG = {
+                'timeout': Timeout(20),
+                'limits': Limits(max_keepalive_connections=None, max_connections=None),
+                'headers': self.get_param('http_headers', {}).copy(),
+                'follow_redirects': True,
+                'verify': False,
+                'proxies': {'http://': _proxy, 'https://': _proxy} if (_proxy := self.get_param('proxy')) else None}
 
-                self._CLIENT = Client(**self._CLIENT_CONFIG)
-
-        except Exception as e:
-            logger = logging.getLogger(self.IE_NAME)
-            logger.exception(repr(e))
+            self._CLIENT = Client(**self._CLIENT_CONFIG)
 
     def extract(self, url):
 
@@ -924,8 +925,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _driver.set_page_load_timeout(25)
                 return _driver
             except Exception as e:
-                logger = logging.getLogger(cls.IE_NAME)
-                logger.exception(f'Firefox fails starting - {str(e)}')
+                cls.LOGGER.exception(f'Firefox fails starting - {str(e)}')
                 if _driver:
                     cls.rm_driver(_driver)
 
@@ -1042,8 +1042,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            logger = logging.getLogger(self.IE_NAME)
-            logger.debug(f"{res}:{_msg_err}")
+            self.logger_debug(f"{res}:{_msg_err}")
 
     def _is_valid(self, url, msg=None):
 
@@ -1119,9 +1118,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 return valid
 
         except Exception as e:
-            logger = logging.getLogger(self.IE_NAME)
-            logger.warning(f'[valid]{_pre_str} error {repr(e)}')
-            logger.exception(repr(e))
+            self.report_warning(f'[valid]{_pre_str} error {repr(e)}')
             return False
 
     def get_ip_origin(self, key=None, timeout=1, own=True):
@@ -1198,8 +1195,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            logger = logging.getLogger(self.IE_NAME)
-            logger.debug(f"{premsg} {res}:{_msg_err}")
+            self.logger_debug(f"{premsg} {res}:{_msg_err}")
 
     def send_http_request(self, url, **kwargs) -> Union[None, Response]:
 
@@ -1257,5 +1253,4 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise ExtractorError(_msg_err)
         finally:
-            logger = logging.getLogger(cls.IE_NAME)
-            logger.debug(f"{premsg} {req}:{res}:{_msg_err}")
+            cls.LOGGER.debug(f"{premsg} {req}:{res}:{_msg_err}")

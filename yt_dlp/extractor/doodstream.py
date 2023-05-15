@@ -137,7 +137,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     @on_retry_vinfo
     def _get_entry(self, url, check=False, msg=None):
 
-        video_id = self._match_id(url)
+        video_id = cast(str, self._match_id(url))
         url = f'https://dood.to/e/{video_id}'
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if msg:
@@ -154,8 +154,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
         mobj = re.findall(r'(1080p|720p|480p)', title)
         if mobj:
             title = title.split(mobj[0])[0]
-
         title = re.sub(r'(\s*-\s*202)', ' 202', title)
+        title = title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
 
         token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 
@@ -213,7 +213,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         _entry = {
             'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-            'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_'), restricted=True),
+            'title': sanitize_filename(title, restricted=True),
             'formats': [_format],
             'subtitles': _subtitles,
             'ext': 'mp4',
