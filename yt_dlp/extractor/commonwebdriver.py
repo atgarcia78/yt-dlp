@@ -489,7 +489,6 @@ class myHAR:
                 else:
                     time.sleep(0.01)
 
-        # timeout or har file
         if _all:
             return _list_hints
         else:
