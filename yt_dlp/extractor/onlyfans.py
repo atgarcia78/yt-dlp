@@ -349,7 +349,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             _auth_config = self.cache.load('onlyfans', 'auth_config')
             if not _auth_config:
                 _auth_config = self._get_auth_config(driver)
-            OnlyFansBaseIE.conn_api = Account(**_auth_config)
+            OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
 
             if OnlyFansBaseIE.conn_api.getMe():
                 return True
