@@ -458,7 +458,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _extract_from_json(self, data_post, user_profile=None):
 
         try:
-
             account = user_profile or OnlyFansBaseIE._USERS.get(traverse_obj(data_post, ('fromUser', 'id'), ('author', 'id')))
             _datevideo = cast(str, traverse_obj(data_post, 'createdAt', 'postedAt', default=''))
             if not _datevideo:
