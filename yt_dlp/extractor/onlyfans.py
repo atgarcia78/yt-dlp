@@ -17,12 +17,14 @@ from .commonwebdriver import (
     dec_on_exception,
     ec,
     limiter_0_1,
+    dec_on_driver_timeout
 )
 from ..utils import ExtractorError, int_or_none, traverse_obj, try_get
 
 import hashlib
 import time
 import urllib3.util.url as urllib3_url
+from functools import lru_cache
 
 logger = logging.getLogger('onlyfans')
 
@@ -42,13 +44,17 @@ class AccountBase:
         self.cookies = kwargs.get('cookie', '')
         self.xbc = kwargs.get('x-bc')
         self.userAgent = kwargs.get('user-agent')
-        self.ie = ie
+
+        self.session = ie._CLIENT
 
         if any([not self.cookies, not self.xbc, not self.userAgent]):
             raise Exception('error when init account')
 
         self.authID = self.getAuthID()
-        self.session = self.ie._CLIENT
+
+        _cookies = {_cookie.split('=')[0]: _cookie.split('=')[1] for _cookie in self.cookies.split('; ')}
+        for name, value in _cookies.items():
+            self.session.cookies.set(name=name, value=value, domain='onlyfans.com')
 
         rules = self.session.get(AccountBase._CONFIG_RULES).json()
         self.appToken = rules['app-token']
@@ -75,7 +81,7 @@ class AccountBase:
         return {
             'accept': 'application/json, text/plain, */*',
             'app-token': self.appToken,
-            'cookie': self.cookies,
+            # 'cookie': self.cookies,
             'sign': sign,
             'time': timestamp,
             'user-id': self.authID,
@@ -83,9 +89,11 @@ class AccountBase:
             'x-bc': self.xbc
         }
 
-    def get(self, path) -> Any:
-        with limiter_0_1.ratelimit("onlyfans2", delay=True):
+    def get(self, path, _headers=None) -> Any:
+        with limiter_0_1.ratelimit("onlyfans_acc", delay=True):
             headers = self.createHeaders(path)
+            if _headers:
+                headers.update(_headers)
             response = self.session.get(f'https://onlyfans.com{path}', headers=headers)
 
             self.logger.debug(f'[get] {response.request.url}')
@@ -93,7 +101,7 @@ class AccountBase:
             if response.status_code == 200:
                 return response.json()
             else:
-                self.logger.error(f'Error: {response.status_code}, response text: {response.text}')
+                self.logger.error(f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
                 return {}
 
 
@@ -101,12 +109,14 @@ class Account(AccountBase):
     def getMe(self) -> dict:
         return self.get('/api2/v2/users/me')
 
+    @lru_cache
     def getUserId(self, account) -> Union[int, None]:
         if (data := self.get(f'/api2/v2/users/{account}')):
             return data.get('id')
 
+    @lru_cache
     def getUserName(self, userid) -> Union[str, None]:
-        if (data := self.get(f'/api2/v2/users/list?x[]={userid}')):
+        if (data := self.get(f'/api2/v2/users/list?a%5B%5D={userid}')):
             return data.get(str(userid), {}).get('username')
 
     def getActSubs(self) -> dict:
@@ -125,7 +135,7 @@ class Account(AccountBase):
 
         return subs
 
-    def getVideoPosts(self, userid, order="publish_date_desc", num=10):
+    def getVideoPosts(self, userid, account, order="publish_date_desc", num=10):
         count = 0
         posts = []
         limit = 50
@@ -133,17 +143,18 @@ class Account(AccountBase):
             limit = num
         _base_url = f'/api2/v2/users/{userid}/posts/videos?limit=%s&order={order}&skip_users=all&format=infinite&%s'
         _tail = "counters=1"
+        _total = ' '
         while True:
             _url = _base_url % (limit, _tail)
-            self.logger.info(f'[getvideoposts] {_url}')
+            self.logger.debug(f'[getvideoposts][{account}] {_url}')
             data = self.get(_url)
             if not data:
                 break
             posts.extend(data['list'])
             count += len(data['list'])
             if (counters := data.get('counters')):
-                self.logger.info(f'[getvideoposts] Counters: {counters}')
-            self.logger.info(f'[getvideoposts] Count: {count}')
+                _total = f' totalVideos: {counters.get("videosCount")} '
+            self.logger.info(f'[getvideoposts][{account}]{_total}count: {count}')
             if not (_res := data['hasMore']) or _res == 'false':
                 break
             if num > 0:
@@ -322,11 +333,17 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _SITE_URL = "https://onlyfans.com"
     _NETRC_MACHINE = 'twitter2'
     _LOCK = threading.Lock()
-    _USERS = {}
+    # _SUBS_INFO = {}
+    _MODE_DICT = {
+        "favorites": {"order": "favorites_count_desc", "num": 25},
+        "tips": {"order": "tips_summ_desc", "num": 25},
+        "all": {"order": "publish_date_desc", "num": -1},
+        "latest": {"order": "publish_date_desc", "num": 10}
+    }
     conn_api: Account
 
     @dec_on_exception
-    @limiter_0_1.ratelimit("onlyfans1", delay=True)
+    @limiter_0_1.ratelimit("onlyfans", delay=True)
     def _get_filesize(self, _vurl):
 
         res = httpx.head(_vurl, follow_redirects=True)
@@ -334,7 +351,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         return (int_or_none(res.headers.get('content-length')))
 
-    @dec_on_exception
+    @dec_on_driver_timeout
     @limiter_0_1.ratelimit("onlyfans2", delay=True)
     def send_driver_request(self, driver, url):
 
@@ -368,7 +385,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     def _get_auth_config(self, driver):
         _auth_config = {}
-        del driver.requests
         self._login(driver)
         del driver.requests
         self.send_driver_request(driver, self._SITE_URL)
@@ -458,7 +474,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _extract_from_json(self, data_post, user_profile=None):
 
         try:
-            account = user_profile or OnlyFansBaseIE._USERS.get(traverse_obj(data_post, ('fromUser', 'id'), ('author', 'id')))
+            account = user_profile or OnlyFansBaseIE.conn_api.getUserName(traverse_obj(data_post, ('fromUser', 'id'), ('author', 'id')))
             _datevideo = cast(str, traverse_obj(data_post, 'createdAt', 'postedAt', default=''))
             if not _datevideo:
                 raise ExtractorError("no datevideo")
@@ -566,14 +582,51 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'[extract_from_json][output] {repr(e)} \n{"!!".join(lines)}')
 
+    def _get_videos_from_subs(self, userid, account, mode='latest'):
+
+        _url_videos = f"https://onlyfans.com/{account}/{mode}"
+        self.report_extraction(_url_videos)
+        pre = f'[get_videos_subs][{account}][{mode}]'
+        try:
+            if mode == 'chat':
+                list_json = OnlyFansBaseIE.conn_api.getMessagesChat(userid)
+            else:
+                list_json = OnlyFansBaseIE.conn_api.getVideoPosts(userid, account, **self._MODE_DICT.get(mode, {}))
+
+            if not list_json:
+                raise ExtractorError(f"{pre} no entries")
+
+            with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
+                futures = {exe.submit(self._extract_from_json, info_json, user_profile=account): info_json for info_json in list_json}
+
+            entries = OrderedDict()
+            for fut in futures:
+                try:
+                    if (_entry := fut.result()):
+                        for _video in _entry:
+                            if not _video['id'] in entries:
+                                entries[_video['id']] = _video
+                            else:
+                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                    entries[_video['id']] = _video
+                except Exception as e:
+                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')}/{account} - {repr(e)}")
+
+            return entries
+
+        except ExtractorError:
+            raise
+        except Exception as e:
+            raise ExtractorError(f'{pre} {repr(e)}')
+
     def _real_initialize(self):
 
         super()._real_initialize()
         with OnlyFansBaseIE._LOCK:
             if not hasattr(OnlyFansBaseIE, 'conn_api'):
                 self._get_conn_api()
-                if (_dict := self.cache.load('only_fans', 'users_dict')):
-                    OnlyFansBaseIE._USERS.update(_dict)
+                # if (_dict := self.cache.load('only_fans', 'users_dict')):
+                #     OnlyFansBaseIE._SUBS_INFO.update(_dict)
         assert OnlyFansBaseIE.conn_api
         OnlyFansBaseIE.conn_api = cast(Account, OnlyFansBaseIE.conn_api)
 
@@ -622,50 +675,9 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'  # type: ignore
     IE_DESC = 'onlyfans:playlist'
     _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/((?P<mode>(?:all|latest|chat|favorites|tips))/?)$"
-    _MODE_DICT = {"favorites": {"order": "favorites_count_desc", "num": 25},
-                  "tips": {"order": "tips_summ_desc", "num": 25},
-                  "all": {"order": "publish_date_desc", "num": -1},
-                  "latest": {"order": "publish_date_desc", "num": 10}}
 
     def _real_initialize(self):
         super()._real_initialize()
-
-    def _get_videos_from_subs(self, userid, account, mode='None'):
-
-        _url_videos = f"https://onlyfans.com/{account}/{mode}"
-        self.report_extraction(_url_videos)
-        pre = f'[get_videos_subs][{account}]'
-        try:
-            if mode == 'chat':
-                list_json = OnlyFansBaseIE.conn_api.getMessagesChat(userid)
-            else:
-                list_json = OnlyFansBaseIE.conn_api.getVideoPosts(userid, **self._MODE_DICT.get(mode, {}))
-
-            if not list_json:
-                raise ExtractorError(f"{pre} no entries")
-
-            with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
-                futures = {exe.submit(self._extract_from_json, info_json, user_profile=account): info_json for info_json in list_json}
-
-            entries = OrderedDict()
-            for fut in futures:
-                try:
-                    if (_entry := fut.result()):
-                        for _video in _entry:
-                            if not _video['id'] in entries:
-                                entries[_video['id']] = _video
-                            else:
-                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                    entries[_video['id']] = _video
-                except Exception as e:
-                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')}/{account} - {repr(e)}")
-
-            return entries
-
-        except ExtractorError:
-            raise
-        except Exception as e:
-            raise ExtractorError(f'{pre} {repr(e)}')
 
     def _real_extract(self, url):
 
@@ -753,39 +765,6 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
     _ACT_SUBS_URL = "https://onlyfans.com/my/subscriptions/active"
     _ACT_SUBS_PAID_URL = "https://onlyfans.com/collections/user-lists/994217785"
 
-    def _get_videos_from_actsubs(self, userid, account):
-
-        _url_videos = f"https://onlyfans.com/{account}/videos"
-        self.report_extraction(_url_videos)
-        pre = f'[get_videos_act_subs][{account}]'
-        try:
-            list_json = OnlyFansBaseIE.conn_api.getVideoPosts(userid)
-            if not list_json:
-                raise ExtractorError(f"[{_url_videos}] no entries")
-
-            with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
-                futures = {exe.submit(self._extract_from_json, info_json, user_profile=account): info_json for info_json in list_json}
-
-            entries = OrderedDict()
-            for fut in futures:
-                try:
-                    if (_entry := fut.result()):
-                        for _video in _entry:
-                            if not _video['id'] in entries:
-                                entries[_video['id']] = _video
-                            else:
-                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                    entries[_video['id']] = _video
-                except Exception as e:
-                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')}/{account} - {repr(e)}")
-
-            return list(entries.values())
-
-        except ExtractorError:
-            raise
-        except Exception as e:
-            raise ExtractorError(f'{pre} {repr(e)}')
-
     def _real_initialize(self):
         super()._real_initialize()
 
@@ -793,17 +772,16 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
 
         self.report_extraction(url)
         try:
-            self.to_screen("start getting act subs")
-            actsubs_dict = OnlyFansBaseIE.conn_api.getActSubs()
             entries = []
-            if actsubs_dict:
-                self.to_screen(f"act_subs:\n{actsubs_dict}")
+            if (actsubs_dict := OnlyFansBaseIE.conn_api.getActSubs()):
+                self.to_screen(f"act_subs: {list(actsubs_dict.keys())}")
                 with ThreadPoolExecutor(thread_name_prefix='OFPlaylist') as ex:
-                    futures = [ex.submit(self._get_videos_from_actsubs, _userid, _account) for _account, _userid in list(actsubs_dict.items())]
+                    futures = [ex.submit(self._get_videos_from_subs, _userid, _account) for _account, _userid in actsubs_dict.items()]
 
                 for fut in futures:
                     try:
-                        entries += upt_dict(fut.result(), original_url=url)
+                        _entries = cast(dict, fut.result())
+                        entries += upt_dict(list(_entries.values()), original_url=url)
                     except Exception as e:
                         self.to_screen(repr(e))
 
