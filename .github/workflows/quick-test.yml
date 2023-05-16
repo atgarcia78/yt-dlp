@@ -2,7 +2,6 @@ name: Quick Test
 on: push
 permissions:
   contents: read
-
 jobs:
   tests:
     name: Core Test
@@ -18,9 +17,7 @@ jobs:
       run: |
         python -m pip install -U pip setuptools wheel twine
         pip install pytest pycryptodomex
-        python -m pip install -U Pyinstaller -r requirements.txt
-        
-        
+        python -m pip install -U Pyinstaller -r requirements.txt        
     - name: Run tests
       run: |
         python3 -m yt_dlp -v || true
@@ -39,9 +36,7 @@ jobs:
     - name: Install requirements
       run: |
         python -m pip install -U pip setuptools wheel twine
-        python -m pip install -U Pyinstaller -r requirements.txt
-        
-        
+        python -m pip install -U Pyinstaller -r requirements.txt        
     - name: Make lazy extractors
       run: python devscripts/make_lazy_extractors.py
     - name: Run flake8
