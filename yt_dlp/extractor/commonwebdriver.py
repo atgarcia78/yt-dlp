@@ -705,7 +705,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         'Pragma': 'no-cache',
         'Cache-Control': 'no-cache',
     }
-    _SELENIUM_FACTORY = {'wire': {'ff': Firefoxwire, 'ffopts': FirefoxOptionswire}, 'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
+    _SELENIUM_FACTORY = {'wire': {'ff': Firefoxwire, 'ffopts': FirefoxOptionswire},
+                         'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
     @classproperty
     def IE_NAME(cls):
