@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   prepare:
-    if: vars.BUILD_NIGHTLY != ''
+    if: "contains(github.event.head_commit.message, 'release nightly')"
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
