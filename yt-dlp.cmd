@@ -1,1 +1,1 @@
-@py -Walways -Xdev "%~dp0yt_dlp\__main__.py" %*
+@py -bb -Werror -Xdev "%~dp0yt_dlp\__main__.py" %*

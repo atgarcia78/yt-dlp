@@ -25,7 +25,6 @@ from httpx import (
 
 from pyrate_limiter import Duration, Limiter, RequestRate, LimitContextDecorator
 from selenium.webdriver import Firefox, FirefoxOptions
-from seleniumwire.webdriver import Firefox as Firefoxwire, FirefoxOptions as FirefoxOptionswire
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
@@ -705,8 +704,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     #     'Pragma': 'no-cache',
     #     'Cache-Control': 'no-cache',
     # }
-    _SELENIUM_FACTORY = {'wire': {'ff': Firefoxwire, 'ffopts': FirefoxOptionswire},
-                         'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
+    _SELENIUM_FACTORY = {'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
     @classproperty
     def IE_NAME(cls):
@@ -1006,7 +1004,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def get_har_logs(self, key, videoid, msg=None, port=8080):
+    def get_har_logs(self, key, videoid='ytdl', msg=None, port=8080):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)

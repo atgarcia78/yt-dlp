@@ -19,7 +19,7 @@ from .commonwebdriver import (
     limiter_0_1,
     dec_on_driver_timeout
 )
-from ..utils import ExtractorError, int_or_none, traverse_obj, try_get
+from ..utils import ExtractorError, int_or_none, traverse_obj, try_get, find_available_port
 
 import hashlib
 import time
@@ -50,11 +50,7 @@ class AccountBase:
         if any([not self.cookies, not self.xbc, not self.userAgent]):
             raise Exception('error when init account')
 
-        self.authID = self.getAuthID()
-
-        _cookies = {_cookie.split('=')[0]: _cookie.split('=')[1] for _cookie in self.cookies.split('; ')}
-        for name, value in _cookies.items():
-            self.session.cookies.set(name=name, value=value, domain='onlyfans.com')
+        self.parse_cookies()
 
         rules = self.session.get(AccountBase._CONFIG_RULES).json()
         self.appToken = rules['app-token']
@@ -66,12 +62,18 @@ class AccountBase:
 
         self.logger = logging.getLogger('onlyfans_api')
 
-    def getAuthID(self):
-        for cookie in self.cookies.split(';'):
+    def parse_cookies(self):
+        if ';' in self.cookies:
+            _cookies = self.cookies.split(';')
+        else:
+            _cookies = self.cookies.split(',')
+
+        self.authID = ''
+        for cookie in _cookies:
             name, value = cookie.strip().split('=')
             if name == 'auth_id':
-                return value
-        return ''
+                self.authID = value
+            self.session.cookies.set(name=name, value=value, domain='onlyfans.com')
 
     def createHeaders(self, path):
         timestamp = str(int(time.time() * 1000))
@@ -81,7 +83,6 @@ class AccountBase:
         return {
             'accept': 'application/json, text/plain, */*',
             'app-token': self.appToken,
-            # 'cookie': self.cookies,
             'sign': sign,
             'time': timestamp,
             'user-id': self.authID,
@@ -360,18 +361,16 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     def _get_conn_api(self):
 
-        driver = self.get_driver(selenium_factory="wire")
-
         try:
             _auth_config = self.cache.load('onlyfans', 'auth_config')
             if not _auth_config:
-                _auth_config = self._get_auth_config(driver)
+                _auth_config = self._get_auth_config()
             OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
 
             if OnlyFansBaseIE.conn_api.getMe():
                 return True
             else:
-                _auth_config = self._get_auth_config(driver)
+                _auth_config = self._get_auth_config()
                 OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
                 if OnlyFansBaseIE.conn_api .getMe():
                     return True
@@ -380,20 +379,30 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'[get_conn_api] {repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(f'[get_conn_api] {repr(e)}')
+
+    def _get_auth_config(self):
+        _auth_config = {}
+
+        _port = find_available_port()
+        if not _port:
+            _port = 8080
+
+        driver = self.get_driver(host='127.0.0.1', port=_port)
+
+        try:
+
+            with self.get_har_logs('onlyfans', port=_port) as harlogs:
+                _har_file = harlogs.har_file
+                self._login(driver)
+
+            req = try_get(self.scan_for_request(r'api2/v2/.+', har=_har_file, inclheaders=True, response=True, _all=True), lambda x: x[-1])
+            if req:
+                for _header_name in ('cookie', 'x-bc', 'user-agent'):
+                    _auth_config.update({_header_name: req['headers'].get(_header_name)})
+                self.cache.store('onlyfans', 'auth_config', _auth_config)
+            return _auth_config
         finally:
             self.rm_driver(driver)
-
-    def _get_auth_config(self, driver):
-        _auth_config = {}
-        self._login(driver)
-        del driver.requests
-        self.send_driver_request(driver, self._SITE_URL)
-        req = driver.wait_for_request('onlyfans.com/api2/v2')
-        if req:
-            for _header_name in ('cookie', 'x-bc', 'user-agent'):
-                _auth_config.update({_header_name: req.headers.get(_header_name)})
-            self.cache.store('onlyfans', 'auth_config', _auth_config)
-        return _auth_config
 
     def _login(self, driver):
 
