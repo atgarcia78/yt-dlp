@@ -2,7 +2,6 @@ name: Download Tests
 on:
 permissions:
   contents: read
-
 jobs:
   quick:
     name: Quick Download Tests
@@ -19,7 +18,6 @@ jobs:
     - name: Run tests
       continue-on-error: true
       run: ./devscripts/run_tests.sh download
-
   full:
     name: Full Download Tests
     if: contains(github.event.head_commit.message, 'ci run dl all')
