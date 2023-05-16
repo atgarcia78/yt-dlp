@@ -11,4 +11,4 @@ else
     exit 1
 fi
 
-python3 -Wmodule -m pytest "$test_set"
+python3 -Wdefault -m pytest "$test_set"
