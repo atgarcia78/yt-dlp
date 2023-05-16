@@ -698,13 +698,13 @@ class SeleniumInfoExtractor(InfoExtractor):
     _MASTER_LOCK = Lock()
     _YTDL = None
     _CONFIG_REQ = load_config_extractors()
-    _FIREFOX_HEADERS = {
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-    }
+    # _FIREFOX_HEADERS = {
+    #     'Sec-Fetch-Dest': 'document',
+    #     'Sec-Fetch-Mode': 'navigate',
+    #     'Sec-Fetch-Site': 'none',
+    #     'Pragma': 'no-cache',
+    #     'Cache-Control': 'no-cache',
+    # }
     _SELENIUM_FACTORY = {'wire': {'ff': Firefoxwire, 'ffopts': FirefoxOptionswire},
                          'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
@@ -1118,7 +1118,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 @_decor
                 def _throttle_isvalid(_url, short) -> Union[None, Response]:
                     try:
-                        _headers = SeleniumInfoExtractor._FIREFOX_HEADERS.copy()
+                        _headers = {'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+                                    'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
                         if short:
                             _headers.update({'Range': 'bytes=0-100'})
                         return self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
