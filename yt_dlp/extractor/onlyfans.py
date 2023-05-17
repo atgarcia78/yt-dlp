@@ -1,30 +1,35 @@
+import hashlib
 import logging
 import re
 import sys
 import threading
+import time
 import traceback
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import cast, Union, Any
-from collections import OrderedDict
+from functools import lru_cache
+from typing import Any, Union, cast
 
 import httpx
+import urllib3.util.url as urllib3_url
 
 from .commonwebdriver import (
     By,
     Keys,
     SeleniumInfoExtractor,
+    dec_on_driver_timeout,
     dec_on_exception,
     ec,
     limiter_0_1,
-    dec_on_driver_timeout
 )
-from ..utils import ExtractorError, int_or_none, traverse_obj, try_get, find_available_port
-
-import hashlib
-import time
-import urllib3.util.url as urllib3_url
-from functools import lru_cache
+from ..utils import (
+    ExtractorError,
+    find_available_port,
+    int_or_none,
+    traverse_obj,
+    try_get,
+)
 
 logger = logging.getLogger('onlyfans')
 
@@ -370,7 +375,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _SITE_URL = "https://onlyfans.com"
     _NETRC_MACHINE = 'twitter2'
     _LOCK = threading.Lock()
-    # _SUBS_INFO = {}
     _MODE_DICT = {
         "favorites": {"order": "favorites_count_desc", "num": 25},
         "tips": {"order": "tips_summ_desc", "num": 25},
@@ -696,8 +700,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         with OnlyFansBaseIE._LOCK:
             if not hasattr(OnlyFansBaseIE, 'conn_api'):
                 self._get_conn_api()
-                # if (_dict := self.cache.load('only_fans', 'users_dict')):
-                #     OnlyFansBaseIE._SUBS_INFO.update(_dict)
         assert OnlyFansBaseIE.conn_api
         OnlyFansBaseIE.conn_api = cast(Account, OnlyFansBaseIE.conn_api)
 
