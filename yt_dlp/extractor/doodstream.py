@@ -3,9 +3,9 @@ import json
 import random
 import re
 import string
-import sys
 import time
-import traceback
+# import sys
+# import traceback
 from hashlib import sha256
 from typing import cast
 
@@ -19,6 +19,7 @@ from .commonwebdriver import (
     dec_on_exception3,
     limiter_0_1,
     my_dec_on_exception,
+    raise_extractor_error
 )
 from ..utils import (
     get_domain,
@@ -116,15 +117,16 @@ class DoodStreamIE(SeleniumInfoExtractor):
         video_id = self._match_id(url)
         url = f'https://dood.to/e/{video_id}'
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
-        if not webpage or '<title>Video not found' in webpage:
-            raise ExtractorError("error 404 no webpage")
+        if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
+            raise_extractor_error("error 404 no webpage")
+        webpage = cast(str, webpage)
 
         title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
         if not title:
             title = try_get(self._html_extract_title(webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
-        if not title or not isinstance(title, str):
-            raise ExtractorError("error with title")
-
+        if not title:
+            raise_extractor_error("error with title")
+        title = cast(str, title)
         mobj = re.findall(r'(1080p|720p|480p)', title)
         if mobj:
             title = title.split(mobj[0])[0]
@@ -143,14 +145,15 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if msg:
             pre = f'{msg}{pre}'
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
-        if not webpage or '<title>Video not found' in webpage:
-            raise ExtractorError("error 404 no webpage")
+        if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
+            raise_extractor_error("error 404 no webpage")
+        webpage = cast(str, webpage)
         title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
         if not title:
             title = try_get(self._html_extract_title(webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
-        if not title or not isinstance(title, str):
-            raise ExtractorError("error with title")
-
+        if not title:
+            raise_extractor_error("error with title")
+        title = cast(str, title)
         mobj = re.findall(r'(1080p|720p|480p)', title)
         if mobj:
             title = title.split(mobj[0])[0]
@@ -166,7 +169,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                             *(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
                             f'?token={token}&expiry={int(time.time() * 1000)}'))
         if not video_url:
-            raise ExtractorError("couldnt get videourl")
+            raise_extractor_error("couldnt get videourl")
 
         _format = {
             'format_id': 'http-mp4',
@@ -183,12 +186,13 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 _videoinfo = self._get_video_info(video_url, msg=pre, headers=headers)
 
             if not _videoinfo:
-                raise ExtractorError("error 404: no video info")
-            if _videoinfo and _videoinfo['filesize'] > 20:
+                raise_extractor_error("error 404: no video info")
 
+            _videoinfo = cast(dict, _videoinfo)
+            if _videoinfo['filesize'] > 20:
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
             else:
-                raise ExtractorError(f"error filesize[{_videoinfo['filesize']}] < 20 bytes")
+                raise_extractor_error(f"error filesize[{_videoinfo['filesize']}] < 20 bytes")
 
         _subtitles = {}
         list_subts = [subt for subt in [
@@ -242,6 +246,6 @@ class DoodStreamIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
-            raise ExtractorError(repr(e))
+            # lines = traceback.format_exception(*sys.exc_info())
+            # self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
+            raise_extractor_error(repr(e))

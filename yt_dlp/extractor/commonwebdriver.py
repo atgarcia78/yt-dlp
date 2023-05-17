@@ -697,13 +697,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     _MASTER_LOCK = Lock()
     _YTDL = None
     _CONFIG_REQ = load_config_extractors()
-    # _FIREFOX_HEADERS = {
-    #     'Sec-Fetch-Dest': 'document',
-    #     'Sec-Fetch-Mode': 'navigate',
-    #     'Sec-Fetch-Site': 'none',
-    #     'Pragma': 'no-cache',
-    #     'Cache-Control': 'no-cache',
-    # }
     _SELENIUM_FACTORY = {'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
     @classproperty
