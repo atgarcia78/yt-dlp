@@ -81,7 +81,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _entry['extractor'] = key
                         return _entry
                 except Exception as e:
-                    logger.exception(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
+                    logger.warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
