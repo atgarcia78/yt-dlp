@@ -1,6 +1,4 @@
 import re
-import html
-import time
 import atexit
 from .commonwebdriver import (
     SeleniumInfoExtractor,
@@ -9,7 +7,6 @@ from .commonwebdriver import (
     HTTPStatusError,
     ConnectError,
     limiter_1,
-    ReExtractInfo,
     By,
     ec
 )
@@ -18,30 +15,14 @@ from ..utils import (
     sanitize_filename,
     try_get,
     try_call,
-    traverse_obj,
-    get_element_text_and_html_by_tag,
-    get_elements_html_by_class)
+    traverse_obj
+)
 
 import functools
 from threading import Lock
 
 import logging
 logger = logging.getLogger('streamsb')
-
-
-class getvideourl:
-    def __call__(self, driver):
-        el_rct = driver.find_elements(By.CLASS_NAME, 'g-recaptcha')
-        if el_rct:
-            el_rct[0].click()
-            time.sleep(0.5)
-            _el_a = driver.find_element(By.CLASS_NAME, 'mb-5').find_element(By.TAG_NAME, 'a')
-            if (_vurl := _el_a.get_attribute('href')) and 'sbbrisk.com/dl?op=download_orig' not in _vurl:
-                return _vurl
-            else:
-                return False
-        else:
-            return False
 
 
 class StreamSBIE(SeleniumInfoExtractor):
@@ -153,7 +134,10 @@ class StreamSBIE(SeleniumInfoExtractor):
                 else:
                     _format.update({'http_headers': _headers})
 
-            _title = traverse_obj(self.scan_for_json(r'/sources.+$', har=_har_file), ('stream_data', 'title'))
+            info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file)
+            self.logger_debug(info)
+            _title = traverse_obj(info, ('stream_data', 'title'), ('title'))
+
             if not _subtitles:
                 list_subt_urls = try_get(
                     self.scan_for_request(r"\.(?:srt|vtt)$", har=_har_file, _all=True),  # type: ignore
@@ -193,92 +177,6 @@ class StreamSBIE(SeleniumInfoExtractor):
         except Exception as e:
             logger.exception(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
-
-    def _old_get_entry(self, url, **kwargs):
-
-        check = kwargs.get('check', False)
-        msg = kwargs.get('msg', None)
-        videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
-
-        pre = f'[get_entry][{self._get_url_print(url)}]'
-        if msg:
-            pre = f'{msg}{pre}'
-
-        driver = None
-
-        try:
-
-            url_dl = f"https://{dom}/{videoid}.html"
-            webpage = try_get(self._send_request(url_dl, msg=pre), lambda x: html.unescape(x.text) if not isinstance(x, dict) else x)
-            if not webpage:
-                raise ReExtractInfo("error to get webpage")
-            _title = try_get(try_call(lambda: get_element_text_and_html_by_tag('h1', webpage)[0]), lambda x: re.sub(r'\[?\d+p\]?', '', x.replace('Download ', '')).strip())
-            _sources = get_elements_html_by_class("block py-3 rounded-3 mb-3 text-reset d-block", webpage)
-            if 'File owner disabled downloads' in webpage or not _title or not _sources:
-                raise ReExtractInfo("video without download page, lets get HAR")
-
-            _data = [try_get(re.findall(r'download_video\(([^\)]+)\)', _source), lambda x: {key: val for key, val in zip(['code', 'mode', 'hash'], x[0].replace("'", "").split(","))}) for _source in _sources]
-            _res = [try_get(re.findall(r'(\d+)p', try_get(get_element_text_and_html_by_tag("span", _source), lambda y: y[0])), lambda x: x[0])  # type: ignore
-                    for _source in _sources]
-
-            if not _data or not _res:
-                ExtractorError("error to get video details")
-
-            for res, data in zip(_res, _data):
-                if data and res:
-                    data['res'] = int(res)
-                    data['url'] = f"https://{dom}/dl?op=download_orig&id={data['code']}&mode={data['mode']}&hash={data['hash']}"
-
-            _formats = []
-
-            driver = self.get_driver()
-
-            try:
-
-                for data in _data:
-                    if data:
-                        self._send_request(data['url'], driver=driver)
-                        _videourl = self.wait_until(driver, 30, getvideourl())
-
-                        _format = {
-                            'format_id': f"http-mp4-{data['res']}",
-                            'url': _videourl,
-                            'http_headers': {'Referer': f"https://{dom}/"},
-                            'ext': 'mp4',
-                            'height': data['res']
-                        }
-
-                        if check:
-                            _video_info = self._get_video_info(_videourl, headers={'Referer': f"https://{dom}/"})
-                            self.raise_from_res(_video_info, "no video info")
-                            _format.update(_video_info)
-
-                        _formats.append(_format)
-
-            except Exception as e:
-                logger.exception(f"[get_entry] {repr(e)}")
-            finally:
-                self.rm_driver(driver)
-
-            if not _formats:
-                raise ExtractorError("no formats")
-
-            _entry = {
-                'id': videoid,
-                'title': sanitize_filename(_title, restricted=True),
-                'formats': _formats,
-                'ext': 'mp4',
-                'extractor_key': 'StreamSB',
-                'extractor': 'streamsb',
-                'webpage_url': url}
-
-            return _entry
-
-        except ReExtractInfo as e:
-            self.logger_info(f"{pre} {repr(e)}")
-            # return self._get_entry_by_har(url, msg=msg)
-        except Exception as e:
-            logger.exception(repr(e))
 
     def _real_initialize(self):
         super()._real_initialize()
