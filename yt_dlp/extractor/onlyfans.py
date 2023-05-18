@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import lru_cache
 from typing import Any, Union, cast
+import json
 
 import httpx
 import urllib3.util.url as urllib3_url
@@ -136,7 +137,7 @@ class Account(AccountBase):
     def getActSubs(self) -> dict:
         offset = 0
         subs = {}
-        _base_url = '/api2/v2/lists/994217785/users?offset=%s&limit=10'
+        _base_url = '/api2/v2/lists/994217785/users?offset=%s&limit=50'
         while True:
             _url = _base_url % offset
             data = self.get(_url)
@@ -156,18 +157,19 @@ class Account(AccountBase):
                 _res = cast(int, _res)
                 return int(_res)
 
-    def getVideoPosts(self, userid, account, total, order="publish_date_desc", num=10):
+    def getVideoPosts(self, userid, account, total, order="publish_date_desc", num=10, flag_all=False):
         count = 0
         posts = []
 
-        if (_res := self.cache.load('onlyfans', f'{userid}_total#{total}_order#{order}_num#{num}_limit#{self._POST_LIMIT}')):
-            return _res
+        if flag_all:
+            if (_res := self.cache.load('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}')):
+                return _res
 
         limit = self._POST_LIMIT
         if num < self._POST_LIMIT:
             limit = num
         _base_url = f'/api2/v2/users/{userid}/posts/videos?limit=%s&order={order}&skip_users=all&format=infinite&%s'
-        _tail = ''
+        _tail = 'counters=0'
         while True:
             _url = _base_url % (limit, _tail)
             self.logger.info(f'[getvideoposts][{account}] {_url}')
@@ -198,7 +200,8 @@ class Account(AccountBase):
             elif order.endswith('asc'):
                 _tail = f"counters=0&afterPublishTime={data['tailMarker']}"
 
-        self.cache.store('onlyfans', f'{userid}_total#{total}_order#{order}_num#{num}_limit#{self._POST_LIMIT}', posts)
+        if flag_all:
+            self.cache.store('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}', posts)
 
         return posts
 
@@ -241,23 +244,6 @@ class Account(AccountBase):
             offset += limit
 
         return videos
-
-
-def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
-    if isinstance(info_dict, dict):
-        info_dict_list = [info_dict]
-    else:
-        info_dict_list = info_dict
-    for _el in info_dict_list:
-        _el.update(**kwargs)
-    return info_dict
-
-
-def get_list_unique(list_dict, key='id') -> list:
-    _dict = OrderedDict()
-    for el in list_dict:
-        _dict.setdefault(el[key], el)
-    return list(_dict.values())
 
 
 class error404_or_found:
@@ -370,6 +356,33 @@ class scroll_chat:
             return True
 
 
+def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
+    if isinstance(info_dict, dict):
+        info_dict_list = [info_dict]
+    else:
+        info_dict_list = info_dict
+    for _el in info_dict_list:
+        _el.update(**kwargs)
+    return info_dict
+
+
+def get_list_unique(list_dict, key='id') -> list:
+    _dict = OrderedDict()
+    for el in list_dict:
+        _dict.setdefault(el[key], el)
+    return list(_dict.values())
+
+
+def load_config():
+    data = None
+    try:
+        with open("/Users/antoniotorres/.config/yt-dlp/onlyfans_conf.json", "r") as f:
+            data = json.load(f)
+    except Exception:
+        pass
+    return data if data else {"subs": {}}
+
+
 class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://onlyfans.com"
@@ -378,10 +391,12 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _MODE_DICT = {
         "favorites": {"order": "favorites_count_desc", "num": 25},
         "tips": {"order": "tips_summ_desc", "num": 25},
-        "all": {"order": "publish_date_desc", "num": 0},
+        "all": {"order": "publish_date_desc", "num": 0, "flag_all": True},
         "latest": {"order": "publish_date_desc", "num": 10}
     }
     conn_api: Account
+
+    _CONF = load_config()
 
     @dec_on_exception
     @limiter_0_1.ratelimit("onlyfans", delay=True)
@@ -522,8 +537,27 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     def _extract_from_json(self, data_post, user_profile=None):
 
+        def save_config():
+            try:
+                with open("/Users/antoniotorres/.config/yt-dlp/onlyfans_conf.json", "w") as f:
+                    json.dump(OnlyFansBaseIE._CONF, f)
+            except Exception as e:
+                self.report_warning(f'[extract_from_json] error when updating conf file {repr(e)}')
+
         try:
-            account = user_profile or OnlyFansBaseIE.conn_api.getUserName(traverse_obj(data_post, ('fromUser', 'id'), ('author', 'id')))
+            account = user_profile
+            if not account:
+                userid = traverse_obj(data_post, ('fromUser', 'id'), ('author', 'id'))
+                if not userid:
+                    raise ExtractorError('no userid')
+                else:
+                    if str(userid) not in OnlyFansBaseIE._CONF['subs']:
+                        if (account := OnlyFansBaseIE.conn_api.getUserName(userid)):
+                            OnlyFansBaseIE._CONF['subs'][str(userid)] = account
+                            save_config()
+                    else:
+                        account = OnlyFansBaseIE._CONF['subs'][str(userid)]
+
             _datevideo = cast(str, traverse_obj(data_post, 'createdAt', 'postedAt', default=''))
             if not _datevideo:
                 raise ExtractorError("no datevideo")
@@ -653,8 +687,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                         with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
                             futures = [
-                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total, order="publish_date_desc", num=(_total // 2)),
-                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total, order="publish_date_asc", num=(_total // 2) + 1)]
+                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total, order="publish_date_desc", num=(_total // 2), flag_all=True),
+                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total, order="publish_date_asc", num=(_total // 2) + 1, flag_all=True)]
 
                         _list_json = futures[0].result() + list(reversed(futures[1].result()))
                         list_json = get_list_unique(_list_json, key='id')
@@ -662,9 +696,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         self.to_screen(f"{pre} From {len(_list_json)} number of video posts unique: {len(list_json)}")
 
                     else:
-                        _conf = OnlyFansBaseIE._MODE_DICT[mode]
-                        _order, _num = _conf['order'], _conf['num'] or _total
-                        list_json = OnlyFansBaseIE.conn_api.getVideoPosts(userid, account, _total, order=_order, num=_num)
+                        _conf = OnlyFansBaseIE._MODE_DICT[mode].copy()
+                        if mode == "all":
+                            _conf["num"] = _total
+                        list_json = OnlyFansBaseIE.conn_api.getVideoPosts(userid, account, _total, **_conf)
 
                         self.to_screen(f"{pre} Number of video posts unique: {len(list_json)}")
 
