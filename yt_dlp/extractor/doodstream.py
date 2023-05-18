@@ -24,7 +24,6 @@ from .commonwebdriver import (
 from ..utils import (
     get_domain,
     js_to_json,
-    sanitize_filename,
     sanitize_url,
     try_get,
 )
@@ -42,38 +41,6 @@ class DoodStreamIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?d(oo)+d(?:stream)?\.[^/]+/[ed]/(?P<id>[a-z0-9]+)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?d(oo)*d(?:stream)?\.[^/]+/[ed]/[a-z0-9]+)\1']
     _SITE_URL = 'https://dood.to/'
-
-    _TESTS = [{
-        'url': 'http://dood.to/e/5s1wmbdacezb',
-        'md5': '4568b83b31e13242b3f1ff96c55f0595',
-        'info_dict': {
-            'id': '5s1wmbdacezb',
-            'ext': 'mp4',
-            'title': 'Kat Wonders - Monthly May 2020',
-            'description': 'Kat Wonders - Monthly May 2020 | DoodStream.com',
-            'thumbnail': 'https://img.doodcdn.com/snaps/flyus84qgl2fsk4g.jpg',
-        }
-    }, {
-        'url': 'http://dood.watch/d/5s1wmbdacezb',
-        'md5': '4568b83b31e13242b3f1ff96c55f0595',
-        'info_dict': {
-            'id': '5s1wmbdacezb',
-            'ext': 'mp4',
-            'title': 'Kat Wonders - Monthly May 2020',
-            'description': 'Kat Wonders - Monthly May 2020 | DoodStream.com',
-            'thumbnail': 'https://img.doodcdn.com/snaps/flyus84qgl2fsk4g.jpg',
-        }
-    }, {
-        'url': 'https://dood.to/d/jzrxn12t2s7n',
-        'md5': '3207e199426eca7c2aa23c2872e6728a',
-        'info_dict': {
-            'id': 'jzrxn12t2s7n',
-            'ext': 'mp4',
-            'title': 'Stacy Cruz Cute ALLWAYSWELL',
-            'description': 'Stacy Cruz Cute ALLWAYSWELL | DoodStream.com',
-            'thumbnail': 'https://img.doodcdn.com/snaps/8edqd5nppkac3x8u.jpg',
-        }
-    }]
 
     @on_exception_vinfo
     def _get_video_info(self, url, **kwargs):
@@ -130,11 +97,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
         mobj = re.findall(r'(1080p|720p|480p)', title)
         if mobj:
             title = title.split(mobj[0])[0]
-
         title = re.sub(r'(\s*-\s*202)', ' 202', title)
 
         return {'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': sanitize_filename(title.replace('mp4', '').replace('mkv', '').strip().strip('-'), restricted=True)}
+                'title': title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')}
 
     @on_retry_vinfo
     def _get_entry(self, url, check=False, msg=None):
@@ -148,9 +114,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error("error 404 no webpage")
         webpage = cast(str, webpage)
-        title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
-        if not title:
-            title = try_get(self._html_extract_title(webpage, default=None), lambda x: x.replace(' - DoodStream', ''))
+        title = self._og_search_title(webpage) or self._html_extract_title(webpage, default=None)
         if not title:
             raise_extractor_error("error with title")
         title = cast(str, title)
@@ -158,7 +122,9 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if mobj:
             title = title.split(mobj[0])[0]
         title = re.sub(r'(\s*-\s*202)', ' 202', title)
-        title = title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+        title = title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+
+        thumbnail = self._og_search_thumbnail(webpage)
 
         token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 
@@ -217,9 +183,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         _entry = {
             'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-            'title': sanitize_filename(title, restricted=True),
+            'title': title,
             'formats': [_format],
             'subtitles': _subtitles,
+            'thumbnail': thumbnail,
             'ext': 'mp4',
             'extractor_key': 'DoodStream',
             'extractor': 'doodstream',

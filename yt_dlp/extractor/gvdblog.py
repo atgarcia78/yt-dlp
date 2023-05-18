@@ -272,7 +272,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 if not entries:
                     raise ExtractorError(f"{premsg} no video entries")
 
-                _entryupdate = {'original_url': url}
+                _entryupdate = {}
 
                 if postdate:
                     _entryupdate.update({
@@ -283,10 +283,14 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     _el.update(_entryupdate)
                     _el.update({'__gvd_playlist_index': i + 1, '__gvd_playlist_count': len(entries)})
                     if len(entries) > 1:
+                        _original_url = f'{url}#{i + 1}'
                         _comment = f'{url} [{i + 1}]'
                     else:
+                        _original_url = url
                         _comment = f'{url}'
-                    _el.update({'meta_comment': _comment})
+
+                    _el.update({'original_url': _original_url,
+                                'meta_comment': _comment})
 
                 return (entries, title, postid)
 
