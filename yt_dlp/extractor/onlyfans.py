@@ -2,6 +2,7 @@ import hashlib
 import logging
 import re
 import sys
+import os
 import threading
 import time
 import traceback
@@ -417,19 +418,18 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _get_conn_api(self):
 
         try:
-            _auth_config = self.cache.load('onlyfans', 'auth_config')
-            if not _auth_config:
-                _auth_config = self._get_auth_config()
-            OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
+            if (_auth_config := (self.cache.load('onlyfans', 'auth_config') or self._get_auth_config())):
+                OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
 
-            if OnlyFansBaseIE.conn_api.getMe():
-                return True
-            else:
-                _auth_config = self._get_auth_config()
+                if OnlyFansBaseIE.conn_api.getMe():
+                    return True
+
+            if (_auth_config := self._get_auth_config()):
                 OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
                 if OnlyFansBaseIE.conn_api .getMe():
                     return True
-                self.report_warning('[get_conn_api] fail when checking config')
+
+            self.report_warning('[get_conn_api] fail when checking config')
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f'[get_conn_api] {repr(e)} \n{"!!".join(lines)}')
@@ -455,6 +455,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 for _header_name in ('cookie', 'x-bc', 'user-agent'):
                     _auth_config.update({_header_name: req['headers'].get(_header_name)})
                 self.cache.store('onlyfans', 'auth_config', _auth_config)
+                try:
+                    if os.path.exists(_har_file):
+                        os.remove(_har_file)
+                except OSError:
+                    return self.logger_info("Unable to remove the har file")
             return _auth_config
         finally:
             self.rm_driver(driver)
