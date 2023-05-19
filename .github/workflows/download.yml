@@ -1,11 +1,10 @@
 name: Download Tests
-on: [push]
+on: workflow_dispatch
 permissions:
   contents: read
 jobs:
   quick:
     name: Quick Download Tests
-    if: "contains(github.event.head_commit.message, 'dl test')"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -20,7 +19,6 @@ jobs:
       run: ./devscripts/run_tests.sh download
   full:
     name: Full Download Tests
-    if: contains(github.event.head_commit.message, 'ci run dl all')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
