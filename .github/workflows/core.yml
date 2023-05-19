@@ -1,12 +1,11 @@
 name: Core Tests
-on: [push]
+on: workflow_dispatch
 permissions:
   contents: read
 
 jobs:
   tests:
     name: Core Tests
-    if: "contains(github.event.head_commit.message, 'core test')"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
