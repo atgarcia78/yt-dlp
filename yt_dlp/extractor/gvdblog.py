@@ -95,15 +95,15 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
         p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
-        self.logger_debug(f"{premsg} p1:\n{p1}")
+        # self.logger_debug(f"{premsg} p1:\n{p1}")
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2])
               for l1 in p1 if any(
             [(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])),
              (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
-        self.logger_debug(f"{premsg} p2:\n{p2}")
+        # self.logger_debug(f"{premsg} p2:\n{p2}")
         p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"')
                for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
-        self.logger_debug(f"{premsg} p3:\n{p3}")
+        # self.logger_debug(f"{premsg} p3:\n{p3}")
 
         list_urls = []
 
@@ -318,7 +318,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _limiter = limiter_1 if GVDBlogBaseIE._SLOW_DOWN else limiter_0_1
 
         with _limiter.ratelimit("gvdblog", delay=True):
-            self.logger_debug(f"{pre}: start")
+            # self.logger_debug(f"{pre}: start")
             if driver:
                 driver.get(url)
             else:
@@ -464,7 +464,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             GVDBlogBaseIE._SLOW_DOWN = True
             check = False
 
-        self.logger_debug(f'[blog_post_list] {blog_posts_list}')
+        # self.logger_debug(f'[blog_post_list] {blog_posts_list}')
 
         if self.keyapi == 'gvdblog.com':
             posts_vid_url = [try_get(traverse_obj(post_entry, ('link', -1, 'href')), lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
@@ -495,7 +495,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 GVDBlogBaseIE._SLOW_DOWN = True
                 check = False
 
-            self.logger_debug(f'{pre}[blog_post_list] {blog_posts_list}')
+            # self.logger_debug(f'{pre}[blog_post_list] {blog_posts_list}')
 
             if self.keyapi == 'gvdblog.com':
                 posts_vid_url = [try_get(traverse_obj(post_entry, ('link', -1, 'href')), lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
@@ -504,7 +504,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     post_entry.get('link'),
                     lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
 
-            self.logger_debug(f'{pre}[posts_vid_url] {posts_vid_url}')
+            # self.logger_debug(f'{pre}[posts_vid_url] {posts_vid_url}')
 
             _entries = []
 
@@ -531,7 +531,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 _entries = [self.url_result(_post_url if check else f"{_post_url}?check=no", ie=GVDBlogPostIE.ie_key())
                             for _post_url in posts_vid_url]
 
-            self.logger_debug(f'{pre}[entries] {_entries}')
+            # self.logger_debug(f'{pre}[entries] {_entries}')
 
             return _entries
 
@@ -567,7 +567,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         else:
             entries = self.get_entries_search(url, check=_check, lazy=_lazy)
 
-        self.logger_debug(entries)
+        # self.logger_debug(entries)
 
         return self.playlist_result(
             entries, playlist_id=f'{sanitize_filename(query, restricted=True)}'.replace('%23', ''),

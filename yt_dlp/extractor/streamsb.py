@@ -1,4 +1,5 @@
 import re
+import os
 import atexit
 from .commonwebdriver import (
     SeleniumInfoExtractor,
@@ -171,6 +172,12 @@ class StreamSBIE(SeleniumInfoExtractor):
                 _entry.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0].get('http_headers', {}))})
             except Exception as e:
                 self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
+
+            try:
+                if os.path.exists(_har_file):
+                    os.remove(_har_file)
+            except OSError:
+                return self.logger_info(f"{pre}: Unable to remove the har file")
 
             return _entry
 
