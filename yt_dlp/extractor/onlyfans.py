@@ -438,9 +438,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _get_auth_config(self):
         _auth_config = {}
 
-        _port = find_available_port()
-        if not _port:
-            _port = 8080
+        _port = find_available_port() or 8080
 
         driver = self.get_driver(host='127.0.0.1', port=_port)
 
