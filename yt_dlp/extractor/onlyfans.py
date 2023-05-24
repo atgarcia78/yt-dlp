@@ -436,14 +436,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             raise ExtractorError(f'[get_conn_api] {repr(e)}')
 
     def _get_auth_config(self):
+
         _auth_config = {}
-
         _port = find_available_port() or 8080
-
         driver = self.get_driver(host='127.0.0.1', port=_port)
-
         try:
-
             with self.get_har_logs('onlyfans', port=_port) as harlogs:
                 _har_file = harlogs.har_file
                 self._login(driver)
@@ -690,8 +687,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                         with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
                             futures = [
-                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total, order="publish_date_desc", num=(_total // 2), flag_all=True),
-                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total, order="publish_date_asc", num=(_total // 2) + 1, flag_all=True)]
+                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total,
+                                           order="publish_date_desc", num=(_total // 2), flag_all=True),
+                                exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total,
+                                           order="publish_date_asc", num=(_total // 2) + 1, flag_all=True)]
 
                         _list_json = futures[0].result() + list(reversed(futures[1].result()))
                         list_json = get_list_unique(_list_json, key='id')
