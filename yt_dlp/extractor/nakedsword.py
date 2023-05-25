@@ -468,11 +468,15 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     def _get_api_xident(cls):
-        if (xident := subprocess.run(
-                ['node', NakedSwordBaseIE._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
-                capture_output=True, encoding="utf-8").stdout.strip('\n')):
+        proc = subprocess.run(
+            ['node', NakedSwordBaseIE._JS_SCRIPT, NakedSwordBaseIE._APP_DATA['PASSPHRASE']],
+            capture_output=True, encoding="utf-8")
+
+        if (proc.returncode == 0) and (xident := proc.stdout.strip('\n')):
             NakedSwordBaseIE.timer.reset()
             return xident
+        else:
+            logger.warning(f'[get_api_xident] couldnt get xident: {proc}')
 
     def _get_data_app(self) -> Dict:
 
@@ -704,7 +708,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 _movies_info.extend(
                     try_get(
                         self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
-                        lambda x: traverse_obj(x.json(), ('data', 'movies'), default=[]) if x else []))
+                        lambda x: traverse_obj(x.json(), ('data', 'movies'))) or [])
             except Exception as e:
                 logger.exception(repr(e))
         _movies_info.reverse()
@@ -736,7 +740,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _scenes_info.extend(
                 try_get(
                     self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
-                    lambda x: traverse_obj(x.json(), ('data', 'scenes'), default=[]) if x else []))
+                    lambda x: traverse_obj(x.json(), ('data', 'scenes'))) or [])
 
         return _scenes_info
 
@@ -756,7 +760,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _movies_info.extend(
                 try_get(
                     self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
-                    lambda x: traverse_obj(x.json(), ('data', 'movies'), default=[]) if x else []))
+                    lambda x: traverse_obj(x.json(), ('data', 'movies'))) or [])
 
         return _movies_info
 
@@ -1099,7 +1103,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
                     sublist = []
                     if hasattr(self, 'args_ie'):
-                        sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset'), default=[])
+                        sublist = traverse_obj(self.args_ie, ('nakedswordmovie', 'listreset')) or []
 
                         self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
 
