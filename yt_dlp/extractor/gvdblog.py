@@ -387,7 +387,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 if not data:
                     raise ExtractorError("no data from api")
                 info_json = json.loads(data)
-                return traverse_obj(info_json, ('feed', 'entry'), default=None)
+                return traverse_obj(info_json, ('feed', 'entry'))
             else:
                 return res.json()
 
@@ -407,7 +407,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.debug(repr(e))
             raise
 
-    def get_blog_posts_search(self, url):
+    def get_blog_posts_search(self, url) -> list:
 
         self.keyapi = cast(str, get_domain(url))
 
@@ -464,8 +464,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             GVDBlogBaseIE._SLOW_DOWN = True
             check = False
 
-        # self.logger_debug(f'[blog_post_list] {blog_posts_list}')
-
         if self.keyapi == 'gvdblog.com':
             posts_vid_url = [try_get(traverse_obj(post_entry, ('link', -1, 'href')), lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
         else:
@@ -485,7 +483,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         pre = f'[get_entries][{self._get_url_print(url)}]'
 
         try:
-            blog_posts_list = self.get_blog_posts_search(url)
+            blog_posts_list = cast(list, self.get_blog_posts_search(url))
 
             self._total = len(blog_posts_list)
 
@@ -498,13 +496,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             # self.logger_debug(f'{pre}[blog_post_list] {blog_posts_list}')
 
             if self.keyapi == 'gvdblog.com':
-                posts_vid_url = [try_get(traverse_obj(post_entry, ('link', -1, 'href')), lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
+                posts_vid_url = cast(list, [try_get(
+                    traverse_obj(post_entry, ('link', -1, 'href')),
+                    lambda x: unquote(x)) for post_entry in blog_posts_list])
             else:
-                posts_vid_url = [try_get(
+                posts_vid_url = cast(list, [try_get(
                     post_entry.get('link'),
-                    lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
-
-            # self.logger_debug(f'{pre}[posts_vid_url] {posts_vid_url}')
+                    lambda x: unquote(x)) for post_entry in blog_posts_list])
 
             _entries = []
 
@@ -515,8 +513,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
                         futures = {
-                            ex.submit(self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, progress_bar=progress_bar): _post_url
-                            for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
+                            ex.submit(
+                                self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, progress_bar=progress_bar): _post_url
+                            for (_post_blog, _post_url) in cast(list, zip(blog_posts_list, posts_vid_url))}
 
                 for fut in futures:
                     try:
@@ -530,8 +529,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             else:
                 _entries = [self.url_result(_post_url if check else f"{_post_url}?check=no", ie=GVDBlogPostIE.ie_key())
                             for _post_url in posts_vid_url]
-
-            # self.logger_debug(f'{pre}[entries] {_entries}')
 
             return _entries
 

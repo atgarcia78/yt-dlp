@@ -38,7 +38,6 @@ assert Keys  # for flake8
 from ..minicurses import MultilinePrinter
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
-from ..YoutubeDL import YoutubeDL
 from ..cookies import extract_cookies_from_browser
 
 from typing import (
@@ -395,7 +394,7 @@ class myHAR:
 
             _res_filt = [el for el in _res if all(
                 [
-                    traverse_obj(el, ('request', 'method'), default='') == _method,
+                    traverse_obj(el, ('request', 'method')) == _method,
                     int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,  # type: ignore
                     not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
                              for _ in _non_mimetype_list]) if _non_mimetype_list else True,
@@ -629,11 +628,12 @@ class YDLLogger:
     _pre = ''
 
     def __init__(self, ydl, msg=None):
-        _opts = ydl.params.copy()
-        _opts.pop('logger', None)
-        _opts.pop('noprogress', None)
-        _opts['verbose'] = False
-        self._ydl = YoutubeDL(_opts, auto_init='no_verbose_header')  # type: ignore
+        # _opts = ydl.params.copy()
+        # _opts.pop('logger', None)
+        # _opts.pop('noprogress', None)
+        # _opts['verbose'] = False
+        # self._ydl = YoutubeDL(_opts, auto_init='no_verbose_header')  # type: ignore
+        self._ydl = ydl
         if msg:
             YDLLogger._pre = msg
 
@@ -697,7 +697,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     _MASTER_LOCK = Lock()
     _YTDL = None
     _CONFIG_REQ = load_config_extractors()
-    _SELENIUM_FACTORY = {'standard': {'ff': Firefox, 'ffopts': FirefoxOptions}}
 
     @classproperty
     def IE_NAME(cls):
@@ -707,21 +706,19 @@ class SeleniumInfoExtractor(InfoExtractor):
     def LOGGER(cls):
         return logging.getLogger('yt_dlp')
 
-    #  @classproperty(cache=True)  # type: ignore
     @cached_classproperty
     def IE_LIMITER(cls):
         return getter_config_extr(cls.IE_NAME, cls._CONFIG_REQ)
 
-    # @classproperty(cache=True)  # type: ignore
     @cached_classproperty
     def _RETURN_TYPE(cls):
         """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
         tests = tuple(cls.get_testcases(include_onlymatching=False))
         if tests:
 
-            if not any(k.startswith('playlist') for test in tests for k in test):
+            if not any([k.startswith('playlist') for test in tests for k in cast(dict, test)]):
                 return 'video'
-            elif all(any(k.startswith('playlist') for k in test) for test in tests):
+            elif all([any([k.startswith('playlist') for k in cast(dict, test)]) for test in tests]):
                 return 'playlist'
             return 'any'
 
@@ -901,7 +898,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if res != tempdir:
             raise ExtractorError("error when creating profile folder")
 
-        opts = cls._SELENIUM_FACTORY[selenium_factory]['ffopts']()
+        opts = FirefoxOptions()
 
         opts.binary_location = SeleniumInfoExtractor._FF_BINARY
 
@@ -951,7 +948,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         def return_driver():
             _driver = None
             try:
-                _driver = cls._SELENIUM_FACTORY[selenium_factory]['ff'](service=serv, options=opts)  # type: ignore
+                _driver = Firefox(service=serv, options=opts)  # type: ignore
                 _driver.maximize_window()
                 time.sleep(2)
                 _driver.set_script_timeout(20)
