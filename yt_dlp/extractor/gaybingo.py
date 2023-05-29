@@ -1,7 +1,7 @@
 import html
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError
+from .commonwebdriver import dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError
 
 
 class GayBingoIE(SeleniumInfoExtractor):
@@ -11,7 +11,7 @@ class GayBingoIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?gay.bingo/video/(?P<id>\d+)(?:\?|$)'
 
     @dec_on_exception3
-    @limiter_1.ratelimit("gaybingo2", delay=True)
+    @limiter_5.ratelimit("gaybingo2", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
