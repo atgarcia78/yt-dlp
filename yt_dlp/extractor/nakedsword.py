@@ -724,6 +724,20 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             sex_acts = [el['name'].lower().replace(' ', '-').replace(',', '-') for el in feed['sex_acts']]
             NakedSwordBaseIE._TAGS.update({'themes': themes, 'sex_acts': sex_acts})
 
+    def _get_api_scenes_playlist(self, playlistid):
+        _url = f'https://ns-api.nakedsword.com/frontend/scene_playlist/{playlistid}'
+        _scenes_info = try_get(
+            self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
+            lambda x: traverse_obj(x.json(), ('data', 'scenes'))) or []
+        return _scenes_info
+
+    def _get_api_movies_playlist(self, playlistid):
+        _url = f'https://ns-api.nakedsword.com/frontend/movie_playlist/{playlistid}'
+        _movies_info = try_get(
+            self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
+            lambda x: traverse_obj(x.json(), ('data', 'movies'))) or []
+        return _movies_info
+
     def _get_api_most_watched_scenes(self, query, limit=60):
 
         if query == 'most_watched':
