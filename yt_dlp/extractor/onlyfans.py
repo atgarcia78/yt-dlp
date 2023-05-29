@@ -119,6 +119,20 @@ class AccountBase:
             self.logger.error(f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
             return {}
 
+    def post(self, path, _headers=None, _data=None):
+        headers = self.createHeaders(path)
+        if _headers:
+            headers.update(_headers)
+        response = self.session.post(f'https://onlyfans.com{path}', headers=headers, data=_data)
+
+        self.logger.debug(f'[get] {response.request.url} {response.request.headers} {response.request.content}')
+
+        if response.status_code == 200:
+            return response
+        else:
+            self.logger.error(f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
+            return {}
+
 
 class Account(AccountBase):
     def getMe(self) -> dict:
@@ -572,22 +586,21 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     videoid = _media['id']
                     _formats = []
 
-                    # # de momento disabled
-                    # if (_drm := traverse_obj(_media, ('ffffffffffiles', 'drm'))):
-                    #     if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
-                    #         _signature = cast(dict, traverse_obj(_drm, ('signature', 'dash'), default={}))
+                    # de momento disabled
+                    if (_drm := traverse_obj(_media, ('files', 'drm'))):
+                        if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
+                            _signature = cast(dict, traverse_obj(_drm, ('signature', 'dash'), default={}))
 
-                    #         _cookie = "; ".join([f'{key}={val}' for key, val in _signature.items()]) + "; " + OnlyFansBaseIE.conn_api.cookies
-                    #         _headers = {'cookie': _cookie, 'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
-                    #         _formats_dash, _ = self._extract_mpd_formats_and_subtitles(_mpd_url, videoid, mpd_id='dash', headers=_headers)
-                    #         for _fmt in _formats_dash:
-                    #             if (_head := _fmt.get('http_headers')):
-                    #                 _head.update(_headers)
-                    #             else:
-                    #                 _fmt.update({'http_headers': _headers})
-                    #         _formats.extend(_formats_dash)
-                    # else:
-                    if True:
+                            _cookie = "; ".join([f'{key}={val}' for key, val in _signature.items()]) + "; " + OnlyFansBaseIE.conn_api.cookies
+                            _headers = {'cookie': _cookie, 'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
+                            _formats_dash, _ = self._extract_mpd_formats_and_subtitles(_mpd_url, videoid, mpd_id='dash', headers=_headers)
+                            for _fmt in _formats_dash:
+                                if (_head := _fmt.get('http_headers')):
+                                    _head.update(_headers)
+                                else:
+                                    _fmt.update({'http_headers': _headers})
+                            _formats.extend(_formats_dash)
+                    else:
                         orig_width = orig_height = None
                         if (_url := traverse_obj(_media, ('source', 'source'))):
                             #  _filesize = self._get_filesize(_url)
@@ -766,7 +779,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
         entries = OrderedDict()
 
         if data_json:
-            #  self.to_screen(data_json)
+            # self.to_screen(data_json)
             if (_entry := self._extract_from_json(data_json, user_profile=account)):
                 for _video in _entry:
                     if not _video['id'] in entries:
