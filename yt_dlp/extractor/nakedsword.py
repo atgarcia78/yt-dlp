@@ -30,7 +30,8 @@ from .commonwebdriver import (
     Response,
     ec,
     By,
-    Callable
+    Callable,
+    cast
 )
 
 from ..utils import (
@@ -726,19 +727,31 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     def _get_api_scenes_playlist(self, playlistid):
         _url = f'https://ns-api.nakedsword.com/frontend/scene_playlist/{playlistid}'
-        _scenes_info = try_get(
+        _info = try_get(
             self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
-            lambda x: traverse_obj(x.json(), ('data', 'scenes'))) or []
-        return _scenes_info
+            lambda x: x.json())
+        _name = None
+        _scenes_info = []
+        if _info:
+            _info = cast(dict, _info)
+            _scenes_info = traverse_obj(_info, ('data', 'scenes_in_playlist')) or []
+            _name = traverse_obj(_info, ('data', 'name'))
+        return _name, _scenes_info
 
     def _get_api_movies_playlist(self, playlistid):
         _url = f'https://ns-api.nakedsword.com/frontend/movie_playlist/{playlistid}'
-        _movies_info = try_get(
+        _info = try_get(
             self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
-            lambda x: traverse_obj(x.json(), ('data', 'movies'))) or []
-        return _movies_info
+            lambda x: x.json())
+        _name = None
+        _movies_info = []
+        if _info:
+            _info = cast(dict, _info)
+            _movies_info = traverse_obj(_info, ('data', 'movies_in_playlist')) or []
+            _name = traverse_obj(_info, ('data', 'name'))
+        return _name, _movies_info
 
-    def _get_api_most_watched_scenes(self, query, limit=60):
+    def _get_api_most_watched_scenes(self, query: str, limit: Union[None, int] = 60):
 
         if query == 'most_watched':
             _query = ""
@@ -747,10 +760,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _limit = limit or 60
         pages = int(_limit) // 30 + 1
         _pre1 = f"{NakedSwordBaseIE._API_URLS['scenes']}/feed?"
-        _pre2 = "per_page=30&subset_sort_by=most_watched&subset_limit="
-        _list_urls = [f"{_pre1}{_query}{_pre2}{_limit}&page={i}&sort_by=most_watched" for i in range(1, pages + 1)]
+        _pre2 = "per_page=30&subset_sort_by=most_watched"
+        _subset = f"&subset_limit={int(_limit)}"
+        _list_urls = [f"{_pre1}{_query}{_pre2}{_subset}&page={i}&sort_by=most_watched" for i in range(1, pages + 1)]
         _scenes_info = []
         for _url in _list_urls:
+            self.to_screen(_url)
             _scenes_info.extend(
                 try_get(
                     self._send_request(_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),  # type: ignore
@@ -758,17 +773,29 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         return _scenes_info
 
-    def _get_api_most_watched_movies(self, query, limit=60):
+    def _get_api_most_watched_movies(self, query: str, limit: Union[None, int] = 60):
 
-        if query == 'most_watched':
+        if query == 'top_movies':
             _query = ""
+            _pre2 = ""
+            _limit = 10
+            _sort_by = 'top_movies'
+            pages = 1
+            _subset = "per_page=10"
         else:
-            _query = query + '&'
-        _limit = limit or 60
-        pages = int(_limit) // 30 + 1
+            if query == 'most_watched':
+                _query = ""
+            else:
+                _query = query + '&'
+            _limit = limit or 60
+            pages = int(_limit) // 30 + 1
+            _pre2 = "per_page=30&subset_sort_by=most_watched"
+            _sort_by = 'most_watched'
+            _subset = f"&subset_limit={_limit}"
+
         _pre1 = f"{NakedSwordBaseIE._API_URLS['movies']}/feed?"
-        _pre2 = "per_page=30&subset_sort_by=most_watched&subset_limit="
-        _list_urls = [f"{_pre1}{_query}{_pre2}{_limit}&page={i}&sort_by=most_watched" for i in range(1, pages + 1)]
+
+        _list_urls = [f"{_pre1}{_query}{_pre2}{_subset}&page={i}&sort_by={_sort_by}" for i in range(1, pages + 1)]
         _movies_info = []
         for _url in _list_urls:
             _movies_info.extend(
@@ -1336,9 +1363,10 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:scenes:playlist'  # type: ignore
     _VALID_URL = r'''(?x)
-        https?://(?:www\.)?nakedsword.com/(?:
-            ((studios|stars)/(?P<id>[\d]+)/(?P<name>[^/?#&]+))|
-            (tag/(?P<tagname>[^/?#&]+))|most-watched)\?content=Scenes(&limit=(?P<limit>\d+))?'''
+            https?://(?:www\.)?nakedsword.com/(?:
+                ((((studios|stars)/(?P<id>\d+)/(?P<name>[^/?#&]+))|
+                (tag/(?P<tagname>[^/?#&]+))|most-watched)\?content=Scenes(&limit=(?P<limit>\d+))?)|
+                playlists/(?P<plid>\d+)/scenes/.*)'''
 
     @dec_on_reextract
     def get_entries_from_scenes_list(self, url, **kwargs):
@@ -1353,29 +1381,36 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
             info_url = try_get(self._match_valid_url(url), lambda x: x.groupdict())
             assert info_url
 
-            query = "most_watched"
+            if (_plid := info_url.get('plid')):
+                playlist_id = _plid
+                playlist_title, _scenes = self._get_api_scenes_playlist(_plid)
+            else:
+                query = "most_watched"
 
-            if _tagname := info_url.get('tagname'):
-                with NakedSwordBaseIE._LOCK:
-                    if not NakedSwordBaseIE._TAGS:
-                        self._get_api_tags()
-                _tagname = _tagname.lower().replace(' ', '-').replace(',', '-')
-                if _tagname in (NakedSwordBaseIE._TAGS['themes'] + NakedSwordBaseIE._TAGS['sex_acts']):
-                    query = f'tags_name={_tagname}'
-                else:
-                    self.report_warning(f"{premsg} wrong tagname")
+                if _tagname := info_url.get('tagname'):
+                    with NakedSwordBaseIE._LOCK:
+                        if not NakedSwordBaseIE._TAGS:
+                            self._get_api_tags()
+                    _tagname = _tagname.lower().replace(' ', '-').replace(',', '-')
+                    if _tagname in (NakedSwordBaseIE._TAGS['themes'] + NakedSwordBaseIE._TAGS['sex_acts']):
+                        query = f'tags_name={_tagname}'
+                    else:
+                        self.report_warning(f"{premsg} wrong tagname")
 
-            elif _id := info_url.get('id'):
-                if '/stars/' in url:
-                    query = f'stars_id={_id}'
-                elif '/studios/' in url:
-                    query = f'studios_id={_id}'
-                else:
-                    self.report_warning(f"{premsg} wrong url, thre is an id but not for stars or studios")
+                elif _id := info_url.get('id'):
+                    if '/stars/' in url:
+                        query = f'stars_id={_id}'
+                    elif '/studios/' in url:
+                        query = f'studios_id={_id}'
+                    else:
+                        self.report_warning(f"{premsg} wrong url, thre is an id but not for stars or studios")
 
-            limit = info_url.get('limit')
+                limit = info_url.get('limit')
 
-            _scenes = self._get_api_most_watched_scenes(query, limit=limit)
+                _scenes = self._get_api_most_watched_scenes(query, limit=limit)
+
+                playlist_id = query
+                playlist_title = "Search"
 
             def _getter(movie_id, index):
                 _movie_url = try_get(
@@ -1383,6 +1418,10 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
                     lambda x: str(x.url))
                 return f'{_movie_url}/scene/{index}'
 
+            if not _scenes:
+                raise ExtractorError('no scenes found')
+
+            _scenes = cast(list[dict], _scenes)
             _info_scenes = [(_getter(sc['movie']['id'], sc['index']), int(sc['index'])) for sc in _scenes]
 
             self.logger_debug(f"{premsg} url scenes [{len(_info_scenes)}]\n{_info_scenes}")
@@ -1402,13 +1441,13 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
                         _res.update({'original_url': url})
                         _entries.append(_res)
 
-                return self.playlist_result(_entries, playlist_id=query, playlist_title="Search")
+                return self.playlist_result(_entries, playlist_id=playlist_id, playlist_title=playlist_title)
 
             else:
                 return self.playlist_from_matches(
                     _info_scenes,
                     getter=lambda x: x[0],
-                    ie=NakedSwordMovieIE, playlist_id=query, playlist_title="Search")
+                    ie=NakedSwordMovieIE, playlist_id=playlist_id, playlist_title=playlist_title)
 
         except Exception as e:
             logger.exception(f"{premsg} {str(e)}")
@@ -1434,10 +1473,11 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movies:playlist'  # type: ignore
     _VALID_URL = r'''(?x)
         https?://(?:www\.)?nakedsword.com/(?:
-            ((studios|stars)/(?P<id>[\d]+)/(?P<name>[^/?#&]+))|
-            (tag/(?P<tagname>[^/?#&]+))|most-watched)\?content=Movies(&limit=(?P<limit>\d+))?'''
+            ((((studios|stars)/(?P<id>[\d]+)/(?P<name>[^/?#&]+))|
+            (tag/(?P<tagname>[^/?#&]+))|most-watched)\?content=Movies(&limit=(?P<limit>\d+))?)|
+            playlists/(?P<plid>\d+)/movies/.*|top-10)'''
 
-    def get_entries_from_movies_list(self, url, **kwargs):
+    def get_entries_from_movies_list(self, url: str, **kwargs):
 
         msg = kwargs.get('msg')
         premsg = "[get_entries]"
@@ -1450,29 +1490,47 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
 
             assert info_url
 
-            query = "most_watched"
-
-            if _tagname := info_url.get('tagname'):
-                with NakedSwordBaseIE._LOCK:
-                    if not NakedSwordBaseIE._TAGS:
-                        self._get_api_tags()
-                _tagname = _tagname.lower().replace(' ', '-').replace(',', '-')
-                if _tagname in (NakedSwordBaseIE._TAGS['themes'] + NakedSwordBaseIE._TAGS['sex_acts']):
-                    query = f'tags_name={_tagname}'
+            if (_plid := info_url.get('plid')):
+                playlist_id = _plid
+                playlist_title, _movies = self._get_api_movies_playlist(_plid)
+            else:
+                if url.endswith('top-10'):
+                    playlist_id = 'top-10'
+                    playlist_title = 'top-10'
+                    query = "top_movies"
+                    limit = None
                 else:
-                    self.report_warning(f"{premsg} wrong tagname")
+                    query = "most_watched"
 
-            elif _id := info_url.get('id'):
-                if '/stars/' in url:
-                    query = f'stars_id={_id}'
-                elif '/studios/' in url:
-                    query = f'studios_id={_id}'
-                else:
-                    self.report_warning(f"{premsg} wrong url, thre is an id but not for stars or studios")
+                    if _tagname := info_url.get('tagname'):
+                        with NakedSwordBaseIE._LOCK:
+                            if not NakedSwordBaseIE._TAGS:
+                                self._get_api_tags()
+                        _tagname = _tagname.lower().replace(' ', '-').replace(',', '-')
+                        if _tagname in (NakedSwordBaseIE._TAGS['themes'] + NakedSwordBaseIE._TAGS['sex_acts']):
+                            query = f'tags_name={_tagname}'
+                        else:
+                            self.report_warning(f"{premsg} wrong tagname")
 
-            limit = info_url.get('limit')
+                    elif _id := info_url.get('id'):
+                        if '/stars/' in url:
+                            query = f'stars_id={_id}'
+                        elif '/studios/' in url:
+                            query = f'studios_id={_id}'
+                        else:
+                            self.report_warning(f"{premsg} wrong url, thre is an id but not for stars or studios")
 
-            _movies = self._get_api_most_watched_movies(query, limit=limit)
+                    limit = info_url.get('limit')
+
+                    playlist_id = f'{sanitize_filename(query, restricted=True)}'
+                    playlist_title = "MoviesPlaylist"
+
+                _movies = self._get_api_most_watched_movies(query, limit=limit)
+
+            if not _movies:
+                raise ExtractorError('no movies found')
+
+            _movies = cast(list[dict], _movies)
 
             _url_movies = list(dict.fromkeys([try_get(
                 self._send_request(_url), lambda x: str(x.url))
@@ -1494,14 +1552,14 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
                         _entries += [_r for _r in _res if not _r.update({'playlist_url': url})]
 
                 return self.playlist_result(
-                    _entries, playlist_id=f'{sanitize_filename(query, restricted=True)}', playlist_title="MoviesPlaylist")
+                    _entries, playlist_id=playlist_id, playlist_title=playlist_title)
 
             else:
                 return self.playlist_from_matches(
                     _url_movies,
                     getter=lambda x: x,
-                    ie=NakedSwordMovieIE, playlist_id=f'{sanitize_filename(query, restricted=True)}',
-                    playlist_title="MoviesPlaylist")
+                    ie=NakedSwordMovieIE, playlist_id=playlist_id,
+                    playlist_title=playlist_title)
 
         except Exception as e:
             logger.exception(f"{premsg} {str(e)}")
