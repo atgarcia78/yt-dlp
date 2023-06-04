@@ -1122,7 +1122,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                         valid = True
                         self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')
 
-                    if not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
+                    elif not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
                         valid = False
                         self.logger_debug(f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{valid}')
                     else:
