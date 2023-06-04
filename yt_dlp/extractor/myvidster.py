@@ -266,8 +266,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 _extr_name = self._get_ie_name(el)
 
                 def _check_extr(x):
-                    if (try_get([sk for k in SeleniumInfoExtractor._CONFIG_REQ.keys() for sk in k if x == sk],
-                                lambda y: y[0])):
+                    if x in SeleniumInfoExtractor._CONFIG_REQ:
                         return True
 
                 if _check_extr(_extr_name):  # get entry
