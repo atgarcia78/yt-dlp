@@ -227,7 +227,6 @@ def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
         }
 
 
-# CONFIG_EXTRACTORS = load_config_extractors()
 def getter_basic_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE):
 
     if not ie_name or ie_name.lower() == "generic":
@@ -697,6 +696,8 @@ class SeleniumInfoExtractor(InfoExtractor):
     _MASTER_LOCK = Lock()
     _YTDL = None
     _CONFIG_REQ = load_config_extractors()
+    _WEBDRIVERS = {}
+    _REFS = {}
 
     @classproperty
     def IE_NAME(cls):
@@ -814,6 +815,14 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass
 
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            SeleniumInfoExtractor._REFS.pop(id(self), None)
+            if not SeleniumInfoExtractor._REFS:
+                if SeleniumInfoExtractor._WEBDRIVERS:
+                    _drivers = list(SeleniumInfoExtractor._WEBDRIVERS.values())
+                    for driver in _drivers:
+                        self.rm_driver(driver)
+
     def initialize(self):
 
         super().initialize()
@@ -843,6 +852,8 @@ class SeleniumInfoExtractor(InfoExtractor):
                 'proxies': {'http://': _proxy, 'https://': _proxy} if (_proxy := self.get_param('proxy')) else None}
 
             self._CLIENT = Client(**self._CLIENT_CONFIG)
+
+            SeleniumInfoExtractor._REFS[id(self)] = self
 
     def extract(self, url):
 
@@ -980,7 +991,19 @@ class SeleniumInfoExtractor(InfoExtractor):
         driver, _ = SeleniumInfoExtractor._get_driver(
             noheadless=noheadless, devtools=devtools, host=_host, port=_port, selenium_factory=selenium_factory, verbose=verbose)
 
+        SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
         return driver
+
+    def set_driver_proxy_port(self, driver, port):
+        setupScript = f'''
+    var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+    .getService(Components.interfaces.nsIPrefBranch);
+    prefs.setIntPref("network.proxy.http_port", "{port}");
+    prefs.setIntPref("network.proxy.https_port", "{port}");
+    prefs.setIntPref("network.proxy.ssl_port", "{port}");
+    prefs.setIntPref("network.proxy.socks_port", "{port}");'''
+        driver.execute_script(setupScript)
+        self.wait_until(driver, 1)
 
     @classmethod
     def rm_driver(cls, driver):
@@ -991,6 +1014,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             pass
         finally:
+            SeleniumInfoExtractor._WEBDRIVERS.pop(id(driver), None)
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
