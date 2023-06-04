@@ -2665,3 +2665,4 @@ from .doodstream import DoodStreamIE
 from .voe import VoeIE
 from .streamsb import StreamSBIE
 from .streamhide import StreamHideIE
+from .streamhub import StreamHubIE
