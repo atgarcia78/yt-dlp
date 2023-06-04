@@ -95,6 +95,7 @@ class BBCBaseIE(InfoExtractor):
         except Exception:
             pass
 
+
     @dec_on_exception
     @limiter.ratelimit("bbc", delay=True)
     def _download_json(self, *args, **kwargs):

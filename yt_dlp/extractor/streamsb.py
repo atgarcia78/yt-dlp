@@ -16,7 +16,8 @@ from ..utils import (
     sanitize_filename,
     try_get,
     try_call,
-    traverse_obj
+    traverse_obj,
+    find_available_port
 )
 
 import functools
@@ -92,6 +93,8 @@ class StreamSBIE(SeleniumInfoExtractor):
     def close(self):
         if StreamSBIE._DRIVER:
             self.rm_driver(StreamSBIE._DRIVER)
+            StreamSBIE._DRIVER = None
+        super().close()
 
     @synchronized()
     def _get_entry(self, url, **kwargs):
@@ -103,13 +106,16 @@ class StreamSBIE(SeleniumInfoExtractor):
         videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
         url_dl = f"https://{dom}/e/{videoid}.html"
 
+        _port = find_available_port() or 8080
         if not StreamSBIE._DRIVER:
-            StreamSBIE._DRIVER = self.get_driver(host='127.0.0.1', port='8080')
+            StreamSBIE._DRIVER = self.get_driver(host='127.0.0.1', port=_port)
             atexit.register(self.close)
+        else:
+            self.set_driver_proxy_port(StreamSBIE._DRIVER, _port)
 
         try:
 
-            with self.get_har_logs('streamsb', videoid, msg=pre) as harlogs:
+            with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
 
                 _har_file = harlogs.har_file
                 self._send_request(url_dl, driver=StreamSBIE._DRIVER)
