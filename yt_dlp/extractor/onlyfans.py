@@ -757,7 +757,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'  # type: ignore
     IE_DESC = 'onlyfans:post:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<post>[\d]+)/(?P<account>[\da-zA-Z]+)"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<post>[\d]+)/(?P<account>[^/]+)"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -797,7 +797,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'  # type: ignore
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>\w+)/(?P<mode>(?:all|latest|chat|favorites|tips))(\?duration-min=(?P<min>\d+))?$"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|chat|favorites|tips))(\?duration-min=(?P<min>\d+))?$"
 
     def _real_initialize(self):
         super()._real_initialize()

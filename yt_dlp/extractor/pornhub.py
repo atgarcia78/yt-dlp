@@ -4,6 +4,7 @@ import math
 import operator
 import re
 import urllib.request
+import threading
 
 from .common import InfoExtractor
 from .openload import PhantomJSwrapper
@@ -29,6 +30,7 @@ from ..utils import (
 class PornHubBaseIE(InfoExtractor):
     _NETRC_MACHINE = 'pornhub'
     _PORNHUB_HOST_RE = r'(?:(?P<host>pornhub(?:premium)?\.(?:com|net|org))|pornhubvybmsymdol4iibwgwtkpwmeyd6luq2gxajgjzfjvotyt5zhyd\.onion)'
+    _LOCK = threading.Lock()
 
     def _download_webpage_handle(self, *args, **kwargs):
         def dl(*args, **kwargs):
@@ -63,6 +65,16 @@ class PornHubBaseIE(InfoExtractor):
         self._set_cookie(host, 'accessAgeDisclaimerPH', '1')
         self._set_cookie(host, 'accessPH', '1')
 
+    class synchronized:
+
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with PornHubBaseIE._LOCK:
+                    return func(*args, **kwargs)
+            return wrapper
+
+    @synchronized()
     def _login(self, host):
         if self._logged_in:
             return
