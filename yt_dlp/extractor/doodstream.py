@@ -29,10 +29,10 @@ from ..utils import (
 )
 
 on_exception_vinfo = my_dec_on_exception(
-    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
 
 on_retry_vinfo = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
+    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
 
 
 class DoodStreamIE(SeleniumInfoExtractor):
@@ -100,7 +100,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         title = re.sub(r'(\s*-\s*202)', ' 202', title)
 
         return {'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')}
+                'title': title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')}
 
     @on_retry_vinfo
     def _get_entry(self, url, check=False, msg=None):
@@ -114,7 +114,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error("error 404 no webpage")
         webpage = cast(str, webpage)
-        title = self._og_search_title(webpage) or self._html_extract_title(webpage, default=None)
+        title = self._og_search_title(webpage, default=None) or self._html_extract_title(webpage, default=None)
         if not title:
             raise_extractor_error("error with title")
         title = cast(str, title)
@@ -124,7 +124,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         title = re.sub(r'(\s*-\s*202)', ' 202', title)
         title = title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
 
-        thumbnail = self._og_search_thumbnail(webpage)
+        thumbnail = self._og_search_thumbnail(webpage, default=None)
 
         token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 

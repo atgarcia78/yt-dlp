@@ -184,7 +184,7 @@ dec_retry_raise = on_exception(
 dec_retry_error = on_exception(
     constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(
-    constant, TimeoutException, max_tries=3, raise_on_giveup=True, interval=5)
+    constant, TimeoutException, max_tries=3, raise_on_giveup=True, interval=2)
 dec_on_reextract = on_exception(
     constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
 retry_on_driver_except = on_exception(
@@ -541,6 +541,7 @@ class myHAR:
 
         def __exit__(self, *args):
             self.ps.terminate()
+            self.ps.wait()
 
             def wait_for_file(file, timeout):
                 start = time.monotonic()
@@ -996,12 +997,14 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def set_driver_proxy_port(self, driver, port):
         setupScript = f'''
-    var prefs = Components.classes["@mozilla.org/preferences-service;1"]
-    .getService(Components.interfaces.nsIPrefBranch);
-    prefs.setIntPref("network.proxy.http_port", "{port}");
-    prefs.setIntPref("network.proxy.https_port", "{port}");
-    prefs.setIntPref("network.proxy.ssl_port", "{port}");
-    prefs.setIntPref("network.proxy.socks_port", "{port}");'''
+var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+.getService(Components.interfaces.nsIPrefBranch);
+prefs.setIntPref("network.proxy.http_port", "{port}");
+prefs.setIntPref("network.proxy.https_port", "{port}");
+prefs.setIntPref("network.proxy.ssl_port", "{port}");
+prefs.setIntPref("network.proxy.socks_port", "{port}");'''
+        driver.get('about:preferences')
+        self.wait_until(driver, 1)
         driver.execute_script(setupScript)
         self.wait_until(driver, 1)
 

@@ -31,7 +31,8 @@ from .doodstream import DoodStreamIE
 from .xfileshare import XFileShareIE
 from .streamsb import StreamSBIE
 
-_ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in (DoodStreamIE, XFileShareIE, StreamSBIE)}
+# _ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in (DoodStreamIE, XFileShareIE, StreamSBIE)}
+_ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in (StreamSBIE, DoodStreamIE, XFileShareIE)}
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
 logger = logging.getLogger("gvdblog")
@@ -58,34 +59,42 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         }
 
         if not urldict:
-            logger.warning(f'{premsg} couldnt get any video from:\n{_x}')
+            self.report_warning(f'{premsg} couldnt get any video from:\n{_x}')
             return
 
         _videos = []
+        _dood_failed = False
         for key in _ie_data:
             if key in urldict:
                 try:
                     _ch = check
-                    # if key == 'doodstream':
-                    #     _ch = False
                     if not lazy:
                         _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=_ch, msg=premsg)
                         if _entry:
-                            logger.debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video")
-                            return _entry
+                            self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video\n{_entry}")
+                            if key == 'doodstream':
+                                return _entry
+                            elif 'doodstream' in urldict and not _dood_failed:
+                                self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] got streamsb entry video with doodstream")
+                            else:
+                                return _entry
                         else:
-                            logger.debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING not entry video")
+                            self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING not entry video")
+                            if key == 'doodstream':
+                                _dood_failed = True
                     else:
                         _entry = urldict[key]['ie']._get_metadata(urldict[key]['url'])
                         _entry['webpage_url'] = urldict[key]['url']
                         _entry['extractor'] = key
                         return _entry
                 except Exception as e:
-                    logger.warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
+                    self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
+                    if key == 'doodstream':
+                        _dood_failed = True
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
-        logger.warning(_msg)
+        self.report_warning(_msg)
 
     def get_urls(self, webpage, msg=None):
 
