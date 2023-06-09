@@ -1,13 +1,12 @@
 import re
 import os
-import atexit
 from .commonwebdriver import (
     SeleniumInfoExtractor,
-    dec_on_exception2,
-    dec_on_exception3,
     HTTPStatusError,
     ConnectError,
+    dec_on_driver_timeout,
     limiter_1,
+    my_dec_on_exception,
     By,
     ec
 )
@@ -21,10 +20,13 @@ from ..utils import (
 )
 
 import functools
-from threading import Lock
+from threading import Semaphore
 
 import logging
 logger = logging.getLogger('streamsb')
+
+on_exception = my_dec_on_exception(
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
 
 
 class StreamSBIE(SeleniumInfoExtractor):
@@ -32,35 +34,11 @@ class StreamSBIE(SeleniumInfoExtractor):
     _DOMAINS = r'(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top)'
     _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)(\.html)?''' % _DOMAINS
     IE_NAME = 'streamsb'  # type: ignore
-    _LOCK = Lock()
-    _DRIVER = None
+    _SEM = Semaphore(3)
 
-    @dec_on_exception3
-    @dec_on_exception2
-    def _get_video_info(self, url, **kwargs):
-
-        pre = f'[get_video_info][{self._get_url_print(url)}]'
-        if (msg := kwargs.get('msg')):
-            pre = f'{msg}{pre}'
-
-        _headers = kwargs.get('headers', {})
-        headers = {
-            'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
-            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache'}
-        headers.update(_headers)
-
-        with limiter_1.ratelimit(self.IE_NAME, delay=True):
-            try:
-                self.logger_debug(pre)
-                return self.get_info_for_format(url, headers=headers)
-            except (HTTPStatusError, ConnectError) as e:
-                _msg_error = f"{repr(e)}"
-                self.logger_debug(f"{pre}: {_msg_error}")
-                return {"error_res": _msg_error}
-
-    @dec_on_exception3
-    @dec_on_exception2
+    @on_exception
+    @dec_on_driver_timeout
+    @limiter_1.ratelimit("streamsb", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -69,32 +47,25 @@ class StreamSBIE(SeleniumInfoExtractor):
 
         driver = kwargs.get('driver', None)
 
-        with limiter_1.ratelimit(f"{self.IE_NAME}2", delay=True):
-            self.logger_debug(pre)
-            if driver:
-                driver.get(url)
-            else:
-                try:
-                    return self.send_http_request(url)
-                except (HTTPStatusError, ConnectError) as e:
-                    _msg_error = f"{repr(e)}"
-                    self.logger_debug(f"{pre}: {_msg_error}")
-                    return {"error_res": _msg_error}
+        self.logger_debug(pre)
+        if driver:
+            driver.get(url)
+        else:
+            try:
+                return self.send_http_request(url)
+            except (HTTPStatusError, ConnectError) as e:
+                _msg_error = f"{repr(e)}"
+                self.logger_debug(f"{pre}: {_msg_error}")
+                return {"error_res": _msg_error}
 
     class synchronized:
 
         def __call__(self, func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                with StreamSBIE._LOCK:
+                with StreamSBIE._SEM:
                     return func(*args, **kwargs)
             return wrapper
-
-    def close(self):
-        if StreamSBIE._DRIVER:
-            self.rm_driver(StreamSBIE._DRIVER)
-            StreamSBIE._DRIVER = None
-        super().close()
 
     @synchronized()
     def _get_entry(self, url, **kwargs):
@@ -106,21 +77,19 @@ class StreamSBIE(SeleniumInfoExtractor):
         videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
         url_dl = f"https://{dom}/e/{videoid}.html"
 
-        _port = find_available_port() or 8080
-        if not StreamSBIE._DRIVER:
-            StreamSBIE._DRIVER = self.get_driver(host='127.0.0.1', port=_port)
-            atexit.register(self.close)
-        else:
-            self.set_driver_proxy_port(StreamSBIE._DRIVER, _port)
-
+        _har_file = None
         try:
+            _port = find_available_port() or 8080
+            driver = self.get_driver(host='127.0.0.1', port=_port)
+            try:
+                with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
 
-            with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
-
-                _har_file = harlogs.har_file
-                self._send_request(url_dl, driver=StreamSBIE._DRIVER)
-                self.wait_until(StreamSBIE._DRIVER, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                self.wait_until(StreamSBIE._DRIVER, 5)
+                    _har_file = harlogs.har_file
+                    self._send_request(url_dl, driver=driver)
+                    self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
+                    self.wait_until(driver, 5)
+            finally:
+                self.rm_driver(driver)
 
             _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
             m3u8_url, m3u8_doc = try_get(
@@ -141,9 +110,11 @@ class StreamSBIE(SeleniumInfoExtractor):
                 else:
                     _format.update({'http_headers': _headers})
 
-            info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file)
+            info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
             self.logger_debug(info)
-            _title = traverse_obj(info, ('stream_data', 'title'), ('title'))
+            _title = try_get(traverse_obj(info, (..., (('stream_data', 'title'), ('title')))), lambda x: x[0])
+            if not _title:
+                raise ExtractorError('Couldnt get title')
 
             if not _subtitles:
                 list_subt_urls = try_get(
@@ -179,17 +150,18 @@ class StreamSBIE(SeleniumInfoExtractor):
             except Exception as e:
                 self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
 
-            try:
-                if os.path.exists(_har_file):
-                    os.remove(_har_file)
-            except OSError:
-                return self.logger_info(f"{pre}: Unable to remove the har file")
-
             return _entry
 
         except Exception as e:
             logger.exception(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
+        finally:
+            if _har_file:
+                try:
+                    if os.path.exists(_har_file):
+                        os.remove(_har_file)
+                except OSError:
+                    return self.logger_info(f"{pre}: Unable to remove the har file")
 
     def _real_initialize(self):
         super()._real_initialize()
