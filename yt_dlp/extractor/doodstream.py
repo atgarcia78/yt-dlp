@@ -4,8 +4,6 @@ import random
 import re
 import string
 import time
-# import sys
-# import traceback
 from hashlib import sha256
 from typing import cast
 
@@ -17,7 +15,7 @@ from .commonwebdriver import (
     ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_0_1,
+    limiter_1,
     my_dec_on_exception,
     raise_extractor_error
 )
@@ -29,10 +27,10 @@ from ..utils import (
 )
 
 on_exception_vinfo = my_dec_on_exception(
-    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
+    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 
 class DoodStreamIE(SeleniumInfoExtractor):
@@ -66,7 +64,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 raise
 
     @dec_on_exception3
-    @limiter_0_1.ratelimit("doodstream2", delay=True)
+    @limiter_1.ratelimit("doodstream2", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
