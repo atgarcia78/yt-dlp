@@ -28,11 +28,13 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 
 from .doodstream import DoodStreamIE
-from .xfileshare import XFileShareIE
 from .streamsb import StreamSBIE
 
-# _ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in (DoodStreamIE, XFileShareIE, StreamSBIE)}
-_ie_data = {_ie.IE_NAME: _ie._VALID_URL for _ie in (StreamSBIE, DoodStreamIE, XFileShareIE)}
+_ie_data = {
+    'legacy': {_ie.IE_NAME: _ie._VALID_URL for _ie in (DoodStreamIE, StreamSBIE)},
+    'alt': {_ie.IE_NAME: _ie._VALID_URL for _ie in (StreamSBIE, DoodStreamIE)}
+}
+
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
 logger = logging.getLogger("gvdblog")
@@ -46,7 +48,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         check = kwargs.get('check', True)
         lazy = kwargs.get('lazy', False)
-        nondod = kwargs.get('alt', False)
+        alt = kwargs.get('alt', False)
+        altkey = 'legacy' if not alt else 'alt'
         premsg = '[get_entry_video]'
         if (msg := kwargs.get('msg', None)):
             premsg = f'{msg}{premsg}'
@@ -56,17 +59,18 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         urldict = {
             _ie.IE_NAME: {'url': _url, 'ie': _ie}
             for _url in _x
-            if (_ie := self._get_extractor(_url)) and hasattr(_ie, '_get_entry') and _ie.IE_NAME in _ie_data
+            if (_ie := self._get_extractor(_url)) and hasattr(_ie, '_get_entry') and _ie.IE_NAME in _ie_data[altkey]
         }
 
         if not urldict:
             self.report_warning(f'{premsg} couldnt get any video from:\n{_x}')
             return
 
+        if not altkey == 'legacy' and 'streamsb' in urldict:
+            self.report_warning(f"{premsg}[{self._get_url_print(urldict['streamsb']['url'])}] there is a streamsb entry for this video")
+
         _videos = []
-        _dood_failed = False
-        _strsb_failed = False
-        for key in _ie_data:
+        for key in _ie_data[altkey]:
             if key in urldict:
                 try:
                     _ch = check
@@ -74,18 +78,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=_ch, msg=premsg)
                         if _entry:
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video\n{_entry}")
-                            if key == 'doodstream' and (not nondod or _strsb_failed):
-                                return _entry
-                            elif 'doodstream' in urldict and not _dood_failed and not nondod:
-                                self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] got streamsb entry video with doodstream")
-                            else:
-                                return _entry
+                            return _entry
                         else:
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING not entry video")
-                            if key == 'doodstream':
-                                _dood_failed = True
-                            elif key == 'streamsb':
-                                _strsb_failed = True
+
                     else:
                         _entry = urldict[key]['ie']._get_metadata(urldict[key]['url'])
                         _entry['webpage_url'] = urldict[key]['url']
@@ -93,20 +89,19 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         return _entry
                 except Exception as e:
                     self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
-                    if key == 'doodstream':
-                        _dood_failed = True
-                    elif key == 'streamsb':
-                        _strsb_failed = True
+
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
         self.report_warning(_msg)
 
-    def get_urls(self, webpage, msg=None):
+    def get_urls(self, webpage, alt=False, msg=None):
 
         premsg = '[get_urls]'
         if msg:
             premsg = f'{msg}{premsg}'
+
+        altkey = 'legacy' if not alt else 'alt'
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
         p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
@@ -126,13 +121,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _res = 'DUMMY'
             for key in el.keys():
                 if 'src' in key:
-                    if any([re.search(_, el[key]) for _ in _ie_data.values()]):
+                    if any([re.search(_, el[key]) for _ in _ie_data[altkey].values()]):
                         return el[key]
                     else:
                         _res = el[key]
             return _res
 
-        _check = {iename: False for iename in _ie_data}
+        _check = {iename: False for iename in _ie_data[altkey]}
 
         for el in p3:
             if not el:
@@ -140,17 +135,17 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _url = _get_url(el)
             if _url == 'DUMMY':
                 continue
-            for key, value in _ie_data.items():
+            for key, value in _ie_data[altkey].items():
                 if re.search(value, _url):
                     if _check[key]:
                         list_urls.append(None)
-                        _check.update({iename: False for iename in _ie_data if iename != key})
+                        _check.update({iename: False for iename in _ie_data[altkey] if iename != key})
                     else:
                         _check[key] = True
                     list_urls.append(_url)
                     break
 
-        if any([_check[iename] for iename in _ie_data]):
+        if any([_check[iename] for iename in _ie_data[altkey]]):
             list_urls.append(None)
 
         _subvideo = []
@@ -230,7 +225,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         postdate, title, postid = self.get_info(post_content)
                         if self.keyapi == 'gvdblog.com':
                             post_content = get_element_html_by_id('post-body', post_content)
-                        list_candidate_videos = self.get_urls(post_content, msg=url)
+                        list_candidate_videos = self.get_urls(post_content, alt=alt, msg=url)
 
                 elif isinstance(post, dict):
                     if self.keyapi == 'gvdblog.com':
@@ -245,7 +240,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                     if post_content:
                         postdate, title, postid = self.get_info(post)
-                        list_candidate_videos = self.get_urls(post_content, msg=url)
+                        list_candidate_videos = self.get_urls(post_content, alt=alt, msg=url)
 
                 else:
                     ExtractorError("incorrect type of data as post")
@@ -366,7 +361,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
         https?://(www\.)?gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(net/(?!search\?)[^\/\?]+))
-        (\?(?P<nocheck>check=no))?'''
+        (\?(?P<query>[^#]+))?'''
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -375,11 +370,21 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         url, _ = unsmuggle_url(url)
 
         self.keyapi = cast(str, get_domain(url))
+        query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
         _check = True
-        if try_get(re.search(self._VALID_URL, url), lambda x: x.group('nocheck')):
-            _check = False
+        _alt = False
+        if query:
+            params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
 
-        entries, title, postid = self.get_entries_from_blog_post(url, check=_check)
+            if params.pop('check', 'yes').lower() == 'no':
+                _check = False
+
+            if params.pop('alt', 'no').lower() == 'yes':
+                _alt = True
+
+            url = url.split(f'?{query}')[0]
+
+        entries, title, postid = self.get_entries_from_blog_post(url, check=_check, alt=_alt)
         if not entries:
             raise ExtractorError("no videos")
 
