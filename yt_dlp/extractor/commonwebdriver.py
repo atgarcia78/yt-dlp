@@ -37,7 +37,7 @@ assert Keys  # for flake8
 
 from ..minicurses import MultilinePrinter
 from .common import ExtractorError, InfoExtractor
-from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo
+from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo, find_available_port
 from ..cookies import extract_cookies_from_browser
 
 from typing import (
@@ -527,21 +527,47 @@ class myHAR:
             self.pre = msg if msg else ''
 
         def __enter__(self):
-            self.ps = subprocess.Popen(self.cmd.split(' '), stdout=subprocess.PIPE)
+            self.ps = subprocess.Popen(self.cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.ps.poll()
             time.sleep(2)
             self.ps.poll()
             if self.ps.returncode is not None:
-                _log = ''
+                _logout = ''
+                _logerr = ''
                 if self.ps.stdout:
-                    _log = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stdout])
-                self.logger(f"{self.pre}error executing mitmdump, returncode[{self.ps.returncode}]\n{_log}")
+                    _logout = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stdout])
+                    self.ps.stdout.close()
+                if self.ps.stderr:
+                    _logerr = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stderr])
+                    self.ps.stderr.close()
+
+                try:
+                    if self.ps.stdin:
+                        self.ps.stdin.close()
+                except Exception:
+                    pass
+                finally:
+                    self.ps.wait()
+
+                self.logger(f"{self.pre}error executing mitmdump, returncode[{self.ps.returncode}]\n{_logerr}\n{_logout}")
                 raise Exception("couldnt launch mitmdump")
             return self
 
         def __exit__(self, *args):
             self.ps.terminate()
-            self.ps.wait()
+            self.ps.poll()
+
+            if self.ps.stdout:
+                self.ps.stdout.close()
+            if self.ps.stderr:
+                self.ps.stderr.close()
+            try:
+                if self.ps.stdin:
+                    self.ps.stdin.close()
+            except Exception:
+                pass
+            finally:
+                self.ps.wait()
 
             def wait_for_file(file, timeout):
                 start = time.monotonic()
@@ -624,66 +650,37 @@ class myIP:
         return cls.get_myiptryall(key=key, timeout=timeout, ie=ie)
 
 
-class YDLLogger:
-    _pre = ''
+class ProgressBar(MultilinePrinter):
+    _DELAY = 0.01
 
     def __init__(self, ydl, msg=None):
-        # _opts = ydl.params.copy()
-        # _opts.pop('logger', None)
-        # _opts.pop('noprogress', None)
-        # _opts['verbose'] = False
-        # self._ydl = YoutubeDL(_opts, auto_init='no_verbose_header')  # type: ignore
-        self._ydl = ydl
+        self._pre = ''
         if msg:
-            YDLLogger._pre = msg
+            self._pre = msg
+        self._timer = 0
+        self._logger = logging.getLogger('progressbar')
+        super().__init__(ydl._out_files.error, preserve_output=False)
 
-    def debug(self, message):
-        assert message
+    # to stop sending events to loggers while progressbar is printing
+    def __enter__(self):
+        try:
+            self._logger.parent.handlers[0].stop()  # type: ignore
+        except Exception:
+            pass
+        return self
 
-    def info(self, message):
-        if self._ydl:
-            self._ydl.to_screen(f'{self._pre} {message}')
+    def __exit__(self, *args):
+        try:
+            self._logger.parent.handlers[0].start()  # type: ignore
+        except Exception:
+            pass
+        super().__exit__(*args)
+        self.print('')
 
-    def warning(self, message, only_once=False):
-        if self._ydl:
-            self._ydl.report_warning(message, only_once)
-
-    def error(self, message):
-        if self._ydl:
-            self._ydl.report_error(message)
-
-    class ProgressBar(MultilinePrinter):
-        _DELAY, _timer = 0.1, 0
-        _logger = logging.getLogger('progressbar')
-
-        # to stop sending events to loggers while progressbar is printing
-        def __enter__(self):
-            try:
-                self._logger.parent.handlers[0].stop()  # type: ignore
-            except Exception:
-                pass
-            return self
-
-        def __exit__(self, *args):
-            try:
-                self._logger.parent.handlers[0].start()  # type: ignore
-            except Exception:
-                pass
-            super().__exit__(*args)
-            self.print('')
-
-        def print(self, message):
-            if time.time() - self._timer > self._DELAY:
-                self.print_at_line(f'{YDLLogger._pre} {message}', 0)
-                self._timer = time.time()
-
-    def progress_bar(self):
-        """
-        Return a context manager with a print method. (Optional)
-        Do not print to files/pipes, loggers, or when --no-progress is used
-        """
-        file = self._ydl._out_files.error
-        return self.ProgressBar(file, preserve_output=False)
+    def print(self, message):
+        if time.time() - self._timer > ProgressBar._DELAY:
+            self.print_at_line(f'{self._pre} {message}', 0)
+            self._timer = time.time()
 
 
 def raise_extractor_error(msg, expected=True):
@@ -749,8 +746,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             self.to_screen(f"[debug] {msg}")
 
     def create_progress_bar(self, msg=None):
-        ydllogger = YDLLogger(self._downloader, msg=msg)
-        return ydllogger.progress_bar()
+        return ProgressBar(self._downloader, msg=msg)
 
     def _get_extractor(self, _args):
 
@@ -902,7 +898,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classmethod
     @dec_retry
-    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, selenium_factory="standard", verbose=False):
+    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, verbose=False):
 
         tempdir = tempfile.mkdtemp(prefix='asyncall-')
         shutil.rmtree(tempdir, ignore_errors=True)
@@ -960,9 +956,10 @@ class SeleniumInfoExtractor(InfoExtractor):
         def return_driver():
             _driver = None
             try:
-                _driver = Firefox(service=serv, options=opts)  # type: ignore
+                with SeleniumInfoExtractor._MASTER_LOCK:
+                    _driver = Firefox(service=serv, options=opts)  # type: ignore
                 _driver.maximize_window()
-                time.sleep(2)
+                time.sleep(1)
                 _driver.set_script_timeout(20)
                 _driver.set_page_load_timeout(25)
                 return _driver
@@ -971,8 +968,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if _driver:
                     cls.rm_driver(_driver)
 
-        with SeleniumInfoExtractor._MASTER_LOCK:
-            driver = return_driver()
+        driver = return_driver()
 
         if not driver:
             shutil.rmtree(tempdir, ignore_errors=True)
@@ -980,7 +976,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return (driver, opts)
 
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, selenium_factory="standard", verbose=False):
+    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, verbose=False):
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
         if not host and _proxy and isinstance(_proxy, str):
@@ -990,7 +986,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             _host, _port = host, port
 
         driver, _ = SeleniumInfoExtractor._get_driver(
-            noheadless=noheadless, devtools=devtools, host=_host, port=_port, selenium_factory=selenium_factory, verbose=verbose)
+            noheadless=noheadless, devtools=devtools, host=_host, port=_port, verbose=verbose)
 
         SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
         return driver
@@ -1020,6 +1016,10 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             SeleniumInfoExtractor._WEBDRIVERS.pop(id(driver), None)
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
+
+    def find_free_port(self):
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            return find_available_port()
 
     def get_har_logs(self, key, videoid='ytdl', msg=None, port=8080):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"

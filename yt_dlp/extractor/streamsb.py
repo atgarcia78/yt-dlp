@@ -1,5 +1,6 @@
 import re
 import os
+import time
 from .commonwebdriver import (
     SeleniumInfoExtractor,
     HTTPStatusError,
@@ -16,7 +17,6 @@ from ..utils import (
     try_get,
     try_call,
     traverse_obj,
-    find_available_port
 )
 
 import functools
@@ -34,7 +34,7 @@ class StreamSBIE(SeleniumInfoExtractor):
     _DOMAINS = r'(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top)'
     _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)(\.html)?''' % _DOMAINS
     IE_NAME = 'streamsb'  # type: ignore
-    _SEM = Semaphore(3)
+    _SEM = Semaphore(8)
 
     @on_exception
     @dec_on_driver_timeout
@@ -79,22 +79,39 @@ class StreamSBIE(SeleniumInfoExtractor):
 
         _har_file = None
         try:
-            _port = find_available_port() or 8080
-            driver = self.get_driver(host='127.0.0.1', port=_port)
-            try:
-                with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
 
-                    _har_file = harlogs.har_file
-                    self._send_request(url_dl, driver=driver)
-                    self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                    self.wait_until(driver, 5)
-            finally:
-                self.rm_driver(driver)
+            for _ in range(3):
+
+                _port = self.find_free_port()
+                driver = self.get_driver(host='127.0.0.1', port=_port)
+                _cont = True
+                m3u8_doc = None
+                m3u8_url = None
+                try:
+                    with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
+
+                        _har_file = harlogs.har_file
+                        self._send_request(url_dl, driver=driver)
+                        if self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))):
+                            _cont = False
+                            self.wait_until(driver, 2)
+                finally:
+                    self.rm_driver(driver)
+
+                if not _cont:
+
+                    m3u8_url, m3u8_doc = try_get(
+                        self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                        lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                    if not m3u8_url or not m3u8_doc:
+                        _cont = True
+
+                if _cont:
+                    time.sleep(5)
+                else:
+                    break
 
             _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
-            m3u8_url, m3u8_doc = try_get(
-                self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
-                lambda x: (x.get('url'), x.get('content')) if x else (None, None))
 
             _formats = []
             _subtitles = {}

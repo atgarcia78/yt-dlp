@@ -46,6 +46,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         check = kwargs.get('check', True)
         lazy = kwargs.get('lazy', False)
+        nondod = kwargs.get('alt', False)
         premsg = '[get_entry_video]'
         if (msg := kwargs.get('msg', None)):
             premsg = f'{msg}{premsg}'
@@ -64,6 +65,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _videos = []
         _dood_failed = False
+        _strsb_failed = False
         for key in _ie_data:
             if key in urldict:
                 try:
@@ -72,9 +74,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=_ch, msg=premsg)
                         if _entry:
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video\n{_entry}")
-                            if key == 'doodstream':
+                            if key == 'doodstream' and (not nondod or _strsb_failed):
                                 return _entry
-                            elif 'doodstream' in urldict and not _dood_failed:
+                            elif 'doodstream' in urldict and not _dood_failed and not nondod:
                                 self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] got streamsb entry video with doodstream")
                             else:
                                 return _entry
@@ -82,6 +84,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING not entry video")
                             if key == 'doodstream':
                                 _dood_failed = True
+                            elif key == 'streamsb':
+                                _strsb_failed = True
                     else:
                         _entry = urldict[key]['ie']._get_metadata(urldict[key]['url'])
                         _entry['webpage_url'] = urldict[key]['url']
@@ -91,6 +95,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
                     if key == 'doodstream':
                         _dood_failed = True
+                    elif key == 'streamsb':
+                        _strsb_failed = True
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
@@ -200,6 +206,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         check = kwargs.get('check', True)
         progress_bar = kwargs.get('progress_bar', None)
         lazy = kwargs.get('lazy', False)
+        alt = kwargs.get('alt', False)
         url = None
         post_content = None
         postdate = None
@@ -258,7 +265,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 if len(list_candidate_videos) > 1:
                     with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
                         futures = {
-                            exe.submit(self.get_entry_video, _el, check=check, msg=premsg, lazy=lazy): _el
+                            exe.submit(self.get_entry_video, _el, check=check, msg=premsg, lazy=lazy, alt=alt): _el
                             for _el in list_candidate_videos}
 
                     for fut in futures:
@@ -272,11 +279,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 else:
                     try:
-                        _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=premsg, lazy=lazy)
+                        _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=premsg, lazy=lazy, alt=alt)
                         if _entry:
                             entries.append(_entry)
-                    except Exception:
-                        pass
+                        else:
+                            raise ExtractorError("no entry")
+                    except Exception as e:
+                        logger.debug(f'{premsg} {repr(e)}')
 
                 if not entries:
                     raise ExtractorError(f"{premsg} no video entries")
@@ -447,7 +456,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     urlquery.append(f"published-max={val}T23:59:59&published-min={val}T00:00:00")
                 elif key == 'date':
                     urlquery.append(f"before={val}T23:59:59&after={val}T00:00:00")
-                else:
+                elif key not in ('entries', 'from'):
                     urlquery.append(f"{key}={val}")
 
             post_blog_entries_search = self.send_api_search('&'.join(urlquery))
@@ -487,7 +496,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             for _url in posts_vid_url:
                 yield self.url_result(_url if check else f"{_url}?check=no", ie=GVDBlogPostIE.ie_key())
 
-    def get_entries_search(self, url, check=True, lazy=False):
+    def get_entries_search(self, url, check=True, lazy=False, alt=False):
 
         pre = f'[get_entries][{self._get_url_print(url)}]'
 
@@ -523,8 +532,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
                         futures = {
                             ex.submit(
-                                self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, progress_bar=progress_bar): _post_url
-                            for (_post_blog, _post_url) in cast(list, zip(blog_posts_list, posts_vid_url))}
+                                self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, alt=alt, progress_bar=progress_bar): _post_url
+                            for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
                 for fut in futures:
                     try:
@@ -555,23 +564,32 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         _check = True
         _iter = False
         _lazy = False
+        _alt = False
         query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+        _query = ""
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
 
-            if params.get('check', 'yes').lower() == 'no':
+            if params.pop('check', 'yes').lower() == 'no':
                 _check = False
 
-            if params.get('iter', 'no').lower() == 'yes':
+            if params.pop('iter', 'no').lower() == 'yes':
                 _iter = True
 
-            if params.get('lazy', 'no').lower() == 'yes':
+            if params.pop('lazy', 'no').lower() == 'yes':
                 _lazy = True
+
+            if params.pop('alt', 'no').lower() == 'yes':
+                _alt = True
+
+            if params:
+                _query = '&'.join([f"{key}={val}" for key, val in params.items()])
+                self.logger_info(_query)
 
         if _iter:
             entries = self.iter_get_entries_search(url, check=_check)
         else:
-            entries = self.get_entries_search(url, check=_check, lazy=_lazy)
+            entries = self.get_entries_search(f"https://www.gvdblog.com/search?{_query}", check=_check, lazy=_lazy, alt=_alt)
 
         # self.logger_debug(entries)
 
