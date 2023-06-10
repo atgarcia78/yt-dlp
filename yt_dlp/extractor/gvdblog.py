@@ -66,7 +66,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             self.report_warning(f'{premsg} couldnt get any video from:\n{_x}')
             return
 
-        if not altkey == 'legacy' and 'streamsb' in urldict:
+        if altkey == 'legacy' and 'streamsb' in urldict:
             self.report_warning(f"{premsg}[{self._get_url_print(urldict['streamsb']['url'])}] there is a streamsb entry for this video")
 
         _videos = []

@@ -752,31 +752,30 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         assert self._downloader
 
+        def get_extractor(url):
+            ies = self._downloader._ies
+            for ie_key, ie in ies.items():
+                try:
+                    if ie.suitable(url) and (ie_key != "Generic"):
+                        return (ie_key, self._downloader.get_info_extractor(ie_key))
+                except Exception as e:
+                    self.LOGGER.exception(f'[get_extractor] fail with {ie_key} - {repr(e)}')
+            return ("Generic", self._downloader.get_info_extractor("Generic"))
+
         if _args.startswith('http'):
 
-            ies = self._downloader._ies
-            ie_key = 'Generic'
-            for key, ie in ies.items():
-                try:
-                    if ie.suitable(_args):
-                        if key == 'Generic':
-                            continue
-                        else:
-                            ie_key = key
-                            break
-                except Exception as e:
-                    self.report_warning(f'[get_extractor] error with {key} - {repr(e)}')
+            ie_key, ie = get_extractor(_args)
 
         else:
             ie_key = _args
+            ie = self._downloader.get_info_extractor(ie_key)
 
         try:
-            _extractor = self._downloader.get_info_extractor(ie_key)
-            _extractor._ready = False
-            _extractor._real_initialize()
-            return _extractor
-        except Exception:
-            self.logger_debug(f"extractor doesnt exist with ie_key {ie_key}")
+            ie._ready = False
+            ie._real_initialize()
+            return ie
+        except Exception as e:
+            self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
             raise
 
     def _get_ie_name(self, url=None):
