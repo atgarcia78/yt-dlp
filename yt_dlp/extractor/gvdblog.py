@@ -340,7 +340,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _limiter = limiter_1 if GVDBlogBaseIE._SLOW_DOWN else limiter_0_1
 
         with _limiter.ratelimit("gvdblog", delay=True):
-            # self.logger_debug(f"{pre}: start")
             if driver:
                 driver.get(url)
             else:
