@@ -15,7 +15,6 @@ from .commonwebdriver import (
     ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_1,
     limiter_0_1,
     my_dec_on_exception,
     raise_extractor_error
