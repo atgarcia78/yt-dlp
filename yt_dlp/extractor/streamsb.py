@@ -16,7 +16,7 @@ from ..utils import (
     sanitize_filename,
     try_get,
     try_call,
-    traverse_obj,
+    get_first
 )
 
 import functools
@@ -129,7 +129,7 @@ class StreamSBIE(SeleniumInfoExtractor):
 
             info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
             self.logger_debug(info)
-            _title = try_get(traverse_obj(info, (..., (('stream_data', 'title'), ('title')))), lambda x: x[0])
+            _title = get_first(info, ('stream_data', 'title'), ('title'))
             if not _title:
                 raise ExtractorError('Couldnt get title')
 
@@ -163,7 +163,9 @@ class StreamSBIE(SeleniumInfoExtractor):
                 'webpage_url': url}
 
             try:
-                _entry.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0].get('http_headers', {}))})
+                _duration = self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0]['http_headers'])
+                if _duration:
+                    _entry.update({'duration': _duration})
             except Exception as e:
                 self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
 
