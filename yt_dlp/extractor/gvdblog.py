@@ -11,7 +11,8 @@ from ..utils import (
     int_or_none,
     unsmuggle_url,
     get_domain,
-    get_element_html_by_id)
+    get_element_html_by_id,
+    update_url_query)
 from .commonwebdriver import (
     unquote,
     SeleniumInfoExtractor,
@@ -295,12 +296,20 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 for i, _el in enumerate(entries):
                     _el.update(_entryupdate)
                     _el.update({'__gvd_playlist_index': i + 1, '__gvd_playlist_count': len(entries)})
+                    _query_upt = {}
+                    if alt:
+                        _query_upt['alt'] = 'yes'
+                    if not check:
+                        _query_upt['check'] = 'no'
+
+                    _url = update_url_query(url, _query_upt)
+
                     if len(entries) > 1:
-                        _original_url = f'{url}#{i + 1}'
-                        _comment = f'{url} [{i + 1}]'
+                        _original_url = f'{_url}#{i + 1}'
+                        _comment = f'{_url} [{i + 1}]'
                     else:
-                        _original_url = url
-                        _comment = f'{url}'
+                        _original_url = _url
+                        _comment = f'{_url}'
 
                     _el.update({'original_url': _original_url,
                                 'meta_comment': _comment})
@@ -373,6 +382,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
         _check = True
         _alt = False
+        _url = url
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
 
@@ -382,9 +392,9 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             if params.pop('alt', 'no').lower() == 'yes':
                 _alt = True
 
-            url = url.split(f'?{query}')[0]
+            _url = _url.split(f'?{query}')[0]
 
-        entries, title, postid = self.get_entries_from_blog_post(url, check=_check, alt=_alt)
+        entries, title, postid = self.get_entries_from_blog_post(_url, check=_check, alt=_alt)
         if not entries:
             raise ExtractorError("no videos")
 
