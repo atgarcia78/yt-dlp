@@ -58,7 +58,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
-    class synchronized:
+    class syncsem:
 
         def __call__(self, func):
             @functools.wraps(func)
@@ -67,7 +67,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                     return func(*args, **kwargs)
             return wrapper
 
-    @synchronized()
+    @syncsem()
     def _get_entry(self, url, **kwargs):
 
         pre = f'[get_entry_by_har][{self._get_url_print(url)}]'
@@ -111,12 +111,14 @@ class StreamSBIE(SeleniumInfoExtractor):
                 else:
                     break
 
-            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
+                        'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
             _formats = []
             _subtitles = {}
             if m3u8_doc and m3u8_url:
-                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
             if not _formats:
                 raise ExtractorError('Couldnt get video formats')

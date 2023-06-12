@@ -750,8 +750,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _get_extractor(self, _args):
 
-        assert self._downloader
-
         def get_extractor(url):
             ies = self._downloader._ies
             for ie_key, ie in ies.items():
@@ -762,20 +760,18 @@ class SeleniumInfoExtractor(InfoExtractor):
                     self.LOGGER.exception(f'[get_extractor] fail with {ie_key} - {repr(e)}')
             return ("Generic", self._downloader.get_info_extractor("Generic"))
 
-        if _args.startswith('http'):
-
-            ie_key, ie = get_extractor(_args)
-
-        else:
-            ie_key = _args
-            ie = self._downloader.get_info_extractor(ie_key)
-
-        try:
-            ie._ready = False
-            ie._real_initialize()
-            return ie
-        except Exception as e:
-            self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
+        with SeleniumInfoExtractor._MASTER_LOCK:
+            if _args.startswith('http'):
+                ie_key, ie = get_extractor(_args)
+            else:
+                ie_key = _args
+                ie = self._downloader.get_info_extractor(ie_key)
+            try:
+                ie._ready = False
+                ie._real_initialize()
+                return ie
+            except Exception as e:
+                self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
             raise
 
     def _get_ie_name(self, url=None):
@@ -820,7 +816,6 @@ class SeleniumInfoExtractor(InfoExtractor):
                         self.rm_driver(driver)
 
     def initialize(self):
-
         super().initialize()
         self._ready = False
 
@@ -991,6 +986,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         return driver
 
     def set_driver_proxy_port(self, driver, port):
+
         setupScript = f'''
 var prefs = Components.classes["@mozilla.org/preferences-service;1"]
 .getService(Components.interfaces.nsIPrefBranch);
