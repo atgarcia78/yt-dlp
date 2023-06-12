@@ -58,9 +58,9 @@ class DoodStreamIE(SeleniumInfoExtractor):
             try:
                 return self.get_info_for_format(url, headers=headers)
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"{pre}: error - {repr(e)}")
+                self.logger_menu(f"{pre}: error - {repr(e)}")
             except ReExtractInfo as e:
-                self.report_warning(f"{pre}: error - {repr(e)}, will retry")
+                self.logger_menu(f"{pre}: error - {repr(e)}, will retry")
                 raise
 
     @dec_on_exception3
@@ -153,10 +153,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 raise_extractor_error("error 404: no video info")
 
             _videoinfo = cast(dict, _videoinfo)
-            if _videoinfo['filesize'] > 20:
+            if _videoinfo['filesize'] > 1000000:
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
             else:
-                raise_extractor_error(f"error filesize[{_videoinfo['filesize']}] < 20 bytes")
+                raise_extractor_error(f"error filesize[{_videoinfo['filesize']}] < 1MB")
 
         _subtitles = {}
         list_subts = [subt for subt in [
