@@ -64,7 +64,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         }
 
         if not urldict:
-            self.report_warning(f'{premsg} couldnt get any video from:\n{_x}')
+            self.logger_debug(f'{premsg} couldnt get any video from:\n{_x}')
             return
 
         if altkey == 'legacy' and 'streamsb' in urldict:
@@ -94,7 +94,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
-        self.report_warning(_msg)
+        self.logger_debug(_msg)
 
     def get_urls(self, webpage, alt=False, msg=None):
 
@@ -556,9 +556,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                                 if (_res := try_get(fut.result(), lambda x: x[0])):
                                     _entries += _res
                                 else:
-                                    self.report_warning(f'{pre} no entry, fails fut {futures[fut]}')
+                                    self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
                             except Exception as e:
-                                self.report_warning(f'{pre} fails fut {futures[fut]} {repr(e)}')
+                                self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
 
             else:
                 _entries = [self.url_result(_post_url if check else f"{_post_url}?check=no", ie=GVDBlogPostIE.ie_key())
