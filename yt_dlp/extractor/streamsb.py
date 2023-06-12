@@ -185,7 +185,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                     if os.path.exists(_har_file):
                         os.remove(_har_file)
                 except OSError:
-                    return self.logger_info(f"{pre}: Unable to remove the har file")
+                    return self.logger_debug(f"{pre}: Unable to remove the har file")
 
     def _real_initialize(self):
         super()._real_initialize()

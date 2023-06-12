@@ -664,16 +664,16 @@ class ProgressBar(MultilinePrinter):
     # to stop sending events to loggers while progressbar is printing
     def __enter__(self):
         try:
-            self._logger.parent.handlers[0].stop()  # type: ignore
-        except Exception:
-            pass
+            try_get(self._logger.parent.handlers, lambda x: x[0].stop())  # type: ignore
+        except Exception as e:
+            self._logger.exception(repr(e))
         return self
 
     def __exit__(self, *args):
         try:
-            self._logger.parent.handlers[0].start()  # type: ignore
-        except Exception:
-            pass
+            try_get(self._logger.parent.handlers, lambda x: x[0].start())  # type: ignore
+        except Exception as e:
+            self._logger.exception(repr(e))
         super().__exit__(*args)
         self.print('')
 
@@ -760,19 +760,18 @@ class SeleniumInfoExtractor(InfoExtractor):
                     self.LOGGER.exception(f'[get_extractor] fail with {ie_key} - {repr(e)}')
             return ("Generic", self._downloader.get_info_extractor("Generic"))
 
-        with SeleniumInfoExtractor._MASTER_LOCK:
-            if _args.startswith('http'):
-                ie_key, ie = get_extractor(_args)
-            else:
-                ie_key = _args
-                ie = self._downloader.get_info_extractor(ie_key)
-            try:
-                ie._ready = False
-                ie._real_initialize()
-                return ie
-            except Exception as e:
-                self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
-            raise
+        if _args.startswith('http'):
+            ie_key, ie = get_extractor(_args)
+        else:
+            ie_key = _args
+            ie = self._downloader.get_info_extractor(ie_key)
+        try:
+            ie._ready = False
+            ie._real_initialize()
+            return ie
+        except Exception as e:
+            self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
+        raise
 
     def _get_ie_name(self, url=None):
 
@@ -1021,7 +1020,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
         har_file = f"{folder}/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
-        return myHAR.network_har_handler(har_file, logger=self.logger_info, msg=msg, port=port)
+        return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg, port=port)
 
     def scan_for_request(
             self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False,
