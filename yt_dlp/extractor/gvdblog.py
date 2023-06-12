@@ -24,7 +24,7 @@ from .commonwebdriver import (
     cast)
 
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 
 import logging
 
@@ -68,7 +68,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             return
 
         if altkey == 'legacy' and 'streamsb' in urldict:
-            self.report_warning(f"{premsg}[{self._get_url_print(urldict['streamsb']['url'])}] there is a streamsb entry for this video")
+            self.logger_debug(f"{premsg}[{self._get_url_print(urldict['streamsb']['url'])}] there is a streamsb entry for this video")
 
         _videos = []
         for key in _ie_data[altkey]:
@@ -89,7 +89,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _entry['extractor'] = key
                         return _entry
                 except Exception as e:
-                    self.report_warning(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
+                    self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
 
                 _videos.append(urldict[key]['url'])
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
@@ -515,7 +515,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         pre = f'[get_entries][{self._get_url_print(url)}]'
 
         try:
-            blog_posts_list = cast(list, self.get_blog_posts_search(url))
+            blog_posts_list = self.get_blog_posts_search(url)
 
             self._total = len(blog_posts_list)
 
@@ -549,14 +549,16 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                                 self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, alt=alt, progress_bar=progress_bar): _post_url
                             for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
-                for fut in futures:
-                    try:
-                        if (_res := try_get(fut.result(), lambda x: x[0])):
-                            _entries += _res
-                        else:
-                            self.report_warning(f'{pre} no entry, fails fut {futures[fut]}')
-                    except Exception as e:
-                        self.report_warning(f'{pre} fails fut {futures[fut]} {repr(e)}')
+                        done, _ = wait(futures)
+
+                        for fut in done:
+                            try:
+                                if (_res := try_get(fut.result(), lambda x: x[0])):
+                                    _entries += _res
+                                else:
+                                    self.report_warning(f'{pre} no entry, fails fut {futures[fut]}')
+                            except Exception as e:
+                                self.report_warning(f'{pre} fails fut {futures[fut]} {repr(e)}')
 
             else:
                 _entries = [self.url_result(_post_url if check else f"{_post_url}?check=no", ie=GVDBlogPostIE.ie_key())
