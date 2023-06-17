@@ -9,7 +9,8 @@ from .commonwebdriver import (
     limiter_1,
     my_dec_on_exception,
     By,
-    ec
+    ec,
+    cast
 )
 from ..utils import (
     ExtractorError,
@@ -70,7 +71,7 @@ class StreamSBIE(SeleniumInfoExtractor):
     @syncsem()
     def _get_entry(self, url, **kwargs):
 
-        pre = f'[get_entry_by_har][{self._get_url_print(url)}]'
+        pre = f'[get_entry][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
@@ -79,7 +80,8 @@ class StreamSBIE(SeleniumInfoExtractor):
 
         _har_file = None
         try:
-
+            m3u8_doc = None
+            m3u8_url = None
             for _ in range(3):
 
                 _port = self.find_free_port()
@@ -87,6 +89,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                 _cont = True
                 m3u8_doc = None
                 m3u8_url = None
+
                 try:
                     with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
 
@@ -131,12 +134,13 @@ class StreamSBIE(SeleniumInfoExtractor):
 
             info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
             self.logger_debug(info)
-            _title = get_first(info, ('stream_data', 'title'), ('title'))
+            _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
             if not _title:
                 raise ExtractorError('Couldnt get title')
-            _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
-            _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
-            _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+            else:
+                _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
+                _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
+                _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
 
             if not _subtitles:
                 list_subt_urls = try_get(
@@ -172,12 +176,14 @@ class StreamSBIE(SeleniumInfoExtractor):
                 if _duration:
                     _entry.update({'duration': _duration})
             except Exception as e:
-                self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
+                self.logger_debug(f"{pre}: error trying to get vod {repr(e)}")
 
             return _entry
 
+        except ExtractorError:
+            raise
         except Exception as e:
-            logger.exception(f"{pre} {repr(e)}")
+            self.logger_debug(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
         finally:
             if _har_file:
