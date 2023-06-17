@@ -51,7 +51,10 @@ from typing import (
     Type,
     Optional,
     Iterable,
+    Any
 )
+
+from typing_extensions import TypeAlias
 
 assert Tuple
 assert Dict
@@ -66,6 +69,8 @@ from _thread import RLock  # type: ignore
 from functools import cached_property
 
 _NOT_FOUND = object()
+
+_RetAddress: TypeAlias = Any
 
 
 class cached_classproperty(cached_property):
@@ -751,20 +756,20 @@ class SeleniumInfoExtractor(InfoExtractor):
     def _get_extractor(self, _args):
 
         def get_extractor(url):
-            ies = self._downloader._ies
+            ies = self._downloader._ies  # type: ignore
             for ie_key, ie in ies.items():
                 try:
                     if ie.suitable(url) and (ie_key != "Generic"):
-                        return (ie_key, self._downloader.get_info_extractor(ie_key))
+                        return (ie_key, self._downloader.get_info_extractor(ie_key))  # type: ignore
                 except Exception as e:
                     self.LOGGER.exception(f'[get_extractor] fail with {ie_key} - {repr(e)}')
-            return ("Generic", self._downloader.get_info_extractor("Generic"))
+            return ("Generic", self._downloader.get_info_extractor("Generic"))  # type: ignore
 
         if _args.startswith('http'):
             ie_key, ie = get_extractor(_args)
         else:
             ie_key = _args
-            ie = self._downloader.get_info_extractor(ie_key)
+            ie = self._downloader.get_info_extractor(ie_key)  # type: ignore
         try:
             ie._ready = False
             ie._real_initialize()
@@ -1011,7 +1016,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def find_free_port(self):
+    def find_free_port(self) -> _RetAddress:
         with SeleniumInfoExtractor._MASTER_LOCK:
             return find_available_port()
 
