@@ -528,8 +528,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 GVDBlogBaseIE._SLOW_DOWN = True
                 check = False
 
-            # self.logger_debug(f'{pre}[blog_post_list] {blog_posts_list}')
-
             if self.keyapi == 'gvdblog.com':
                 posts_vid_url = cast(list, [try_get(
                     traverse_obj(post_entry, ('link', -1, 'href')),
