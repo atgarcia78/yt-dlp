@@ -512,7 +512,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def get_entries_search(self, url, check=True, lazy=False, alt=False):
 
-        pre = f'[get_entries][{self._get_url_print(url)}]'
+        _post = ""
+        if alt:
+            _post = "?alt=yes"
+        pre = f'[get_entries][{self._get_url_print(url)}{_post}]'
 
         try:
             blog_posts_list = self.get_blog_posts_search(url)
