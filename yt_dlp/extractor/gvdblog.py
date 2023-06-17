@@ -24,7 +24,10 @@ from .commonwebdriver import (
     cast)
 
 
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    # wait
+)
 
 import logging
 
@@ -550,16 +553,24 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                                 self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, alt=alt, progress_bar=progress_bar): _post_url
                             for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
-                        done, _ = wait(futures)
+                        # done, _ = wait(futures)
 
-                        for fut in done:
-                            try:
-                                if (_res := try_get(fut.result(), lambda x: x[0])):
-                                    _entries += _res
-                                else:
-                                    self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
-                            except Exception as e:
-                                self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
+                        # for fut in done:
+                        #     try:
+                        #         if (_res := try_get(fut.result(), lambda x: x[0])):
+                        #             _entries += _res
+                        #         else:
+                        #             self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
+                        #     except Exception as e:
+                        #         self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
+                    for fut in futures:
+                        try:
+                            if (_res := try_get(fut.result(), lambda x: x[0])):
+                                _entries += _res
+                            else:
+                                self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
+                        except Exception as e:
+                            self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
 
             else:
                 _entries = [self.url_result(_post_url if check else f"{_post_url}?check=no", ie=GVDBlogPostIE.ie_key())
