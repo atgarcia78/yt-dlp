@@ -11,11 +11,11 @@ from .commonwebdriver import (
     ConnectError,
     ExtractorError,
     HTTPStatusError,
-    LimitContextDecorator,
+    # LimitContextDecorator,
     ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_0_1,
+    limiter_0_5,
     my_dec_on_exception,
     raise_extractor_error
 )
@@ -27,10 +27,10 @@ from ..utils import (
 )
 
 on_exception_vinfo = my_dec_on_exception(
-    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    ReExtractInfo, raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
 
 
 class DoodStreamIE(SeleniumInfoExtractor):
@@ -41,6 +41,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     _SITE_URL = 'https://dood.to/'
 
     @on_exception_vinfo
+    @limiter_0_5.ratelimit("doodstream", delay=True)
     def _get_video_info(self, url, **kwargs):
 
         msg = kwargs.get('msg')
@@ -53,18 +54,18 @@ class DoodStreamIE(SeleniumInfoExtractor):
                    'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
 
         headers.update(_headers)
-        limiter = cast(LimitContextDecorator, self.IE_LIMITER)
-        with limiter:
-            try:
-                return self.get_info_for_format(url, headers=headers)
-            except (HTTPStatusError, ConnectError) as e:
-                self.logger_menu(f"{pre}: error - {repr(e)}")
-            except ReExtractInfo as e:
-                self.logger_menu(f"{pre}: error - {repr(e)}, will retry")
-                raise
+        # limiter = cast(LimitContextDecorator, self.IE_LIMITER)
+        # with limiter:
+        try:
+            return self.get_info_for_format(url, headers=headers)
+        except (HTTPStatusError, ConnectError) as e:
+            self.logger_debug(f"{pre}: error - {repr(e)}")
+        except ReExtractInfo as e:
+            self.logger_debug(f"{pre}: error - {repr(e)}, will retry")
+            raise
 
     @dec_on_exception3
-    @limiter_0_1.ratelimit("doodstream2", delay=True)
+    @limiter_0_5.ratelimit("doodstream", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
@@ -110,11 +111,11 @@ class DoodStreamIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
-            raise_extractor_error("error 404 no webpage")
+            raise_extractor_error(f"{pre} error 404 no webpage")
         webpage = cast(str, webpage)
         title = self._og_search_title(webpage, default=None) or self._html_extract_title(webpage, default=None)
         if not title:
-            raise_extractor_error("error with title")
+            raise_extractor_error(f"{pre} error with title")
         title = cast(str, title)
         mobj = re.findall(r'(1080p|720p|480p)', title)
         if mobj:
@@ -133,7 +134,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                             *(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
                             f'?token={token}&expiry={int(time.time() * 1000)}'))
         if not video_url:
-            raise_extractor_error("couldnt get videourl")
+            raise_extractor_error(f"{pre} couldnt get videourl")
 
         _format = {
             'format_id': 'http-mp4',
@@ -150,13 +151,13 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 _videoinfo = self._get_video_info(video_url, msg=pre, headers=headers)
 
             if not _videoinfo:
-                raise_extractor_error("error 404: no video info")
+                raise ReExtractInfo(f"{pre} error 404: no video info")
 
             _videoinfo = cast(dict, _videoinfo)
-            if _videoinfo['filesize'] > 1000000:
+            if _videoinfo['filesize'] >= 1000000:
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
             else:
-                raise_extractor_error(f"error filesize[{_videoinfo['filesize']}] < 1MB")
+                raise ReExtractInfo(f"{pre} error filesize[{_videoinfo['filesize']}] < 1MB")
 
         _subtitles = {}
         list_subts = [subt for subt in [

@@ -968,7 +968,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         self.logger_info(
             f'{premsg}[wait] start[{timeout}] counter[{try_get(_simple_counter, lambda x: x.__name__)}] indexdl[{getattr(self, "indexdl", None)}]')
 
-        with self.create_progress_bar(msg=f'[{premsg}][wait]') as progress_bar:
+        with self.create_progress_bar(timeout, msg=f'[{premsg}][wait]') as progress_bar:
 
             if _simple_counter:
                 _counter = _simple_counter(
@@ -1273,7 +1273,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
             self.logger_info(f'{premsg}[wait] start[{_timeout}] counter[{try_get(_simple_counter, lambda x: x.__name__)}] indexdl[{getattr(self, "indexdl", None)}]')
 
-            with self.create_progress_bar(msg=f'[{movie_id}][wait]') as progress_bar:
+            with self.create_progress_bar(_timeout, msg=f'[{movie_id}][wait]') as progress_bar:
 
                 if _simple_counter:
                     _counter = _simple_counter(progress_bar, None, self.check_stop, timeout=_timeout, indexdl=getattr(self, 'indexdl', None))
