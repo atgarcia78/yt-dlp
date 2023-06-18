@@ -6,11 +6,12 @@ import re
 import shutil
 import tempfile
 import time
-from threading import Event, Lock
+from threading import Event, Lock, RLock
 import functools
 from urllib.parse import unquote, urlparse
 import subprocess
 import os
+from datetime import datetime
 
 from backoff import constant, on_exception
 from httpx import (
@@ -56,6 +57,7 @@ from typing import (
 
 from typing_extensions import TypeAlias
 
+
 assert Tuple
 assert Dict
 assert Iterable
@@ -63,8 +65,6 @@ assert Type
 assert Optional
 assert Sequence
 assert TypeVar
-
-from _thread import RLock  # type: ignore
 
 from functools import cached_property
 
@@ -359,7 +359,7 @@ class ProgressTimer:
             if self.has_elapsed(seconds):
                 return True
             else:
-                time.sleep(0.2)
+                time.sleep(0.05)
 
 
 class myHAR:
@@ -593,9 +593,12 @@ class myHAR:
         return cls.getNetworkHAR(har_file, logger=logger, msg=msg, port=port)
 
 
+import httpx
 from ipaddress import ip_address
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import httpx
+from io import TextIOWrapper
+from ..YoutubeDL import YoutubeDL
+import sys
 
 
 class myIP:
@@ -656,15 +659,25 @@ class myIP:
 
 
 class ProgressBar(MultilinePrinter):
-    _DELAY = 0.01
+    _DELAY = 0.1
 
-    def __init__(self, ydl, msg=None):
+    def __init__(self, stream: Union[TextIOWrapper, YoutubeDL, None], total: Union[int, float], preserve_output: bool = True, msg: Union[str, None] = None):
         self._pre = ''
         if msg:
             self._pre = msg
-        self._timer = 0
         self._logger = logging.getLogger('progressbar')
-        super().__init__(ydl._out_files.error, preserve_output=False)
+        if not stream:
+            _stream = sys.stderr
+        elif isinstance(stream, YoutubeDL):
+            _stream = stream._out_files.error
+        else:
+            _stream = stream
+
+        super().__init__(_stream, preserve_output=preserve_output)
+        self._total = total
+        self._done = 0
+        self._lock = RLock()
+        self._timer = ProgressTimer()
 
     # to stop sending events to loggers while progressbar is printing
     def __enter__(self):
@@ -680,12 +693,17 @@ class ProgressBar(MultilinePrinter):
         except Exception as e:
             self._logger.exception(repr(e))
         super().__exit__(*args)
-        self.print('')
+        self.write('')
+
+    def update(self, n=1):
+        with self._lock:
+            self._done += n
 
     def print(self, message):
-        if time.time() - self._timer > ProgressBar._DELAY:
-            self.print_at_line(f'{self._pre} {message}', 0)
-            self._timer = time.time()
+        with self._lock:
+            self._timer.wait_haselapsed(ProgressBar._DELAY)
+            self.print_at_line(f'{self._pre} {message} {self._done}/{self._total}', 0)
+            self._timer.reset()
 
 
 def raise_extractor_error(msg, expected=True):
@@ -750,52 +768,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             self.to_screen(f"[debug] {msg}")
 
-    def create_progress_bar(self, msg=None):
-        return ProgressBar(self._downloader, msg=msg)
-
-    def _get_extractor(self, _args):
-
-        def get_extractor(url):
-            ies = self._downloader._ies  # type: ignore
-            for ie_key, ie in ies.items():
-                try:
-                    if ie.suitable(url) and (ie_key != "Generic"):
-                        return (ie_key, self._downloader.get_info_extractor(ie_key))  # type: ignore
-                except Exception as e:
-                    self.LOGGER.exception(f'[get_extractor] fail with {ie_key} - {repr(e)}')
-            return ("Generic", self._downloader.get_info_extractor("Generic"))  # type: ignore
-
-        if _args.startswith('http'):
-            ie_key, ie = get_extractor(_args)
-        else:
-            ie_key = _args
-            ie = self._downloader.get_info_extractor(ie_key)  # type: ignore
-        try:
-            ie._ready = False
-            ie._real_initialize()
-            return ie
-        except Exception as e:
-            self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
-        raise
-
-    def _get_ie_name(self, url=None):
-
-        if url:
-            extractor = self._get_extractor(url)
-            extr_name = extractor.IE_NAME
-            return extr_name.lower()
-        else:
-            return self.IE_NAME.lower()
-
-    def _get_ie_key(self, url=None):
-
-        if url:
-            extractor = self._get_extractor(url)
-            extr_key = extractor.ie_key()
-            return extr_key
-        else:
-            return self.ie_key()
-
     @staticmethod
     def _get_url_print(url):
         if url:
@@ -858,6 +830,53 @@ class SeleniumInfoExtractor(InfoExtractor):
         self.args_ie = traverse_obj(data, 'args')
 
         return super().extract(url)
+
+    def create_progress_bar(self, total: Union[int, float], msg: Union[str, None] = None) -> ProgressBar:
+        assert self._downloader
+        return ProgressBar(self._downloader, total, msg=msg)
+
+    def _get_extractor(self, _args):
+
+        def get_extractor(url):
+            ies = self._downloader._ies  # type: ignore
+            for ie_key, ie in ies.items():
+                try:
+                    if ie.suitable(url) and (ie_key != "Generic"):
+                        return (ie_key, self._downloader.get_info_extractor(ie_key))  # type: ignore
+                except Exception as e:
+                    self.LOGGER.exception(f'[get_extractor] fail with {ie_key} - {repr(e)}')
+            return ("Generic", self._downloader.get_info_extractor("Generic"))  # type: ignore
+
+        if _args.startswith('http'):
+            ie_key, ie = get_extractor(_args)
+        else:
+            ie_key = _args
+            ie = self._downloader.get_info_extractor(ie_key)  # type: ignore
+        try:
+            ie._ready = False
+            ie._real_initialize()
+            return ie
+        except Exception as e:
+            self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
+        raise
+
+    def _get_ie_name(self, url=None):
+
+        if url:
+            extractor = self._get_extractor(url)
+            extr_name = extractor.IE_NAME
+            return extr_name.lower()
+        else:
+            return self.IE_NAME.lower()
+
+    def _get_ie_key(self, url=None):
+
+        if url:
+            extractor = self._get_extractor(url)
+            extr_key = extractor.ie_key()
+            return extr_key
+        else:
+            return self.ie_key()
 
     def get_ytdl_sem(self, _host) -> Lock:
 
@@ -1024,7 +1043,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
-        har_file = f"{folder}/dump_{videoid}_{time.strftime('%y%m%d-%H%M%S')}.har"
+        t0 = datetime.now()
+        har_file = f"{folder}/dump_{videoid}_{t0.strftime('%H%M%S_')}{t0.microsecond}.har"
         return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg, port=port)
 
     def scan_for_request(

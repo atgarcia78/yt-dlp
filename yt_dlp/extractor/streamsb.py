@@ -82,7 +82,7 @@ class StreamSBIE(SeleniumInfoExtractor):
         try:
             m3u8_doc = None
             m3u8_url = None
-            for _ in range(3):
+            for _ in range(5):
 
                 _port = self.find_free_port()
                 driver = self.get_driver(host='127.0.0.1', port=_port)
@@ -110,6 +110,13 @@ class StreamSBIE(SeleniumInfoExtractor):
                         _cont = True
 
                 if _cont:
+                    if _har_file:
+                        try:
+                            if os.path.exists(_har_file):
+                                os.remove(_har_file)
+                        except OSError:
+                            self.logger_debug(f"{pre}: Unable to remove the har file")
+
                     time.sleep(5)
                 else:
                     break
@@ -191,7 +198,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                     if os.path.exists(_har_file):
                         os.remove(_har_file)
                 except OSError:
-                    return self.logger_debug(f"{pre}: Unable to remove the har file")
+                    self.logger_debug(f"{pre}: Unable to remove the har file")
 
     def _real_initialize(self):
         super()._real_initialize()

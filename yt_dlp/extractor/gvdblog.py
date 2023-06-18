@@ -26,10 +26,11 @@ from .commonwebdriver import (
 
 from concurrent.futures import (
     ThreadPoolExecutor,
-    # wait
+    wait
 )
 
 import logging
+from functools import partial
 
 from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
@@ -63,7 +64,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         urldict = {
             _ie.IE_NAME: {'url': _url, 'ie': _ie}
             for _url in _x
-            if (_ie := self._get_extractor(_url)) and hasattr(_ie, '_get_entry') and _ie.IE_NAME in _ie_data[altkey]
+            if (_ie := self._get_extractor(_url)) and _ie.IE_NAME in _ie_data[altkey]
         }
 
         if not urldict:
@@ -74,15 +75,19 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             self.logger_debug(f"{premsg}[{self._get_url_print(urldict['streamsb']['url'])}] there is a streamsb entry for this video")
 
         _videos = []
+        _entries = []
         for key in _ie_data[altkey]:
             if key in urldict:
                 try:
-                    _ch = check
                     if not lazy:
-                        _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=_ch, msg=premsg)
+                        _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=check, msg=premsg)
                         if _entry:
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video\n{_entry}")
-                            return _entry
+                            if not alt:
+                                return _entry
+                            else:
+                                _entries.append(_entry)
+                                continue
                         else:
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING not entry video")
 
@@ -95,6 +100,22 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] WARNING error entry video {repr(e)}")
 
                 _videos.append(urldict[key]['url'])
+
+        if alt and _entries:
+            ytdl = self._downloader
+            assert ytdl
+            _process_entry = lambda x: ytdl.sanitize_info(ytdl.process_ie_result(x, download=False))
+            if len(_entries) == 2:
+                entalt, entleg = _process_entry(_entries[0]), _process_entry(_entries[1])
+                entaltfilesize = entalt.get('filesize_approx') or (entalt.get('tbr', 0) * entalt.get('duration', 0) * 1024 / 8)
+                entlegfilesize = entleg.get('filesize')
+                if entlegfilesize and entaltfilesize and entaltfilesize >= 2 * entlegfilesize and (entaltfilesize > 786432000 or entlegfilesize < 157286400):
+                    return _entries[0]
+                else:
+                    return _entries[1]
+            else:
+                return _entries[0]
+
         _msg = f'{premsg} couldnt get any working video from original list:\n{_x}\n'
         _msg += f'that was filter to final list videos:\n{_videos}'
         self.logger_debug(_msg)
@@ -262,10 +283,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             try:
 
                 if len(list_candidate_videos) > 1:
-                    with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
+                    with ThreadPoolExecutor(max_workers=min(len(list_candidate_videos), 8), thread_name_prefix="gvdblog_pl") as exe:
                         futures = {
-                            exe.submit(self.get_entry_video, _el, check=check, msg=premsg, lazy=lazy, alt=alt): _el
+                            exe.submit(partial(self.get_entry_video, check=check, lazy=lazy, alt=alt, msg=premsg), _el): _el
                             for _el in list_candidate_videos}
+
+                        wait(futures)
 
                     for fut in futures:
                         try:
@@ -278,7 +301,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 else:
                     try:
-                        _entry = self.get_entry_video(list_candidate_videos[0], check=check, msg=premsg, lazy=lazy, alt=alt)
+                        _entry = self.get_entry_video(list_candidate_videos[0], check=check, lazy=lazy, alt=alt, msg=premsg)
                         if _entry:
                             entries.append(_entry)
                         else:
@@ -327,8 +350,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         finally:
             if progress_bar:
                 with GVDBlogBaseIE._LOCK:
-                    self._done += 1
-                    progress_bar.print(f'Entry OK {self._done}/{self._total}')  # type: ignore
+                    progress_bar.update()
+                    progress_bar.print('Entry OK')  # type: ignore
 
     def _get_metadata(self, post):
         return self.get_entries_from_blog_post(post, lazy=True)
@@ -357,8 +380,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     def _real_initialize(self):
         super()._real_initialize()
-        self._done = 0
-        self._total: int
+
         self.keyapi: str
 
         for cookie in self._COOKIES_JAR:
@@ -515,17 +537,15 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def get_entries_search(self, url, check=True, lazy=False, alt=False):
 
-        _post = ""
-        if alt:
-            _post = "?alt=yes"
-        pre = f'[get_entries][{self._get_url_print(url)}{_post}]'
+        _url = update_url_query(url, {'alt': 'yes'}) if alt else url
+        pre = f'[get_entries][{_url}]'
 
         try:
             blog_posts_list = self.get_blog_posts_search(url)
 
-            self._total = len(blog_posts_list)
+            _total = len(blog_posts_list)
 
-            self.logger_info(f'{pre}[blog_post_list] len[{self._total}]')
+            self.logger_info(f'{pre}[blog_post_list] len[{_total}]')
 
             if len(blog_posts_list) >= 100:
                 GVDBlogBaseIE._SLOW_DOWN = True
@@ -544,25 +564,17 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-                with self.create_progress_bar(msg=pre) as progress_bar:
+                with self.create_progress_bar(_total, msg=pre) as progress_bar:
 
-                    with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
+                    with ThreadPoolExecutor(max_workers=16, thread_name_prefix="gvdpl") as ex:
 
                         futures = {
                             ex.submit(
-                                self.get_entries_from_blog_post, _post_blog, check=check, lazy=lazy, alt=alt, progress_bar=progress_bar): _post_url
+                                partial(self.get_entries_from_blog_post, check=check, lazy=lazy, alt=alt, progress_bar=progress_bar), _post_blog): _post_url
                             for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
-                        # done, _ = wait(futures)
+                        wait(futures)
 
-                        # for fut in done:
-                        #     try:
-                        #         if (_res := try_get(fut.result(), lambda x: x[0])):
-                        #             _entries += _res
-                        #         else:
-                        #             self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
-                        #     except Exception as e:
-                        #         self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
                     for fut in futures:
                         try:
                             if (_res := try_get(fut.result(), lambda x: x[0])):
