@@ -55,8 +55,6 @@ from typing import (
     Any
 )
 
-from typing_extensions import TypeAlias
-
 
 assert Tuple
 assert Dict
@@ -65,12 +63,11 @@ assert Type
 assert Optional
 assert Sequence
 assert TypeVar
+assert Any
 
 from functools import cached_property
 
 _NOT_FOUND = object()
-
-_RetAddress: TypeAlias = Any
 
 
 class cached_classproperty(cached_property):
@@ -1035,9 +1032,9 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def find_free_port(self) -> _RetAddress:
+    def find_free_port(self) -> int:
         with SeleniumInfoExtractor._MASTER_LOCK:
-            return find_available_port()
+            return cast(int, find_available_port())
 
     def get_har_logs(self, key, videoid='ytdl', msg=None, port=8080):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
