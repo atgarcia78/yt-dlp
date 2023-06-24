@@ -65,7 +65,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
             raise
 
     @dec_on_exception3
-    @limiter_0_5.ratelimit("doodstream", delay=True)
+    @limiter_0_5.ratelimit("doodstream2", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
