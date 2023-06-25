@@ -83,7 +83,8 @@ class StreamSBIE(SeleniumInfoExtractor):
         try:
             m3u8_doc = None
             m3u8_url = None
-            for _ in range(5):
+            i = 0
+            while i < 5:
 
                 _port = self.find_free_port()
                 driver = self.get_driver(host='127.0.0.1', port=_port)
@@ -107,6 +108,9 @@ class StreamSBIE(SeleniumInfoExtractor):
                     m3u8_url, m3u8_doc = try_get(
                         self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
                         lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                    if '404 Not Found' in m3u8_doc:
+                        m3u8_doc = None
+                        i += 1
                     if not m3u8_url or not m3u8_doc:
                         _cont = True
 
@@ -118,7 +122,8 @@ class StreamSBIE(SeleniumInfoExtractor):
                         except OSError:
                             self.logger_debug(f"{pre}: Unable to remove the har file")
 
-                    time.sleep(5)
+                    time.sleep(3)
+                    i += 1
                 else:
                     break
 
