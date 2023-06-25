@@ -10,7 +10,8 @@ from .commonwebdriver import (
     my_dec_on_exception,
     By,
     ec,
-    cast
+    cast,
+    subnright
 )
 from ..utils import (
     ExtractorError,
@@ -127,6 +128,9 @@ class StreamSBIE(SeleniumInfoExtractor):
             _formats = []
             _subtitles = {}
             if m3u8_doc and m3u8_url:
+                if 'SDR,AUDIO="audio' in m3u8_doc:
+                    m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
+                    m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
                 _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
                     m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
@@ -138,6 +142,10 @@ class StreamSBIE(SeleniumInfoExtractor):
                     _head.update(_headers)
                 else:
                     _format.update({'http_headers': _headers})
+                # if _format.get('vcodec') and _format.get('tbr') and (not (_acodec := _format.get('acodec')) or _acodec == 'none'):
+                #     _format['acodec'] = 'mp4a.40.2'
+                #     _format['abr'] = None
+                #     _format['vbr'] = None
 
             info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
             self.logger_debug(info)
