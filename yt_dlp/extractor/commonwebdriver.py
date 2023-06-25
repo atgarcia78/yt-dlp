@@ -70,6 +70,14 @@ from functools import cached_property
 _NOT_FOUND = object()
 
 
+def subnright(pattern, repl, text, n):
+    pattern = re.compile(rf"{pattern}(?!.*{pattern})", flags=re.DOTALL)
+    _text = text
+    for i in range(n):
+        _text = pattern.sub(repl, _text)
+    return _text
+
+
 class cached_classproperty(cached_property):
     __slots__ = ("func", "attrname", "__doc__", "lock")
 
