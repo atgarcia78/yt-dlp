@@ -11,36 +11,37 @@ from .commonwebdriver import (
     By,
     ec,
     cast,
-    subnright
+    subnright,
+    get_host
 )
 from ..utils import (
     ExtractorError,
     sanitize_filename,
     try_get,
     try_call,
-    get_first
+    get_first,
+    traverse_obj
 )
 
 import functools
 from threading import Semaphore
 
 import logging
-logger = logging.getLogger('streamsb')
+logger = logging.getLogger('dvdgayonline')
 
 on_exception = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
 
 
-class StreamSBIE(SeleniumInfoExtractor):
+class DVDGayOnlineIE(SeleniumInfoExtractor):
 
-    _DOMAINS = r'(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top|realgalaxy\.top)'
-    _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)(\.html)?''' % _DOMAINS
-    IE_NAME = 'streamsb'  # type: ignore
+    _VALID_URL = r'https?://dvdgayonline.com/movies/.*'
+    IE_NAME = 'dvdgayonline'  # type: ignore
     _SEM = Semaphore(8)
 
     @on_exception
     @dec_on_driver_timeout
-    @limiter_1.ratelimit("streamsb", delay=True)
+    @limiter_1.ratelimit("dvdgayonline", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -65,7 +66,7 @@ class StreamSBIE(SeleniumInfoExtractor):
         def __call__(self, func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                with StreamSBIE._SEM:
+                with DVDGayOnlineIE._SEM:
                     return func(*args, **kwargs)
             return wrapper
 
@@ -75,9 +76,6 @@ class StreamSBIE(SeleniumInfoExtractor):
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
-
-        videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
-        url_dl = f"https://{dom}/e/{videoid}.html"
 
         _har_file = None
         try:
@@ -93,10 +91,17 @@ class StreamSBIE(SeleniumInfoExtractor):
                 m3u8_url = None
 
                 try:
-                    with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
+                    with self.get_har_logs('gvdgayonline', None, msg=pre, port=_port) as harlogs:
 
                         _har_file = harlogs.har_file
-                        self._send_request(url_dl, driver=driver)
+                        self._send_request(url, driver=driver)
+                        self.wait_until(driver, 2)
+                        elhtml = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "html")))
+                        elhtml.click()
+                        self.wait_until(driver, 2)
+                        ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
+                        driver.switch_to.frame(ifr)
+                        self.wait_until(driver, 2)
                         if self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))):
                             _cont = False
                             self.wait_until(driver, 2)
@@ -105,9 +110,9 @@ class StreamSBIE(SeleniumInfoExtractor):
 
                 if not _cont:
 
-                    m3u8_url, m3u8_doc = try_get(
-                        self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
-                        lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                    m3u8_url, m3u8_doc, urlembed = try_get(
+                        self.scan_for_request(r"master.m3u8.+$", har=_har_file, inclheaders=True),  # type: ignore
+                        lambda x: (x.get('url'), x.get('content'), traverse_obj(x, ('headers', 'Origin')) if x else (None, None, None)))
                     if '404 Not Found' in m3u8_doc:
                         m3u8_doc = None
                         i += 1
@@ -127,6 +132,8 @@ class StreamSBIE(SeleniumInfoExtractor):
                 else:
                     break
 
+            dom = get_host(urlembed)
+            videoid = traverse_obj(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, url).groupdict(), 'id')
             _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
                         'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
@@ -147,12 +154,8 @@ class StreamSBIE(SeleniumInfoExtractor):
                     _head.update(_headers)
                 else:
                     _format.update({'http_headers': _headers})
-                # if _format.get('vcodec') and _format.get('tbr') and (not (_acodec := _format.get('acodec')) or _acodec == 'none'):
-                #     _format['acodec'] = 'mp4a.40.2'
-                #     _format['abr'] = None
-                #     _format['vbr'] = None
 
-            info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
+            info = self.scan_for_json(r'', har=_har_file, _all=True)
             self.logger_debug(info)
             _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
             if not _title:
@@ -187,8 +190,8 @@ class StreamSBIE(SeleniumInfoExtractor):
                 'formats': _formats,
                 'subtitles': _subtitles,
                 'ext': 'mp4',
-                'extractor_key': 'StreamSB',
-                'extractor': 'streamsb',
+                'extractor_key': 'DVDGayOnlineIE',
+                'extractor': 'dvdgayonline',
                 'webpage_url': url}
 
             try:
