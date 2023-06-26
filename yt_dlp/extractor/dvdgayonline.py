@@ -6,7 +6,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ConnectError,
     dec_on_driver_timeout,
-    limiter_1,
+    limiter_5,
     my_dec_on_exception,
     By,
     ec,
@@ -41,7 +41,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
     @on_exception
     @dec_on_driver_timeout
-    @limiter_1.ratelimit("dvdgayonline", delay=True)
+    @limiter_5.ratelimit("dvdgayonline", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -79,29 +79,26 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
         _har_file = None
         try:
-            m3u8_doc = None
-            m3u8_url = None
+
             i = 0
             while i < 5:
 
                 _port = self.find_free_port()
                 driver = self.get_driver(host='127.0.0.1', port=_port)
                 _cont = True
-                m3u8_doc = None
-                m3u8_url = None
 
                 try:
-                    with self.get_har_logs('gvdgayonline', msg=pre, port=_port) as harlogs:
+                    with self.get_har_logs('gvdgayonline', videoid=url.strip('/').rsplit('/', 1)[-1], msg=pre, port=_port) as harlogs:
 
                         _har_file = harlogs.har_file
                         self._send_request(url, driver=driver)
-                        self.wait_until(driver, 2)
+                        self.wait_until(driver, 1)
                         elhtml = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "html")))
                         elhtml.click()
-                        self.wait_until(driver, 2)
+                        self.wait_until(driver, 1)
                         ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
                         driver.switch_to.frame(ifr)
-                        self.wait_until(driver, 2)
+                        self.wait_until(driver, 1)
                         if self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))):
                             _cont = False
                             self.wait_until(driver, 2)
@@ -110,14 +107,23 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
                 if not _cont:
 
-                    m3u8_url, m3u8_doc, urlorigin = try_get(
-                        self.scan_for_request(r"master.m3u8.+$", har=_har_file, inclheaders=True),  # type: ignore
-                        lambda x: (x.get('url'), x.get('content'), traverse_obj(x, ('headers', 'Origin'))) if x else (None, None, None))
-                    if '404 Not Found' in m3u8_doc:
-                        m3u8_doc = None
-                        i += 1
-                    if not m3u8_url or not m3u8_doc:
+                    urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
+                    self.logger_info(f'{pre} {urlembed}')
+                    if not urlembed:
                         _cont = True
+                    elif 'realgalaxy.top' in urlembed:
+                        m3u8_url, m3u8_doc = try_get(
+                            self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                            lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                        if m3u8_doc and '404 Not Found' in m3u8_doc:
+                            m3u8_doc = None
+                            i += 1
+                        if not m3u8_url or not m3u8_doc:
+                            _cont = True
+                            m3u8_url = None
+                            m3u8_doc = None
+                    else:
+                        return self.url_result(urlembed, original_url=url)
 
                 if _cont:
                     if _har_file:
@@ -132,32 +138,16 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 else:
                     break
 
-            dom = get_host(urlorigin)
-            urlembed = traverse_obj(self.scan_for_request(r'%s/e/' % dom, har=_har_file, response=False), 'url')
-            self.logger_debug(urlembed)
+            if not all([urlembed, m3u8_doc, m3u8_url]):
+                raise ExtractorError('Couldnt get video info')
+
+            dom = get_host(urlembed)
             videoid = traverse_obj(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, urlembed).groupdict(), 'id')
-            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
-                        'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
-            _formats = []
-            _subtitles = {}
-            if m3u8_doc and m3u8_url:
-                if 'SDR,AUDIO="audio' in m3u8_doc:
-                    m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
-                    m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
-                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
-                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+            if not videoid:
+                raise ExtractorError('Couldnt get videoid')
 
-            if not _formats:
-                raise ExtractorError('Couldnt get video formats')
-
-            for _format in _formats:
-                if (_head := _format.get('http_headers')):
-                    _head.update(_headers)
-                else:
-                    _format.update({'http_headers': _headers})
-
-            info = self.scan_for_json(r'', har=_har_file, _all=True)
+            info = self.scan_for_json(r'%s/' % dom, har=_har_file, _all=True)
             self.logger_debug(info)
             _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
             if not _title:
@@ -166,6 +156,28 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
                 _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
                 _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+
+            _formats = []
+            _subtitles = {}
+
+            if 'SDR,AUDIO="audio' in m3u8_doc:
+                m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
+                m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
+
+            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+
+            if not _formats:
+                raise ExtractorError('Couldnt get video formats')
+
+            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
+                        'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+
+            for _format in _formats:
+                if (_head := _format.get('http_headers')):
+                    _head.update(_headers)
+                else:
+                    _format.update({'http_headers': _headers})
 
             if not _subtitles:
                 list_subt_urls = try_get(
@@ -208,7 +220,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            self.logger_debug(f"{pre} {repr(e)}")
+            logger.exception(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
         finally:
             if _har_file:
