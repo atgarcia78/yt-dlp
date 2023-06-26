@@ -1044,12 +1044,12 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         with SeleniumInfoExtractor._MASTER_LOCK:
             return cast(int, find_available_port())
 
-    def get_har_logs(self, key, videoid='ytdl', msg=None, port=8080):
+    def get_har_logs(self, key, videoid=None, msg=None, port=8080):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
         t0 = datetime.now()
-        har_file = f"{folder}/dump_{videoid}_{t0.strftime('%H%M%S_')}{t0.microsecond}.har"
+        har_file = f"{folder}/dump_{videoid + '_' if videoid else ''}{t0.strftime('%H%M%S_')}{t0.microsecond}.har"
         return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg, port=port)
 
     def scan_for_request(

@@ -91,7 +91,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 m3u8_url = None
 
                 try:
-                    with self.get_har_logs('gvdgayonline', None, msg=pre, port=_port) as harlogs:
+                    with self.get_har_logs('gvdgayonline', msg=pre, port=_port) as harlogs:
 
                         _har_file = harlogs.har_file
                         self._send_request(url, driver=driver)
@@ -110,9 +110,9 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
                 if not _cont:
 
-                    m3u8_url, m3u8_doc, urlembed = try_get(
+                    m3u8_url, m3u8_doc, urlorigin = try_get(
                         self.scan_for_request(r"master.m3u8.+$", har=_har_file, inclheaders=True),  # type: ignore
-                        lambda x: (x.get('url'), x.get('content'), traverse_obj(x, ('headers', 'Origin')) if x else (None, None, None)))
+                        lambda x: (x.get('url'), x.get('content'), traverse_obj(x, ('headers', 'Origin'))) if x else (None, None, None))
                     if '404 Not Found' in m3u8_doc:
                         m3u8_doc = None
                         i += 1
@@ -132,8 +132,10 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 else:
                     break
 
-            dom = get_host(urlembed)
-            videoid = traverse_obj(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, url).groupdict(), 'id')
+            dom = get_host(urlorigin)
+            urlembed = traverse_obj(self.scan_for_request(r'%s/e/' % dom, har=_har_file, response=False), 'url')
+            self.logger_debug(urlembed)
+            videoid = traverse_obj(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, urlembed).groupdict(), 'id')
             _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
                         'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
