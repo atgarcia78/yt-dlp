@@ -78,52 +78,75 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
 
         _har_file = None
+        urlembed = None
+        m3u8_doc = None
+        m3u8_url = None
+
         try:
 
             i = 0
+            keys = ['realgalaxy', 'mixdrop', 'dflix', 'dood', 'streamtape']
+
             while i < 5:
 
                 _port = self.find_free_port()
                 driver = self.get_driver(host='127.0.0.1', port=_port)
-                _cont = True
+                _cont = False
 
                 try:
-                    with self.get_har_logs('gvdgayonline', videoid=url.strip('/').rsplit('/', 1)[-1], msg=pre, port=_port) as harlogs:
+                    with self.get_har_logs('gvdgayonline', videoid=sanitize_filename(url.strip('/').rsplit('/', 1)[-1].replace('-', ''), restricted=True), msg=pre, port=_port) as harlogs:
 
                         _har_file = harlogs.har_file
                         self._send_request(url, driver=driver)
                         self.wait_until(driver, 1)
-                        elhtml = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "html")))
-                        elhtml.click()
+                        eltoclick = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "html")))
+                        _players = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, 'dooplay_player_option')))
+                        _player = None
+                        if _players:
+                            servers = {
+                                _server.text.splitlines()[-1].split('.')[0]: _server
+                                for _server in _players}
+
+                            for _key in keys:
+                                if _key in servers:
+                                    eltoclick = servers[_key]
+                                    _player = _key
+                                    break
+
+                        eltoclick.click()
+
                         self.wait_until(driver, 1)
                         ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
                         driver.switch_to.frame(ifr)
                         self.wait_until(driver, 1)
-                        if self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))):
-                            _cont = False
-                            self.wait_until(driver, 2)
+                        if not self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))):
+                            if _player:
+                                keys.remove(_player)
+
+                        self.wait_until(driver, 2)
+
+                except Exception as e:
+                    logger.exception(f"{pre} {repr(e)}")
                 finally:
                     self.rm_driver(driver)
 
-                if not _cont:
-
-                    urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
-                    self.logger_info(f'{pre} {urlembed}')
-                    if not urlembed:
+                urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
+                self.logger_info(f'{pre} {urlembed}')
+                if not urlembed:
+                    _cont = True
+                elif 'realgalaxy.top' in urlembed:
+                    m3u8_url, m3u8_doc = try_get(
+                        self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                        lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                    if m3u8_doc and '404 Not Found' in m3u8_doc:
+                        m3u8_doc = None
+                        i += 1
+                    if not m3u8_url or not m3u8_doc:
                         _cont = True
-                    elif 'realgalaxy.top' in urlembed:
-                        m3u8_url, m3u8_doc = try_get(
-                            self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
-                            lambda x: (x.get('url'), x.get('content')) if x else (None, None))
-                        if m3u8_doc and '404 Not Found' in m3u8_doc:
-                            m3u8_doc = None
-                            i += 1
-                        if not m3u8_url or not m3u8_doc:
-                            _cont = True
-                            m3u8_url = None
-                            m3u8_doc = None
-                    else:
-                        return self.url_result(urlembed, original_url=url)
+                        m3u8_url = None
+                        m3u8_doc = None
+                else:
+                    return self.url_result(urlembed, original_url=url)
 
                 if _cont:
                     if _har_file:
@@ -133,7 +156,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                         except OSError:
                             self.logger_debug(f"{pre}: Unable to remove the har file")
 
-                    time.sleep(3)
+                    time.sleep(5)
                     i += 1
                 else:
                     break
@@ -204,7 +227,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 'formats': _formats,
                 'subtitles': _subtitles,
                 'ext': 'mp4',
-                'extractor_key': 'DVDGayOnlineIE',
+                'extractor_key': 'DVDGayOnline',
                 'extractor': 'dvdgayonline',
                 'webpage_url': url}
 

@@ -21,7 +21,7 @@ from ..utils import (
 class StreamHideIE(SeleniumInfoExtractor):
 
     IE_NAME = "streamhide"  # type: ignore
-    _DOMAINS = r'(?:guccihide\.com)'
+    _DOMAINS = r'(?:guccihide\.com|vflix\.top)'
     _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/(?:d|w|e)/(?P<id>[\dA-Za-z]+)''' % _DOMAINS
 
     @dec_on_exception2

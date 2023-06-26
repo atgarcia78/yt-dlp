@@ -160,7 +160,7 @@ class StreamSBIE(SeleniumInfoExtractor):
             else:
                 _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
                 _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
-                _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+                _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.')
 
             if not _subtitles:
                 list_subt_urls = try_get(
