@@ -84,7 +84,8 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             'Referer': url,
             'Origin': 'https://dvdgayonline.com'}
 
-        return try_get(self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data), lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
+        return try_get(self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data),
+                       lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
 
     @on_retry_vinfo
     def _get_entry_realgalaxy(self, url, postid, nplayer, _pre):

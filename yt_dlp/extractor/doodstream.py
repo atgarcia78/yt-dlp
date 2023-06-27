@@ -54,8 +54,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                    'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
 
         headers.update(_headers)
-        # limiter = cast(LimitContextDecorator, self.IE_LIMITER)
-        # with limiter:
+
         try:
             return self.get_info_for_format(url, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
@@ -212,6 +211,4 @@ class DoodStreamIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            # lines = traceback.format_exception(*sys.exc_info())
-            # self.report_warning(f"{repr(e)}\n{'!!'.join(lines)}")
             raise_extractor_error(repr(e))
