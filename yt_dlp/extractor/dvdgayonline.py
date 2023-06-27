@@ -1,11 +1,13 @@
 import re
 import os
-import time
+import html
 from .commonwebdriver import (
     SeleniumInfoExtractor,
     HTTPStatusError,
     ConnectError,
+    ReExtractInfo,
     dec_on_driver_timeout,
+    limiter_1,
     limiter_5,
     my_dec_on_exception,
     By,
@@ -20,7 +22,8 @@ from ..utils import (
     try_get,
     try_call,
     get_first,
-    traverse_obj
+    traverse_obj,
+    get_elements_by_class
 )
 
 import functools
@@ -32,12 +35,16 @@ logger = logging.getLogger('dvdgayonline')
 on_exception = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
 
+on_retry_vinfo = my_dec_on_exception(
+    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
+
 
 class DVDGayOnlineIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://dvdgayonline.com/movies/.*'
     IE_NAME = 'dvdgayonline'  # type: ignore
     _SEM = Semaphore(8)
+    _POST_URL = 'https://dvdgayonline.com/wp-admin/admin-ajax.php'
 
     @on_exception
     @dec_on_driver_timeout
@@ -61,6 +68,22 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
+    @on_exception
+    @limiter_1.ratelimit("dvdgayonline2", delay=True)
+    def get_url_player(self, url, postid, nplayer):
+        data = {
+            'action': 'doo_player_ajax',
+            'post': str(postid),
+            'nume': str(nplayer),
+            'type': 'movie'}
+        headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Referer': url,
+            'Origin': 'https://dvdgayonline.com'}
+
+        return try_get(self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data), lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
+
     class syncsem:
 
         def __call__(self, func):
@@ -70,115 +93,82 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                     return func(*args, **kwargs)
             return wrapper
 
-    @syncsem()
-    def _get_entry(self, url, **kwargs):
+    @on_retry_vinfo
+    def _get_entry_realgalaxy(self, url, postid, nplayer, _pre):
 
-        pre = f'[get_entry][{self._get_url_print(url)}]'
-        if (msg := kwargs.get('msg', None)):
-            pre = f'{msg}{pre}'
-
-        _har_file = None
-        urlembed = None
-        m3u8_doc = None
-        m3u8_url = None
-
+        pre = f'{_pre}[realgalaxy]'
         try:
+            self.logger_info(f'{pre} start get entry')
+            _port = self.find_free_port()
+            driver = self.get_driver(host='127.0.0.1', port=_port)
+            _har_file = None
 
-            i = 0
-            keys = ['realgalaxy', 'mixdrop', 'dflix', 'dood', 'streamtape']
+            try:
+                with self.get_har_logs('gvdgayonline', videoid=postid, msg=pre, port=_port) as harlogs:
 
-            while i < 5:
+                    _har_file = harlogs.har_file
+                    self._send_request(url, driver=driver)
+                    self.wait_until(driver, 1)
+                    _players = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, 'server')))
+                    _player = traverse_obj(_players, nplayer - 1)
+                    if not _player or 'realgalaxy' not in _player.text:
+                        return
 
-                _port = self.find_free_port()
-                driver = self.get_driver(host='127.0.0.1', port=_port)
-                _cont = False
+                    _player.click()
 
-                try:
-                    with self.get_har_logs('gvdgayonline', videoid=sanitize_filename(url.strip('/').rsplit('/', 1)[-1].replace('-', ''), restricted=True), msg=pre, port=_port) as harlogs:
+                    self.wait_until(driver, 1)
+                    ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
+                    driver.switch_to.frame(ifr)
+                    self.wait_until(driver, 1)
+                    self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
+                    self.wait_until(driver, 2)
 
-                        _har_file = harlogs.har_file
-                        self._send_request(url, driver=driver)
-                        self.wait_until(driver, 1)
-                        eltoclick = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "html")))
-                        _players = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, 'dooplay_player_option')))
-                        _player = None
-                        if _players:
-                            servers = {
-                                _server.text.splitlines()[-1].split('.')[0]: _server
-                                for _server in _players}
+            except Exception as e:
+                logger.exception(f"{pre} {repr(e)}")
+                raise ReExtractInfo(f"{pre} {repr(e)}")
+            finally:
+                self.rm_driver(driver)
 
-                            for _key in keys:
-                                if _key in servers:
-                                    eltoclick = servers[_key]
-                                    _player = _key
-                                    break
+            m3u8_doc = None
+            m3u8_url = None
+            urlembed = None
 
-                        eltoclick.click()
-
-                        self.wait_until(driver, 1)
-                        ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
-                        driver.switch_to.frame(ifr)
-                        self.wait_until(driver, 1)
-                        if not self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))):
-                            if _player:
-                                keys.remove(_player)
-
-                        self.wait_until(driver, 2)
-
-                except Exception as e:
-                    logger.exception(f"{pre} {repr(e)}")
-                finally:
-                    self.rm_driver(driver)
-
-                urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
-                self.logger_info(f'{pre} {urlembed}')
-                if not urlembed:
-                    _cont = True
-                elif 'realgalaxy.top' in urlembed:
-                    m3u8_url, m3u8_doc = try_get(
-                        self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
-                        lambda x: (x.get('url'), x.get('content')) if x else (None, None))
-                    if m3u8_doc and '404 Not Found' in m3u8_doc:
-                        m3u8_doc = None
-                        i += 1
-                    if not m3u8_url or not m3u8_doc:
-                        _cont = True
-                        m3u8_url = None
-                        m3u8_doc = None
-                else:
-                    return self.url_result(urlembed, original_url=url)
-
-                if _cont:
-                    if _har_file:
-                        try:
-                            if os.path.exists(_har_file):
-                                os.remove(_har_file)
-                        except OSError:
-                            self.logger_debug(f"{pre}: Unable to remove the har file")
-
-                    time.sleep(5)
-                    i += 1
-                else:
-                    break
-
-            if not all([urlembed, m3u8_doc, m3u8_url]):
-                raise ExtractorError('Couldnt get video info')
+            urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
+            if urlembed and 'realgalaxy' in urlembed:
+                m3u8_url, m3u8_doc = try_get(
+                    self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                    lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                if (m3u8_doc and '404 Not Found' in m3u8_doc):
+                    m3u8_doc = None
+            else:
+                raise ReExtractInfo(f"{pre} couldnt get urlembed")
 
             dom = get_host(urlembed)
             videoid = traverse_obj(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, urlembed).groupdict(), 'id')
 
             if not videoid:
-                raise ExtractorError('Couldnt get videoid')
+                raise ReExtractInfo(f'{pre} Couldnt get videoid')
 
             info = self.scan_for_json(r'%s/' % dom, har=_har_file, _all=True)
             self.logger_debug(info)
             _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
             if not _title:
-                raise ExtractorError('Couldnt get title')
+                raise ReExtractInfo(f'{pre} Couldnt get title')
             else:
                 _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
                 _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
                 _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+
+            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
+                        'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+
+            if not m3u8_url:
+                if not (m3u8_url := cast(str, get_first(info, ('stream_data', 'file')))):
+                    raise ReExtractInfo(f'{pre} Couldnt get video info')
+
+            if not m3u8_doc:
+                if not (m3u8_doc := try_get(self._send_request(m3u8_url, headers=_headers), lambda x: x.text)):
+                    raise ReExtractInfo(f'{pre} Couldnt get video info')
 
             _formats = []
             _subtitles = {}
@@ -191,10 +181,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
             if not _formats:
-                raise ExtractorError('Couldnt get video formats')
-
-            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
-                        'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+                raise ReExtractInfo(f'{pre} Couldnt get video formats')
 
             for _format in _formats:
                 if (_head := _format.get('http_headers')):
@@ -244,7 +231,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             logger.exception(f"{pre} {repr(e)}")
-            raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
+            raise ReExtractInfo(f"{pre} Couldnt get video entry - {repr(e)}")
         finally:
             if _har_file:
                 try:
@@ -252,6 +239,51 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                         os.remove(_har_file)
                 except OSError:
                     self.logger_debug(f"{pre}: Unable to remove the har file")
+
+    @syncsem()
+    def _get_entry(self, url, **kwargs):
+
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if (msg := kwargs.get('msg', None)):
+            pre = f'{msg}{pre}'
+
+        _check = kwargs.get('check', True)
+
+        keys = ['realgalaxy', 'dood', 'dflix', 'streamtape']
+
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+        postid = traverse_obj(self._hidden_inputs(webpage), 'postid')
+        players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], get_elements_by_class('server', webpage)))}
+
+        for _key in keys:
+            try:
+                if _key in players:
+                    urlembed = self.get_url_player(url, postid, players[_key])
+                    self.logger_info(f'{pre}[{_key}] {urlembed}')
+                    if _key == 'realgalaxy':
+                        _entry = self._get_entry_realgalaxy(url, postid, players[_key], pre)
+                        if _entry:
+                            self.logger_debug(f"{pre}[{_key}] OK got entry video")
+                            return _entry
+                        else:
+                            self.logger_debug(f"{pre}[{_key}] WARNING not entry video")
+                    else:
+                        ie = self._get_extractor(urlembed)
+                        _entry = ie._get_entry(urlembed, check=_check, msg=pre)
+                        if _entry:
+                            self.logger_debug(f"{pre}[{_key}] OK got entry video")
+                            return _entry
+                        else:
+                            self.logger_debug(f"{pre}[{_key}] WARNING not entry video")
+            except Exception as e:
+                self.logger_debug(f"{pre}[{_key}] WARNING error entry video {repr(e)}")
+            finally:
+                players.pop(_key, None)
+
+        if players:
+            for key, nplayer in players.items():
+                if (urlembed := self.get_url_player(url, postid, nplayer)) and self._is_valid(urlembed, msg=pre):
+                    return self.url_result(urlembed, original_url=url)
 
     def _real_initialize(self):
         super()._real_initialize()

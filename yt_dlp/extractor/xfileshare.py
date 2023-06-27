@@ -178,6 +178,8 @@ class XFileShareIE(SeleniumInfoExtractor):
             if sources:
                 urls.extend(self._parse_json(sources, video_id))
 
+            _extra = {}
+
             for video_url in urls:
                 if determine_ext(video_url) == 'm3u8':
                     _formats, _subts = self._extract_m3u8_formats_and_subtitles(
@@ -187,8 +189,14 @@ class XFileShareIE(SeleniumInfoExtractor):
 
                     if _formats:
                         formats.extend(_formats)
+                        try:
+                            _extra.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], video_id, headers=_formats[0].get('http_headers', {}))})
+                        except Exception as e:
+                            self.logger_info(f"error trying to get vod {repr(e)}")
+
                     if _subts:
                         subtitles = self._merge_subtitles(subtitles, _subts)
+
                 else:
                     formats.append({
                         'url': video_url,
@@ -211,9 +219,8 @@ class XFileShareIE(SeleniumInfoExtractor):
             'extractor': 'xfileshare',
             'extractor_key': 'XFileShare',
             'webpage_url': url
-        }
+        } | _extra
 
-        # self.write_debug(_entry)
         return _entry
 
     def _real_extract(self, url):
