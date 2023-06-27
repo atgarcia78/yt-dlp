@@ -14,7 +14,8 @@ from .commonwebdriver import (
     ec,
     cast,
     subnright,
-    get_host
+    get_host,
+    raise_extractor_error
 )
 from ..utils import (
     ExtractorError,
@@ -45,6 +46,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
     IE_NAME = 'dvdgayonline'  # type: ignore
     _SEM = Semaphore(8)
     _POST_URL = 'https://dvdgayonline.com/wp-admin/admin-ajax.php'
+    KEYS_ORDER = ['realgalaxy', 'vflix', 'dood', 'streamtape']
 
     @on_exception
     @dec_on_driver_timeout
@@ -84,18 +86,11 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
         return try_get(self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data), lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
 
-    class syncsem:
-
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with DVDGayOnlineIE._SEM:
-                    return func(*args, **kwargs)
-            return wrapper
-
     @on_retry_vinfo
     def _get_entry_realgalaxy(self, url, postid, nplayer, _pre):
-
+        '''
+        embed videos of realgalaxy only can be watched within dvdgsayonline domain
+        '''
         pre = f'{_pre}[realgalaxy]'
         try:
             self.logger_info(f'{pre} start get entry')
@@ -240,6 +235,14 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 except OSError:
                     self.logger_debug(f"{pre}: Unable to remove the har file")
 
+    class syncsem:
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with DVDGayOnlineIE._SEM:
+                    return func(*args, **kwargs)
+            return wrapper
+
     @syncsem()
     def _get_entry(self, url, **kwargs):
 
@@ -249,16 +252,15 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
         _check = kwargs.get('check', True)
 
-        keys = ['realgalaxy', 'dood', 'dflix', 'streamtape']
-
         webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+        if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
+            raise_extractor_error(f"{pre} error 404 no webpage")
         postid = traverse_obj(self._hidden_inputs(webpage), 'postid')
         players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], get_elements_by_class('server', webpage)))}
 
-        for _key in keys:
+        for _key in DVDGayOnlineIE.KEYS_ORDER:
             try:
-                if _key in players:
-                    urlembed = self.get_url_player(url, postid, players[_key])
+                if _key in players and (urlembed := self.get_url_player(url, postid, players[_key])):
                     self.logger_info(f'{pre}[{_key}] {urlembed}')
                     if _key == 'realgalaxy':
                         _entry = self._get_entry_realgalaxy(url, postid, players[_key], pre)
@@ -289,7 +291,6 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         super()._real_initialize()
 
     def _real_extract(self, url):
-
         self.report_extraction(url)
         try:
             if not self.get_param('embed'):
