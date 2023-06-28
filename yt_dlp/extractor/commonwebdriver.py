@@ -715,6 +715,10 @@ def raise_extractor_error(msg, expected=True):
     raise ExtractorError(msg, expected=expected)
 
 
+def raise_reextract_info(msg, expected=True):
+    raise ReExtractInfo(msg, expected=True)
+
+
 class SeleniumInfoExtractor(InfoExtractor):
 
     _FF_BINARY = r'/Applications/Firefox Nightly.app/Contents/MacOS/firefox'
@@ -1066,7 +1070,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             _valid_url, driver=driver, har=har, _method=_method, _all=_all, timeout=timeout,
             inclheaders=inclheaders, check_event=self.check_stop)
 
-    def wait_until(self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None, poll_freq: float = 0.5):
+    def wait_until(self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None,
+                   poll_freq: float = 0.5) -> Union[None, list[WebElement], WebElement]:
 
         _poll_freq = poll_freq
         if not method:
@@ -1079,7 +1084,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         except StatusStop:
             raise
         except Exception:
-            pass
+            return
 
     def get_info_for_format(self, url, **kwargs):
 
