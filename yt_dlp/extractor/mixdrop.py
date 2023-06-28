@@ -131,7 +131,7 @@ class MixDropIE(SeleniumInfoExtractor):
             'formats': [_format],
             'ext': 'mp4',
             'extractor_key': 'MixDrop',
-            'extractor': 'doodstream',
+            'extractor': 'mixdrop',
             'webpage_url': url
         }
 
