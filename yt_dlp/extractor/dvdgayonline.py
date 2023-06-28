@@ -15,7 +15,9 @@ from .commonwebdriver import (
     cast,
     subnright,
     get_host,
-    raise_extractor_error
+    raise_extractor_error,
+    raise_reextract_info,
+    WebElement
 )
 from ..utils import (
     ExtractorError,
@@ -38,6 +40,19 @@ on_exception = my_dec_on_exception(
 
 on_retry_vinfo = my_dec_on_exception(
     ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
+
+
+class error_or_video:
+    def __call__(self, driver):
+        elvideo = driver.find_elements(By.TAG_NAME, 'video')
+        if not elvideo:
+            _alert = driver.find_element(By.TAG_NAME, 'html').text.lower()
+            if any([_ in _alert for _ in ['video was deleted', 'doesn\'t exist']]):
+                return {'error': _alert.replace('\n', ' ')}
+            else:
+                return False
+        else:
+            return {'video': elvideo[0]}
 
 
 class DVDGayOnlineIE(SeleniumInfoExtractor):
@@ -93,6 +108,8 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         embed videos of realgalaxy only can be watched within dvdgsayonline domain
         '''
         pre = f'{_pre}[realgalaxy]'
+        _har_file = None
+
         try:
             self.logger_info(f'{pre} start get entry')
             _port = self.find_free_port()
@@ -106,22 +123,26 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                     self._send_request(url, driver=driver)
                     self.wait_until(driver, 1)
                     _players = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, 'server')))
-                    _player = traverse_obj(_players, nplayer - 1)
-                    if not _player or 'realgalaxy' not in _player.text:
-                        return
-
-                    _player.click()
+                    if not _players or not (_player := cast(WebElement, traverse_obj(_players, nplayer - 1))) or 'realgalaxy' not in _player.text:
+                        raise_extractor_error(f'{pre} cant find realgalaxy player')
+                    else:
+                        _player.click()
 
                     self.wait_until(driver, 1)
                     ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
                     driver.switch_to.frame(ifr)
                     self.wait_until(driver, 1)
-                    self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
+                    _res = cast(dict, self.wait_until(driver, 30, error_or_video()))
+                    if _res and (_error := _res.get('error')):
+                        raise_extractor_error(f'{pre} {_error}')
+
                     self.wait_until(driver, 2)
 
+            except ReExtractInfo:
+                raise
             except Exception as e:
                 logger.exception(f"{pre} {repr(e)}")
-                raise ReExtractInfo(f"{pre} {repr(e)}")
+                raise
             finally:
                 self.rm_driver(driver)
 
@@ -130,41 +151,42 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             urlembed = None
 
             urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
-            if urlembed and 'realgalaxy' in urlembed:
-                m3u8_url, m3u8_doc = try_get(
-                    self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
-                    lambda x: (x.get('url'), x.get('content')) if x else (None, None))
-                if (m3u8_doc and '404 Not Found' in m3u8_doc):
-                    m3u8_doc = None
-            else:
-                raise ReExtractInfo(f"{pre} couldnt get urlembed")
+            if not urlembed or 'realgalaxy' not in urlembed:
+                raise_reextract_info(f"{pre} couldnt get urlembed")
 
             dom = get_host(urlembed)
-            videoid = traverse_obj(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, urlembed).groupdict(), 'id')
-
+            videoid = traverse_obj(try_get(re.search(r'https?://%s/e/(?P<id>[\dA-Za-z]+)(\.html)?' % dom, urlembed), lambda x: x.groupdict()), 'id')
             if not videoid:
-                raise ReExtractInfo(f'{pre} Couldnt get videoid')
+                raise_reextract_info(f'{pre} Couldnt get videoid')
 
             info = self.scan_for_json(r'%s/' % dom, har=_har_file, _all=True)
             self.logger_debug(info)
+            if (_error := get_first(info, ('error'))):
+                raise_reextract_info(f'{pre} {_error}')
             _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
             if not _title:
-                raise ReExtractInfo(f'{pre} Couldnt get title')
-            else:
-                _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
-                _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
-                _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+                raise_reextract_info(f'{pre} Couldnt get title')
+
+            _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
+            _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
+            _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
+
+            m3u8_url, m3u8_doc = try_get(
+                self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+            if (m3u8_doc and '404 Not Found' in m3u8_doc):
+                m3u8_doc = None
 
             _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
                         'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
             if not m3u8_url:
                 if not (m3u8_url := cast(str, get_first(info, ('stream_data', 'file')))):
-                    raise ReExtractInfo(f'{pre} Couldnt get video info')
+                    raise_reextract_info(f'{pre} Couldnt get video info')
 
             if not m3u8_doc:
                 if not (m3u8_doc := try_get(self._send_request(m3u8_url, headers=_headers), lambda x: x.text)):
-                    raise ReExtractInfo(f'{pre} Couldnt get video info')
+                    raise_reextract_info(f'{pre} Couldnt get video info')
 
             _formats = []
             _subtitles = {}
@@ -177,7 +199,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
             if not _formats:
-                raise ReExtractInfo(f'{pre} Couldnt get video formats')
+                raise_reextract_info(f'{pre} Couldnt get video formats')
 
             for _format in _formats:
                 if (_head := _format.get('http_headers')):
@@ -223,11 +245,13 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
             return _entry
 
+        except ReExtractInfo:
+            raise
         except ExtractorError:
             raise
         except Exception as e:
             logger.exception(f"{pre} {repr(e)}")
-            raise ReExtractInfo(f"{pre} Couldnt get video entry - {repr(e)}")
+            raise ExtractorError(f"{pre} Couldnt get video entry - {repr(e)}")
         finally:
             if _har_file:
                 try:
@@ -257,7 +281,9 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 no webpage")
         postid = traverse_obj(self._hidden_inputs(webpage), 'postid')
-        players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], get_elements_by_class('server', webpage)))}
+        players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], cast(list[str], get_elements_by_class('server', webpage))))}
+        if not players:
+            raise_extractor_error(f"{pre} couldnt find players")
 
         for _key in DVDGayOnlineIE.KEYS_ORDER:
             try:
