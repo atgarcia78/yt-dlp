@@ -132,10 +132,10 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
         # r'dood\.(?:to|watch|so|pm|wf|re)',
         # Sites youtube-dl supports, but we won't
         r'viewsb\.com',
-        r'filemoon\.sx',
+        #r'filemoon\.sx',
         r'hentai\.animestigma\.com',
         r'https://viewsb\.com',
-        r'https://filemoon\.sx',
+        #r'https://filemoon\.sx',
         r'trrtgghghndood\.(?:to|watch|so|pm|wf|ru)',
     )
 
