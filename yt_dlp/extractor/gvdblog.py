@@ -32,6 +32,8 @@ from concurrent.futures import (
 import logging
 from functools import partial
 
+from typing import Union
+
 from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
 
@@ -54,7 +56,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         check = kwargs.get('check', True)
         lazy = kwargs.get('lazy', False)
         alt = kwargs.get('alt', False)
-        altkey = 'legacy' if not alt else 'alt'
+        altkey = 'legacy' if alt is False else 'alt'
         premsg = '[get_entry_video]'
         if (msg := kwargs.get('msg', None)):
             premsg = f'{msg}{premsg}'
@@ -126,7 +128,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if msg:
             premsg = f'{msg}{premsg}'
 
-        altkey = 'legacy' if not alt else 'alt'
+        altkey = 'legacy' if alt is False else 'alt'
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
         p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
@@ -413,8 +415,10 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             if params.pop('check', 'yes').lower() == 'no':
                 _check = False
 
-            if params.pop('alt', 'no').lower() == 'yes':
+            if (_altparam := params.pop('alt', 'no').lower()) == 'yes':
                 _alt = True
+            elif _altparam == 'none':
+                _alt = None
 
             _url = _url.split(f'?{query}')[0]
 
@@ -535,9 +539,18 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             for _url in posts_vid_url:
                 yield self.url_result(_url if check else f"{_url}?check=no", ie=GVDBlogPostIE.ie_key())
 
-    def get_entries_search(self, url, check=True, lazy=False, alt=False):
+    def get_entries_search(self, url, check=True, lazy=False, alt: Union[bool, None] = False):
 
-        _url = update_url_query(url, {'alt': 'yes'}) if alt else url
+        if alt is False:
+            _url = url
+        else:
+            if alt:
+                _temp = 'yes'
+            elif alt is None:
+                _temp = 'none'
+
+            _url = update_url_query(url, {'alt': _temp})
+
         pre = f'[get_entries][{_url}]'
 
         try:
@@ -619,8 +632,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             if params.pop('lazy', 'no').lower() == 'yes':
                 _lazy = True
 
-            if params.pop('alt', 'no').lower() == 'yes':
+            if (_altparam := params.pop('alt', 'no').lower()) == 'yes':
                 _alt = True
+            elif _altparam is None:
+                _alt = None
 
             if params:
                 _query = '&'.join([f"{key}={val}" for key, val in params.items()])

@@ -150,7 +150,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             m3u8_url = None
             urlembed = None
 
-            urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
+            urlembed = cast(str, try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None))
             if not urlembed or 'realgalaxy' not in urlembed:
                 raise_reextract_info(f"{pre} couldnt get urlembed")
 
@@ -187,6 +187,8 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             if not m3u8_doc:
                 if not (m3u8_doc := try_get(self._send_request(m3u8_url, headers=_headers), lambda x: x.text)):
                     raise_reextract_info(f'{pre} Couldnt get video info')
+
+            m3u8_url, m3u8_doc = cast(str, m3u8_url), cast(str, m3u8_doc)
 
             _formats = []
             _subtitles = {}
