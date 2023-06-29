@@ -12,7 +12,8 @@ from ..utils import (
     unsmuggle_url,
     get_domain,
     get_element_html_by_id,
-    update_url_query)
+    update_url_query,
+    update_url)
 from .commonwebdriver import (
     unquote,
     SeleniumInfoExtractor,
@@ -32,8 +33,6 @@ from concurrent.futures import (
 import logging
 from functools import partial
 
-from typing import Union
-
 from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
 
@@ -51,12 +50,84 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     _SLOW_DOWN: bool = False
     _LOCK = Lock()
 
+    def _real_initialize(self):
+        super()._real_initialize()
+
+        self._keyapi = ''
+        self._altkey = ''
+        self._query_upt = {}
+        self._conf_args_gvd = {}
+
+        for cookie in self._COOKIES_JAR:
+            if 'gvdblog.net' in cookie.domain and 'cf_clearance' in cookie.name:
+                self.to_screen(f"cookie: {cookie}")
+                self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.net')  # type: ignore
+                break
+
+    @property
+    def keyapi(self):
+        return self._keyapi
+
+    @keyapi.setter
+    def keyapi(self, url):
+        self._keyapi = cast(str, get_domain(url))
+
+    @property
+    def altkey(self):
+        return self._altkey
+
+    @altkey.setter
+    def altkey(self, key):
+        self._altkey = key
+
+    @property
+    def query_upt(self):
+        return self._query_upt
+
+    @query_upt.setter
+    def query_upt(self, upt):
+        self._query_upt = upt
+
+    @property
+    def conf_args_gvd(self):
+        return self._conf_args_gvd
+
+    @conf_args_gvd.setter
+    def conf_args_gvd(self, kwargs):
+        params = kwargs.copy()
+
+        _query_upt = {}
+
+        _check = True
+        if params.pop('check', 'yes').lower() == 'no':
+            _check = False
+            _query_upt['check'] = 'no'
+
+        _iter = False
+        if params.pop('iter', 'no').lower() == 'yes':
+            _iter = True
+
+        _lazy = False
+        if params.pop('lazy', 'no').lower() == 'yes':
+            _lazy = True
+
+        _fmt = params.pop('fmt', 'hls').lower()
+        if _fmt in ['hls', 'http', 'best']:
+            _query_upt['fmt'] = _fmt
+        else:
+            raise ExtractorError('fmt not valid')
+
+        if _fmt == 'http':
+            self.altkey = 'legacy'
+        else:
+            self.altkey = 'alt'
+
+        self.query_upt = _query_upt
+
+        self._conf_args_gvd = {'check': _check, 'iter': _iter, 'lazy': _lazy, 'fmt': _fmt, 'query': params}
+
     def get_entry_video(self, x, **kwargs):
 
-        check = kwargs.get('check', True)
-        lazy = kwargs.get('lazy', False)
-        alt = kwargs.get('alt', False)
-        altkey = 'legacy' if alt is False else 'alt'
         premsg = '[get_entry_video]'
         if (msg := kwargs.get('msg', None)):
             premsg = f'{msg}{premsg}'
@@ -66,26 +137,27 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         urldict = {
             _ie.IE_NAME: {'url': _url, 'ie': _ie}
             for _url in _x
-            if (_ie := self._get_extractor(_url)) and _ie.IE_NAME in _ie_data[altkey]
+            if (_ie := self._get_extractor(_url)) and _ie.IE_NAME in _ie_data[self.altkey]
         }
 
         if not urldict:
             self.logger_debug(f'{premsg} couldnt get any video from:\n{_x}')
             return
 
-        if altkey == 'legacy' and 'streamsb' in urldict:
-            self.logger_debug(f"{premsg}[{self._get_url_print(urldict['streamsb']['url'])}] there is a streamsb entry for this video")
+        check = self.conf_args_gvd['check']
+        lazy = self.conf_args_gvd['lazy']
+        fmt = self.conf_args_gvd['fmt']
 
         _videos = []
         _entries = []
-        for key in _ie_data[altkey]:
+        for key in _ie_data[self.altkey]:
             if key in urldict:
                 try:
                     if not lazy:
                         _entry = urldict[key]['ie']._get_entry(urldict[key]['url'], check=check, msg=premsg)
                         if _entry:
                             self.logger_debug(f"{premsg}[{self._get_url_print(urldict[key]['url'])}] OK got entry video\n{_entry}")
-                            if not alt:
+                            if fmt != 'best':
                                 return _entry
                             else:
                                 _entries.append(_entry)
@@ -103,7 +175,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 _videos.append(urldict[key]['url'])
 
-        if alt and _entries:
+        if fmt == 'best' and _entries:
             ytdl = self._downloader
             assert ytdl
             _process_entry = lambda x: ytdl.sanitize_info(ytdl.process_ie_result(x, download=False))
@@ -122,13 +194,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _msg += f'that was filter to final list videos:\n{_videos}'
         self.logger_debug(_msg)
 
-    def get_urls(self, webpage, alt=False, msg=None):
+    def get_urls(self, webpage, msg=None):
 
         premsg = '[get_urls]'
         if msg:
             premsg = f'{msg}{premsg}'
-
-        altkey = 'legacy' if alt is False else 'alt'
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
         p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
@@ -148,13 +218,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _res = 'DUMMY'
             for key in el.keys():
                 if 'src' in key:
-                    if any([re.search(_, el[key]) for _ in _ie_data[altkey].values()]):
+                    if any([re.search(_, el[key]) for _ in _ie_data[self.altkey].values()]):
                         return el[key]
                     else:
                         _res = el[key]
             return _res
 
-        _check = {iename: False for iename in _ie_data[altkey]}
+        _check = {iename: False for iename in _ie_data[self.altkey]}
 
         for el in p3:
             if not el:
@@ -162,17 +232,17 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _url = _get_url(el)
             if _url == 'DUMMY':
                 continue
-            for key, value in _ie_data[altkey].items():
+            for key, value in _ie_data[self.altkey].items():
                 if re.search(value, _url):
                     if _check[key]:
                         list_urls.append(None)
-                        _check.update({iename: False for iename in _ie_data[altkey] if iename != key})
+                        _check.update({iename: False for iename in _ie_data[self.altkey] if iename != key})
                     else:
                         _check[key] = True
                     list_urls.append(_url)
                     break
 
-        if any([_check[iename] for iename in _ie_data[altkey]]):
+        if any([_check[iename] for iename in _ie_data[self.altkey]]):
             list_urls.append(None)
 
         _subvideo = []
@@ -225,10 +295,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     def get_entries_from_blog_post(self, post, **kwargs):
 
-        check = kwargs.get('check', True)
         progress_bar = kwargs.get('progress_bar', None)
-        lazy = kwargs.get('lazy', False)
-        alt = kwargs.get('alt', False)
+
         url = None
         post_content = None
         postdate = None
@@ -243,7 +311,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 if isinstance(post, str) and post.startswith('http'):
                     url = unquote(post)
-                    premsg += f'[{self._get_url_print(url)}]'
+                    premsg += f'[{self._get_url_print(update_url(url, query_update=self._query_upt))}]'
                     self.report_extraction(url)
                     post_content = try_get(
                         self._send_request(url),
@@ -252,7 +320,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         postdate, title, postid = self.get_info(post_content)
                         if self.keyapi == 'gvdblog.com':
                             post_content = get_element_html_by_id('post-body', post_content)
-                        list_candidate_videos = self.get_urls(post_content, alt=alt, msg=url)
+                        list_candidate_videos = self.get_urls(post_content, msg=url)
 
                 elif isinstance(post, dict):
                     if self.keyapi == 'gvdblog.com':
@@ -267,7 +335,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                     if post_content:
                         postdate, title, postid = self.get_info(post)
-                        list_candidate_videos = self.get_urls(post_content, alt=alt, msg=url)
+                        list_candidate_videos = self.get_urls(post_content, msg=url)
 
                 else:
                     ExtractorError("incorrect type of data as post")
@@ -287,7 +355,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 if len(list_candidate_videos) > 1:
                     with ThreadPoolExecutor(max_workers=min(len(list_candidate_videos), 8), thread_name_prefix="gvdblog_pl") as exe:
                         futures = {
-                            exe.submit(partial(self.get_entry_video, check=check, lazy=lazy, alt=alt, msg=premsg), _el): _el
+                            exe.submit(partial(self.get_entry_video, msg=premsg), _el): _el
                             for _el in list_candidate_videos}
 
                         wait(futures)
@@ -303,7 +371,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 else:
                     try:
-                        _entry = self.get_entry_video(list_candidate_videos[0], check=check, lazy=lazy, alt=alt, msg=premsg)
+                        _entry = self.get_entry_video(list_candidate_videos[0], msg=premsg)
                         if _entry:
                             entries.append(_entry)
                         else:
@@ -324,13 +392,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 for i, _el in enumerate(entries):
                     _el.update(_entryupdate)
                     _el.update({'__gvd_playlist_index': i + 1, '__gvd_playlist_count': len(entries)})
-                    _query_upt = {}
-                    if alt:
-                        _query_upt['alt'] = 'yes'
-                    if not check:
-                        _query_upt['check'] = 'no'
 
-                    _url = update_url_query(url, _query_upt)
+                    _url = update_url_query(url, self._query_upt)
 
                     if len(entries) > 1:
                         _original_url = f'{_url}#{i + 1}'
@@ -380,17 +443,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     logger.warning(f"{pre}: error - {repr(e)}")
                     raise
 
-    def _real_initialize(self):
-        super()._real_initialize()
-
-        self.keyapi: str
-
-        for cookie in self._COOKIES_JAR:
-            if 'gvdblog.net' in cookie.domain and 'cf_clearance' in cookie.name:
-                self.to_screen(f"cookie: {cookie}")
-                self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.net')  # type: ignore
-                break
-
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
@@ -404,25 +456,18 @@ class GVDBlogPostIE(GVDBlogBaseIE):
     def _real_extract(self, url):
         url, _ = unsmuggle_url(url)
 
-        self.keyapi = cast(str, get_domain(url))
+        self.keyapi = url
+
+        params = {}
         query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
-        _check = True
-        _alt = False
-        _url = url
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
 
-            if params.pop('check', 'yes').lower() == 'no':
-                _check = False
+        self.conf_args_gvd = params
 
-            if (_altparam := params.pop('alt', 'no').lower()) == 'yes':
-                _alt = True
-            elif _altparam == 'none':
-                _alt = None
+        _url = update_url(url, query='')
 
-            _url = _url.split(f'?{query}')[0]
-
-        entries, title, postid = self.get_entries_from_blog_post(_url, check=_check, alt=_alt)
+        entries, title, postid = self.get_entries_from_blog_post(_url)
         if not entries:
             raise ExtractorError("no videos")
 
@@ -452,7 +497,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             else:
                 return res.json()
 
-        assert hasattr(self, 'keyapi') and isinstance(self.keyapi, str)
         try:
 
             video_entries = try_get(self._send_request(self._BASE_API[self.keyapi], params=query), lambda x: get_list_videos(x))
@@ -468,15 +512,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.debug(repr(e))
             raise
 
-    def get_blog_posts_search(self, url) -> list:
-
-        self.keyapi = cast(str, get_domain(url))
+    def get_blog_posts_search(self) -> list:
 
         try:
+            if (_query := self.conf_args_gvd['query']):
 
-            query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+                query = '&'.join([f'{key}={value}' for key, value in _query.items()])
 
-            if query:
                 if self.keyapi == 'gvdblog.com':
                     query = query.replace('date', 'published')
                     if 'orderby' not in query:
@@ -487,6 +529,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                         query += '&orderby=date'
 
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
+                self._conf_args_gvd['query'] = params
 
             else:
                 params = {}
@@ -517,13 +560,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.debug(f"{repr(e)}")
             raise
 
-    def iter_get_entries_search(self, url, check=True):
+    def iter_get_entries_search(self):
 
-        blog_posts_list = self.get_blog_posts_search(url)
+        blog_posts_list = self.get_blog_posts_search()
 
         if len(blog_posts_list) > 100:
             GVDBlogBaseIE._SLOW_DOWN = True
-            check = False
+            self._conf_args_gvd.update({'check': False})
 
         if self.keyapi == 'gvdblog.com':
             posts_vid_url = [try_get(traverse_obj(post_entry, ('link', -1, 'href')), lambda x: unquote(x) if x is not None else None) for post_entry in blog_posts_list]
@@ -534,27 +577,17 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
             for _post_blog in blog_posts_list:
-                yield try_get(self.get_entries_from_blog_post(_post_blog, check=check), lambda x: x[0][0])
+                yield try_get(self.get_entries_from_blog_post(_post_blog), lambda x: x[0][0])
         else:
             for _url in posts_vid_url:
-                yield self.url_result(_url if check else f"{_url}?check=no", ie=GVDBlogPostIE.ie_key())
+                yield self.url_result(update_url(_url, query_update=self.query_upt), ie=GVDBlogPostIE.ie_key())
 
-    def get_entries_search(self, url, check=True, lazy=False, alt: Union[bool, None] = False):
+    def get_entries_search(self):
 
-        if alt is False:
-            _url = url
-        else:
-            if alt:
-                _temp = 'yes'
-            elif alt is None:
-                _temp = 'none'
-
-            _url = update_url_query(url, {'alt': _temp})
-
-        pre = f'[get_entries][{_url}]'
+        pre = '[get_entries_search]'
 
         try:
-            blog_posts_list = self.get_blog_posts_search(url)
+            blog_posts_list = self.get_blog_posts_search()
 
             _total = len(blog_posts_list)
 
@@ -562,7 +595,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             if len(blog_posts_list) >= 100:
                 GVDBlogBaseIE._SLOW_DOWN = True
-                check = False
+                self._conf_args_gvd.update({'check': False})
 
             if self.keyapi == 'gvdblog.com':
                 posts_vid_url = cast(list, [try_get(
@@ -583,7 +616,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
                         futures = {
                             ex.submit(
-                                partial(self.get_entries_from_blog_post, check=check, lazy=lazy, alt=alt, progress_bar=progress_bar), _post_blog): _post_url
+                                partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_blog): _post_url
                             for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
                         wait(futures)
@@ -598,7 +631,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                             self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
 
             else:
-                _entries = [self.url_result(_post_url if check else f"{_post_url}?check=no", ie=GVDBlogPostIE.ie_key())
+                _entries = [self.url_result(update_url(_post_url, query_update=self._query_upt), ie=GVDBlogPostIE.ie_key())
                             for _post_url in posts_vid_url]
 
             return _entries
@@ -613,38 +646,23 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     def _real_extract(self, url):
 
         self.report_extraction(url)
-        self.keyapi = cast(str, get_domain(url))
-        _check = True
-        _iter = False
-        _lazy = False
-        _alt = False
+        self.keyapi = url
+
+        params = {}
         query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
-        _query = ""
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
 
-            if params.pop('check', 'yes').lower() == 'no':
-                _check = False
+        self.conf_args_gvd = params
 
-            if params.pop('iter', 'no').lower() == 'yes':
-                _iter = True
+        if (_query := self.conf_args_gvd['query']):
+            _query = '&'.join([f"{key}={val}" for key, val in params.items()])
+            self.logger_info(_query)
 
-            if params.pop('lazy', 'no').lower() == 'yes':
-                _lazy = True
-
-            if (_altparam := params.pop('alt', 'no').lower()) == 'yes':
-                _alt = True
-            elif _altparam is None:
-                _alt = None
-
-            if params:
-                _query = '&'.join([f"{key}={val}" for key, val in params.items()])
-                self.logger_info(_query)
-
-        if _iter:
-            entries = self.iter_get_entries_search(url, check=_check)
+        if self.conf_args_gvd['iter']:
+            entries = self.iter_get_entries_search()
         else:
-            entries = self.get_entries_search(f"https://www.gvdblog.com/search?{_query}", check=_check, lazy=_lazy, alt=_alt)
+            entries = self.get_entries_search()
 
         # self.logger_debug(entries)
 
