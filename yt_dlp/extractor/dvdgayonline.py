@@ -111,7 +111,6 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         _har_file = None
 
         try:
-            self.logger_info(f'{pre} start get entry')
             _port = self.find_free_port()
             driver = self.get_driver(host='127.0.0.1', port=_port)
             _har_file = None
@@ -141,7 +140,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             except ReExtractInfo:
                 raise
             except Exception as e:
-                logger.exception(f"{pre} {repr(e)}")
+                self.report_warning(f"{pre} {repr(e)}")
                 raise
             finally:
                 self.rm_driver(driver)
@@ -279,10 +278,10 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
         _check = kwargs.get('check', True)
 
-        webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+        webpage = cast(str, try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text))))
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 no webpage")
-        postid = traverse_obj(self._hidden_inputs(webpage), 'postid')
+        postid = try_get(re.search(r'data-post=[\'"](?P<id>\d+)[\'"]', webpage), lambda x: x.group('id'))
         players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], cast(list[str], get_elements_by_class('server', webpage))))}
         if not players:
             raise_extractor_error(f"{pre} couldnt find players")
@@ -312,9 +311,13 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 players.pop(_key, None)
 
         if players:
-            for key, nplayer in players.items():
-                if (urlembed := self.get_url_player(url, postid, nplayer)) and self._is_valid(urlembed, msg=pre):
-                    return self.url_result(urlembed, original_url=url)
+            for _key, nplayer in players.items():
+                if (urlembed := self.get_url_player(url, postid, nplayer)):
+                    self.logger_info(f'{pre}[{_key}] {urlembed}')
+                    if (_valid := self._is_valid(urlembed, msg=pre, inc_error=True)) and (_valid is True):
+                        return self.url_result(urlembed, original_url=url)
+                    else:
+                        self.report_warning(f"{pre}[{_key}] {_valid.get('error')}")
 
     def _real_initialize(self):
         super()._real_initialize()
