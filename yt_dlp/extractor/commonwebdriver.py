@@ -1130,25 +1130,25 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         finally:
             self.logger_debug(f"{res}:{_msg_err}")
 
-    def _is_valid(self, url, msg=None):
+    def _is_valid(self, url, msg=None, inc_error=False):
 
         if not url:
             return False
 
-        _pre_str = f'[{self._get_url_print(url)}]'
+        _pre_str = f'[valid][{self._get_url_print(url)}]'
         if msg:
             _pre_str = f'[{msg}]{_pre_str}'
 
-        self.logger_debug(f'[valid]{_pre_str} start checking')
+        self.logger_debug(f'{_pre_str} start checking')
 
         try:
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
                                       'thisvid.com/embed', 'xtube.com', 'xtapes.to',
                                       'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
-                self.logger_debug(f'[valid]{_pre_str}:False')
-                return False
+                self.logger_debug(f'{_pre_str}:False')
+                return False if not inc_error else {'error': 'in error list'}
             elif any(_ in url for _ in ['gayforit.eu/video']):
-                self.logger_debug(f'[valid]{_pre_str}:True')
+                self.logger_debug(f'{_pre_str}:True')
                 return True
             else:
                 _extr_name = self._get_ie_name(url).lower()
@@ -1160,7 +1160,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 @dec_on_exception3
                 @dec_on_exception2
                 @_decor
-                def _throttle_isvalid(_url, short) -> Union[None, Response]:
+                def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
                     try:
                         _headers = {'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
                                     'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
@@ -1168,7 +1168,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                             _headers.update({'Range': 'bytes=0-100'})
                         return self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
                     except (HTTPStatusError, ConnectError) as e:
-                        self.report_warning(f"[valid]{_pre_str}:{e}")
+                        self.logger_debug(f"{_pre_str}:{e}")
+                        return {'error': f'{e}'}
 
                 res = _throttle_isvalid(url, True)
 
@@ -1177,15 +1178,19 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                     if res.headers.get('content-type') == "video/mp4":
                         valid = True
                         self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')
+                        return valid
 
                     elif not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
                         valid = False
                         self.logger_debug(f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{valid}')
+                        return valid if not inc_error else {'error': f'not path in reroute url {str(res.url)}'}
+
                     else:
                         webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
                         if not webpage:
                             valid = False
                             self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt download webpage')
+                            return valid if not inc_error else {'error': 'couldnt download webpage'}
                         else:
                             valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
                             valid = valid and not any(
@@ -1197,12 +1202,18 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                                           'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
 
                             self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
+                            if not valid and inc_error:
+                                return {'error': 'video nbot found or deleted'}
+                            else:
+                                return valid
 
                 else:
                     valid = False
-                    self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt send HEAD request')
-
-                return valid
+                    self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt send check request')
+                    _error = 'error'
+                    if isinstance(res, dict):
+                        _error = res.get('error', 'error')
+                    return False if not inc_error else {'error': _error}
 
         except Exception as e:
             self.report_warning(f'[valid]{_pre_str} error {repr(e)}')

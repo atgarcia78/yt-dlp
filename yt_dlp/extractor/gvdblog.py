@@ -22,7 +22,8 @@ from .commonwebdriver import (
     ReExtractInfo,
     my_dec_on_exception,
     Tuple,
-    cast)
+    cast,
+    raise_extractor_error)
 
 
 from concurrent.futures import (
@@ -502,7 +503,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             video_entries = try_get(self._send_request(self._BASE_API[self.keyapi], params=query), lambda x: get_list_videos(x))
 
             if not video_entries:
-                raise ExtractorError("no video entries")
+                raise_extractor_error("no video entries")
             else:
                 self.logger_debug(f'[entries result] videos entries [{len(video_entries)}]')
 
@@ -545,7 +546,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 elif key not in ('entries', 'from'):
                     urlquery.append(f"{key}={val}")
 
-            post_blog_entries_search = self.send_api_search('&'.join(urlquery))
+            post_blog_entries_search = cast(list, self.send_api_search('&'.join(urlquery)))
 
             _nentries = int_or_none(params.get('entries'))
             _from = int(params.get('from', 1))
