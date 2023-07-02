@@ -382,6 +382,8 @@ class myHAR:
         elif har:
             if isinstance(har, dict):
                 _res = traverse_obj(har, ('log', 'entries'))
+            elif isinstance(har, list):
+                _res = har
             elif isinstance(har, str):
                 with open(har, 'r') as f:
                     _res = traverse_obj(json.load(f), ('log', 'entries'))

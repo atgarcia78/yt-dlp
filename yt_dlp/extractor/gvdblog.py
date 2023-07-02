@@ -96,7 +96,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     @conf_args_gvd.setter
     def conf_args_gvd(self, kwargs):
         params = kwargs.copy()
-
         _query_upt = {}
 
         _check = True
