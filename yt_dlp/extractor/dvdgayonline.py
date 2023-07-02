@@ -113,7 +113,6 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         try:
             _port = self.find_free_port()
             driver = self.get_driver(host='127.0.0.1', port=_port)
-            _har_file = None
 
             try:
                 with self.get_har_logs('gvdgayonline', videoid=postid, msg=pre, port=_port) as harlogs:
@@ -123,7 +122,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                     self.wait_until(driver, 1)
                     _players = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, 'server')))
                     if not _players or not (_player := cast(WebElement, traverse_obj(_players, nplayer - 1))) or 'realgalaxy' not in _player.text:
-                        raise_extractor_error(f'{pre} cant find realgalaxy player')
+                        raise_extractor_error(f'{pre} cant find realgalaxy player')
                     else:
                         _player.click()
 
@@ -251,7 +250,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            logger.exception(f"{pre} {repr(e)}")
+            self.logger_debug(f"{pre} {repr(e)}")
             raise ExtractorError(f"{pre} Couldnt get video entry - {repr(e)}")
         finally:
             if _har_file:
@@ -318,6 +317,8 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                         return self.url_result(urlembed, original_url=url)
                     else:
                         self.report_warning(f"{pre}[{_key}] {_valid.get('error')}")
+
+        raise_extractor_error('couldnt find valid entries')
 
     def _real_initialize(self):
         super()._real_initialize()
