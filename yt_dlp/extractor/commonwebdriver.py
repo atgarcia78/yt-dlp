@@ -552,7 +552,6 @@ class myHAR:
                 if self.ps.stderr:
                     _logerr = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stderr])
                     self.ps.stderr.close()
-
                 try:
                     if self.ps.stdin:
                         self.ps.stdin.close()
