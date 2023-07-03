@@ -34,30 +34,6 @@ class StreamHubIE(SeleniumInfoExtractor):
 
     @dec_on_exception3
     @dec_on_exception2
-    def _get_video_info(self, url, **kwargs):
-
-        pre = f'[get_video_info][{self._get_url_print(url)}]'
-        if (msg := kwargs.get('msg')):
-            pre = f'{msg}{pre}'
-
-        _headers = kwargs.get('headers', {})
-        headers = {
-            'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors',
-            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache'}
-        headers.update(_headers)
-
-        with limiter_1.ratelimit(self.IE_NAME, delay=True):
-            try:
-                self.logger_debug(pre)
-                return self.get_info_for_format(url, headers=headers)
-            except (HTTPStatusError, ConnectError) as e:
-                _msg_error = f"{repr(e)}"
-                self.logger_debug(f"{pre}: {_msg_error}")
-                return {"error_res": _msg_error}
-
-    @dec_on_exception3
-    @dec_on_exception2
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -66,7 +42,7 @@ class StreamHubIE(SeleniumInfoExtractor):
 
         driver = kwargs.get('driver', None)
 
-        with limiter_1.ratelimit(f"{self.IE_NAME}2", delay=True):
+        with limiter_1.ratelimit(f"{self.IE_NAME}", delay=True):
             self.logger_debug(pre)
             if driver:
                 driver.get(url)
@@ -116,7 +92,7 @@ class StreamHubIE(SeleniumInfoExtractor):
                 _har_file = harlogs.har_file
                 self._send_request(url_dl, driver=StreamHubIE._DRIVER)
                 self.wait_until(StreamHubIE._DRIVER, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                self.wait_until(StreamHubIE._DRIVER, 5)
+                self.wait_until(StreamHubIE._DRIVER, 10)
                 _title = try_get(self.wait_until(StreamHubIE._DRIVER, 5, ec.presence_of_element_located((By.TAG_NAME, "h4"))), lambda x: x.text)
 
             _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': "https://streamhub.to", 'Referer': "https://streamhub.to/"}
@@ -168,7 +144,7 @@ class StreamHubIE(SeleniumInfoExtractor):
                 'webpage_url': url}
 
             try:
-                _entry.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0].get('http_headers', {}))})
+                _entry.update({'duration': self._parse_m3u8_vod_duration(m3u8_doc, videoid)})
             except Exception as e:
                 self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
 
