@@ -2673,4 +2673,5 @@ from .streamhide import StreamHideIE
 from .streamhub import StreamHubIE
 from .dvdgayonline import DVDGayOnlineIE
 from .dflix import DFlixIE
-from .streamvid import StreamVidIE
+from .streamvid import StreamVidIE, FilelionsIE
+from .vgembed import VGEmbedIE

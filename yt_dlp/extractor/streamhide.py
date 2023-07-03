@@ -96,14 +96,14 @@ class StreamHideIE(SeleniumInfoExtractor):
 
             jwplayer_data = try_get(self._search_regex(
                 [r'jwplayer\("[^"]+"\)\.load\(\[({.+?})\]\);', r'jwplayer\("[^"]+"\)\.setup\(({.+?})\);'],
-                webpage, 'jwplayer data', default=None),
+                webpage, 'jwplayer data', default=None),  # type: ignore
                 lambda x: json.loads(js_to_json(x).replace(' //', '')) if x else None)
 
             formats = []
             subtitles = {}
             duration = None
 
-            if jwplayer_data and (_entry := self._parse_jwplayer_data(jwplayer_data, videoid, False, m3u8_id='hls', mpd_id='dash')):
+            if jwplayer_data and (_entry := cast(dict, self._parse_jwplayer_data(jwplayer_data, videoid, False, m3u8_id='hls', mpd_id='dash'))):
                 formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
 
             if not formats:

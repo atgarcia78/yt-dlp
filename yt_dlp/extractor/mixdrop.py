@@ -34,7 +34,7 @@ class MixDropIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://mixdrop.to"
 
-    IE_NAME = 'mixdrop'
+    IE_NAME = 'mixdrop'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?mixdrop\.[^/]+/(?:e|f)/(?P<id>[^\/$]+)(?:\/|$)'
 
     @on_exception_vinfo
@@ -95,7 +95,7 @@ class MixDropIE(SeleniumInfoExtractor):
         if not _webpagef or any([_ in _webpagef for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 no webpage")
         title = self._og_search_title(_webpagef, default=None) or self._html_extract_title(_webpagef, default=None)
-        title = re.sub(r'(\s+-+\s+)?mixdrop(\s+-+\s+watch\s+)?|\.mp4', '', title, flags=re.IGNORECASE)
+        title = re.sub(r'(\s+-+\s+)?mixdrop(\s+-+\s+watch\s+)?|\.mp4', '', cast(str, title), flags=re.IGNORECASE)
 
         headers = {'Referer': self._SITE_URL + '/', 'Origin': self._SITE_URL}
 
