@@ -194,7 +194,7 @@ dec_retry_raise = on_exception(
 dec_retry_error = on_exception(
     constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(
-    constant, TimeoutException, max_tries=3, raise_on_giveup=True, interval=2)
+    constant, TimeoutException, max_tries=3, raise_on_giveup=True, interval=1)
 dec_on_reextract = on_exception(
     constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
 retry_on_driver_except = on_exception(

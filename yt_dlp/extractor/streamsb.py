@@ -55,6 +55,7 @@ class StreamSBIE(SeleniumInfoExtractor):
 
         self.logger_debug(pre)
         if driver:
+            driver.execute_script("window.stop();")
             driver.get(url)
         else:
             try:
@@ -101,8 +102,8 @@ class StreamSBIE(SeleniumInfoExtractor):
             except ReExtractInfo:
                 raise
             except Exception as e:
-                logger.exception(f"{pre} {repr(e)}")
-                raise
+                self.logger_debug(f"{pre} {repr(e)}")
+                raise_reextract_info(f'{pre} {repr(e)}')
             finally:
                 self.rm_driver(driver)
 
