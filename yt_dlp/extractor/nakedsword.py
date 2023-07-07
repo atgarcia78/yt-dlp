@@ -31,7 +31,8 @@ from .commonwebdriver import (
     ec,
     By,
     Callable,
-    cast
+    cast,
+    WebElement
 )
 
 from ..utils import (
@@ -809,7 +810,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         movie_id = details.get('id')
         _pre1 = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
-        _pre2 = "?max_bitrate=8250&scenes_id="
+        _pre2 = "?max_bitrate=50000&scenes_id="
         _res = []
         for sc in details.get('scenes'):
             _url = f"{_pre1}{movie_id}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
@@ -933,11 +934,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         'A valid %s account is needed to access this media.'
                         % self._NETRC_MACHINE)
 
-                el_username = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.Input")))
-                el_psswd = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "input.Input.Password")))
-                el_submit = self.wait_until(driver, 60, ec.presence_of_element_located((By.CSS_SELECTOR, "button.SignInButton")))
+                _method_css = lambda x: ec.presence_of_element_located((By.CSS_SELECTOR, x))
 
-                assert el_username and el_psswd and el_submit
+                if not (el_username := cast(WebElement, self.wait_until(
+                        driver, 60, _method_css("input.Input")))):
+                    raise ExtractorError("login nok")
+                if not (el_psswd := cast(WebElement, self.wait_until(
+                        driver, 60, _method_css("input.Input.Password")))):
+                    raise ExtractorError("login nok")
+                if not (el_submit := cast(WebElement, self.wait_until(
+                        driver, 60, _method_css("button.SignInButton")))):
+                    raise ExtractorError("login nok")
 
                 el_username.send_keys(username)
                 el_psswd.send_keys(password)
@@ -1290,7 +1297,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         if not details:
             raise ReExtractInfo(f"{premsg} no details info")
         _pre = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
-        _api_movie_url = f"{_pre}{movie_id}?max_bitrate=8250&format=HLS"
+        _api_movie_url = f"{_pre}{movie_id}?max_bitrate=50000&format=HLS"
 
         try:
 

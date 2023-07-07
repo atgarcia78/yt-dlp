@@ -526,6 +526,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             results = []
 
             _check = True
+            _date = None
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
             if query:
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
@@ -541,6 +542,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                     _check = False
                 else:
                     _check = True
+                _date = try_get(params.get('date'), lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None)
 
             for el in el_videos:
                 if not el:
@@ -553,6 +555,9 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 posted_date = try_get(
                     get_elements_by_class("mvp_grid_panel_details", el),
                     lambda x: datetime.strptime(x[0].replace('Posted ', '').strip(), '%B %d, %Y'))
+
+                if _date and posted_date and _date != posted_date:
+                    continue
 
                 if video_url:
                     _res = {'_type': 'url', 'url': video_url, 'ie_key': 'MyVidster'}
@@ -572,7 +577,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
                     pre = f'[channel/{channelid}][Num_videos_pending]'
 
-                    with self.create_progress_bar(msg=pre) as pb:
+                    with self.create_progress_bar(len(results), block_logging=False, msg=pre) as pb:
 
                         with ThreadPoolExecutor(thread_name_prefix='ex_channelpl') as ex:
                             futures = {
@@ -690,7 +695,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
                     MyVidsterBaseIE._NUM_VIDS_PL[url] = len(list_videos)
                     iemv = self._get_extractor("MyVidster")
 
-                    with self.create_progress_bar(msg=f'[search/?{url.split("?")[-1]}][Num_videos_pending]') as pb:
+                    with self.create_progress_bar(len(list_videos), msg=f'[search/?{url.split("?")[-1]}][Num_videos_pending]') as pb:
 
                         with ThreadPoolExecutor(thread_name_prefix='ex_searchpl2') as ex:
                             futures = {ex.submit(iemv._get_entry, _url, check=_check, from_list=url, progress_bar=pb): _url for _url in list_videos}
