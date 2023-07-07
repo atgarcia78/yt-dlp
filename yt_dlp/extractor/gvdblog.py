@@ -610,7 +610,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-                with self.create_progress_bar(_total, msg=pre) as progress_bar:
+                with self.create_progress_bar(_total, block_logging=False, msg=pre) as progress_bar:
 
                     with ThreadPoolExecutor(max_workers=16, thread_name_prefix="gvdpl") as ex:
 

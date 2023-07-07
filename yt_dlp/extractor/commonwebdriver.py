@@ -667,7 +667,7 @@ class myIP:
 class ProgressBar(MultilinePrinter):
     _DELAY = 0.1
 
-    def __init__(self, stream: Union[TextIOWrapper, YoutubeDL, None], total: Union[int, float], preserve_output: bool = True, msg: Union[str, None] = None):
+    def __init__(self, stream: Union[TextIOWrapper, YoutubeDL, None], total: Union[int, float], preserve_output: bool = True, block_logging: bool = True, msg: Union[str, None] = None):
         self._pre = ''
         if msg:
             self._pre = msg
@@ -681,6 +681,7 @@ class ProgressBar(MultilinePrinter):
 
         super().__init__(_stream, preserve_output=preserve_output)
         self._total = total
+        self._block = block_logging
         self._done = 0
         self._lock = RLock()
         self._timer = ProgressTimer()
@@ -688,14 +689,16 @@ class ProgressBar(MultilinePrinter):
     # to stop sending events to loggers while progressbar is printing
     def __enter__(self):
         try:
-            try_get(self._logger.parent.handlers, lambda x: x[0].stop())  # type: ignore
+            if self._block:
+                try_get(self._logger.parent.handlers, lambda x: x[0].stop())  # type: ignore
         except Exception as e:
             self._logger.exception(repr(e))
         return self
 
     def __exit__(self, *args):
         try:
-            try_get(self._logger.parent.handlers, lambda x: x[0].start())  # type: ignore
+            if self._block:
+                try_get(self._logger.parent.handlers, lambda x: x[0].start())  # type: ignore
         except Exception as e:
             self._logger.exception(repr(e))
         super().__exit__(*args)
@@ -841,9 +844,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return super().extract(url)
 
-    def create_progress_bar(self, total: Union[int, float], msg: Union[str, None] = None) -> ProgressBar:
+    def create_progress_bar(self, total: Union[int, float], block_logging: bool = True, msg: Union[str, None] = None) -> ProgressBar:
         assert self._downloader
-        return ProgressBar(self._downloader, total, msg=msg)
+        return ProgressBar(self._downloader, total, block_logging=block_logging, msg=msg)
 
     def _get_extractor(self, _args):
 
