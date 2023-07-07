@@ -14,6 +14,8 @@ from ..utils import (
     get_domain)
 
 from .commonwebdriver import (
+    Union,
+    cast,
     ec,
     dec_on_exception2,
     dec_on_exception3,
@@ -57,6 +59,9 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
             return (self.send_http_request(url, **kwargs))
         except (HTTPStatusError, ConnectError) as e:
             self.logger_debug(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+        except Exception as e:
+            self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+            raise
 
     @dec_on_exception3
     @dec_on_exception2
@@ -484,29 +489,14 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
     def get_playlist_channel(self, url):
 
-        try:
+        get_posted_date = lambda x: try_get(
+            get_elements_by_class("mvp_grid_panel_details", x),
+            lambda y: datetime.strptime(y[0].replace('Posted ', '').strip(), '%B %d, %Y'))
 
-            channelid = self._match_id(url)
+        get_video_url = lambda x: try_get(
+            re.findall(r'<a href=\"(/video/[^\"]+)\" class', el), lambda y: f'{self._SITE_URL}{y[0]}')
 
-            webpage = try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-            if not webpage:
-                raise_extractor_error("Couldnt download webpage")
-
-            assert isinstance(webpage, str)
-
-            title = try_get(
-                re.findall(r'<title>([\w\s]+)</title>', webpage),
-                lambda x: x[0]) or f"MyVidsterChannel_{channelid}"
-            num_videos = try_get(
-                re.findall(r"display_channel\(.*,[\'\"](\d+)[\'\"]\)", webpage), lambda x: x[0]) or 100000
-
-            info = {
-                'action': 'display_channel',
-                'channel_id': channelid,
-                'page': '1',
-                'thumb_num': num_videos,
-                'count': num_videos
-            }
+        def get_videos_channel(channelid: str, num_videos: int, date: Union[datetime, None] = None):
 
             _headers_post = {
                 "Referer": url,
@@ -514,58 +504,100 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 "X-Requested-With": "XMLHttpRequest",
                 "Accept": "*/*"
             }
+            info = {
+                'action': 'display_channel',
+                'channel_id': channelid,
+                'page': '1',
+                'thumb_num': str(num_videos),
+                'count': str(num_videos)
+            }
+            el_videos = []
+            if not date or num_videos < 500:
 
-            webpage = try_get(
-                self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post),
-                lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+                webpage = try_get(
+                    self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post),
+                    lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+                if webpage and (_videos := get_elements_by_class("thumbnail", webpage)):
+                    el_videos.extend(_videos)
+            else:
+                _thumb_num = max(int((((int(num_videos) // 50) + 1) / 500) * 500), 500)  # max 50 POST to get every video of channel
+                max_page = int(num_videos) // _thumb_num + 1
+                info['thumb_num'] = str(_thumb_num)
+                i = 0
+                while i < max_page:
+                    info['page'] = str(i + 1)
+                    webpage = try_get(
+                        self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post),
+                        lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+                    if webpage and (_videos := cast(list[str], get_elements_by_class("thumbnail", webpage))):
+                        el_videos.extend(_videos)
+                        if (posted_date := get_posted_date(el_videos[-1])) and posted_date < date:
+                            break
+                    i += 1
+
+            return el_videos
+
+        try:
+
+            channelid = cast(str, self._match_id(url))
+
+            webpage = cast(str, try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text))))
             if not webpage:
-                raise_extractor_error("Couldnt display channel")
-            el_videos = get_elements_by_class("thumbnail", webpage)
+                raise_extractor_error("Couldnt download webpage")
 
-            assert el_videos
-            results = []
+            title = cast(str, try_get(
+                re.findall(r'<title>([\w\s]+)</title>', webpage),
+                lambda x: x[0])) or f"MyVidsterChannel_{channelid}"
+            num_videos = cast(int, try_get(
+                re.findall(r"display_channel\(.*,[\'\"](\d+)[\'\"]\)", webpage), lambda x: int(x[0]))) or 100000
 
-            _check = True
-            _date = None
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+            _date = None
+            _check = True
+            params = {}
             if query:
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
-                _first = params.get('first') or '1'
-                _last = params.get('last')
-                if _last:
-                    el_videos = el_videos[int(_first) - 1: int(_last)]
-                else:
-                    el_videos = el_videos[int(_first) - 1:]
-
                 _check = params.get('check')
                 if _check == 'no':
                     _check = False
-                else:
-                    _check = True
-                _date = try_get(params.get('date'), lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None)
+                _date = cast(datetime, try_get(params.get('date'), lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None))
+
+            results = []
+            el_videos = get_videos_channel(channelid, num_videos, _date)
+            if not el_videos:
+                raise ExtractorError('no videos')
+
+            _first = params.get('first') or '1'
+            _last = params.get('last')
+
+            if _last:
+                el_videos = el_videos[int(_first) - 1: int(_last)]
+            else:
+                el_videos = el_videos[int(_first) - 1:]
 
             for el in el_videos:
                 if not el:
                     continue
 
-                video_url = try_get(
-                    re.findall(r'<a href=\"(/video/[^\"]+)\" class', el),
-                    lambda x: f'{self._SITE_URL}{x[0]}')
-
-                posted_date = try_get(
-                    get_elements_by_class("mvp_grid_panel_details", el),
-                    lambda x: datetime.strptime(x[0].replace('Posted ', '').strip(), '%B %d, %Y'))
-
-                if _date and posted_date and _date != posted_date:
+                if not (video_url := get_video_url(el)):
                     continue
 
-                if video_url:
-                    _res = {'_type': 'url', 'url': video_url, 'ie_key': 'MyVidster'}
-                    if posted_date:
-                        _res.update({
-                            'release_date': posted_date.strftime("%Y%m%d"),
-                            'release_timestamp': int(posted_date.timestamp())})
-                    results.append(_res)
+                posted_date = get_posted_date(el)
+
+                if _date:
+                    if not posted_date or posted_date > _date:
+                        # self.to_screen(f"> {'No date' if not posted_date else posted_date.strftime('%Y-%m-%d')} {video_url}")
+                        continue
+                    elif posted_date < _date:
+                        self.to_screen(f"< {posted_date.strftime('%Y-%m-%d')} {video_url}")
+                        break
+
+                _res = {'_type': 'url', 'url': video_url, 'ie_key': 'MyVidster'}
+                if posted_date:
+                    _res.update({
+                        'release_date': posted_date.strftime("%Y%m%d"),
+                        'release_timestamp': int(posted_date.timestamp())})
+                results.append(_res)
 
             if results:
 
@@ -623,6 +655,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
+            logger.exception(repr(e))
             self.to_screen(repr(e))
             raise_extractor_error(repr(e))
 
