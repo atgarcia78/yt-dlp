@@ -1,65 +1,71 @@
+import os
+from threading import Lock
+import functools
 from .commonwebdriver import (
     SeleniumInfoExtractor,
     HTTPStatusError,
     ConnectError,
     ReExtractInfo,
     dec_on_driver_timeout,
-    limiter_1,
+    dec_on_exception2,
+    limiter_5,
     my_dec_on_exception,
     By,
     ec,
-    cast,
-    raise_reextract_info
+    raise_reextract_info,
+    raise_extractor_error
 )
 from ..utils import (
     ExtractorError,
     sanitize_filename,
     try_get,
-    get_domain
+    find_available_port
 )
 
 
 import logging
-logger = logging.getLogger('streamsb')
+logger = logging.getLogger('vgembed')
 
 on_exception = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
 
 
 class VGEmbedIE(SeleniumInfoExtractor):
 
-    _VALID_URL = r'https?://(?:.+?\.)?vgembed\.com/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
+    _VALID_URL = r'https?://(?:.+?\.)?(?:vgembed|vgfplay)\.com/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
     IE_NAME = 'vgembed'  # type: ignore
+    _LOCK = Lock()
+
+    # @on_exception
+    # @limiter_5.ratelimit("vgembed", delay=True)
+    # def _get_video_info(self, url, **kwargs):
+
+    #     msg = kwargs.get('msg')
+    #     pre = f'[get_video_info][{self._get_url_print(url)}]'
+    #     if msg:
+    #         pre = f'{msg}{pre}'
+
+    #     _headers = kwargs.get('headers', {})
+    #     headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+    #                'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+
+    #     headers.update(_headers)
+
+    #     try:
+    #         return self.get_info_for_format(url, headers=headers)
+    #     except (HTTPStatusError, ConnectError) as e:
+    #         self.logger_debug(f"{pre}: error - {repr(e)}")
+    #     except ReExtractInfo as e:
+    #         self.logger_debug(f"{pre}: error - {repr(e)}, will retry")
+    #         raise
 
     @on_exception
-    @limiter_1.ratelimit("mixdrop", delay=True)
-    def _get_video_info(self, url, **kwargs):
-
-        msg = kwargs.get('msg')
-        pre = f'[get_video_info][{self._get_url_print(url)}]'
-        if msg:
-            pre = f'{msg}{pre}'
-
-        _headers = kwargs.get('headers', {})
-        headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
-                   'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-
-        headers.update(_headers)
-
-        try:
-            return self.get_info_for_format(url, headers=headers)
-        except (HTTPStatusError, ConnectError) as e:
-            self.logger_debug(f"{pre}: error - {repr(e)}")
-        except ReExtractInfo as e:
-            self.logger_debug(f"{pre}: error - {repr(e)}, will retry")
-            raise
-
-    @on_exception
+    @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_1.ratelimit("streamsb", delay=True)
+    @limiter_5.ratelimit("vgembed", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -79,6 +85,16 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
+    class synchronized:
+
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with VGEmbedIE._LOCK:
+                    return func(*args, **kwargs)
+            return wrapper
+
+    @synchronized()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
 
@@ -86,70 +102,90 @@ class VGEmbedIE(SeleniumInfoExtractor):
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
-        check = kwargs.get('check', True)
+        # check = kwargs.get('check', True)
 
         videoid = self._match_id(url)
         url_dl = f"https://vgembed.com/v/{videoid}"
 
         driver = self.get_driver()
 
+        _har_file = None
+        title = ""
+
         try:
 
-            self._send_request(url_dl, driver=driver)
-            el = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
-            if not el:
-                raise_reextract_info(f'{pre} Couldnt get video info')
-            title = driver.title
-            driver.switch_to.frame(el)
-            video_url = try_get(self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video"))), lambda x: x.get_attribute('src') if x else None)
-            if not video_url:
-                raise_reextract_info(f'{pre} Couldnt get video info')
-            _headers = {'Origin': "https://vgembed.com", 'Referer': "https://vgembed.com/"}
+            _port = find_available_port() or 8080
+            driver = self.get_driver(host='127.0.0.1', port=_port)
+            try:
 
-            _format = {
-                'format_id': 'http-mp4',
-                'url': video_url,
-                'http_headers': _headers,
-                'ext': 'mp4'
-            }
+                with self.get_har_logs('vgembed', videoid, msg=pre, port=_port) as harlogs:
 
-            if check:
-                _host = get_domain(video_url)
-                _sem = self.get_ytdl_sem(_host)
+                    _har_file = harlogs.har_file
+                    self._send_request(url_dl, driver=driver)
+                    elfr = self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
+                    if not elfr:
+                        raise_reextract_info(f'{pre} no iframe')
+                    title = driver.title
+                    driver.switch_to.frame(elfr)
+                    self.wait_until(driver, 1)
+                    self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "video")))
+                    self.wait_until(driver, 1)
 
-                with _sem:
-                    _videoinfo = self._get_video_info(video_url, msg=pre, headers=_headers)
+            except ReExtractInfo:
+                raise
+            except Exception as e:
+                self.logger_debug(f"{pre} {repr(e)}")
+                raise_reextract_info(f'{pre} {repr(e)}')
+            finally:
+                self.rm_driver(driver)
 
-                if not _videoinfo:
-                    raise ReExtractInfo(f"{pre} error 404: no video info")
+            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': "https://vgembed.com", 'Referer': "https://vgembed.com/"}
 
-                _videoinfo = cast(dict, _videoinfo)
-                if _videoinfo['filesize'] >= 1000000:
-                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
+            m3u8_url, m3u8_doc = try_get(
+                self.scan_for_request(r"master\.m3u8.*$", har=_har_file),  # type: ignore
+                lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+
+            if not m3u8_url or not m3u8_doc:
+                raise_reextract_info(f'{pre} no video info')
+
+            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+
+            if not _formats:
+                raise_extractor_error(f'{pre} Couldnt get video formats')
+
+            for _format in _formats:
+                if (_head := _format.get('http_headers')):
+                    _head.update(_headers)
                 else:
-                    raise ReExtractInfo(f"{pre} error filesize[{_videoinfo['filesize']}] < 1MB")
+                    _format.update({'http_headers': _headers})
 
             _entry = {
                 'id': videoid,
-                'title': sanitize_filename(title, restricted=True),
-                'formats': [_format],
+                'title': sanitize_filename(title.replace('.mp4', ''), restricted=True),
+                'formats': _formats,
+                'subtitles': _subtitles,
                 'ext': 'mp4',
-                'extractor_key': 'MixDrop',
-                'extractor': 'mixdrop',
-                'webpage_url': url
-            }
+                'extractor_key': 'VGEmbed',
+                'extractor': 'vgembed',
+                'webpage_url': url}
+
+            try:
+                _entry.update({'duration': self._parse_m3u8_vod_duration(m3u8_doc, videoid)})
+            except Exception as e:
+                self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
 
             return _entry
 
-        except ReExtractInfo:
-            raise
-        except ExtractorError:
-            raise
         except Exception as e:
-            self.logger_debug(f"{pre} {repr(e)}")
+            logger.exception(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
         finally:
-            self.rm_driver(driver)
+            if _har_file == 'dummy':
+                try:
+                    if os.path.exists(_har_file):
+                        os.remove(_har_file)
+                except OSError:
+                    self.logger_debug(f"{pre}: Unable to remove the har file")
 
     def _real_initialize(self):
         super()._real_initialize()

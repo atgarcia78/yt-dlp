@@ -11,13 +11,13 @@ from .commonwebdriver import (
     ConnectError,
     ExtractorError,
     HTTPStatusError,
-    # LimitContextDecorator,
     ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_0_5,
+    limiter_1,
     my_dec_on_exception,
-    raise_extractor_error
+    raise_extractor_error,
+    raise_reextract_info
 )
 from ..utils import (
     get_domain,
@@ -41,7 +41,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     _SITE_URL = 'https://dood.to/'
 
     @on_exception_vinfo
-    @limiter_0_5.ratelimit("doodstream", delay=True)
+    @limiter_1.ratelimit("doodstream", delay=True)
     def _get_video_info(self, url, **kwargs):
 
         msg = kwargs.get('msg')
@@ -64,7 +64,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
             raise
 
     @dec_on_exception3
-    @limiter_0_5.ratelimit("doodstream2", delay=True)
+    @limiter_1.ratelimit("doodstream", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
@@ -108,10 +108,11 @@ class DoodStreamIE(SeleniumInfoExtractor):
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if msg:
             pre = f'{msg}{pre}'
-        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
-        if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
-            raise_extractor_error(f"{pre} error 404 no webpage")
-        webpage = cast(str, webpage)
+        webpage = cast(str, try_get(self._send_request(url), lambda x: html.unescape(x.text)))
+        if not webpage:
+            raise_reextract_info(f"{pre} error no webpage")
+        if any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
+            raise_extractor_error(f"{pre} error 404 webpage")
         title = self._og_search_title(webpage, default=None) or self._html_extract_title(webpage, default=None)
         if not title:
             raise_extractor_error(f"{pre} error with title")
@@ -129,9 +130,11 @@ class DoodStreamIE(SeleniumInfoExtractor):
         headers = {'Referer': self._SITE_URL}
 
         pass_md5 = self._html_search_regex(r"(/pass_md5.*?)'", webpage, 'pass_md5')
-        video_url = ''.join((try_get(self._send_request(f'https://dood.to{pass_md5}', headers=headers), lambda x: html.unescape(x.text)),  # type: ignore
-                            *(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
-                            f'?token={token}&expiry={int(time.time() * 1000)}'))
+        video_url = ''.join([
+            try_get(self._send_request(f'https://dood.to{pass_md5}', headers=headers), lambda x: html.unescape(x.text)),  # type: ignore
+            *(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
+            f'?token={token}&expiry={int(time.time() * 1000)}']
+        )
         if not video_url:
             raise_extractor_error(f"{pre} couldnt get videourl")
 

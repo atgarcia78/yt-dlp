@@ -463,7 +463,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                 with MyVidsterBaseIE._LOCK:
                     MyVidsterBaseIE._NUM_VIDS_PL[_from_list] -= 1
                     if _progress_bar:
-                        _progress_bar.print(f"{MyVidsterBaseIE._NUM_VIDS_PL[_from_list]}")
+                        _progress_bar.update()
+                        _progress_bar.print("Entry OK")
 
     def _real_initialize(self):
         with MyVidsterBaseIE._LOCK:
