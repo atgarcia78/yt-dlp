@@ -32,7 +32,7 @@ logger = logging.getLogger('myvidster')
 _URL_NOT_VALID = [
     '//syndication', '?thumb=http', 'rawassaddiction.blogspot', 'twitter.com',
     'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed', 'xtube.com', 'xtapes.to',
-    'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
+    '####gayforit######.eu/playvideo.php', '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
     'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload']
 
 
