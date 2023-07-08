@@ -1,4 +1,6 @@
 import os
+import html
+from urllib.parse import unquote
 from .commonwebdriver import (
     SeleniumInfoExtractor,
     HTTPStatusError,
@@ -6,22 +8,24 @@ from .commonwebdriver import (
     ReExtractInfo,
     dec_on_driver_timeout,
     dec_on_exception2,
-    limiter_2,
+    limiter_5,
     my_dec_on_exception,
     By,
-    ec,
     raise_reextract_info,
     raise_extractor_error,
     cast,
-    WebElement
+    Response
 )
 from ..utils import (
     ExtractorError,
     sanitize_filename,
     try_get,
     find_available_port,
-    get_domain
+    get_domain,
+    traverse_obj
 )
+from threading import Lock
+import functools
 
 
 import logging
@@ -34,14 +38,26 @@ on_retry_vinfo = my_dec_on_exception(
     ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
 
 
+class getvideourl:
+
+    def __call__(self, driver):
+        el_video = driver.find_element(By.CSS_SELECTOR, "video")
+        video_url = el_video.get_attribute('src')
+        if video_url:
+            return unquote(video_url)
+        else:
+            return False
+
+
 class VGEmbedIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://(?:.+?\.)?(?:vgembed|vgfplay)\.com/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
     IE_NAME = 'vgembed'  # type: ignore
+    _LOCK = Lock()
 
     @on_exception
     @dec_on_exception2
-    @limiter_2.ratelimit("vgembed", delay=True)
+    @limiter_5.ratelimit("vgembed", delay=True)
     def _get_video_info(self, url, **kwargs):
 
         msg = kwargs.get('msg')
@@ -66,7 +82,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
     @on_exception
     @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_2.ratelimit("vgembed", delay=True)
+    @limiter_5.ratelimit("vgembed2", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -86,7 +102,17 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
+    class locked:
+
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with VGEmbedIE._LOCK:
+                    return func(*args, **kwargs)
+            return wrapper
+
     @SeleniumInfoExtractor.syncsem()
+    @locked()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
 
@@ -103,6 +129,12 @@ class VGEmbedIE(SeleniumInfoExtractor):
         title = ""
 
         try:
+            _msgerror = '404 no webpage'
+            if not (_res := self._send_request(url_dl)) or (_msgerror := traverse_obj(_res, 'error')):
+                raise_extractor_error(f"{pre} {_msgerror}")
+
+            title = cast(str, self._html_extract_title(html.unescape(cast(Response, _res).text)))
+
             videourl = None
             _port = find_available_port() or 8080
             driver = self.get_driver(host='127.0.0.1', port=_port)
@@ -111,23 +143,16 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 with self.get_har_logs('vgembed', videoid, msg=pre, port=_port) as harlogs:
 
                     _har_file = harlogs.har_file
-                    self._send_request(url_dl, driver=driver)
-                    elfr = self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
-                    if not elfr:
-                        raise_reextract_info(f'{pre} no iframe')
-                    title = driver.title
-                    driver.switch_to.frame(elfr)
-                    self.wait_until(driver, 1)
-                    if (elvideo := cast(WebElement, self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "video"))))):
-                        if (_vid := elvideo.get_attribute('src')) and 'blob:' not in _vid:
-                            videourl = _vid
-                            self.logger_debug(f"{pre} videourl {videourl}")
+                    self._send_request(url_dl.replace('/v/', '/e/'), driver=driver)
+                    if (_vid := cast(str, self.wait_until(driver, 60, getvideourl()))) and 'blob:' not in _vid:
+                        videourl = _vid
+                        self.logger_debug(f"{pre} videourl {videourl}")
                     self.wait_until(driver, 1)
 
             except ReExtractInfo:
                 raise
             except Exception as e:
-                self.logger_debug(f"{pre} {repr(e)}")
+                logger.exception(f"{pre} {repr(e)}")
                 raise_reextract_info(f'{pre} {repr(e)}')
             finally:
                 self.rm_driver(driver)
@@ -153,11 +178,11 @@ class VGEmbedIE(SeleniumInfoExtractor):
                         _videoinfo = cast(dict, self._get_video_info(videourl, msg=pre, headers=_headers))
 
                     if not _videoinfo:
-                        raise ReExtractInfo(f"{pre} error 404: no video info")
+                        raise_reextract_info(f"{pre} error 404: no video info")
 
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
 
-                    _formats.append(_format)
+                _formats.append(_format)
 
             else:
                 m3u8_url, m3u8_doc = try_get(

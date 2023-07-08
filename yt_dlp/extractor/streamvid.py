@@ -164,8 +164,8 @@ class FilelionsIE(StreamVidIE):
 
     def _get_m3u8url(self, webpage):
         ofuscated_code = try_get(list(filter(lambda x: 'function(p,a,c,k,e,d)' in x, get_elements_html_by_attribute('type', 'text/javascript', webpage))), lambda x: x[0])
-        sources = json.loads(js_to_json(try_get(re.search(r'sources:(?P<sources>[^,]+),', decode_packed_codes(ofuscated_code)), lambda x: x.group('sources') if x else '{}')))
-        m3u8_url = try_get(sources, lambda x: x[0]['file'])
+        sources = json.loads(js_to_json(try_get(re.search(r'sources:\[(?P<sources>[^\]]+)\],', decode_packed_codes(ofuscated_code)), lambda x: x.group('sources') if x else '{}')))
+        m3u8_url = sources.get('file')
         poster_url = try_get(re.search(r'image\:[^\'"][\'"](?P<poster>[^\'"]+)[\'"]', decode_packed_codes(ofuscated_code)), lambda x: x.group('poster') if x else None)
         return (m3u8_url, poster_url)
 
