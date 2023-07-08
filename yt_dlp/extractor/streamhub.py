@@ -38,7 +38,7 @@ class StreamHubIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://(?:www\.)?streamhub\.[^/]+/(?:e/)?(?P<id>[a-z0-9]+)'
     IE_NAME = 'streamhub'  # type: ignore
-    _SEM = Semaphore(5)
+    _SEM = Semaphore(8)
 
     @dec_on_driver_timeout
     @dec_on_exception2

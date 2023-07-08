@@ -37,7 +37,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://(?:.+?\.)?(?:vgembed|vgfplay)\.com/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
     IE_NAME = 'vgembed'  # type: ignore
-    _SEM = Semaphore(5)
+    _SEM = Semaphore(8)
 
     # @on_exception
     # @limiter_5.ratelimit("vgembed", delay=True)
