@@ -22,9 +22,6 @@ from ..utils import (
     get_first
 )
 
-import functools
-from threading import Semaphore
-
 import logging
 logger = logging.getLogger('streamsb')
 
@@ -40,7 +37,6 @@ class StreamSBIE(SeleniumInfoExtractor):
     _DOMAINS = r'(?:gaymovies\.top|sbanh\.com|sbbrisk\.com|watchonlinehd\.top|realgalaxy\.top)'
     _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)(\.html)?''' % _DOMAINS
     IE_NAME = 'streamsb'  # type: ignore
-    _SEM = Semaphore(8)
 
     @on_exception
     @dec_on_driver_timeout
@@ -65,15 +61,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
-    class syncsem:
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with StreamSBIE._SEM:
-                    return func(*args, **kwargs)
-            return wrapper
-
-    @syncsem()
+    @SeleniumInfoExtractor.syncsem()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
 

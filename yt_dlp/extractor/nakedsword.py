@@ -9,7 +9,6 @@ import base64
 import subprocess
 import time
 import contextlib
-import functools
 
 from .commonwebdriver import (
     ConnectError,
@@ -587,16 +586,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             else:
                 return formats
 
-    class synchronized:
-
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with NakedSwordBaseIE._LOCK:
-                    return func(*args, **kwargs)
-            return wrapper
-
-    @synchronized()
+    @SeleniumInfoExtractor.syncsem()
     def get_formats_by_har(self, scenes: Union[dict, list], msg=None, **kwargs):
 
         _pre = '[get_entry_by_har]'

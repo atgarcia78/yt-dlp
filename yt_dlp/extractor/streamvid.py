@@ -13,7 +13,8 @@ from .commonwebdriver import (
     limiter_2,
     my_dec_on_exception,
     raise_extractor_error,
-    raise_reextract_info
+    raise_reextract_info,
+    dec_on_exception2
 )
 from ..utils import (
     js_to_json,
@@ -39,6 +40,7 @@ class StreamVidIE(SeleniumInfoExtractor):
     IE_NAME = 'streamvid'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?streamvid\.[^/]+/(embed-)?(?P<id>[^\/$]+)(?:\/|$)'
 
+    @dec_on_exception2
     @on_exception
     def _send_request(self, url, **kwargs):
 
