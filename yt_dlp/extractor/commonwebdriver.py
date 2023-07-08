@@ -1147,8 +1147,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
         try:
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
-                                      'thisvid.com/embed', 'xtube.com', 'xtapes.to',
-                                      'gayforit.eu/playvideo.php', '/noodlemagazine.com/player', 'pornone.com/embed/']):
+                                      'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'pornone.com/embed/']):
                 self.logger_debug(f'{_pre_str}:False')
                 return False if not inc_error else {'error': 'in error list'}
             elif any(_ in url for _ in ['gayforit.eu/video']):

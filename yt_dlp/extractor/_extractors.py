@@ -2623,7 +2623,7 @@ from .gvdblog import (
 )
 from .exporntoons import ExPornToonsIE
 from .gaybingo import GayBingoIE
-from .vodnakedsword import VODNakedSwordMovieIE
+from .vodnakedsword import VODNakedSwordSceneIE
 from .thegay import TheGayIE
 from .tubeload import (
     TubeloadIE,

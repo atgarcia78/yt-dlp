@@ -1,46 +1,99 @@
 import json
-from collections import OrderedDict
+import logging
 from threading import Lock
+import re
+import html
+from .commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    ReExtractInfo,
+    dec_on_exception3,
+    my_dec_on_exception,
+    dec_on_driver_timeout,
+    limiter_0_1,
+    SeleniumInfoExtractor,
+    Union,
+    Response,
+    cast,
+    raise_extractor_error
+)
 
+from ..utils import (
+    sanitize_filename,
+    try_get,
+    traverse_obj,
+    get_element_html_by_id,
+    get_element_text_and_html_by_tag)
 
-from ..utils import sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1
+logger = logging.getLogger('vodnakedsword')
+
+dec_on_reextract = my_dec_on_exception(
+    ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=30)
+
+dec_on_reextract_1 = my_dec_on_exception(
+    ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=1)
+
+dec_on_reextract_3 = my_dec_on_exception(
+    ReExtractInfo, max_tries=3, jitter='my_jitter', raise_on_giveup=True, interval=2)
 
 
 class VODNakedSwordBaseIE(SeleniumInfoExtractor):
-    IE_NAME = 'vodnakedsword'
-    IE_DESC = 'vodnakedsword'
-
     _SITE_URL = "https://vod.nakedsword.com/gay"
     _LOGIN_URL = "https://vod.nakedsword.com/gay/login?f=%2Fgay"
     _POST_URL = "https://vod.nakedsword.com/gay/deliver"
     _NETRC_MACHINE = 'vodnakedsword'
 
     _LOCK = Lock()
-    _COOKIES = None
+    _COOKIES = []
     _NSINIT = False
 
-    def _headers_ordered(self, extra=None):
-        _headers = OrderedDict()
+    headers_post = {
+        'Accept': '*/*',
+        'Accept-Language': 'en,es-ES;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Origin': 'https://vod.nakedsword.com',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'TE': 'trailers',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+    }
 
-        if not extra:
-            extra = dict()
+    data_post = {
+        'movieId': None,
+        'sceneId': None,
+        'embedHLS': 'true',
+        'consumptionRate': '1',
+        'popoutTitle': 'Watching',
+        'format': 'HLS',
+        'maxBitrate': '100000',
+        'trickPlayImgPrefix': 'https://pic.aebn.net/dis/t/',
+        'isEmbedded': 'false',
+        'popoutHtmlUrl': '/resources/unified-player/player/fullframe.html',
+    }
 
-        for key in ["User-Agent", "Accept", "Accept-Language", "Accept-Encoding", "Content-Type", "X-Requested-With", "Origin", "Connection", "Referer", "Upgrade-Insecure-Requests"]:
+    @classmethod
+    @dec_on_driver_timeout
+    @dec_on_exception3
+    @limiter_0_1.ratelimit("nakedsword", delay=True)
+    def _send_request(cls, url, **kwargs) -> Union[None, Response]:
 
-            value = extra.get(key) if extra.get(key) else VODNakedSwordBaseIE._CLIENT_CONFIG['headers'].get(key.lower())
-            if value:
-                _headers[key.lower()] = value
+        pre = f'[send_request][{cls._get_url_print(url)}]'
+        if (msg := kwargs.get('msg')):
+            pre = f'{msg}{pre}'
 
-        return _headers
+        driver = kwargs.get('driver', None)
 
-    @dec_on_exception
-    @limiter_0_1.ratelimit("vodnakedsword", delay=True)
-    def _send_request(self, url, _type="GET", data=None, headers=None):
-
-        res = VODNakedSwordBaseIE._CLIENT.request(_type, url, data=data, headers=headers)
-        res.raise_for_status()
-        return res
+        if driver:
+            driver.get(url)
+        else:
+            try:
+                return (cls._send_http_request(url, client=VODNakedSwordBaseIE._CLIENT, **kwargs))
+            except (HTTPStatusError, ConnectError) as e:
+                logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
     def get_driver_NS(self):
         driver = self.get_driver()
@@ -48,6 +101,35 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
         for cookie in VODNakedSwordBaseIE._COOKIES:
             driver.add_cookie(cookie)
         return driver
+
+    def _get_api_info(self, url, movieid, sceneid=None):
+        def data_upt():
+            data_copy = VODNakedSwordBaseIE.data_post.copy()
+            data_copy['movieId'] = movieid
+            if not sceneid:
+                data_copy.pop('sceneId')
+            else:
+                data_copy['sceneid'] = sceneid
+            return data_copy
+        params = {
+            'movieId': '282670',
+            'isPreview': 'false'
+        }
+        if sceneid:
+            params['sceneId'] = sceneid
+
+        check = try_get(
+            VODNakedSwordBaseIE._send_request(
+                'https://vod.nakedsword.com/gay/play-check', _type="POST",
+                headers=VODNakedSwordBaseIE.headers_post | {'Referer': url.split('#')[0]}, data=params),
+            lambda x: x.json() if x else None)
+
+        if check == "can play":
+            return try_get(
+                VODNakedSwordBaseIE._send_request(
+                    VODNakedSwordBaseIE._POST_URL, _type="POST",
+                    headers=VODNakedSwordBaseIE.headers_post | {'Referer': url.split('#')[0]}, data=data_upt()),
+                lambda x: x.json() if x else None)
 
     def _login(self):
         pass
@@ -58,7 +140,7 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
 
         with VODNakedSwordBaseIE._LOCK:
             if not VODNakedSwordBaseIE._NSINIT:
-
+                VODNakedSwordBaseIE._CLIENT = self._CLIENT
                 if not VODNakedSwordBaseIE._COOKIES:
                     try:
                         with open("/Users/antoniotorres/Projects/common/logs/VODNSWORD_COOKIES.json", "r") as f:
@@ -74,44 +156,45 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
                 VODNakedSwordBaseIE._NSINIT = True
 
 
-class VODNakedSwordMovieIE(VODNakedSwordBaseIE):
-    IE_NAME = 'vodnakedsword:movie'
-    _VALID_URL = r"https?://(?:www\.)?vod.nakedsword.com/gay/movies/(?P<id>[\d]+)/(?P<title>[a-zA-Z\d_-]+)/?$"
+class VODNakedSwordSceneIE(VODNakedSwordBaseIE):
+    IE_NAME = 'vodnakedsword:scene'  # type: ignore
+    _VALID_URL = r"https?://(?:www\.)?vod.nakedsword.com/gay/movies/(?P<movieid>[\d]+)(/(?P<title>[a-zA-Z\d_-]+))?#scene-(?P<sceneid>[\d]+)"
+
+    def _real_initialize(self):
+        return super()._real_initialize()
 
     def _real_extract(self, url):
+        movieid, sceneid = try_get(self._match_valid_url(url), lambda x: x.group('movieid', 'sceneid') if x else (None, None))  # type: ignore
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
+        _scene_str = try_get(re.search(r'(Scene\s+\d+)', get_element_html_by_id(f'scene-{sceneid}', webpage), flags=re.I), lambda x: x.group() if x else "scene")  # type: ignore
+        _title = try_get(re.search(r'(?P<san_title>[^<]+)<?', traverse_obj(get_element_text_and_html_by_tag('h1', webpage), 0)),  # type: ignore
+                         lambda x: try_get(x.group('san_title'), lambda y: y.strip()) if x else None)
+        _info_streaming = cast(dict, self._get_api_info(url, movieid, sceneid=sceneid))
+        _headers = {'Referer': url.split('#')[0], 'Origin': 'https://vod.nakedsword.com'}
+        _formats, _subtitles = self._extract_m3u8_formats_and_subtitles(_info_streaming['url'], sceneid, ext="mp4", entry_protocol="m3u8_native", headers=_headers)
 
-        movie_id, _title = self._match_valid_url(url).group('id', 'title')
-        _title = _title.replace("-", " ").title()
+        if not _formats:
+            raise_extractor_error('Couldnt get video formats')
 
-        data = {
-            'movieId': movie_id,
-            'embedHLS': 'true',
-            'consumptionRate': '1',
-            'popoutTitle': f"Watching Movie {_title}",
-            'format': 'HLS',
-            'maxBitrate': '100000',
-            'trickPlayImgPrefix': 'https://pic.aebn.net/dis/t/',
-            'isEmbedded': 'false',
-            'popoutHtmlUrl': '/resources/unified-player/player/fullframe.html'}
+        for _format in _formats:
+            if (_head := _format.get('http_headers')):
+                _head.update(_headers)
+            else:
+                _format.update({'http_headers': _headers})
 
-        headers_post = {
-            'Accept': '*/*',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Origin': 'https://vod.nakedsword.com',
-            'Referer': url}
+        _entry = {
+            'id': sceneid,
+            'title': sanitize_filename(f'{_title}_{_scene_str}'.replace('-', '_'), restricted=True),
+            'formats': _formats,
+            'subtitles': _subtitles,
+            'ext': 'mp4',
+            'extractor_key': self._get_ie_key(),
+            'extractor': self.IE_NAME,
+            'webpage_url': url}
 
-        res = VODNakedSwordBaseIE._CLIENT.post(self._POST_URL, data=data, headers=headers_post)
-        res.raise_for_status()
-        info = res.json()
-        m3u8_url = info.get('url')
-        _headers = {'referer': 'https://vod.nakedsword.com/', 'origin': 'https://vod.nakedsword.com', 'accept': '*/*'}
-        formats = self._extract_m3u8_formats(m3u8_url, movie_id, 'mp4', entry_protocol='m3u8_native', m3u8_id='hls', headers=_headers, fatal=False)
-        if formats:
-            self._sort_formats(formats)
-            _entry = {
-                'id': movie_id,
-                'title': sanitize_filename(_title, restricted=True),
-                'ext': 'mp4',
-                'formats': formats
-            }
-            return _entry
+        try:
+            _entry.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], sceneid, headers=_formats[0].get('http_headers', {}))})
+        except Exception as e:
+            self.logger_info(f"error trying to get vod {repr(e)}")
+
+        return _entry
