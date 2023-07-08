@@ -1,5 +1,5 @@
 import os
-from threading import Lock
+from threading import Semaphore
 import functools
 from .commonwebdriver import (
     SeleniumInfoExtractor,
@@ -8,7 +8,7 @@ from .commonwebdriver import (
     ReExtractInfo,
     dec_on_driver_timeout,
     dec_on_exception2,
-    limiter_5,
+    limiter_2,
     my_dec_on_exception,
     By,
     ec,
@@ -37,7 +37,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://(?:.+?\.)?(?:vgembed|vgfplay)\.com/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
     IE_NAME = 'vgembed'  # type: ignore
-    _LOCK = Lock()
+    _SEM = Semaphore(5)
 
     # @on_exception
     # @limiter_5.ratelimit("vgembed", delay=True)
@@ -65,7 +65,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
     @on_exception
     @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_5.ratelimit("vgembed", delay=True)
+    @limiter_2.ratelimit("vgembed", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -90,7 +90,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
         def __call__(self, func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                with VGEmbedIE._LOCK:
+                with VGEmbedIE._SEM:
                     return func(*args, **kwargs)
             return wrapper
 

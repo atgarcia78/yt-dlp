@@ -10,7 +10,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
-    limiter_5,
+    limiter_2,
     my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info
@@ -47,7 +47,7 @@ class StreamVidIE(SeleniumInfoExtractor):
         if (msg := _kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
 
-        with limiter_5.ratelimit(self.IE_NAME, delay=True):
+        with limiter_2.ratelimit(self.IE_NAME, delay=True):
             try:
                 return self.send_http_request(url, **_kwargs)
             except (HTTPStatusError, ConnectError) as e:

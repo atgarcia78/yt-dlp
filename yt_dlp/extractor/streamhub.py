@@ -6,7 +6,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ConnectError,
     ReExtractInfo,
-    limiter_5,
+    limiter_2,
     By,
     ec,
     raise_extractor_error,
@@ -22,7 +22,7 @@ from ..utils import (
 )
 
 import functools
-from threading import Lock
+from threading import Semaphore
 
 import logging
 logger = logging.getLogger('streamhub')
@@ -38,7 +38,7 @@ class StreamHubIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://(?:www\.)?streamhub\.[^/]+/(?:e/)?(?P<id>[a-z0-9]+)'
     IE_NAME = 'streamhub'  # type: ignore
-    _LOCK = Lock()
+    _SEM = Semaphore(5)
 
     @dec_on_driver_timeout
     @dec_on_exception2
@@ -51,7 +51,7 @@ class StreamHubIE(SeleniumInfoExtractor):
 
         driver = kwargs.get('driver', None)
 
-        with limiter_5.ratelimit(f"{self.IE_NAME}", delay=True):
+        with limiter_2.ratelimit(f"{self.IE_NAME}", delay=True):
             self.logger_debug(pre)
             if driver:
                 driver.get(url)
@@ -68,7 +68,7 @@ class StreamHubIE(SeleniumInfoExtractor):
         def __call__(self, func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                with StreamHubIE._LOCK:
+                with StreamHubIE._SEM:
                     return func(*args, **kwargs)
             return wrapper
 
