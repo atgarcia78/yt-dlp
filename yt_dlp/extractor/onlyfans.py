@@ -449,6 +449,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             self.to_screen(f'[get_conn_api] {repr(e)} \n{"!!".join(lines)}')
             raise ExtractorError(f'[get_conn_api] {repr(e)}')
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_auth_config(self):
 
         _auth_config = {}

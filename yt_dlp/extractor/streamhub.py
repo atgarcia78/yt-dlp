@@ -21,9 +21,6 @@ from ..utils import (
     find_available_port
 )
 
-import functools
-from threading import Semaphore
-
 import logging
 logger = logging.getLogger('streamhub')
 
@@ -38,7 +35,6 @@ class StreamHubIE(SeleniumInfoExtractor):
 
     _VALID_URL = r'https?://(?:www\.)?streamhub\.[^/]+/(?:e/)?(?P<id>[a-z0-9]+)'
     IE_NAME = 'streamhub'  # type: ignore
-    _SEM = Semaphore(8)
 
     @dec_on_driver_timeout
     @dec_on_exception2
@@ -63,16 +59,7 @@ class StreamHubIE(SeleniumInfoExtractor):
                     self.logger_debug(f"{pre}: {_msg_error}")
                     return {"error_res": _msg_error}
 
-    class synchronized:
-
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with StreamHubIE._SEM:
-                    return func(*args, **kwargs)
-            return wrapper
-
-    @synchronized()
+    @SeleniumInfoExtractor.syncsem()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
 

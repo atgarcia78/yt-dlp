@@ -6,7 +6,7 @@ import re
 import shutil
 import tempfile
 import time
-from threading import Event, Lock, RLock
+from threading import Event, Lock, RLock, Semaphore
 import functools
 from urllib.parse import unquote, urlparse
 import subprocess
@@ -732,6 +732,16 @@ class SeleniumInfoExtractor(InfoExtractor):
     _CONFIG_REQ = load_config_extractors()
     _WEBDRIVERS = {}
     _REFS = {}
+    _SEMAPHORE = Semaphore(8)
+
+    class syncsem:
+
+        def __call__(self, func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with SeleniumInfoExtractor._SEMAPHORE:
+                    return func(*args, **kwargs)
+            return wrapper
 
     @classproperty
     def IE_NAME(cls):

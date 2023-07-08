@@ -29,7 +29,6 @@ from ..utils import (
     get_elements_by_class
 )
 
-import functools
 from threading import Semaphore
 
 import logging
@@ -102,6 +101,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
         return try_get(self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data),
                        lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
 
+    @SeleniumInfoExtractor.syncsem()
     @on_retry_vinfo
     def _get_entry_realgalaxy(self, url, postid, nplayer, _pre):
         '''
@@ -260,15 +260,15 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 except OSError:
                     self.logger_debug(f"{pre}: Unable to remove the har file")
 
-    class syncsem:
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with DVDGayOnlineIE._SEM:
-                    return func(*args, **kwargs)
-            return wrapper
+    # class syncsem:
+    #     def __call__(self, func):
+    #         @functools.wraps(func)
+    #         def wrapper(*args, **kwargs):
+    #             with DVDGayOnlineIE._SEM:
+    #                 return func(*args, **kwargs)
+    #         return wrapper
 
-    @syncsem()
+    # @syncsem()
     def _get_entry(self, url, **kwargs):
 
         pre = f'[get_entry][{self._get_url_print(url)}]'
