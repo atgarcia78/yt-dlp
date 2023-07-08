@@ -8,7 +8,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_1,
+    limiter_2,
     my_dec_on_exception,
     ReExtractInfo
 )
@@ -49,7 +49,7 @@ class StreamHideIE(SeleniumInfoExtractor):
                    'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
 
         headers.update(_headers)
-        with limiter_1.ratelimit(f'{self.IE_NAME}', delay=True):
+        with limiter_2.ratelimit(f'{self.IE_NAME}', delay=True):
             try:
                 return self.get_info_for_format(url, headers=headers)
             except (HTTPStatusError, ConnectError) as e:
@@ -65,7 +65,7 @@ class StreamHideIE(SeleniumInfoExtractor):
             pre = f'{msg}[send_req]'
         headers = kwargs.get('headers', None)
 
-        with limiter_1.ratelimit(f'{self.IE_NAME}2', delay=True):
+        with limiter_2.ratelimit(f'{self.IE_NAME}2', delay=True):
 
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
 
