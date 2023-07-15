@@ -10,7 +10,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
-    limiter_2,
+    limiter_5,
     my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info,
@@ -28,7 +28,7 @@ on_exception = my_dec_on_exception(
     (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
 
 logger = logging.getLogger('streamvid')
 
@@ -49,7 +49,7 @@ class StreamVidIE(SeleniumInfoExtractor):
         if (msg := _kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
 
-        with limiter_2.ratelimit(self.IE_NAME, delay=True):
+        with limiter_5.ratelimit(self.IE_NAME, delay=True):
             try:
                 return self.send_http_request(url, **_kwargs)
             except (HTTPStatusError, ConnectError) as e:
@@ -139,7 +139,7 @@ class StreamVidIE(SeleniumInfoExtractor):
 
     def _real_extract(self, url):
 
-        self.report_extraction(url)
+        # self.report_extraction(url)
 
         try:
             if not self.get_param('embed'):

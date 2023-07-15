@@ -6,7 +6,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ConnectError,
     ReExtractInfo,
-    limiter_2,
+    limiter_5,
     By,
     ec,
     raise_extractor_error,
@@ -25,10 +25,10 @@ import logging
 logger = logging.getLogger('streamhub')
 
 on_exception = my_dec_on_exception(
-    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
+    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
+    ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
 
 
 class StreamHubIE(SeleniumInfoExtractor):
@@ -47,7 +47,7 @@ class StreamHubIE(SeleniumInfoExtractor):
 
         driver = kwargs.get('driver', None)
 
-        with limiter_2.ratelimit(f"{self.IE_NAME}", delay=True):
+        with limiter_5.ratelimit(f"{self.IE_NAME}", delay=True):
             self.logger_debug(pre)
             if driver:
                 driver.get(url)
@@ -165,7 +165,7 @@ class StreamHubIE(SeleniumInfoExtractor):
 
     def _real_extract(self, url):
 
-        self.report_extraction(url)
+        # self.report_extraction(url)
         try:
             if not self.get_param('embed'):
                 _check = True
