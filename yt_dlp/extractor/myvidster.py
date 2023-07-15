@@ -570,7 +570,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             _first = params.get('first') or '1'
             _last = params.get('last')
 
-            self.to_screen(f"[get_playlist_channel] check[{_check}] date[{_date}] first - last[{_first} - {_last}]")
+            self.logger_debug(f"[get_playlist_channel] check[{_check}] date[{_date}] first - last[{_first} - {_last}]")
 
             if _last:
                 el_videos = el_videos[int(_first) - 1: int(_last)]
