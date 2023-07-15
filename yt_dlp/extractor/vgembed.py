@@ -82,7 +82,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
     @on_exception
     @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_5.ratelimit("vgembed", delay=True)
+    @limiter_5.ratelimit("vgembed2", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -127,7 +127,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
         title = ""
 
         try:
-            logger.info(f"{pre} start to get entry - check[{check}]")
+            self.logger_debug(f"{pre} start to get entry - check[{check}]")
             _msgerror = '404 no webpage'
             if not (_res := self._send_request(url_dl)) or (_msgerror := traverse_obj(_res, 'error')):
                 raise_extractor_error(f"{pre} {_msgerror}")
