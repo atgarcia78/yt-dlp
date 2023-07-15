@@ -558,10 +558,9 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             params = {}
             if query:
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
-                _check = params.get('check')
-                if _check == 'no':
-                    _check = False
-                _date = cast(datetime, try_get(params.get('date'), lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None))
+            if params.get('check', 'yes') == 'no':
+                _check = False
+            _date = cast(datetime, try_get(params.get('date'), lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None))
 
             results = []
             el_videos = get_videos_channel(channelid, num_videos, _date)
@@ -570,6 +569,8 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
             _first = params.get('first') or '1'
             _last = params.get('last')
+
+            self.to_screen(f"[get_playlist_channel] check[{_check}] date[{_date}] first - last[{_first} - {_last}]")
 
             if _last:
                 el_videos = el_videos[int(_first) - 1: int(_last)]

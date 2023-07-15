@@ -117,9 +117,12 @@ class cached_classproperty(cached_property):
         return val
 
 
-def get_host(url: str) -> str:
-    _host = urlparse(url).netloc
-    return re.sub(r'^www\.', '', _host)
+def get_host(url: str, shorten=False) -> str:
+    _host = re.sub(r'^www\.', '', urlparse(url).netloc)
+    if shorten:
+        if _host.count('.') >= 3:
+            _host = '.'.join(_host.split('.')[-3:])
+    return _host
 
 
 class StatusError503(Exception):
@@ -720,7 +723,7 @@ def raise_extractor_error(msg, expected=True):
 
 
 def raise_reextract_info(msg, expected=True):
-    raise ReExtractInfo(msg, expected=True)
+    raise ReExtractInfo(msg, expected=expected)
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -1103,46 +1106,29 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
     def get_info_for_format(self, url, **kwargs):
 
         res = None
+        info = {}
         _msg_err = ""
         try:
-
-            client = kwargs.get('client', self._CLIENT)
-            headers = kwargs.get('headers', None)
-            assert client
-            res = client.head(unquote(url), headers=headers, timeout=5)
-            res.raise_for_status()
-            _filesize = int_or_none(res.headers.get('content-length'))
-            _url = unquote(str(res.url))
-            _accept_ranges = any([res.headers.get('accept-ranges'), res.headers.get('content-range')])
-            if _filesize:
-                return ({'url': _url, 'filesize': _filesize, 'accept_ranges': _accept_ranges})
-            else:
+            _kwargs = kwargs.copy() | {"_type": "HEAD", "timeout": 10}
+            _kwargs.setdefault('client', self._CLIENT)
+            res = SeleniumInfoExtractor._send_http_request(url, **_kwargs)
+            if not res:
+                raise ReExtractInfo('no response')
+            elif not (_filesize_str := res.headers.get('content-length')):
                 raise ReExtractInfo('no filesize')
-        except ConnectError as e:
-            _msg_err = f'{repr(e)} - {str(e)}'
-            if 'errno 61' in _msg_err.lower():
-                raise
             else:
-                raise ExtractorError(_msg_err)
-        except HTTPStatusError as e:
-            _msg_err = f'{repr(e)} - {str(e)}'
-            if e.response.status_code == 403:
-                raise ReExtractInfo(_msg_err)
-            elif e.response.status_code == 503:
-                raise StatusError503(_msg_err)
-            else:
-                raise
-        except ReExtractInfo as e:
-            _msg_err = f'{repr(e)} - {str(e)}'
+                _url = unquote(str(res.url))
+                _accept_ranges = any([res.headers.get('accept-ranges'), res.headers.get('content-range')])
+                info = {'url': _url, 'filesize': int(_filesize_str), 'accept_ranges': _accept_ranges}
+                return info
+        except (ConnectError, HTTPStatusError, ReExtractInfo, TimeoutError, ExtractorError) as e:
+            _msg_err = repr(e)
             raise
         except Exception as e:
-            _msg_err = f'{repr(e)} - {str(e)}'
-            if not res:
-                raise TimeoutError(_msg_err)
-            else:
-                raise ExtractorError(_msg_err)
+            _msg_err = repr(e)
+            raise ExtractorError(_msg_err)
         finally:
-            self.logger_debug(f"{res}:{_msg_err}")
+            self.logger_debug(f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
 
     def _is_valid(self, url, msg=None, inc_error=False):
 
@@ -1344,13 +1330,13 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             else:
                 return None
         except ConnectError as e:
-            _msg_err = str(e)
+            _msg_err = repr(e) + ' - ' + str(e)
             if 'errno 61' in _msg_err.lower():
                 raise
             else:
                 raise ExtractorError(_msg_err)
         except HTTPStatusError as e:
-            _msg_err = str(e)
+            _msg_err = repr(e) + ' - ' + str(e)
             if e.response.status_code == 403:
                 raise ReExtractInfo(_msg_err)
             elif e.response.status_code == 503:
@@ -1358,7 +1344,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             else:
                 raise
         except Exception as e:
-            _msg_err = str(e)
+            _msg_err = repr(e) + ' - ' + str(e)
             if not res:
                 raise TimeoutError(_msg_err)
             else:
