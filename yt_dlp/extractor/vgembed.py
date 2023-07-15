@@ -14,25 +14,25 @@ from .commonwebdriver import (
     raise_reextract_info,
     raise_extractor_error,
     cast,
-    Response
+    Response,
+    get_host
 )
 from ..utils import (
     ExtractorError,
     sanitize_filename,
     try_get,
     find_available_port,
-    get_domain,
     traverse_obj
 )
 from threading import Lock
-import functools
+# import functools
 
 
 import logging
 logger = logging.getLogger('vgembed')
 
 on_exception = my_dec_on_exception(
-    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
     ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
@@ -82,7 +82,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
     @on_exception
     @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_5.ratelimit("vgembed2", delay=True)
+    @limiter_5.ratelimit("vgembed", delay=True)
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
@@ -102,33 +102,32 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
-    class locked:
+    # class locked:
 
-        def __call__(self, func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with VGEmbedIE._LOCK:
-                    return func(*args, **kwargs)
-            return wrapper
+    #     def __call__(self, func):
+    #         @functools.wraps(func)
+    #         def wrapper(*args, **kwargs):
+    #             with VGEmbedIE._LOCK:
+    #                 return func(*args, **kwargs)
+    #         return wrapper
 
+    # @locked()
     @SeleniumInfoExtractor.syncsem()
-    @locked()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
 
-        pre = f'[get_entry][{self._get_url_print(url)}]'
-        if (msg := kwargs.get('msg', None)):
-            pre = f'{msg}{pre}'
-
         check = kwargs.get('check', True)
-
         videoid = self._match_id(url)
         url_dl = f"https://vgembed.com/v/{videoid}"
+        pre = f'[get_entry][{self._get_url_print(url)}][{videoid}]'
+        if (msg := kwargs.get('msg', None)):
+            pre = f'{msg}{pre}'
 
         _har_file = None
         title = ""
 
         try:
+            logger.info(f"{pre} start to get entry - check[{check}]")
             _msgerror = '404 no webpage'
             if not (_res := self._send_request(url_dl)) or (_msgerror := traverse_obj(_res, 'error')):
                 raise_extractor_error(f"{pre} {_msgerror}")
@@ -170,15 +169,14 @@ class VGEmbedIE(SeleniumInfoExtractor):
                     'http_headers': _headers,
                     'ext': 'mp4'}
 
+                _host = cast(str, get_host(videourl, shorten=True))
+                _sem = self.get_ytdl_sem(_host)
                 if check:
-                    _host = get_domain(videourl)
-                    _sem = self.get_ytdl_sem(_host)
-
                     with _sem:
                         _videoinfo = cast(dict, self._get_video_info(videourl, msg=pre, headers=_headers))
 
                     if not _videoinfo:
-                        raise_reextract_info(f"{pre} error 404: no video info")
+                        raise_reextract_info(f"{pre} no video info")
 
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
 
@@ -220,6 +218,9 @@ class VGEmbedIE(SeleniumInfoExtractor):
 
             return _entry
 
+        except ReExtractInfo as e:
+            logger.error(f"{pre} {repr(e)}")
+            raise
         except Exception as e:
             logger.exception(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
@@ -238,11 +239,11 @@ class VGEmbedIE(SeleniumInfoExtractor):
 
         self.report_extraction(url)
         try:
-            if not self.get_param('embed'):
-                _check = True
-            else:
-                _check = False
-
+            # if not self.get_param('embed'):
+            #     _check = True
+            # else:
+            #     _check = False
+            _check = True
             return self._get_entry(url, check=_check)
         except ExtractorError:
             raise
