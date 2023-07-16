@@ -17,7 +17,8 @@ from .commonwebdriver import (
     dec_on_exception3,
     ec,
     limiter_0_1,
-    cast
+    cast,
+    WebElement
 )
 from ..utils import (
     ExtractorError,
@@ -88,15 +89,15 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             self.logger_debug("Login already")
             return
 
-        el_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url")))
+        el_login = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url"))))
         if el_login:
             el_login.click()
-        el_username = self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input#login.form-control")))
-        el_password = self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input#password.form-control")))
-        el_login = self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input.btn.btn-submit")))
+        el_username = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input#login.form-control"))))
+        el_password = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input#password.form-control"))))
+        el_login = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input.btn.btn-submit"))))
         if el_username and el_password and el_login:
             el_username.send_keys(username)
             self.wait_until(driver, 2)
