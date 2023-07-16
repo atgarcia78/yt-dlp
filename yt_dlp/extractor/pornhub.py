@@ -476,6 +476,8 @@ class PornHubIE(PornHubBaseIE):
 
         view_count = self._extract_count(
             r'<span class="count">([\d,\.]+)</span> [Vv]iews', webpage, 'view')
+        average_rating = self._extract_count(
+            r'<span class="percent">([\d,\.]+)\%</span>', webpage, 'rating')
         like_count = extract_vote_count('Up', 'like')
         dislike_count = extract_vote_count('Down', 'dislike')
         comment_count = self._extract_count(
@@ -501,6 +503,7 @@ class PornHubIE(PornHubBaseIE):
             'thumbnail': thumbnail,
             'duration': duration,
             'view_count': view_count,
+            'average_rating': average_rating,
             'like_count': like_count,
             'dislike_count': dislike_count,
             'comment_count': comment_count,
@@ -526,13 +529,15 @@ class PornHubPlaylistBaseIE(PornHubBaseIE):
             r'(?s)(<div[^>]+class=["\']container.+)', webpage,
             'container', default=webpage)
 
+        ratings = re.findall(r'"value">(\d+)\%', container)
+
         return [
             self.url_result(
                 'http://www.%s/%s' % (host, video_url),
-                PornHubIE.ie_key(), video_title=title)
-            for video_url, title in orderedSet(re.findall(
+                PornHubIE.ie_key(), video_title=title, average_rating=int(rating))
+            for (video_url, title), rating in zip(orderedSet(re.findall(
                 r'href="/?(view_video\.php\?.*\bviewkey=[\da-z]+[^"]*)"[^>]*\s+title="([^"]+)"',
-                container))
+                container)), ratings)
         ]
 
 
