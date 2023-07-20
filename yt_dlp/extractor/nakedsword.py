@@ -965,7 +965,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         self.logger_info(
             f'{premsg}[wait] start[{timeout}] counter[{try_get(_simple_counter, lambda x: x.__name__)}] indexdl[{getattr(self, "indexdl", None)}]')
 
-        with self.create_progress_bar(timeout, msg=f'[{premsg}][wait]') as progress_bar:
+        with self.create_progress_bar(timeout, block_logging=False, msg=f'[{premsg}][wait]') as progress_bar:
 
             if _simple_counter:
                 _counter = _simple_counter(

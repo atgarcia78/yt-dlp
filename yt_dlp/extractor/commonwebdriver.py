@@ -714,7 +714,8 @@ class ProgressBar(MultilinePrinter):
     def print(self, message):
         with self._lock:
             self._timer.wait_haselapsed(ProgressBar._DELAY)
-            self.print_at_line(f'{self._pre} {message} {self._done}/{self._total}\n', 0)
+            self.print_at_line(f'{self._pre} {message} {self._done}/{self._total}', 0)
+            self.write('\n')
             self._timer.reset()
 
 
