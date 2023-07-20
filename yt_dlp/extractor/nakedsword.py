@@ -59,13 +59,13 @@ dec_on_reextract_3 = my_dec_on_exception(
 
 
 def _wait_for_either(progress_bar, check: Callable, timeout: Union[float, int]):
-    t = 0
+
     start = time.monotonic()
     while (time.monotonic() - start < timeout):
         check()
         time.sleep(1)
-        t += 1
-        progress_bar.print(f' Waiting {t}/{timeout}')  # type: ignore
+        progress_bar.update()
+        progress_bar.print('Waiting')  # type: ignore
     return ''
 
 
@@ -870,7 +870,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 return (info_scenes, details)
 
         except Exception as e:
-            logger.exception(str(e))
+            self.logger_debug(f"{premsg} {repr(e)}")
             raise
 
     def _is_logged(self, driver):
@@ -963,7 +963,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
 
         self.logger_info(
-            f'{premsg}[wait] start[{timeout}] counter[{try_get(_simple_counter, lambda x: x.__name__)}] indexdl[{getattr(self, "indexdl", None)}]')
+            f'{premsg}[wait] start[{timeout}] indexdl[{getattr(self, "indexdl", None)}]')
 
         with self.create_progress_bar(timeout, block_logging=False, msg=f'[{premsg}][wait]') as progress_bar:
 
@@ -1068,13 +1068,13 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             else:
                 raise ReExtractInfo(f'{premsg}: error - no formats')
         except ReExtractInfo:
-            self.logger_info(f"{premsg}: error format, will retry again")
+            self.logger_debug(f"{premsg}: error format, will retry again")
             NakedSwordSceneIE._SCENES[url]['final'] = False
             raise
         except StatusStop:
             raise
         except Exception as e:
-            logger.exception(repr(e))
+            self.logger_debug(f"{premsg} {repr(e)}")
             raise ExtractorError(f'{premsg}: error - {repr(e)}')
 
     def _real_initialize(self):
