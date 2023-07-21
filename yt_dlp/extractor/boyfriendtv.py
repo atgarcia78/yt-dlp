@@ -16,7 +16,7 @@ from .commonwebdriver import (
     dec_on_exception3,
     dec_on_driver_timeout,
     ec,
-    limiter_0_1,
+    limiter_5,
     cast,
     WebElement,
     get_host
@@ -44,7 +44,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_0_1.ratelimit("boyfriendtv", delay=True)
+    @limiter_5.ratelimit("boyfriendtv", delay=True)
     def _get_info_for_format(self, url, **kwargs):
 
         _headers = kwargs.get('headers', {})
@@ -62,7 +62,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     @dec_on_exception3
     @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_0_1.ratelimit("boyfriendtv2", delay=True)
+    @limiter_5.ratelimit("boyfriendtv2", delay=True)
     def _send_request(cls, url, driver=None, **kwargs):
 
         if driver:
@@ -214,7 +214,8 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                             if not _info_video or 'error' in _info_video:
                                 self.logger_debug(f"[{url}][{_format_id}] no video info")
                             else:
-                                _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+                                # _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+                                _format.update({'filesize': _info_video.get('filesize')})
 
                     _formats.append(_format)
                 except Exception as e:
