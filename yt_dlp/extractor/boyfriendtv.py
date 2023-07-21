@@ -214,8 +214,8 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                             if not _info_video or 'error' in _info_video:
                                 self.logger_debug(f"[{url}][{_format_id}] no video info")
                             else:
-                                # _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
-                                _format.update({'filesize': _info_video.get('filesize')})
+                                _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+                                self.get_ytdl_sem(get_host(cast(str, _info_video.get('url'))))
 
                     _formats.append(_format)
                 except Exception as e:
