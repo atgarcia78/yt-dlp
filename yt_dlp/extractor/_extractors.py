@@ -1005,6 +1005,7 @@ from .lynda import (
     LyndaCourseIE
 )
 from .m6 import M6IE
+from .magellantv import MagellanTVIE
 from .magentamusik360 import MagentaMusik360IE
 from .mailru import (
     MailRuIE,
@@ -1133,6 +1134,7 @@ from .mtv import (
 )
 from .muenchentv import MuenchenTVIE
 from .murrtube import MurrtubeIE, MurrtubeUserIE
+from .museai import MuseAIIE
 from .musescore import MuseScoreIE
 from .musicdex import (
     MusicdexSongIE,
