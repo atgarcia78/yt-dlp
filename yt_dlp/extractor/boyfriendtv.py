@@ -18,11 +18,11 @@ from .commonwebdriver import (
     ec,
     limiter_0_1,
     cast,
-    WebElement
+    WebElement,
+    get_host
 )
 from ..utils import (
     ExtractorError,
-    get_domain,
     int_or_none,
     js_to_json,
     sanitize_filename,
@@ -169,7 +169,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             sources_mp4 = sorted(sources_mp4, key=lambda x: int(x.get('desc', "0p")[:-1]), reverse=True)
 
             urlp = urlparse(_san_url)
-            _headers = {'Referer': f"{urlp.scheme}//{urlp.netloc}/"}
+            _headers = {'Referer': f"{urlp.scheme}://{urlp.netloc}/"}
 
             _formats = []
 
@@ -188,19 +188,19 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                         'http_headers': _headers,
                     }
 
-                    if i == 0 and check:
-                        _host = get_domain(_url)
+                    if i == 0:
+                        _host = get_host(_url)
                         _sem = self.get_ytdl_sem(_host)
+                        if check:
+                            with _sem:
+                                _info_video = self._get_info_for_format(_url, headers=_headers)
+                            if _info_video:
+                                _info_video = cast(dict, _info_video)
 
-                        with _sem:
-                            _info_video = self._get_info_for_format(_url, headers=_headers)
-                        if _info_video:
-                            _info_video = cast(dict, _info_video)
-
-                        if not _info_video or 'error' in _info_video:
-                            self.logger_debug(f"[{url}][{_format_id}] no video info")
-                        else:
-                            _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+                            if not _info_video or 'error' in _info_video:
+                                self.logger_debug(f"[{url}][{_format_id}] no video info")
+                            else:
+                                _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
 
                     _formats.append(_format)
                 except Exception as e:

@@ -170,7 +170,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
                     'http_headers': _headers,
                     'ext': 'mp4'}
 
-                _host = cast(str, get_host(videourl, shorten=True))
+                _host = cast(str, get_host(videourl, shorten="vgembed"))
                 _sem = self.get_ytdl_sem(_host)
                 if check:
                     with _sem:
