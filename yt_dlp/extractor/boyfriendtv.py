@@ -38,9 +38,8 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     _SITE_URL = 'https://www.boyfriendtv.com/'
     _NETRC_MACHINE = 'boyfriendtv'
     _LOGOUT_URL = 'https://www.boyfriendtv.com/logout'
-
-    _LOCK = threading.Lock()
     _COOKIES = {}
+    _LOCK = threading.Lock()
     _BFINIT = False
 
     @dec_on_exception3
@@ -120,7 +119,14 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         with BoyFriendTVBaseIE._LOCK:
             if not BoyFriendTVBaseIE._BFINIT:
                 BoyFriendTVBaseIE._CLIENT = self._CLIENT
-                if not BoyFriendTVBaseIE._COOKIES:
+                for cookie in self._COOKIES_JAR:
+                    if 'boyfriendtv.com' in cookie.domain:
+                        BoyFriendTVBaseIE._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
+                if 'atgarcia' in cast(str, try_get(BoyFriendTVBaseIE._send_request(self._SITE_URL), lambda x: x.text if x else '')):
+                    self.logger_debug("Already logged with cookies")
+                    BoyFriendTVBaseIE._BFINIT = True
+
+                else:
                     driver = self.get_driver()
                     try:
                         BoyFriendTVBaseIE._send_request(self._SITE_URL, driver)
@@ -128,14 +134,16 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                         driver.add_cookie({'name': 'videosPerRow', 'value': '5', 'domain': '.boyfriendtv.com'})
                         self._login(driver)
                         BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
+                        for cookie in BoyFriendTVBaseIE._COOKIES:
+                            BoyFriendTVBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                        if 'atgarcia' in cast(str, try_get(BoyFriendTVBaseIE._send_request(self._SITE_URL), lambda x: x.text if x else '')):
+                            self.logger_debug("Already logged with cookies")
+                            BoyFriendTVBaseIE._BFINIT = True
                     except Exception:
                         self.to_screen("error when login")
                         raise
                     finally:
                         self.rm_driver(driver)
-                for cookie in BoyFriendTVBaseIE._COOKIES:
-                    BoyFriendTVBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                BoyFriendTVBaseIE._BFINIT = True
 
 
 class BoyFriendTVIE(BoyFriendTVBaseIE):

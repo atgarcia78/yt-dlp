@@ -39,7 +39,6 @@ assert Keys  # for flake8
 from ..minicurses import MultilinePrinter
 from .common import ExtractorError, InfoExtractor
 from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo, find_available_port
-from ..cookies import extract_cookies_from_browser
 
 from typing import (
     cast,
@@ -55,7 +54,6 @@ from typing import (
     Any
 )
 
-
 assert Tuple
 assert Dict
 assert Iterable
@@ -68,6 +66,112 @@ assert Any
 from functools import cached_property
 
 _NOT_FOUND = object()
+
+import http.cookiejar
+import sqlite3
+
+
+class BrowserCookieError(Exception):
+    pass
+
+
+class FirefoxBrowserCookies:
+    tmp_file = ''
+
+    def __init__(self, profile='b33yk6rw.selenium'):
+        cookie_file = self.find_cookie_file(profile)
+        self.tmp_file = self.create_local_copy(cookie_file)
+        self.session_file = os.path.join(
+            os.path.dirname(cookie_file), 'sessionstore.js')
+        self.new_session_file = os.path.join(os.path.dirname(
+            cookie_file), 'sessionstore-backups', 'recovery.jsonlz4')
+        self.session_file2 = os.path.join(
+            os.path.dirname(cookie_file), 'sessionstore.jsonlz4')
+
+    def __del__(self):
+        os.remove(self.tmp_file)
+
+    def __str__(self):
+        return 'firefox'
+
+    def create_local_copy(self, cookie_file):
+        """Make a local copy of the sqlite cookie database and return the new filename.
+        This is necessary in case this database is still being written to while the user browses
+        to avoid sqlite locking errors.
+        """
+        if os.path.exists(cookie_file):
+            from shutil import copyfile
+            tmp_file = tempfile.NamedTemporaryFile(suffix='.sqlite').name
+            copyfile(cookie_file, tmp_file)
+            return tmp_file
+        raise BrowserCookieError('Can not find cookie file at: ' + cookie_file)
+
+    def find_cookie_file(self, profile):
+        return os.path.expanduser(f'~/Library/Application Support/Firefox/Profiles/{profile}/cookies.sqlite')
+
+    def extractSessionCookie(self, sessionFile, cj):
+        try:
+            import lz4.block
+            in_file = open(sessionFile, 'rb')
+            data = lz4.block.decompress(in_file.read()) if in_file.read(
+                8) == b'mozLz40\x00' else b'{}'
+            in_file.close()
+            jsonData = json.loads(data.decode('utf-8'))
+            cookies = jsonData.get('cookies', {})
+            expires = str(int(time.time()) + 604800)
+            for cookie in cookies:
+                c = self.create_cookie(cookie.get('host', ''), cookie.get(
+                    'path', ''), False, expires, cookie.get('name', ''), cookie.get('value', ''))
+                cj.set_cookie(c)
+
+        except Exception as ex:
+            print(ex)
+
+    def create_cookie(self, host, path, secure, expires, name, value):
+        return http.cookiejar.Cookie(
+            0, name, value, None, False, host, host.startswith('.'), host.startswith('.'),
+            path, True, secure, expires, False, None, None, {})
+
+    def load(self):
+        print('firefox', self.tmp_file)
+        cj = http.cookiejar.CookieJar()
+        try:
+            con = sqlite3.connect(self.tmp_file)
+            cur = con.cursor()
+            cur.execute(
+                'select host, path, isSecure, expiry, name, value from moz_cookies')
+            for item in cur.fetchall():
+                c = self.create_cookie(*item)
+                cj.set_cookie(c)
+
+            con.close()
+        except Exception as e:
+            print(e)
+
+        if os.path.exists(self.session_file):
+            try:
+                json_data = json.loads(open(self.session_file, 'rb').read())
+            except ValueError as e:
+                print('Error parsing firefox session JSON: %s' % str(e))
+
+            else:
+                expires = str(int(time.time()) + 604800)
+                for window in json_data.get('windows', []):
+                    for cookie in window.get('cookies', []):
+                        c = self.create_cookie(cookie.get('host', ''), cookie.get(
+                            'path', ''), False, expires, cookie.get('name', ''), cookie.get('value', ''))
+                        cj.set_cookie(c)
+
+        elif os.path.exists(self.new_session_file):
+            print(self.new_session_file)
+            self.extractSessionCookie(self.new_session_file, cj)
+        elif os.path.exists(self.session_file2):
+            print(self.session_file2)
+            self.extractSessionCookie(self.session_file2, cj)
+        else:
+            print('Firefox session filename does not exist: %s' %
+                  self.session_file)
+        return cj
 
 
 def subnright(pattern, repl, text, n):
@@ -786,7 +890,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def _COOKIES_JAR(cls):
         with SeleniumInfoExtractor._MASTER_LOCK:
             cls.LOGGER.info(f"[{cls.IE_NAME}] Loading cookies from Firefox")
-            return extract_cookies_from_browser('firefox')
+            return FirefoxBrowserCookies().load()
 
     def logger_info(self, msg):
         if (_logger := self.get_param('logger')):
