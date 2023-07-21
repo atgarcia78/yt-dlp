@@ -86,17 +86,18 @@ class VGEmbedIE(SeleniumInfoExtractor):
     def _send_request(self, url, **kwargs):
 
         pre = f'[send_request][{self._get_url_print(url)}]'
-        if (msg := kwargs.get('msg')):
+        _kwargs = kwargs.copy()
+        if (msg := _kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
 
-        driver = kwargs.get('driver', None)
+        driver = _kwargs.pop('driver', None)
 
         self.logger_debug(pre)
         if driver:
             driver.get(url)
         else:
             try:
-                return self.send_http_request(url)
+                return self.send_http_request(url, **_kwargs)
             except (HTTPStatusError, ConnectError) as e:
                 _msg_error = f"{repr(e)}"
                 self.logger_debug(f"{pre}: {_msg_error}")
