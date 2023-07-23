@@ -614,7 +614,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
                     pre = f'[channel/{channelid}][Num_videos_pending]'
 
-                    with self.create_progress_bar(len(results), block_logging=False, msg=pre) as pb:
+                    with self.create_progress_bar(len(results), block_logging=True, msg=pre) as pb:
 
                         with ThreadPoolExecutor(thread_name_prefix='ex_channelpl') as ex:
                             futures = {

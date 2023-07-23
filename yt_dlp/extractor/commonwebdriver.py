@@ -1,57 +1,90 @@
+import functools
 import html
 import json
 import logging
+import os
 import random
 import re
 import shutil
+import subprocess
 import tempfile
 import time
-from threading import Event, Lock, RLock, Semaphore
-import functools
-from urllib.parse import unquote, urlparse
-import subprocess
-import os
 from datetime import datetime
+from threading import (
+    Event,
+    Lock,
+    RLock,
+    Semaphore
+)
+from urllib.parse import (
+    unquote,
+    urlparse
+)
 
-from backoff import constant, on_exception
+from backoff import (
+    constant,
+    on_exception
+)
 from httpx import (
     Client,
     ConnectError,
     HTTPError,
     HTTPStatusError,
     Limits,
+    Response,
     StreamError,
     Timeout,
-    Response)
-
-from pyrate_limiter import Duration, Limiter, RequestRate, LimitContextDecorator
-from selenium.webdriver import Firefox, FirefoxOptions
+)
+from pyrate_limiter import (
+    Duration,
+    LimitContextDecorator,
+    Limiter,
+    RequestRate
+)
+from selenium.common.exceptions import (
+    TimeoutException,
+    WebDriverException
+)
+from selenium.webdriver import (
+    Firefox,
+    FirefoxOptions
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
-from selenium.common.exceptions import WebDriverException, TimeoutException
-from selenium.webdriver.remote.webelement import WebElement
 
 assert Keys  # for flake8
 
-from ..minicurses import MultilinePrinter
-from .common import ExtractorError, InfoExtractor
-from ..utils import classproperty, int_or_none, traverse_obj, try_get, unsmuggle_url, ReExtractInfo, find_available_port
-
 from typing import (
-    cast,
+    Any,
     Callable,
+    Dict,
+    Iterable,
+    Optional,
     Sequence,
     Tuple,
-    Dict,
+    Type,
     TypeVar,
     Union,
-    Type,
-    Optional,
-    Iterable,
-    Any
+    cast,
+)
+
+from .common import (
+    ExtractorError,
+    InfoExtractor
+)
+from ..minicurses import MultilinePrinter
+from ..utils import (
+    ReExtractInfo,
+    classproperty,
+    find_available_port,
+    int_or_none,
+    traverse_obj,
+    try_get,
+    unsmuggle_url,
 )
 
 assert Tuple
@@ -227,10 +260,6 @@ def get_host(url: str, shorten=None) -> str:
         _nhost = _host.split('.')
         if _host.count('.') >= 3:
             _host = '.'.join(_nhost[-3:])
-    # elif shorten == 'boyfriendtv':
-    #     _nhost = _host.split('.')
-    #     _nhost[0] = _nhost[0][:5]
-    #     _host = '.'.join(_nhost)
     return _host
 
 
@@ -238,9 +267,7 @@ class StatusError503(Exception):
     """Error during info extraction."""
 
     def __init__(self, msg, exc_info=None):
-
         super().__init__(msg)
-
         self.exc_info = exc_info
 
 
@@ -248,9 +275,7 @@ class StatusStop(Exception):
     """Error during info extraction."""
 
     def __init__(self, msg, exc_info=None):
-
         super().__init__(msg)
-
         self.exc_info = exc_info
 
 
@@ -715,12 +740,12 @@ class myHAR:
         return cls.getNetworkHAR(har_file, logger=logger, msg=msg, port=port)
 
 
-import httpx
-from ipaddress import ip_address
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import TextIOWrapper
+from ipaddress import ip_address
+import httpx
 from ..YoutubeDL import YoutubeDL
-import sys
 
 
 class myIP:
@@ -809,6 +834,7 @@ class ProgressBar(MultilinePrinter):
                 try_get(self._logger.parent.handlers, lambda x: x[0].stop())  # type: ignore
         except Exception as e:
             self._logger.exception(repr(e))
+        self.write('\n')
         return self
 
     def __exit__(self, *args):
@@ -818,7 +844,7 @@ class ProgressBar(MultilinePrinter):
         except Exception as e:
             self._logger.exception(repr(e))
         super().__exit__(*args)
-        self.write('')
+        self.write('\n')
 
     def update(self, n=1):
         with self._lock:
@@ -828,7 +854,6 @@ class ProgressBar(MultilinePrinter):
         with self._lock:
             self._timer.wait_haselapsed(ProgressBar._DELAY)
             self.print_at_line(f'{self._pre} {message} {self._done}/{self._total}', 0)
-            self.write('')
             self._timer.reset()
 
 
