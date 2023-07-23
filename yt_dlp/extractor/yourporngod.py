@@ -1,8 +1,26 @@
 import html
 import re
 
-from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, parse_resolution, get_domain
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, ReExtractInfo, HTTPStatusError, ConnectError, my_dec_on_exception
+from .commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    ReExtractInfo,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+    my_dec_on_exception,
+    get_host,
+    cast
+)
+from ..utils import (
+    ExtractorError,
+    js_to_json,
+    parse_resolution,
+    sanitize_filename,
+    try_get,
+)
 
 dec_on_reextract = my_dec_on_exception(
     ReExtractInfo, max_time=120, jitter='my_jitter', raise_on_giveup=True, interval=5)
@@ -71,7 +89,8 @@ class BaseKVSIE(SeleniumInfoExtractor):
 
         flashvars = self._parse_json(
             self._search_regex(
-                r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'), videoid, transform_source=js_to_json)
+                r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'),  # type: ignore
+            videoid, transform_source=js_to_json)
 
         self.logger_debug(flashvars)
 
@@ -107,25 +126,20 @@ class BaseKVSIE(SeleniumInfoExtractor):
                 'format_id': format_id,
                 'http_headers': _headers,
                 'ext': 'mp4',
-
                 **(parse_resolution(format_id) or parse_resolution(flashvars[key]))
             }
 
-            with self.get_ytdl_sem(get_domain(_videourl)):
+            if not _format.get('height'):
+                _format['quality'] = 1
 
-                _videoinfo = self._get_video_info(_videourl, headers=_headers)
-                if _videoinfo:
-                    assert isinstance(_videoinfo, dict)
+            with self.get_ytdl_sem(get_host(_videourl)):
+                if (_videoinfo := cast(dict, self._get_video_info(_videourl, headers=_headers))):
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
-                    if not _format.get('height'):
-                        _format['quality'] = 1
 
-                formats.append(_format)
+            formats.append(_format)
 
         if not formats:
             raise ExtractorError('no formats')
-
-        self._sort_formats(formats)
 
         entry = {
             'id': videoid,
