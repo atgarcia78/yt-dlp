@@ -7,6 +7,8 @@ from ..utils import (
     str_to_int,
     unified_strdate,
     url_or_none,
+    update_url,
+    try_get
 )
 
 
@@ -51,19 +53,19 @@ class RedTubeIE(InfoExtractor):
                 raise ExtractorError(
                     'Video %s %s' % (video_id, message), expected=True)
 
-        info = self._search_json_ld(webpage, video_id, default={})
+        info = self._search_json_ld(webpage, video_id, default={})  # type: ignore
 
         if not info.get('title'):
             info['title'] = self._html_search_regex(
                 (r'<h(\d)[^>]+class="(?:video_title_text|videoTitle|video_title)[^"]*">(?P<title>(?:(?!\1).)+)</h\1>',
                  r'(?:videoTitle|title)\s*:\s*(["\'])(?P<title>(?:(?!\1).)+)\1',),
                 webpage, 'title', group='title',
-                default=None) or self._og_search_title(webpage)
+                default=None) or self._og_search_title(webpage)  # type: ignore
 
         formats = []
         sources = self._parse_json(
             self._search_regex(
-                r'sources\s*:\s*({.+?})', webpage, 'source', default='{}'),
+                r'sources\s*:\s*({.+?})', webpage, 'source', default='{}'),  # type: ignore
             video_id, fatal=False)
         if sources and isinstance(sources, dict):
             for format_id, format_url in sources.items():
@@ -76,10 +78,10 @@ class RedTubeIE(InfoExtractor):
         medias = self._parse_json(
             self._search_regex(
                 r'mediaDefinition["\']?\s*:\s*(\[.+?}\s*\])', webpage,
-                'media definitions', default='{}'),
-            video_id, fatal=False)
-        for media in medias if isinstance(medias, list) else []:
-            format_url = url_or_none(media.get('videoUrl'))
+                'media definitions', default='[]'),  # type: ignore
+            video_id, fatal=False) or []
+        for media in medias:
+            format_url = try_get(media.get('videoUrl'), lambda x: update_url(x, scheme='https', netloc='www.redtube.com'))
             if not format_url:
                 continue
             format_id = media.get('format')
@@ -114,15 +116,15 @@ class RedTubeIE(InfoExtractor):
         thumbnail = self._og_search_thumbnail(webpage)
         upload_date = unified_strdate(self._search_regex(
             r'<span[^>]+>(?:ADDED|Published on) ([^<]+)<',
-            webpage, 'upload date', default=None))
+            webpage, 'upload date', default=None))  # type: ignore
         duration = int_or_none(self._og_search_property(
             'video:duration', webpage, default=None) or self._search_regex(
-                r'videoDuration\s*:\s*(\d+)', webpage, 'duration', default=None))
+                r'videoDuration\s*:\s*(\d+)', webpage, 'duration', default=None))  # type: ignore
         view_count = str_to_int(self._search_regex(
             (r'<div[^>]*>Views</div>\s*<div[^>]*>\s*([\d,.]+)',
              r'<span[^>]*>VIEWS</span>\s*</td>\s*<td>\s*([\d,.]+)',
              r'<span[^>]+\bclass=["\']video_view_count[^>]*>\s*([\d,.]+)'),
-            webpage, 'view count', default=None))
+            webpage, 'view count', default=None))  # type: ignore
 
         # No self-labeling, but they describe themselves as
         # "Home of Videos Porno"

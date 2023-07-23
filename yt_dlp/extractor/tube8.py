@@ -3,9 +3,9 @@ import re
 from ..utils import (
     int_or_none,
     str_to_int,
-    ExtractorError
 )
 from .keezmovies import KeezMoviesIE
+from .commonwebdriver import raise_extractor_error
 
 
 class Tube8IE(KeezMoviesIE):  # XXX: Do not subclass from concrete IE
@@ -35,7 +35,7 @@ class Tube8IE(KeezMoviesIE):  # XXX: Do not subclass from concrete IE
         webpage, info = self._extract_info(url)
 
         if 'embed-sorry' in webpage:
-            raise ExtractorError("404 video doesnt exist")
+            raise_extractor_error("404 video doesnt exist")
 
         if not info['title']:
             info['title'] = self._html_search_regex(

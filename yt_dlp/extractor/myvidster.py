@@ -304,8 +304,11 @@ class MyVidsterIE(MyVidsterBaseIE):
                         return {"error_getbestvid": f"[{el}] error entry video - {str(e)}"}
 
                 else:  # url generic
-                    if self._is_valid(el, msg=pre):
+                    _res = self._is_valid(el, inc_error=True, msg=pre)
+                    if _res.get("valid"):
                         return el
+                    else:
+                        return {"error_getbestvid": f"[{el}] error valid - {_res.get('error')}"}
 
             except Exception as e:
                 self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {repr(e)}')

@@ -313,10 +313,11 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             for _key, nplayer in players.items():
                 if (urlembed := self.get_url_player(url, postid, nplayer)):
                     self.logger_info(f'{pre}[{_key}] {urlembed}')
-                    if (_valid := self._is_valid(urlembed, msg=pre, inc_error=True)) and (_valid is True):
+                    _res = self._is_valid(urlembed, msg=pre, inc_error=True)
+                    if _res.get("valid"):
                         return self.url_result(urlembed, original_url=url)
                     else:
-                        self.report_warning(f"{pre}[{_key}] {_valid.get('error')}")
+                        self.report_warning(f"{pre}[{_key}] {_res.get('error')}")
 
         raise_extractor_error('couldnt find valid entries')
 

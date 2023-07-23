@@ -250,4 +250,4 @@ class VGEmbedIE(SeleniumInfoExtractor):
             raise
         except Exception as e:
             self.to_screen(f"{repr(e)}")
-            raise ExtractorError(repr(e))
+            raise_extractor_error(repr(e))

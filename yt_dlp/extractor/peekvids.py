@@ -19,7 +19,7 @@ class PeekVidsBaseIE(InfoExtractor):
                 f'You are suspected as a bot. Wait, or pass the captcha on the site and provide cookies. {self._login_hint()}',
                 video_id=video_id, expected=True)
 
-        title = self._html_search_regex(r'(?s)<h1\b[^>]*>(.+?)</h1>', webpage, 'title')
+        title = self._html_search_regex((r'(?s)<h1\b[^>]*>(.+?)</h1>', r'<title>(.+?)</title>'), webpage, 'title')
 
         display_id = video_id
         video_id = self._search_regex(r'(?s)<video\b[^>]+\bdata-id\s*=\s*["\']?([\w-]+)', webpage, 'short video ID')

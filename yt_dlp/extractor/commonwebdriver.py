@@ -311,6 +311,10 @@ dec_on_reextract = on_exception(
     constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
 retry_on_driver_except = on_exception(
     constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
+dec_on_exception2bis = on_exception(
+    constant, StatusError503, max_time=300, jitter=my_jitter, interval=15)
+dec_on_exception3bis = on_exception(
+    constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, interval=0.1)
 
 map_limiter = {
     15: limiter_15, 10: limiter_10, 5: limiter_5, 2: limiter_2, 1: limiter_1,
@@ -1240,34 +1244,36 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         finally:
             self.logger_debug(f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
 
-    def _is_valid(self, url, msg=None, inc_error=False):
-
-        if not url:
-            return False
+    def _is_valid(self, url, msg=None, inc_error=False) -> dict:
 
         _pre_str = f'[valid][{self._get_url_print(url)}]'
         if msg:
             _pre_str = f'[{msg}]{_pre_str}'
-
         self.logger_debug(f'{_pre_str} start checking')
+
+        notvalid = {"valid": False}
+        okvalid = {"valid": True}
+
+        if not url:
+            return notvalid
 
         try:
             if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
                                       'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'pornone.com/embed/']):
                 self.logger_debug(f'{_pre_str}:False')
-                return False if not inc_error else {'error': 'in error list'}
+                return notvalid if not inc_error else {'error': 'in error list'} | notvalid
             elif any(_ in url for _ in ['gayforit.eu/video']):
                 self.logger_debug(f'{_pre_str}:True')
-                return True
+                return okvalid
             else:
                 _extr_name = self._get_ie_name(url).lower()
                 if _extr_name in ['xhamster', 'xhamsterembed']:
-                    return True
+                    return okvalid
                 else:
                     _decor = getter_config_extr(_extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
-                @dec_on_exception3
-                @dec_on_exception2
+                @dec_on_exception3bis
+                @dec_on_exception2bis
                 @_decor
                 def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
                     try:
@@ -1275,7 +1281,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                                     'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
                         if short:
                             _headers.update({'Range': 'bytes=0-100'})
-                        return self.send_http_request(_url, _type="GET", headers=_headers, msg=f'[valid]{_pre_str}')
+                        return self.send_http_request(_url, _type="GET", timeout=5, headers=_headers, msg=f'[valid]{_pre_str}')
                     except (HTTPStatusError, ConnectError) as e:
                         self.logger_debug(f"{_pre_str}:{e}")
                         return {'error': f'{e}'}
@@ -1285,24 +1291,23 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 if res and isinstance(res, Response):
 
                     if res.headers.get('content-type') == "video/mp4":
-                        valid = True
-                        self.logger_debug(f'[valid][{_pre_str}:video/mp4:{valid}')
-                        return valid
+                        self.logger_debug(f'[valid][{_pre_str}:video/mp4:{okvalid}')
+                        return okvalid
 
                     elif not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
-                        valid = False
-                        self.logger_debug(f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{valid}')
-                        return valid if not inc_error else {'error': f'not path in reroute url {str(res.url)}'}
+
+                        self.logger_debug(f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{notvalid}')
+                        return notvalid if not inc_error else {'error': f'not path in reroute url {str(res.url)}'} | notvalid
 
                     else:
                         webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
                         if not webpage:
-                            valid = False
-                            self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt download webpage')
-                            return valid if not inc_error else {'error': 'couldnt download webpage'}
+
+                            self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt download webpage')
+                            return notvalid if not inc_error else {'error': 'couldnt download webpage'} | notvalid
                         else:
-                            valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
-                            valid = valid and not any(
+                            _valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
+                            _valid = _valid and not any(
                                 _ in webpage.lower()
                                 for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed',
                                           'video unavailable', 'video is unavailable', 'video disabled',
@@ -1310,23 +1315,25 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                                           'limit reached', 'xtube.com is no longer available',
                                           'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
 
+                            valid = {"valid": _valid}
                             self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
-                            if not valid and inc_error:
-                                return {'error': 'video nbot found or deleted'}
+                            if not _valid and inc_error:
+                                return {'error': 'video nbot found or deleted'} | valid
                             else:
                                 return valid
 
                 else:
-                    valid = False
-                    self.logger_debug(f'[valid]{_pre_str}:{valid} couldnt send check request')
+
+                    self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt send check request')
                     _error = 'error'
                     if isinstance(res, dict):
                         _error = res.get('error', 'error')
-                    return False if not inc_error else {'error': _error}
+                    return notvalid if not inc_error else {'error': _error} | notvalid
 
         except Exception as e:
-            self.report_warning(f'[valid]{_pre_str} error {repr(e)}')
-            return False
+            self.logger_debug(f'[valid]{_pre_str} error {repr(e)}')
+            _msgerror = 'timeout' if 'timeout' in repr(e).lower() else repr(e)
+            return notvalid if not inc_error else {'error': _msgerror} | notvalid
 
     def get_ip_origin(self, key=None, timeout=1, own=True):
 

@@ -104,7 +104,7 @@ class KeezMoviesIE(InfoExtractor):
 
         if not title:
             title = self._html_search_regex(
-                r'<h1[^>]*>([^<]+)', webpage, 'title')
+                r'<h1[^>]*>([^<]+)', webpage, 'title', default=None)
 
         return webpage, {
             'id': video_id,
