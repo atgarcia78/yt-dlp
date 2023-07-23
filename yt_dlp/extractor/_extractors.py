@@ -2651,7 +2651,6 @@ from .gaymovies import GayMoviesIE
 from .filemoon import FilemoonIE
 from .pornhits import (
     PornhitsIE,
-    TxxxIE,
     HotMovsIE
 )
 from .upstream import (

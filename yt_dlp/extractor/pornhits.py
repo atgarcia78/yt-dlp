@@ -108,7 +108,6 @@ class BasePornhitsIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
 
-        check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
 
         driver = None
@@ -135,8 +134,7 @@ class BasePornhitsIE(SeleniumInfoExtractor):
 
             self.send_multi_request(url, driver)
 
-            if self.IE_NAME == "pornhits" or (
-                    (self.IE_NAME == 'txxx' or self.IE_NAME == 'hotmovs') and '/videos/' in url):
+            if self.IE_NAME == "pornhits" or (self.IE_NAME == 'hotmovs' and '/videos/' in url):
                 title = try_get(
                     self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))),
                     lambda x: x.text)
@@ -148,27 +146,27 @@ class BasePornhitsIE(SeleniumInfoExtractor):
 
             _formats = []
 
-            if self.IE_NAME == 'txxx':
-                videourl = try_get(self.wait_until(driver, 30, getvideourl(self.to_screen)), lambda x: x.get("OK"))
+            # if self.IE_NAME == 'txxx':
+            #     videourl = try_get(self.wait_until(driver, 30, getvideourl(self.to_screen)), lambda x: x.get("OK"))
 
-                if videourl:
+            #     if videourl:
 
-                    _headers = {'Referer': driver.current_url}
+            #         _headers = {'Referer': driver.current_url}
 
-                    _format = {
-                        'format_id': 'http-mp4',
-                        'url': videourl,
-                        'ext': 'mp4',
-                        'http_headers': _headers,
-                    }
-                    if check:
-                        _videoinfo = self._get_video_info(videourl, msg=pre, headers=_headers)
-                        if not _videoinfo:
-                            raise ExtractorError("error 404: no video info")
-                        else:
-                            _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+            #         _format = {
+            #             'format_id': 'http-mp4',
+            #             'url': videourl,
+            #             'ext': 'mp4',
+            #             'http_headers': _headers,
+            #         }
+            #         if check:
+            #             _videoinfo = self._get_video_info(videourl, msg=pre, headers=_headers)
+            #             if not _videoinfo:
+            #                 raise ExtractorError("error 404: no video info")
+            #             else:
+            #                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
-                    _formats.append(_format)
+            #         _formats.append(_format)
 
             if not _formats:
 
@@ -240,11 +238,11 @@ class BasePornhitsIE(SeleniumInfoExtractor):
             raise ExtractorError(repr(e))
 
 
-class TxxxIE(BasePornhitsIE):
-    IE_NAME = "txxx"  # type: ignore
-    _SITE_URL = "https://txxx.com/"
-    _VALID_URL = r'https?://(video)?txxx.com/(?:embed|videos)/(?P<id>\d+)'
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://(video)?txxx\.com/embed/.+?)\1']
+# class TxxxIE(BasePornhitsIE):
+#     IE_NAME = "txxx"  # type: ignore
+#     _SITE_URL = "https://txxx.com/"
+#     _VALID_URL = r'https?://(video)?txxx.com/(?:embed|videos)/(?P<id>\d+)'
+#     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://(video)?txxx\.com/embed/.+?)\1']
 
 
 class HotMovsIE(BasePornhitsIE):
