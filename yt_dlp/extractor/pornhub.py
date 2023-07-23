@@ -280,7 +280,7 @@ class PornHubIE(PornHubBaseIE):
             self._set_cookie(host, 'platform', platform)
             return self._download_webpage(
                 'https://www.%s/view_video.php?viewkey=%s' % (host, video_id),
-                video_id, 'Downloading %s webpage' % platform)
+                None, 'Downloading %s webpage' % platform)
 
         webpage = dl_webpage('pc')
 
@@ -290,9 +290,7 @@ class PornHubIE(PornHubBaseIE):
             webpage, 'error message', default=None, group='error')
         if error_msg:
             error_msg = re.sub(r'\s+', ' ', error_msg)
-            raise ExtractorError(
-                'PornHub said: %s' % error_msg,
-                expected=True, video_id=video_id)
+            raise ExtractorError('PornHub said: %s' % error_msg, expected=True)
 
         if any(re.search(p, webpage) for p in (
                 r'class=["\']geoBlocked["\']',
@@ -316,7 +314,7 @@ class PornHubIE(PornHubBaseIE):
         flashvars = self._parse_json(
             self._search_regex(
                 r'var\s+flashvars_\d+\s*=\s*({.+?});', webpage, 'flashvars', default='{}'),
-            video_id)
+            None)
         if flashvars:
             subtitle_url = url_or_none(flashvars.get('closedCaptionsFile'))
             if subtitle_url:
@@ -382,7 +380,7 @@ class PornHubIE(PornHubBaseIE):
             video_urls_set.add(v_url)
 
         def parse_quality_items(quality_items):
-            q_items = self._parse_json(quality_items, video_id, fatal=False)
+            q_items = self._parse_json(quality_items, None, fatal=False)
             if not isinstance(q_items, list):
                 return
             for item in q_items:

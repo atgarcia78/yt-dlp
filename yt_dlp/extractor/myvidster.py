@@ -11,7 +11,9 @@ from ..utils import (
     get_elements_by_class,
     sanitize_filename,
     try_get,
-    get_domain)
+    get_domain,
+    bug_reports_message
+)
 
 from .commonwebdriver import (
     Union,
@@ -285,8 +287,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] not entry video')
                             return {"error_getbestvid": f"[{el}] not entry video"}
                     except Exception as e:
-                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {str(e)}')
-                        return {"error_getbestvid": f"[{el}] error entry video - {str(e)}"}
+                        _msg_error = str(e).replace(bug_reports_message(), '')
+                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {_msg_error}')
+                        return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
 
                 elif _extr_name != 'generic':
 
@@ -300,18 +303,22 @@ class MyVidsterIE(MyVidsterBaseIE):
                             self.logger_debug(f'{pre}[{self._get_url_print(el)}] not entry video')
                             return {"error_getbestvid": f"[{el}] not entry video"}
                     except Exception as e:
-                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {str(e)}')
-                        return {"error_getbestvid": f"[{el}] error entry video - {str(e)}"}
+                        _msg_error = str(e).replace(bug_reports_message(), '')
+                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {_msg_error}')
+                        return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
 
                 else:  # url generic
                     _res = self._is_valid(el, inc_error=True, msg=pre)
                     if _res.get("valid"):
                         return el
                     else:
-                        return {"error_getbestvid": f"[{el}] error valid - {_res.get('error')}"}
+                        _msg_error = _res.get('error', '').replace(bug_reports_message(), '')
+                        return {"error_getbestvid": f"[{el}] error valid - {_msg_error }"}
 
             except Exception as e:
-                self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {repr(e)}')
+                _msg_error = str(e).replace(bug_reports_message(), '')
+                self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {_msg_error}')
+                return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
             finally:
                 MyVidsterBaseIE._URLS_CHECKED.append(el)
 
