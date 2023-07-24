@@ -12,7 +12,8 @@ from ..utils import (
     sanitize_filename,
     try_get,
     get_domain,
-    bug_reports_message
+    bug_reports_message,
+    variadic
 )
 
 from .commonwebdriver import (
@@ -228,21 +229,22 @@ class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?:.*|$)'
 
-    def getbestvid(self, x, **kwargs):
+    def getvid(self, x, **kwargs):
 
-        msg = kwargs.get('msg', None)
+        def _check_extr(x):
+            if x in SeleniumInfoExtractor._CONFIG_REQ:
+                return True
+
         _check = kwargs.get('check', True)
-
-        pre = "[getbestvid]"
-        if msg:
+        pre = "[getvid]"
+        if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
-        if isinstance(x, list):
-            _x = [unquote(_el) for _el in list(dict.fromkeys(x))]
-        else:
-            _x = [unquote(x)]
+        _x = map(unquote, variadic(x))
 
         for el in _x:
+
+            pre += f'[{self._get_url_print(el)}]'
 
             try:
 
@@ -250,77 +252,67 @@ class MyVidsterIE(MyVidsterBaseIE):
                     continue
 
                 if el in MyVidsterBaseIE._URLS_CHECKED:
-                    self.logger_debug(f"{pre}[{self._get_url_print(el)}] already analysed")
+                    self.logger_debug(f"{pre} already analysed")
                     continue
 
                 if any(_ in el for _ in _URL_NOT_VALID):
-                    self.logger_debug(f"{pre}[{self._get_url_print(el)}] url not valid")
-                    return {"error_getbestvid": f"[{el}] error url not valid"}
+                    self.logger_debug(f"{pre} url not valid")
+                    return {"error_getvid": f"[{el}] error url not valid"}
 
-                if 'locotube.site/pn' in el:
-                    _pattern = r'locotube\.site/pn\?c\=(?P<id>[\d/]+)(&gfi=(?P<id2>[a-zA-Z0-9\-]+))?'
-                    _res = try_get(re.search(_pattern, el), lambda z: z.group('id', 'id2'))
-                    if _res:
-                        _id, _id2 = _res
-                        if _id2:
-                            el = f'https://gayforit.eu/playvideo.php?vkey={_id2}'
-                        elif _id:
-                            if '/' in _id:
-                                el = f'https://www.boyfriendtv.com/embed/{_id}'
-                            else:
-                                el = f'https://thisvid.com/embed/{_id}'
+                # if 'locotube.site/pn' in el:
+                #     _pattern = r'locotube\.site/pn\?c\=(?P<id>[\d/]+)(&gfi=(?P<id2>[a-zA-Z0-9\-]+))?'
+                #     _res = try_get(re.search(_pattern, el), lambda z: z.group('id', 'id2'))
+                #     if _res:
+                #         _id, _id2 = _res
+                #         if _id2:
+                #             el = f'https://gayforit.eu/playvideo.php?vkey={_id2}'
+                #         elif _id:
+                #             if '/' in _id:
+                #                 el = f'https://www.boyfriendtv.com/embed/{_id}'
+                #             else:
+                #                 el = f'https://thisvid.com/embed/{_id}'
 
-                _extr_name = self._get_ie_name(el)
-
-                def _check_extr(x):
-                    if x in SeleniumInfoExtractor._CONFIG_REQ:
-                        return True
-
-                if _check_extr(_extr_name):  # get entry
-                    ie = self._get_extractor(el)
-                    try:
-                        _ent = ie._get_entry(el, check=_check, msg=pre)
-                        if _ent:
-                            self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
-                            return _ent
-                        else:
-                            self.logger_debug(f'{pre}[{self._get_url_print(el)}] not entry video')
-                            return {"error_getbestvid": f"[{el}] not entry video"}
-                    except Exception as e:
-                        _msg_error = str(e).replace(bug_reports_message(), '')
-                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {_msg_error}')
-                        return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
-
-                elif _extr_name != 'generic':
-                    ie = self._get_extractor(el)
-                    #  assert self._downloader
-                    try:
-                        #  _ent = self._downloader.extract_info(el, download=False)
-                        _ent = ie.extract(el)
-                        if _ent:
-                            _ent.update({'extractor': ie.IE_NAME, 'extractor_key': type(ie).ie_key(), 'webpage_url': el})
-                            self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
-                            return _ent
-                        else:
-                            self.logger_debug(f'{pre}[{self._get_url_print(el)}] not entry video')
-                            return {"error_getbestvid": f"[{el}] not entry video"}
-                    except Exception as e:
-                        _msg_error = str(e).replace(bug_reports_message(), '')
-                        self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {_msg_error}')
-                        return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
-
-                else:  # url generic
+                if (_extr_name := self._get_ie_name(el)) == 'generic':
                     _res = self._is_valid(el, inc_error=True, msg=pre)
                     if _res.get("valid"):
                         return el
                     else:
                         _msg_error = _res.get('error', '').replace(bug_reports_message(), '')
-                        return {"error_getbestvid": f"[{el}] error valid - {_msg_error }"}
+                        return {"error_getvid": f"[{el}] error valid - {_msg_error }"}
+
+                elif _check_extr(_extr_name):  # get entry
+                    ie = self._get_extractor(el)
+                    try:
+                        if (_ent := ie._get_entry(el, check=_check, msg=pre)):
+                            self.logger_debug(f"{pre} OK got entry video\n {_ent}")
+                            return _ent
+                        else:
+                            self.logger_debug(f'{pre} not entry video')
+                            return {"error_getvid": f"[{el}] not entry video"}
+                    except Exception as e:
+                        _msg_error = str(e).replace(bug_reports_message(), '')
+                        self.logger_debug(f'{pre} error entry video {_msg_error}')
+                        return {"error_getvid": f"[{el}] error entry video - {_msg_error}"}
+
+                else:
+                    ie = self._get_extractor(el)
+                    try:
+                        if (_ent := ie.extract(el)):
+                            _ent.update({'extractor': ie.IE_NAME, 'extractor_key': type(ie).ie_key(), 'webpage_url': el})
+                            self.logger_debug(f"{pre} OK got entry video\n {_ent}")
+                            return _ent
+                        else:
+                            self.logger_debug(f'{pre} not entry video')
+                            return {"error_getvid": f"[{el}] not entry video"}
+                    except Exception as e:
+                        _msg_error = str(e).replace(bug_reports_message(), '')
+                        self.logger_debug(f'{pre} error entry video {_msg_error}')
+                        return {"error_getvid": f"[{el}] error entry video - {_msg_error}"}
 
             except Exception as e:
                 _msg_error = str(e).replace(bug_reports_message(), '')
-                self.logger_debug(f'{pre}[{self._get_url_print(el)}] error entry video {_msg_error}')
-                return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
+                self.logger_debug(f'{pre} error entry video {_msg_error}')
+                return {"error_getvid": f"[{el}] error entry video - {_msg_error}"}
             finally:
                 MyVidsterBaseIE._URLS_CHECKED.append(el)
 
@@ -351,7 +343,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 _entry = {}
 
             source_url_res = try_get(re.findall(r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video', webpage),
-                                     lambda x: self.getbestvid(x[0], msg='source_url') if x else None)
+                                     lambda x: self.getvid(x[0], msg='source_url') if x else None)
 
             if source_url_res:
 
@@ -398,16 +390,16 @@ class MyVidsterIE(MyVidsterBaseIE):
                 videolink_res = None
 
                 embedlink_res = try_get(re.findall(r'reload_video\([\'\"]([^\'\"]+)[\'\"]', webpage),
-                                        lambda x: self.getbestvid(x[0], check=_check, msg='embedlink') if x else None)
+                                        lambda x: self.getvid(x[0], check=_check, msg='embedlink') if x else None)
 
                 if not embedlink_res or isinstance(embedlink_res, str):
 
                     videolink_res = try_get(
                         re.findall(r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]', webpage),
-                        lambda x: self.getbestvid(x[0], check=_check, msg='videolink') if x else None)
+                        lambda x: self.getvid(x[0], check=_check, msg='videolink') if x else None)
 
                     if videolink_res and isinstance(videolink_res, dict):
-                        _msg_error = videolink_res.get('error_getbestvid')
+                        _msg_error = videolink_res.get('error_getvid')
                         if _msg_error:
                             raise_extractor_error(_msg_error)
                         videolink_res.update({'original_url': url})
@@ -426,7 +418,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                         raise_extractor_error("Error 404: no video urls found")
 
                 elif isinstance(embedlink_res, dict):
-                    _msg_error = embedlink_res.get('error_getbestvid')
+                    _msg_error = embedlink_res.get('error_getvid')
                     if _msg_error:
                         raise_extractor_error(_msg_error)
                     embedlink_res.update({'original_url': url})
