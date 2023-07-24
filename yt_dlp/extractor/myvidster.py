@@ -32,7 +32,7 @@ import logging
 logger = logging.getLogger('myvidster')
 
 _URL_NOT_VALID = [
-    '//syndication', '?thumb=http', 'rawassaddiction.blogspot', 'twitter.com',
+    '//syndication', 'rawassaddiction.blogspot', 'twitter.com',
     'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed', 'xtube.com', 'xtapes.to',
     '####gayforit######.eu/playvideo.php', '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
     'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload']
@@ -343,7 +343,7 @@ class MyVidsterIE(MyVidsterBaseIE):
             assert isinstance(webpage, str)
             title = try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1]
 
-            postdate = try_get(re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage),
+            postdate = try_get(re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage, flags=re.I),
                                lambda x: datetime.strptime(x[0].strip(), "%d %b, %Y"))
             if postdate:
                 _entry = {'release_date': postdate.strftime("%Y%m%d"), 'release_timestamp': int(postdate.timestamp())}
