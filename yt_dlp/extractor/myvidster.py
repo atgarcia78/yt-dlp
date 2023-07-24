@@ -292,11 +292,13 @@ class MyVidsterIE(MyVidsterBaseIE):
                         return {"error_getbestvid": f"[{el}] error entry video - {_msg_error}"}
 
                 elif _extr_name != 'generic':
-
-                    assert self._downloader
+                    ie = self._get_extractor(el)
+                    #  assert self._downloader
                     try:
-                        _ent = self._downloader.extract_info(el, download=False)
+                        #  _ent = self._downloader.extract_info(el, download=False)
+                        _ent = ie.extract(el)
                         if _ent:
+                            _ent.update({'extractor': ie.IE_NAME, 'extractor_key': type(ie).ie_key(), 'webpage_url': el})
                             self.logger_debug(f"{pre}[{self._get_url_print(el)}] OK got entry video\n {_ent}")
                             return _ent
                         else:
