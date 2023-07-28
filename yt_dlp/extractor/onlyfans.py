@@ -168,7 +168,6 @@ class Account(AccountBase):
 
         return subs
 
-    @lru_cache
     def getVideosCount(self, userid) -> Union[int, None]:
         if (data := self.get(f'/api2/v2/users/{userid}/posts/videos?limit=1&skip_users=all&format=infinite&counters=1')):
             if (_res := traverse_obj(data, ('counters', 'videosCount'), default=None)):
@@ -556,7 +555,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def getlicense(self, licurl, challenge):
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
 
-        _path = try_get(urlparse(licurl), lambda x: x.path + x.query)
+        _path = try_get(urlparse(licurl), lambda x: x.path + '?' + x.query)
         return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _data=challenge).content
 
     def _extract_from_json(self, data_post, user_profile=None):
@@ -691,8 +690,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             "duration": _media.get('info', {}).get('source', {}).get('duration', 0),
                             "ext": "mp4",
                             "_drm": {'licurl': _licurl, 'pssh': _pssh_list},
-                            "extractor": "onlyfans:post:playlist",
-                            "extractor_key": "OnlyFansPostIE"}
+                            "extractor": self.IE_NAME,
+                            "extractor_key": self.ie_key()}
 
                         _entries.append(_entry)
 
@@ -746,17 +745,14 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 raise ExtractorError(f"{pre} no entries")
 
             entries = OrderedDict()
-            for fut in futures:
-                try:
-                    if (_entry := fut.result()):
-                        for _video in _entry:
-                            if not _video['id'] in entries:
-                                entries[_video['id']] = _video
-                            else:
-                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                    entries[_video['id']] = _video
-                except Exception as e:
-                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')}/{account} - {repr(e)}")
+            for data_json in list_json:
+                if (_entry := self._extract_from_json(data_json, user_profile=account)):
+                    for _video in _entry:
+                        if not _video['id'] in entries:
+                            entries[_video['id']] = _video
+                    else:
+                        if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                            entries[_video['id']] = _video
 
             return entries
 
@@ -818,7 +814,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'  # type: ignore
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|chat|favorites|tips))(\?duration-min=(?P<min>\d+))?$"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|chat|favorites|tips))\?(?P<query>.+)"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -829,14 +825,19 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             re.search(self._VALID_URL, url),  # type: ignore
             lambda x: x.groupdict()))
         self.to_screen(info)
-        account, mode, dur_min = info['account'], info['mode'] or "latest", int_or_none(info['min'])
-        if not mode:
-            mode = "latest"
+        account, mode, query = info['account'], info.get('mode', 'latest'), info.get('query')
+        params = {}
+        if query:
+            params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
+            dur_min = int(params.get('duration-min', 0))
+            last = int(params.get('last', -1))
         try:
             userid = OnlyFansBaseIE.conn_api.getUserId(account)
             if (entries := self._get_videos_from_subs(userid, account, mode=mode)):
                 entries_list = cast(list, upt_dict(list(entries.values()), original_url=url))
                 num_entries = len(entries_list)
+                if last > 0:
+                    entries_list = entries_list[:last]
                 if dur_min:
                     entries_list = list(filter(lambda x: int(x.get('duration', dur_min)) >= dur_min, entries_list))
                 self.to_screen(f"Entries[{num_entries}] After filter duration min[{len(entries_list)}]")
