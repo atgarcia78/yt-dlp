@@ -12,6 +12,7 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any, Union, cast
 import json
+import http
 
 import httpx
 import urllib3.util.url as urllib3_url
@@ -32,6 +33,8 @@ from ..utils import (
     traverse_obj,
     try_get,
 )
+
+from urllib.parse import urlparse
 
 logger = logging.getLogger('onlyfans')
 
@@ -550,6 +553,12 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             driver.execute_script("window.stop();")
             self.wait_until(driver, 1)
 
+    def getlicense(self, licurl, challenge):
+        headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
+
+        _path = try_get(urlparse(licurl), lambda x: x.path + x.query)
+        return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _data=challenge).content
+
     def _extract_from_json(self, data_post, user_profile=None):
 
         def save_config():
@@ -584,16 +593,29 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                 if _media['type'] == "video" and _media['canView']:
 
-                    videoid = _media['id']
+                    videoid = str(_media['id'])
                     _formats = []
 
                     # de momento disabled
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
                             _signature = cast(dict, traverse_obj(_drm, ('signature', 'dash'), default={}))
+                            for name, value in _signature.items():
+                                OnlyFansBaseIE.conn_api.session.cookies.jar.set_cookie(http.cookiejar.Cookie(
+                                    version=0, name=name, value=value, port=None, port_specified=False,
+                                    domain='onlyfans.com', domain_specified=True, domain_initial_dot=True, path='/',
+                                    path_specified=True, secure=False, expires=None, discard=False, comment=None,
+                                    comment_url=None, rest={}))
+                            _cookie_str = OnlyFansBaseIE.conn_api.cookies
+                            self.logger_debug(f"[extract_from_json] cookies {_cookie_str}")
+                            for cookie in OnlyFansBaseIE.conn_api.session.cookies.jar:
+                                self._downloader.cookiejar.set_cookie(cookie)
+                            _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
+                            mpd_xml = self._download_xml(_mpd_url, video_id=videoid, headers=_headers)
+                            _pssh_list = list(set(list(map(lambda x: x.text, list(mpd_xml.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))
+                            _licurl = f"https://onlyfans.com/api2/v2/users/media/{videoid}/drm/post/{data_post['id']}?type=widevine"
+                            self.logger_debug(f"[extract_from_json] drm: licurl [{_licurl}] pssh {_pssh_list}")
 
-                            _cookie = "; ".join([f'{key}={val}' for key, val in _signature.items()]) + "; " + OnlyFansBaseIE.conn_api.cookies
-                            _headers = {'cookie': _cookie, 'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
                             _formats_dash, _ = self._extract_mpd_formats_and_subtitles(_mpd_url, videoid, mpd_id='dash', headers=_headers)
                             for _fmt in _formats_dash:
                                 if (_head := _fmt.get('http_headers')):
@@ -602,9 +624,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                     _fmt.update({'http_headers': _headers})
                             _formats.extend(_formats_dash)
                     else:
+                        _pssh_list = None
+                        _licurl = None
                         orig_width = orig_height = None
                         if (_url := traverse_obj(_media, ('source', 'source'))):
-                            #  _filesize = self._get_filesize(_url)
 
                             _formats.append({
                                 'url': _url,
@@ -659,7 +682,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     if _formats:
 
                         _entry = {
-                            "id": str(videoid),
+                            "id": videoid,
                             "release_timestamp": date_timestamp,
                             "release_date": _datevideo.split("T")[0].replace("-", ""),
                             "title": f'{_datevideo.split("T")[0].replace("-", "")}_from_{account}',
@@ -667,12 +690,12 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             "formats": _formats,
                             "duration": _media.get('info', {}).get('source', {}).get('duration', 0),
                             "ext": "mp4",
+                            "_drm": {'licurl': _licurl, 'pssh': _pssh_list},
                             "extractor": "onlyfans:post:playlist",
                             "extractor_key": "OnlyFansPostIE"}
 
                         _entries.append(_entry)
 
-            # self.write_debug(f'[extract_from_json][output] {_entries}')
             return _entries
 
         except Exception as e:
@@ -721,9 +744,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
             if not list_json:
                 raise ExtractorError(f"{pre} no entries")
-
-            with ThreadPoolExecutor(thread_name_prefix='onlyfans', max_workers=32) as exe:
-                futures = {exe.submit(self._extract_from_json, info_json, user_profile=account): info_json for info_json in list_json}
 
             entries = OrderedDict()
             for fut in futures:
