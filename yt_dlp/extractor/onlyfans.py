@@ -829,15 +829,18 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         params = {}
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
-            dur_min = int(params.get('duration-min', 0))
-            last = int(params.get('last', -1))
         try:
             userid = OnlyFansBaseIE.conn_api.getUserId(account)
             if (entries := self._get_videos_from_subs(userid, account, mode=mode)):
                 entries_list = cast(list, upt_dict(list(entries.values()), original_url=url))
                 num_entries = len(entries_list)
-                if last > 0:
-                    entries_list = entries_list[:last]
+                last = int(params.get('last'))
+                first = int(params.get('first', 0))
+                dur_min = int(params.get('duration-min', 0))
+                if last and last > first:
+                    entries_list = entries_list[first:last]
+                else:
+                    entries_list = entries_list[first:]
                 if dur_min:
                     entries_list = list(filter(lambda x: int(x.get('duration', dur_min)) >= dur_min, entries_list))
                 self.to_screen(f"Entries[{num_entries}] After filter duration min[{len(entries_list)}]")
