@@ -8,7 +8,7 @@ import time
 import traceback
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any, Union, cast
 import json
@@ -174,13 +174,14 @@ class Account(AccountBase):
                 _res = cast(int, _res)
                 return int(_res)
 
-    def getVideoPosts(self, userid, account, total, order="publish_date_desc", num=10, flag_all=False):
+    def getVideoPosts(self, userid, account, total, order="publish_date_desc", num=10, use_cache=False):
         count = 0
         posts = []
 
-        if flag_all:
+        if use_cache:
             if (_res := self.cache.load('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}')):
-                return _res
+                if (datetime.now() - datetime.fromtimestamp(os.stat(self.cache._get_cache_fn('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}', 'json')).st_mtime)) < timedelta(days=1):
+                    return _res
 
         limit = self._POST_LIMIT
         if num < self._POST_LIMIT:
@@ -217,7 +218,7 @@ class Account(AccountBase):
             elif order.endswith('asc'):
                 _tail = f"counters=0&afterPublishTime={data['tailMarker']}"
 
-        if flag_all:
+        if use_cache:
             self.cache.store('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}', posts)
 
         return posts
@@ -408,7 +409,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     _MODE_DICT = {
         "favorites": {"order": "favorites_count_desc", "num": 25},
         "tips": {"order": "tips_summ_desc", "num": 25},
-        "all": {"order": "publish_date_desc", "num": 0, "flag_all": True},
+        "all": {"order": "publish_date_desc", "num": 0, "use_cache": True},
         "latest": {"order": "publish_date_desc", "num": 10}
     }
     conn_api: Account
@@ -724,9 +725,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
                             futures = [
                                 exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total,
-                                           order="publish_date_desc", num=(_total // 2), flag_all=True),
+                                           order="publish_date_desc", num=(_total // 2), use_cache=True),
                                 exe.submit(OnlyFansBaseIE.conn_api.getVideoPosts, userid, account, _total,
-                                           order="publish_date_asc", num=(_total // 2) + 1, flag_all=True)]
+                                           order="publish_date_asc", num=(_total // 2) + 1, use_cache=True)]
 
                         _list_json = futures[0].result() + list(reversed(futures[1].result()))
                         list_json = get_list_unique(_list_json, key='id')
