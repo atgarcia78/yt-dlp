@@ -814,7 +814,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'  # type: ignore
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|chat|favorites|tips))\?(?P<query>.+)"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|newest|new|chat|favorites|tips))(\?(?P<query>.+))?"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -826,6 +826,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             lambda x: x.groupdict()))
         self.to_screen(info)
         account, mode, query = info['account'], info.get('mode', 'latest'), info.get('query')
+        if mode in ('new', 'newest'):
+            mode = 'latest'
         params = {}
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
@@ -834,7 +836,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
             if (entries := self._get_videos_from_subs(userid, account, mode=mode)):
                 entries_list = cast(list, upt_dict(list(entries.values()), original_url=url))
                 num_entries = len(entries_list)
-                last = int(params.get('last'))
+                last = int_or_none(params.get('last'))
                 first = int(params.get('first', 0))
                 dur_min = int(params.get('duration-min', 0))
                 if last and last > first:
