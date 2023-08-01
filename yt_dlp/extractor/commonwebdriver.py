@@ -84,6 +84,7 @@ from ..utils import (
     int_or_none,
     traverse_obj,
     try_get,
+    variadic,
     unsmuggle_url,
 )
 
@@ -516,29 +517,25 @@ class myHAR:
 
         _res = []
         if driver and not har:
-            _res = try_get(
+            _res = cast(list, try_get(
                 driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
-                lambda x: x.get('entries') if x else None)
+                lambda x: x.get('entries') if x else None))
 
         elif har:
             if isinstance(har, dict):
-                _res = traverse_obj(har, ('log', 'entries'))
+                _res = cast(list, traverse_obj(har, ('log', 'entries')))
             elif isinstance(har, list):
                 _res = har
             elif isinstance(har, str):
                 with open(har, 'r') as f:
-                    _res = traverse_obj(json.load(f), ('log', 'entries'))
+                    _res = cast(list, traverse_obj(json.load(f), ('log', 'entries')))
 
         if not _res:
             raise Exception('no HAR entries')
 
         else:
-            assert isinstance(_res, list)
             if _mimetype:
-                if isinstance(_mimetype, (list, tuple)):
-                    _mimetype_list = list(_mimetype)
-                else:
-                    _mimetype_list = [_mimetype]
+                _mimetype_list = list(variadic(_mimetype))
                 _non_mimetype_list = []
             else:
                 _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
@@ -579,7 +576,6 @@ class myHAR:
         while (time.monotonic() - _started) < timeout:
 
             _newhar = myHAR.get_har(driver=driver, har=har, _method=_method, _mimetype=_mimetype)
-            assert _newhar
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
             for entry in _har:
@@ -943,7 +939,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def close(self):
         try:
-            assert self._CLIENT
             self._CLIENT.close()
         except Exception:
             pass
@@ -961,8 +956,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         self._ready = False
 
     def _real_initialize(self):
-
-        assert self._downloader
 
         with SeleniumInfoExtractor._MASTER_LOCK:
             if self._YTDL != self._downloader:
@@ -997,7 +990,6 @@ class SeleniumInfoExtractor(InfoExtractor):
         return super().extract(url)
 
     def create_progress_bar(self, total: Union[int, float], block_logging: bool = True, msg: Union[str, None] = None) -> ProgressBar:
-        assert self._downloader
         return ProgressBar(self._downloader, total, block_logging=block_logging, msg=msg)
 
     def _get_extractor(self, _args):
@@ -1045,11 +1037,8 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def get_ytdl_sem(self, _host) -> Lock:
 
-        assert self._downloader
-
         with self._downloader.params.setdefault('lock', Lock()):
-            self._downloader.params.setdefault('sem', {})
-            return self._downloader.params['sem'].setdefault(_host, Lock())
+            return self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
 
     def raise_from_res(self, res, msg):
 
@@ -1394,8 +1383,6 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             _kwargs.pop('truncate', None)
             _kwargs.pop('client', None)
 
-            assert client
-
             with client.stream("GET", url, **_kwargs) as res:
                 res.raise_for_status()
 
@@ -1457,12 +1444,9 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         try:
 
             _kwargs = kwargs.copy()
-
             _kwargs.pop('_type', None)
             _kwargs.pop('msg', None)
             _kwargs.pop('client', None)
-
-            assert client
 
             req = client.build_request(_type, url, **_kwargs)
             res = client.send(req)

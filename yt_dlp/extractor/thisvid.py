@@ -3,6 +3,7 @@ import re
 import urllib.parse
 
 from .common import InfoExtractor
+from .yourporngod import ThisVidIE
 from ..utils import (
     clean_html,
     get_element_by_class,
@@ -12,7 +13,7 @@ from ..utils import (
 )
 
 
-class ThisVidIE(InfoExtractor):
+class ThisVidLegacyIE(InfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?thisvid\.com/(?P<type>videos|embed)/(?P<id>[A-Za-z0-9-]+)'
     _TESTS = [{
         'url': 'https://thisvid.com/videos/sitting-on-ball-tight-jeans/',

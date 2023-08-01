@@ -1958,7 +1958,7 @@ from .thisamericanlife import ThisAmericanLifeIE
 from .thisav import ThisAVIE
 from .thisoldhouse import ThisOldHouseIE
 from .thisvid import (
-    ThisVidIE,
+    #ThisVidIE,
     ThisVidMemberIE,
     ThisVidPlaylistIE,
 )

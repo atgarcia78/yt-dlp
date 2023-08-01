@@ -228,6 +228,10 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?P<title>[\w\-\_]+)?'
+    _conf = {
+        'source_url': r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video',
+        'videolink': r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]',
+        'embedlink': r'reload_video\([\'\"]([^\'\"]+)[\'\"]'}
 
     def getvid(self, x, **kwargs):
 
@@ -325,16 +329,15 @@ class MyVidsterIE(MyVidsterBaseIE):
         url = url.replace("vsearch", "video")
 
         try:
-            _urlh, webpage = try_get(
+            _urlh, webpage = cast(list[str], try_get(
                 self._send_request(url),
-                lambda x: (str(x.url), re.sub('[\t\n]', '', html.unescape(x.text)))) or (None, None)
+                lambda x: [str(x.url), re.sub('[\t\n]', '', html.unescape(x.text))]) or [None, None])
             if not webpage:
                 raise_extractor_error("Couldnt download webpage")
             if not _urlh or any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken', 'status=removed']):
                 raise_extractor_error("Error 404: Page not found")
-            assert isinstance(webpage, str)
 
-            title = try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1]
+            title = cast(str, try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1])
 
             postdate = try_get(re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage, flags=re.I),
                                lambda x: datetime.strptime(x[0].strip(), "%d %b, %Y"))
@@ -343,42 +346,37 @@ class MyVidsterIE(MyVidsterBaseIE):
             else:
                 _entry = {}
 
-            def prepare_entry(info):
-                if (_msg_error := info.pop('error_getvid', None)):
-                    info['error'] = _msg_error
-                info.update({'original_url': url})
-                info.update(_entry)
-                if not info.get('extractor'):
-                    info['extractor'] = self.IE_NAME
-                    info['extractor_key'] = self.ie_key()
-                if not info.get('id'):
-                    info['id'] = video_id
-                if not (_title := info.get('title')):
-                    if (wurl := info.get('webpage_url')):
-                        domain = get_domain(wurl)
-                        _pattern = r'''(?x)(?i)
-                            (^(hd video|sd video|video))\s*:?\s*|
-                            ((?:\s*.\s*|\s*at\s*|\s*)%s$)|(.mp4$)|
-                            (\s*[/|]\s*embed player)''' % domain
-                        _title = re.sub(_pattern, '', title).strip('[,-_ ')
-                    else:
-                        _title = title
-                info.update({'title': sanitize_filename(_title, restricted=True)})
-                return info
-
-            _conf = {
-                'source_url': r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video',
-                'videolink': r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]',
-                'embedlink': r'reload_video\([\'\"]([^\'\"]+)[\'\"]'}
-
             def _getter(orderlinks):
 
+                def _prepare_entry(info):
+                    if (_msg_error := info.pop('error_getvid', None)):
+                        info['error'] = _msg_error
+                    info.update({'original_url': url})
+                    info.update(_entry)
+                    if not info.get('extractor'):
+                        info['extractor'] = self.IE_NAME
+                        info['extractor_key'] = self.ie_key()
+                    if not info.get('id'):
+                        info['id'] = video_id
+                    if not (_title := info.get('title')):
+                        if (wurl := info.get('webpage_url')):
+                            domain = get_domain(wurl)
+                            _pattern = r'''(?x)(?i)
+                                (^(hd video|sd video|video))\s*:?\s*|
+                                ((?:\s*.\s*|\s*at\s*|\s*)%s$)|(.mp4$)|
+                                (\s*[/|]\s*embed player)''' % domain
+                            _title = re.sub(_pattern, '', title).strip('[,-_ ')
+                        else:
+                            _title = title
+                    info.update({'title': sanitize_filename(_title, restricted=True)})
+                    return info
+
                 if (source_url_res := try_get(
-                        re.findall(_conf['source_url'], webpage),
+                        re.findall(self._conf['source_url'], webpage),
                         lambda x: self.getvid(x[0], msg='source_url') if x else None)):
 
                     if isinstance(source_url_res, dict):
-                        return prepare_entry(source_url_res)
+                        return _prepare_entry(source_url_res)
 
                     elif isinstance(source_url_res, str):
                         self.logger_debug(f"source url: {source_url_res}")
@@ -406,23 +404,23 @@ class MyVidsterIE(MyVidsterBaseIE):
                 link1_res = None
 
                 link0_res = try_get(
-                    re.findall(_conf[orderlinks[0]], webpage),
+                    re.findall(self._conf[orderlinks[0]], webpage),
                     lambda x: self.getvid(x[0], check=_check, msg=orderlinks[0]) if x else None)
 
                 if not link0_res or isinstance(link0_res, str):
 
                     link1_res = try_get(
-                        re.findall(_conf[orderlinks[1]], webpage),
+                        re.findall(self._conf[orderlinks[1]], webpage),
                         lambda x: self.getvid(x[0], check=_check, msg=orderlinks[1]) if x else None)
 
                     if link1_res and isinstance(link1_res, dict):
-                        return prepare_entry(link1_res)
+                        return _prepare_entry(link1_res)
 
                     if not link1_res and link0_res:
                         raise_extractor_error("Error 404: no video urls found")
 
                 elif isinstance(link0_res, dict):
-                    return prepare_entry(link0_res)
+                    return _prepare_entry(link0_res)
 
                 # llegados a este punto, los links serán generic y valid
 
@@ -447,7 +445,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 else:
                     raise_extractor_error("url video not found")
 
-                return _getter(['videolink', 'embedlink'])
+            return _getter(['videolink', 'embedlink'])
 
         except ExtractorError as e:
             self.logger_debug(f"[{url}] error {repr(e)}")

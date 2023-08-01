@@ -12,7 +12,8 @@ from .commonwebdriver import (
     limiter_1,
     my_dec_on_exception,
     get_host,
-    cast
+    cast,
+    raise_extractor_error
 )
 from ..utils import (
     ExtractorError,
@@ -65,6 +66,10 @@ class BaseKVSIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
 
+        pre = f'[get_entry][{self._get_url_print(url)}]'
+        if (msg := kwargs.get('msg')):
+            pre = f'{msg}{pre}'
+
         if self.IE_NAME == "pornhat":
             videoid = None
 
@@ -77,7 +82,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
         _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), html.unescape(x.text)) if x else (None, None)) or (None, None)
 
         if not webpage or _urlh and "/404.php" in _urlh or any(_ in webpage.lower() for _ in ("this video is a private video", "404 / page not found")):
-            raise ExtractorError("404 webpage not found")
+            raise_extractor_error(f"{pre} 404 webpage not found")
 
         display_id = self._search_regex(
             r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
@@ -92,10 +97,10 @@ class BaseKVSIE(SeleniumInfoExtractor):
                 r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'),  # type: ignore
             videoid, transform_source=js_to_json)
 
-        self.logger_debug(flashvars)
+        self.logger_debug(f"{pre} flashvars:\n{flashvars}")
 
         if not flashvars:
-            raise ExtractorError("404 video not found")
+            raise_extractor_error(f"{pre} 404 video not found")
 
         _title = self._html_search_regex((r'<h1>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
         assert isinstance(_title, str)
@@ -133,13 +138,16 @@ class BaseKVSIE(SeleniumInfoExtractor):
                 _format['quality'] = 1
 
             with self.get_ytdl_sem(get_host(_videourl)):
-                if (_videoinfo := cast(dict, self._get_video_info(_videourl, headers=_headers))):
-                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+                _videoinfo = cast(dict, self._get_video_info(_videourl, headers=_headers))
+
+            if _videoinfo:
+                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+                self.get_ytdl_sem(get_host(_videoinfo['url']))
 
             formats.append(_format)
 
         if not formats:
-            raise ExtractorError('no formats')
+            raise_extractor_error(f"{pre} no formats")
 
         entry = {
             'id': videoid,
