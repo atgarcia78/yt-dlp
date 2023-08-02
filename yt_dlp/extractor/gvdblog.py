@@ -208,7 +208,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             [(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])),
              (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
         # self.logger_debug(f"{premsg} p2:\n{p2}")
-        p3 = [{_el.split('="')[0]:_el.split('="')[1].strip('"')
+        p3 = [{_el.split('="')[0]: _el.split('="')[1].strip('"')
                for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
         # self.logger_debug(f"{premsg} p3:\n{p3}")
 
