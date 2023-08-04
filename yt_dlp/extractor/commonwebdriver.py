@@ -280,6 +280,13 @@ class StatusStop(Exception):
         self.exc_info = exc_info
 
 
+class MyReExtractInfo(ReExtractInfo):
+    def __init__(self, msg, expected=False, request=None, response=None):
+        super().__init__(msg, expected=expected)
+        self.request = request
+        self.response = response
+
+
 def my_limiter(seconds: Union[str, int, float]):
 
     if seconds == "non":
@@ -853,12 +860,12 @@ class ProgressBar(MultilinePrinter):
             self._timer.reset()
 
 
-def raise_extractor_error(msg, expected=True):
-    raise ExtractorError(msg, expected=expected)
+def raise_extractor_error(msg, expected=True, _from=None):
+    raise ExtractorError(msg, expected=expected) from _from
 
 
-def raise_reextract_info(msg, expected=True):
-    raise ReExtractInfo(msg, expected=expected)
+def raise_reextract_info(msg, expected=True, _from=None):
+    raise ReExtractInfo(msg, expected=expected) from _from
 
 
 class SeleniumInfoExtractor(InfoExtractor):
@@ -1441,36 +1448,40 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
         client = kwargs.get('client')
 
+        fatal = kwargs.get('fatal', True)
+
         try:
 
             _kwargs = kwargs.copy()
             _kwargs.pop('_type', None)
             _kwargs.pop('msg', None)
             _kwargs.pop('client', None)
+            _kwargs.pop('fatal', None)
 
             req = client.build_request(_type, url, **_kwargs)
             res = client.send(req)
             if res:
-                res.raise_for_status()
+                if fatal:
+                    res.raise_for_status()
                 return res
             else:
                 return None
         except ConnectError as e:
-            _msg_err = repr(e) + ' - ' + str(e)
+            _msg_err = str(e)
             if 'errno 61' in _msg_err.lower():
                 raise
             else:
                 raise ExtractorError(_msg_err)
         except HTTPStatusError as e:
-            _msg_err = repr(e) + ' - ' + str(e)
+            _msg_err = str(e)
             if e.response.status_code == 403:
-                raise ReExtractInfo(_msg_err)
+                raise ReExtractInfo(f'{premsg} {str(e).split(" for url")[0]}') from e
             elif e.response.status_code == 503:
                 raise StatusError503(_msg_err)
             else:
                 raise
         except Exception as e:
-            _msg_err = repr(e) + ' - ' + str(e)
+            _msg_err = str(e)
             if not res:
                 raise TimeoutError(_msg_err)
             else:

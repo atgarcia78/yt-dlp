@@ -25,7 +25,7 @@ from ..utils import (
 )
 
 on_exception = my_dec_on_exception(
-    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry = my_dec_on_exception(
     ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
@@ -40,8 +40,11 @@ class StreamVidIE(SeleniumInfoExtractor):
     IE_NAME = 'streamvid'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?streamvid\.[^/]+/(embed-)?(?P<id>[^\/$]+)(?:\/|$)'
 
+    ERROR_WEB = ['<title>Server maintenance', '<title>Video not found']
+
     @dec_on_exception2
     @on_exception
+    @on_retry
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
@@ -58,10 +61,21 @@ class StreamVidIE(SeleniumInfoExtractor):
                 return
 
     def _get_m3u8url(self, webpage):
-        ofuscated_code = try_get(list(filter(lambda x: 'function(p,a,c,k,e,d)' in x, get_elements_html_by_attribute('type', 'text/javascript', webpage))), lambda x: x[0])
-        sources = json.loads(js_to_json(try_get(re.search(r'sources:(?P<sources>[^;]+);', decode_packed_codes(ofuscated_code)), lambda x: x.group('sources')[:-2] if x else '{}')))
+        _filter_func = lambda x: 'function(p,a,c,k,e,d)' in x
+        ofuscated_code = try_get(
+            list(filter(
+                _filter_func,
+                get_elements_html_by_attribute('type', 'text/javascript', webpage))),
+            lambda x: x[0])
+        sources = json.loads(js_to_json(try_get(
+            re.search(r'sources:(?P<sources>[^;]+);', decode_packed_codes(ofuscated_code)),
+            lambda x: x.group('sources')[:-2] if x else '{}')))
         m3u8_url = try_get(sources, lambda x: x[0]['src'] if x else None)
-        poster_url = try_get(re.search(r'poster\([^\'"][\'"](?P<poster>[^\\\'"]+)[\\\'"]', decode_packed_codes(ofuscated_code)), lambda x: x.group('poster') if x else None)
+        poster_url = try_get(
+            re.search(
+                r'poster\([^\'"][\'"](?P<poster>[^\\\'"]+)[\\\'"]',
+                decode_packed_codes(ofuscated_code)),
+            lambda x: x.group('poster') if x else None)
         return (m3u8_url, poster_url)
 
     @on_retry
@@ -74,35 +88,42 @@ class StreamVidIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
 
         try:
-            webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
-            if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
-                raise_extractor_error(f"{pre} error 404 no webpage")
-            webpage = cast(str, webpage)
+            webpage = cast(str, try_get(
+                self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text))))
 
-            title = cast(str, self._html_extract_title(webpage, default=None))
-            title = title.replace('Watch ', '')
+            if not webpage or any(_ in webpage for _ in self.ERROR_WEB):
+                raise_extractor_error(f"{pre} error 404 no webpage")
+
+            title = try_get(
+                cast(str, self._html_extract_title(webpage, default=None)),
+                lambda x: x.replace('Watch ', ''))
 
             m3u8_url, poster_url = self._get_m3u8url(webpage)
 
-            # self.write_debug(f'{m3u8_url} - {poster_url}')
+            self.logger_debug(f'{pre} {m3u8_url} - {poster_url}')
 
             if not m3u8_url:
                 raise_extractor_error(f"{pre} couldnt get m3u8 url")
 
             headers = {'Referer': self._SITE_URL + '/'}
+            m3u8_doc = None
+            try:
+                m3u8_doc = try_get(
+                    self._send_request(m3u8_url, headers=headers),
+                    lambda x: x.text if x else None)
+            except ReExtractInfo as e:
+                raise_extractor_error(f"{pre} Error M3U8 doc {str(e)}", _from=e)
 
-            m3u8_doc = try_get(self._send_request(m3u8_url, headers=headers), lambda x: x.text if x else None)
-            # self.write_debug(f'm3u8_doc[{m3u8_doc}]')
             if not m3u8_doc:
                 if poster_url:
                     _res = self._send_request(poster_url, headers=headers)
-                    # self.write_debug(f'm3u8_doc[{m3u8_doc}] - poster_res[{_res}]')
                     if not _res:
                         raise_extractor_error(f"{pre} error video")
                 else:
                     raise_reextract_info(f"{pre} couldnt get m3u8 doc")
 
-            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls", headers=headers)
+            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                m3u8_doc, m3u8_url, ext="mp4", m3u8_id="hls", headers=headers)
 
             if not _formats:
                 raise_extractor_error(f"{pre} couldnt get video info")
@@ -125,21 +146,19 @@ class StreamVidIE(SeleniumInfoExtractor):
             }
 
             try:
-                _entry.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], video_id, headers=_formats[0].get('http_headers', {}))})
+                _entry.update({'duration': self._extract_m3u8_vod_duration(
+                    _formats[0]['url'], video_id, headers=_formats[0].get('http_headers', {}))})
             except Exception as e:
-                self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
-
+                self.logger_debug(f"{pre}: error trying to get vod {repr(e)}", exc_info=True)
             return _entry
         except Exception as e:
-            logger.exception(f"{pre}: {repr(e)}")
+            self.logger_debug(f"{pre}: {str(e)}", exc_info=True)
             raise
 
     def _real_initialize(self):
         super()._real_initialize()
 
     def _real_extract(self, url):
-
-        # self.report_extraction(url)
 
         try:
             if not self.get_param('embed'):

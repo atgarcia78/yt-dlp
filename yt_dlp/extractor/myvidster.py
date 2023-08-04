@@ -32,12 +32,6 @@ from .commonwebdriver import (
 import logging
 logger = logging.getLogger('myvidster')
 
-_URL_NOT_VALID = [
-    '//syndication', 'rawassaddiction.blogspot', 'twitter.com',
-    'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed', 'xtube.com', 'xtapes.to',
-    '####gayforit######.eu/playvideo.php', '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
-    'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4']
-
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
 
@@ -50,7 +44,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
     _URLS_CHECKED = []
 
-    _NUM_VIDS_PL = {}
+    # _NUM_VIDS_PL = {}
 
     @dec_on_exception3
     @dec_on_exception2
@@ -232,6 +226,12 @@ class MyVidsterIE(MyVidsterBaseIE):
         'source_url': r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video',
         'videolink': r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]',
         'embedlink': r'reload_video\([\'\"]([^\'\"]+)[\'\"]'}
+    _URL_NOT_VALID = [
+        '//syndication', 'rawassaddiction.blogspot', 'twitter.com',
+        'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed',
+        'xtube.com', 'xtapes.to', '####gayforit######.eu/playvideo.php',
+        '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
+        'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4']
 
     def getvid(self, x, **kwargs):
 
@@ -251,7 +251,6 @@ class MyVidsterIE(MyVidsterBaseIE):
             pre += f'[{self._get_url_print(el)}]'
 
             try:
-
                 if not el:
                     continue
 
@@ -259,22 +258,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                     self.logger_debug(f"{pre} already analysed")
                     continue
 
-                if any(_ in el for _ in _URL_NOT_VALID):
+                if any(_ in el for _ in self._URL_NOT_VALID):
                     self.logger_debug(f"{pre} url not valid")
                     return {"error_getvid": f"[{el}] error url not valid"}
-
-                # if 'locotube.site/pn' in el:
-                #     _pattern = r'locotube\.site/pn\?c\=(?P<id>[\d/]+)(&gfi=(?P<id2>[a-zA-Z0-9\-]+))?'
-                #     _res = try_get(re.search(_pattern, el), lambda z: z.group('id', 'id2'))
-                #     if _res:
-                #         _id, _id2 = _res
-                #         if _id2:
-                #             el = f'https://gayforit.eu/playvideo.php?vkey={_id2}'
-                #         elif _id:
-                #             if '/' in _id:
-                #                 el = f'https://www.boyfriendtv.com/embed/{_id}'
-                #             else:
-                #                 el = f'https://thisvid.com/embed/{_id}'
 
                 if (_extr_name := self._get_ie_name(el)) == 'generic':
                     _res = self._is_valid(el, inc_error=True, msg=pre)
@@ -334,15 +320,21 @@ class MyVidsterIE(MyVidsterBaseIE):
                 lambda x: [str(x.url), re.sub('[\t\n]', '', html.unescape(x.text))]) or [None, None])
             if not webpage:
                 raise_extractor_error("Couldnt download webpage")
-            if not _urlh or any(_ in str(_urlh) for _ in ['status=not_found', 'status=broken', 'status=removed']):
+            if not _urlh or any(
+                    _ in str(_urlh)
+                    for _ in ['status=not_found', 'status=broken', 'status=removed']):
+
                 raise_extractor_error("Error 404: Page not found")
 
-            title = cast(str, try_get(re.findall(r"<title>([^<]+)<", webpage), lambda x: x[0]) or url.split("/")[-1])
+            title = cast(str, try_get(
+                re.findall(r"<title>([^<]+)<", webpage),
+                lambda x: x[0]) or url.split("/")[-1])
 
             postdate = try_get(re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage, flags=re.I),
                                lambda x: datetime.strptime(x[0].strip(), "%d %b, %Y"))
             if postdate:
-                _entry = {'release_date': postdate.strftime("%Y%m%d"), 'release_timestamp': int(postdate.timestamp())}
+                _entry = {'release_date': postdate.strftime("%Y%m%d"),
+                          'release_timestamp': int(postdate.timestamp())}
             else:
                 _entry = {}
 
@@ -456,7 +448,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         finally:
             if _from_list:
                 with MyVidsterBaseIE._LOCK:
-                    MyVidsterBaseIE._NUM_VIDS_PL[_from_list] -= 1
+                    # MyVidsterBaseIE._NUM_VIDS_PL[_from_list] -= 1
                     if _progress_bar:
                         _progress_bar.update()
                         _progress_bar.print("Entry OK")
@@ -601,8 +593,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
                     iemv = cast(MyVidsterIE, self._get_extractor("MyVidster"))
-
-                    MyVidsterBaseIE._NUM_VIDS_PL[url] = len(results)
+                    # MyVidsterBaseIE._NUM_VIDS_PL[url] = len(results)
 
                     pre = f'[channel/{channelid}][Num_videos_pending]'
 
@@ -610,7 +601,9 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
                         with ThreadPoolExecutor(thread_name_prefix='ex_channelpl') as ex:
                             futures = {
-                                ex.submit(iemv._get_entry, el['url'], check=_check, from_list=url, progress_bar=pb): el['url']
+                                ex.submit(
+                                    iemv._get_entry, el['url'],
+                                    check=_check, from_list=url, progress_bar=pb): el['url']
                                 for el in results
                             }
 
@@ -618,8 +611,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
                     for fut, ent in zip(futures, results):
                         try:
-                            _res = fut.result()
-                            if _res:
+                            if _res := fut.result():
                                 if _res.get('webpage_url') == futures[fut]:
                                     _orig_url = url
                                 else:
@@ -631,10 +623,24 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                                     'playlist_url': url})
                                 entries.append(_res)
                         except Exception as e:
-                            self.logger_debug(f"[get_entries][{self._get_url_print(futures[fut])}] error - {str(e)}")
                             _wurl = cast(str, futures[fut])
-                            _id, _title = cast(list[str], try_get(MyVidsterIE._match_valid_url(_wurl), lambda x: x.group('id', 'title')))
-                            entries.append({'original_url': futures[fut], 'playlist_url': url, 'error': str(e), 'formats': [], 'id': _id, 'title': sanitize_filename(_title, restricted=True), 'extractor': iemv.IE_NAME, 'extractor_key': iemv.ie_key()})
+                            self.logger_debug(
+                                f"[get_entries][{self._get_url_print(_wurl)}] error - {str(e)}",
+                                exc_info=True)
+                            _id, _title = cast(list[str], try_get(
+                                MyVidsterIE._match_valid_url(_wurl),
+                                lambda x: x.group('id', 'title') if x else (None, None)))
+                            entries.append(
+                                {
+                                    'original_url': futures[fut],
+                                    'playlist_url': url,
+                                    'error': str(e),
+                                    'formats': [],
+                                    'id': _id,
+                                    'title': sanitize_filename(_title, restricted=True),
+                                    'extractor': iemv.IE_NAME,
+                                    'extractor_key': iemv.ie_key()
+                                })
 
                 else:
                     entries = results
@@ -653,9 +659,9 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            logger.exception(repr(e))
-            self.to_screen(repr(e))
-            raise_extractor_error(repr(e))
+            self.logger_debug(str(e), exc_info=True)
+            self.report_warning(str(e))
+            raise_extractor_error(str(e), _from=e)
 
     def _real_initialize(self):
 
@@ -723,7 +729,7 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
 
                 if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-                    MyVidsterBaseIE._NUM_VIDS_PL[url] = len(list_videos)
+                    # MyVidsterBaseIE._NUM_VIDS_PL[url] = len(list_videos)
                     iemv = self._get_extractor("MyVidster")
 
                     with self.create_progress_bar(len(list_videos), msg=f'[search/?{url.split("?")[-1]}][Num_videos_pending]') as pb:
@@ -897,7 +903,7 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
 
                     if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-                        MyVidsterBaseIE._NUM_VIDS_PL[url] = len(list_videos)
+                        # MyVidsterBaseIE._NUM_VIDS_PL[url] = len(list_videos)
                         iemv = self._get_extractor("MyVidster")
 
                         with ThreadPoolExecutor(thread_name_prefix='ex_rsspl2') as ex:
@@ -967,17 +973,21 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
 
                     else:
 
-                        entries = [{
-                            '_type': 'url',
-                            'url': video,
-                            'ie_key': 'MyVidster',
-                            'original_url': _url}
-                            for _url, _videos in results.items() for video in _videos]
+                        entries = [
+                            {
+                                '_type': 'url',
+                                'url': video,
+                                'ie_key': 'MyVidster',
+                                'original_url': _url
+                            } for _url, _videos in results.items()
+
+                            for video in _videos]
 
                     if entries:
 
                         return self.playlist_result(
-                            entries, playlist_id=query.replace(' ', '_'), playlist_title='SearchMyVidsterRSS')
+                            entries, playlist_id=query.replace(' ', '_'),
+                            playlist_title='SearchMyVidsterRSS')
 
                 raise_extractor_error("no entries found")
 
