@@ -20,7 +20,44 @@ from urllib.parse import (
     unquote,
     urlparse
 )
+from ..YoutubeDL import YoutubeDL
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import TextIOWrapper
+from ipaddress import ip_address
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
+from .common import (
+    ExtractorError,
+    InfoExtractor
+)
+from ..minicurses import MultilinePrinter
+from ..utils import (
+    ReExtractInfo,
+    classproperty,
+    find_available_port,
+    int_or_none,
+    traverse_obj,
+    try_get,
+    variadic,
+    unsmuggle_url,
+)
+import http.cookiejar
+import sqlite3
+from functools import cached_property
 
+import httpx
 from backoff import (
     constant,
     on_exception
@@ -58,36 +95,6 @@ from selenium.webdriver.support.wait import WebDriverWait
 
 assert Keys  # for flake8
 
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
-
-from .common import (
-    ExtractorError,
-    InfoExtractor
-)
-from ..minicurses import MultilinePrinter
-from ..utils import (
-    ReExtractInfo,
-    classproperty,
-    find_available_port,
-    int_or_none,
-    traverse_obj,
-    try_get,
-    variadic,
-    unsmuggle_url,
-)
-
 assert Tuple
 assert Dict
 assert Iterable
@@ -97,12 +104,7 @@ assert Sequence
 assert TypeVar
 assert Any
 
-from functools import cached_property
-
 _NOT_FOUND = object()
-
-import http.cookiejar
-import sqlite3
 
 
 class BrowserCookieError(Exception):
@@ -280,15 +282,7 @@ class StatusStop(Exception):
         self.exc_info = exc_info
 
 
-class MyReExtractInfo(ReExtractInfo):
-    def __init__(self, msg, expected=False, request=None, response=None):
-        super().__init__(msg, expected=expected)
-        self.request = request
-        self.response = response
-
-
 def my_limiter(seconds: Union[str, int, float]):
-
     if seconds == "non":
         return Limiter(RequestRate(10000, 0))
     elif isinstance(seconds, (int, float)):
@@ -296,15 +290,12 @@ def my_limiter(seconds: Union[str, int, float]):
 
 
 def my_jitter(value: float) -> float:
-
     return int(random.uniform(value * 0.75, value * 1.25))
 
 
 def my_dec_on_exception(exception, **kwargs):
-
     if "jitter" in kwargs and kwargs["jitter"] == 'my_jitter':
         kwargs["jitter"] = my_jitter
-
     return on_exception(
         constant, exception, **kwargs)
 
@@ -325,29 +316,41 @@ limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
 limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
 
 dec_on_exception = on_exception(
-    constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+    constant, Exception,
+    max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_exception2 = on_exception(
-    constant, StatusError503, max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
+    constant, StatusError503,
+    max_time=300, jitter=my_jitter, raise_on_giveup=False, interval=15)
 dec_on_exception3 = on_exception(
-    constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
+    constant, (TimeoutError, ExtractorError),
+    max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=0.1)
 dec_retry = on_exception(
-    constant, ExtractorError, max_tries=3, raise_on_giveup=True, interval=2)
+    constant, ExtractorError,
+    max_tries=3, raise_on_giveup=True, interval=2)
 dec_retry_on_exception = on_exception(
-    constant, Exception, max_tries=3, raise_on_giveup=True, interval=2)
+    constant, Exception,
+    max_tries=3, raise_on_giveup=True, interval=2)
 dec_retry_raise = on_exception(
-    constant, ExtractorError, max_tries=3, interval=10)
+    constant, ExtractorError,
+    max_tries=3, interval=10)
 dec_retry_error = on_exception(
-    constant, (HTTPError, StreamError), max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
+    constant, (HTTPError, StreamError),
+    max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=10)
 dec_on_driver_timeout = on_exception(
-    constant, TimeoutException, max_tries=3, raise_on_giveup=True, interval=1)
+    constant, TimeoutException,
+    max_tries=3, raise_on_giveup=True, interval=1)
 dec_on_reextract = on_exception(
-    constant, ReExtractInfo, max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
+    constant, ReExtractInfo,
+    max_time=300, jitter=my_jitter, raise_on_giveup=True, interval=30)
 retry_on_driver_except = on_exception(
-    constant, WebDriverException, max_tries=3, raise_on_giveup=True, interval=2)
+    constant, WebDriverException,
+    max_tries=3, raise_on_giveup=True, interval=2)
 dec_on_exception2bis = on_exception(
-    constant, StatusError503, max_time=300, jitter=my_jitter, interval=15)
+    constant, StatusError503,
+    max_time=300, jitter=my_jitter, interval=15)
 dec_on_exception3bis = on_exception(
-    constant, (TimeoutError, ExtractorError), max_tries=3, jitter=my_jitter, interval=0.1)
+    constant, (TimeoutError, ExtractorError),
+    max_tries=3, jitter=my_jitter, interval=0.1)
 
 map_limiter = {
     15: limiter_15, 10: limiter_10, 5: limiter_5, 2: limiter_2, 1: limiter_1,
@@ -569,7 +572,8 @@ class myHAR:
 
     @classmethod
     def scan_har_for_request(
-            cls, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False, timeout=10, response=True,
+            cls, _valid_url, driver=None, har=None, _method="GET", _mimetype=None,
+            _all=False, timeout=10, response=True,
             inclheaders=False, check_event=None):
 
         _har_old = []
@@ -649,7 +653,17 @@ class myHAR:
 
     @classmethod
     def scan_har_for_json(
-            cls, _link, driver=None, har=None, _method="GET", _all=False, timeout=10, inclheaders=False, check_event=None):
+            cls, _link, driver=None, har=None, _method="GET", _all=False,
+            timeout=10, inclheaders=False, check_event=None):
+
+        def func_getter(x):
+            _info = ""
+            if _content := x.get('content'):
+                _info = json.loads(re.sub('[\t\n]', '', html.unescape(_content)))
+            if inclheaders:
+                return (_info, x.get('headers'))
+            else:
+                return _info
 
         _hints = myHAR.scan_har_for_request(
             _link, driver=driver, har=har, _method=_method, _mimetype="json", _all=_all,
@@ -659,31 +673,29 @@ class myHAR:
             return
 
         else:
-
-            def func_getter(x):
-                _info_json = json.loads(re.sub('[\t\n]', '', html.unescape(x.get('content')))) if x.get('content') else ""
-                if inclheaders:
-                    return (_info_json, x.get('headers'))
-                else:
-                    return _info_json
-
             if not _all:
                 return try_get(_hints, func_getter)
-
             else:
-                return [_info_json for el in _hints if (_info_json := try_get(el, func_getter))]
+                return [_info for _info in list(map(func_getter, _hints)) if _info]
+                # return [_info_json for el in _hints if (_info_json := try_get(el, func_getter))]
 
     class getNetworkHAR:
 
         def __init__(self, har_file, logger=None, msg=None, port=8080):
+            self._har_script = '/Users/antoniotorres/Projects/async_downloader/share/har_dump.py'
             self.har_file = har_file
             self.port = port
-            self.cmd = f"mitmdump -p {port} -s /Users/antoniotorres/Projects/async_downloader/share/har_dump.py --set hardump={self.har_file}"
+            self.cmd = f"mitmdump -p {port} -s {self._har_script} --set hardump={self.har_file}"
             self.logger = logger if logger else logging.getLogger('getHAR').debug
-            self.pre = msg if msg else ''
+            self.pre = '[getHAR]'
+            if msg:
+                self.pre += msg
 
         def __enter__(self):
-            self.ps = subprocess.Popen(self.cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.ps = subprocess.Popen(
+                self.cmd.split(' '),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
             self.ps.poll()
             time.sleep(2)
             self.ps.poll()
@@ -691,10 +703,14 @@ class myHAR:
                 _logout = ''
                 _logerr = ''
                 if self.ps.stdout:
-                    _logout = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stdout])
+                    _logout = '\n'.join(
+                        [line.decode('utf-8').strip()
+                         for line in self.ps.stdout])
                     self.ps.stdout.close()
                 if self.ps.stderr:
-                    _logerr = '\n'.join([line.decode('utf-8').strip() for line in self.ps.stderr])
+                    _logerr = '\n'.join(
+                        [line.decode('utf-8').strip()
+                         for line in self.ps.stderr])
                     self.ps.stderr.close()
                 try:
                     if self.ps.stdin:
@@ -704,8 +720,9 @@ class myHAR:
                 finally:
                     self.ps.wait()
 
-                self.logger(f"{self.pre}error executing mitmdump, returncode[{self.ps.returncode}]\n{_logerr}\n{_logout}")
+                self.logger(f"{self.pre}error rcode[{self.ps.returncode}]\n{_logerr}\n{_logout}")
                 raise Exception("couldnt launch mitmdump")
+
             return self
 
         def __exit__(self, *args):
@@ -741,14 +758,6 @@ class myHAR:
     @classmethod
     def network_har_handler(cls, har_file, logger=None, msg=None, port=8080):
         return cls.getNetworkHAR(har_file, logger=logger, msg=msg, port=port)
-
-
-import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from io import TextIOWrapper
-from ipaddress import ip_address
-import httpx
-from ..YoutubeDL import YoutubeDL
 
 
 class myIP:
@@ -880,7 +889,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     _SEMAPHORE = Semaphore(8)
 
     class syncsem:
-
         def __call__(self, func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
@@ -905,13 +913,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
         tests = tuple(cls.get_testcases(include_onlymatching=False))
         if tests:
-
             if not any([k.startswith('playlist') for test in tests for k in cast(dict, test)]):
                 return 'video'
             elif all([any([k.startswith('playlist') for k in cast(dict, test)]) for test in tests]):
                 return 'playlist'
             return 'any'
-
         else:
             if 'playlist' in cls.IE_NAME:
                 return 'playlist'
@@ -1043,12 +1049,10 @@ class SeleniumInfoExtractor(InfoExtractor):
             return self.ie_key()
 
     def get_ytdl_sem(self, _host) -> Lock:
-
         with self._downloader.params.setdefault('lock', Lock()):
             return self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
 
     def raise_from_res(self, res, msg):
-
         if res and (isinstance(res, str) or not res.get('error_res')):
             return
 

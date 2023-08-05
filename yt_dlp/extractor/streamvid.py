@@ -114,6 +114,7 @@ class StreamVidIE(SeleniumInfoExtractor):
             except ReExtractInfo as e:
                 raise_extractor_error(f"{pre} Error M3U8 doc {str(e)}", _from=e)
 
+            self.logger_debug(f'{pre} m3u8_doc\n{m3u8_doc}')
             if not m3u8_doc:
                 if poster_url:
                     _res = self._send_request(poster_url, headers=headers)
