@@ -2,7 +2,7 @@ import html
 import re
 
 
-from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, traverse_obj, url_basename
+from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, get_element_text_and_html_by_tag
 from .commonwebdriver import (
     dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError)
 
@@ -21,8 +21,7 @@ class JustTheGaysIE(SeleniumInfoExtractor):
         headers = kwargs.get('headers', {})
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-',
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+        _headers = {'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
                     'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         _headers.update(headers)
         try:
@@ -69,10 +68,13 @@ class JustTheGaysIE(SeleniumInfoExtractor):
 
         self.logger_debug(_entry)
 
+        for f in _entry['formats']:
+
+            f['http_headers'] = f.get('http_headers', {}) | {'Referer': 'https://justthegays.com/'}
+
         _videoid = None
 
-        if (_url := traverse_obj(_entry, ('formats', 0, 'url'))):
-            _videoid = try_get(re.findall(r'([a-zA-Z0-9]+)\.mp4', url_basename(_url)), lambda x: x[0])
+        _videoid = try_get(re.findall(r'data-post-id=[\'"](\d+)[\'"]', webpage), lambda x: x[0])
 
         if not _videoid:
             _videoid = self._generic_id(url)
@@ -95,6 +97,55 @@ class JustTheGaysIE(SeleniumInfoExtractor):
                 f.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
 
         return _entry
+
+    def _real_initialize(self):
+        super()._real_initialize()
+
+    def _real_extract(self, url):
+
+        self.report_extraction(url)
+
+        try:
+            return self._get_entry(url)
+        except ExtractorError:
+            raise
+        except Exception as e:
+            self.to_screen(f"{repr(e)}")
+            raise ExtractorError(repr(e))
+
+
+class JustTheGaysPlaylistIE(SeleniumInfoExtractor):
+    IE_NAME = 'justthegaysplaylist'  # type: ignore
+    _VALID_URL = r'https?://(?:www\.)?justthegays\.com/performer/'
+
+    @dec_on_exception
+    @dec_on_exception2
+    @limiter_1.ratelimit("justthegays2", delay=True)
+    def _send_request(self, url, **kwargs):
+
+        try:
+            return self.send_http_request(url)
+        except (HTTPStatusError, ConnectError) as e:
+            self.report_warning(f"[send_requests] {self._get_url_print(url)}: error - {repr(e)}")
+
+    def _get_entry(self, url, **kwargs):
+
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if x else None)
+
+        if not webpage:
+            raise ExtractorError("no webpage")
+
+        partial_element_re = r'''(?x)
+        <(?P<tag>article)
+         (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
+        '''
+
+        items = []
+        for m in re.finditer(partial_element_re, webpage):
+            content, _ = get_element_text_and_html_by_tag(m.group('tag'), webpage[m.start():])
+            items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
+
+        return self.playlist_from_matches(items, ie=JustTheGaysIE, video_kwargs={'original_url': url})
 
     def _real_initialize(self):
         super()._real_initialize()

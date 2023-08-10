@@ -2668,7 +2668,10 @@ from .thisvidgay import (
     BiguzIE
 )
 from .gaygo import GaygoIE
-from .justthegays import JustTheGaysIE
+from .justthegays import (
+    JustTheGaysIE,
+    JustTheGaysPlaylistIE
+)
 from .hexupload import HexUploadIE
 from .doodstream import DoodStreamIE
 from .voe import VoeIE
