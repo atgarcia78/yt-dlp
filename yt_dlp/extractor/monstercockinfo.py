@@ -1,10 +1,10 @@
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
-    HEADRequest,
     int_or_none,
     sanitize_filename
 )
+from ..networking import HEADRequest
 
 
 class MonsterCockInfoIE(InfoExtractor):
