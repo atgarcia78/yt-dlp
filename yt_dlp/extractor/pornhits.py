@@ -245,10 +245,10 @@ class BasePornhitsIE(SeleniumInfoExtractor):
 #     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://(video)?txxx\.com/embed/.+?)\1']
 
 
-class HotMovsIE(BasePornhitsIE):
-    IE_NAME = "hotmovs"  # type: ignore
-    _SITE_URL = "https://hotmovs.com/"
-    _VALID_URL = r'https?://hotmovs.com/(?:embed|videos)/(?P<id>\d+)'
+# class HotMovsIE(BasePornhitsIE):
+#     IE_NAME = "hotmovs"  # type: ignore
+#     _SITE_URL = "https://hotmovs.com/"
+#     _VALID_URL = r'https?://hotmovs.com/(?:embed|videos)/(?P<id>\d+)'
 
 
 class PornhitsIE(BasePornhitsIE):
