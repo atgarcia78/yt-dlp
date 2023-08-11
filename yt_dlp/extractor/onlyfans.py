@@ -815,7 +815,7 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 class OnlyFansPlaylistIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:playlist'  # type: ignore
     IE_DESC = 'onlyfans:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|newest|new|chat|favorites|tips))(\?(?P<query>.+))?"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<account>[^/]+)/(?P<mode>(?:all|latest|newest|new|chat|favorites|favourites|tips))(\?(?P<query>.+))?"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -829,6 +829,8 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         account, mode, query = info['account'], info.get('mode', 'latest'), info.get('query')
         if mode in ('new', 'newest'):
             mode = 'latest'
+        elif mode == 'favourites':
+            mode = 'favorites'
         params = {}
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
