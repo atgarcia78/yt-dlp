@@ -15,7 +15,6 @@ import json
 import http
 
 import httpx
-import urllib3.util.url as urllib3_url
 
 from .commonwebdriver import (
     By,
@@ -37,14 +36,6 @@ from ..utils import (
 from urllib.parse import urlparse
 
 logger = logging.getLogger('onlyfans')
-
-
-def hook_invalid_chars(component, allowed_chars):
-    # handle url encode here, or do nothing
-    return component
-
-
-urllib3_url._encode_invalid_chars = hook_invalid_chars  # type: ignore
 
 
 class AccountBase:
