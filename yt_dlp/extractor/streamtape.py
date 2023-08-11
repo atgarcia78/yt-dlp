@@ -4,7 +4,8 @@ import time
 import traceback
 import html
 
-from ..utils import ExtractorError, sanitize_filename, try_get, escape_url, get_domain
+from ..networking import normalize_url as escape_url
+from ..utils import ExtractorError, sanitize_filename, try_get, get_domain
 from .commonwebdriver import raise_extractor_error, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_0_1, limiter_1, By
 import logging
 import subprocess
