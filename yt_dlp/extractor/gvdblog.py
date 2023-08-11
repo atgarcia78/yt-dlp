@@ -12,6 +12,7 @@ from ..utils import (
     unsmuggle_url,
     get_domain,
     get_element_html_by_id,
+    get_element_text_and_html_by_tag,
     update_url_query,
     update_url)
 from .commonwebdriver import (
@@ -60,9 +61,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self._conf_args_gvd = {}
 
         for cookie in self._COOKIES_JAR:
-            if 'gvdblog.net' in cookie.domain and 'cf_clearance' in cookie.name:
+            if 'gvdblog.cc' in cookie.domain and 'cf_clearance' in cookie.name:
                 self.to_screen(f"cookie: {cookie}")
-                self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.net')  # type: ignore
+                self._CLIENT.cookies.set(name='cf_clearance', value=cookie.value, domain='gvdblog.cc')  # type: ignore
                 break
 
     @property
@@ -345,7 +346,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 raise
 
             self.logger_debug(f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
-            if not postdate or not title or not postid or not list_candidate_videos:
+            if not title or not list_candidate_videos:
                 raise ExtractorError(f"[{url} no video info")
 
             entries = []
@@ -447,7 +448,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
-        https?://(www\.)?gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(net/(?!search\?)[^\/\?]+))
+        https?://(www\.)?gvdblog\.(?:com/\d{4}/\d+/.+\.html|cc/video/)
         (\?(?P<query>[^#]+))?'''
 
     def _real_initialize(self):
@@ -471,16 +472,19 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         if not entries:
             raise ExtractorError("no videos")
 
+        if len(entries) == 1:
+            return entries[0] | {'webpage_url': url, 'original_url': url}
+
         return self.playlist_result(
-            entries, playlist_id=postid, playlist_title=sanitize_filename(title, restricted=True),
+            entries, playlist_title=sanitize_filename(title, restricted=True),
             webpage_url=url, original_url=url)
 
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
-    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(com|net)/search\?(?P<query>[^#]+)'
+    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(com|cc)/(?:search|(?:(actors|categories)/[^\?]+))(\?(?P<query>[^#]+))?'
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
-                 'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100"}
+                 'gvdblog.cc': "https://gvdblog.cc/wp-json/wp/v2/posts?per_page=100"}
 
     def send_api_search(self, query):
 
@@ -640,6 +644,24 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.debug(f"{repr(e)}")
             raise
 
+    def get_entries(self, url, **kwargs):
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if x else None)
+
+        if not webpage:
+            raise ExtractorError("no webpage")
+
+        partial_element_re = r'''(?x)
+        <(?P<tag>article)
+         (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
+        '''
+
+        items = []
+        for m in re.finditer(partial_element_re, webpage):
+            content, _ = get_element_text_and_html_by_tag(m.group('tag'), webpage[m.start():])
+            items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
+
+        return self.playlist_from_matches(items, ie=GVDBlogPostIE, video_kwargs={'original_url': url})
+
     def _real_initialize(self):
         super()._real_initialize()
 
@@ -662,7 +684,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if self.conf_args_gvd['iter']:
             entries = self.iter_get_entries_search()
         else:
-            entries = self.get_entries_search()
+            if self.keyapi == 'gvdblog.cc':
+                return self.get_entries(url)
+            else:
+                entries = self.get_entries_search()
 
         # self.logger_debug(entries)
 
