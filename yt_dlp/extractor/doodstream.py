@@ -14,7 +14,7 @@ from .commonwebdriver import (
     ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_1,
+    limiter_0_1,
     my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info
@@ -41,7 +41,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     _SITE_URL = 'https://dood.to/'
 
     @on_exception_vinfo
-    @limiter_1.ratelimit("doodstream", delay=True)
+    @limiter_0_1.ratelimit("doodstream", delay=True)
     def _get_video_info(self, url, **kwargs):
 
         msg = kwargs.get('msg')
@@ -64,7 +64,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
             raise
 
     @dec_on_exception3
-    @limiter_1.ratelimit("doodstream", delay=True)
+    @limiter_0_1.ratelimit("doodstream2", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()

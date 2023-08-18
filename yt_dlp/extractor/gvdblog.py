@@ -11,6 +11,7 @@ from ..utils import (
     int_or_none,
     unsmuggle_url,
     get_domain,
+    get_element_by_id,
     get_element_html_by_id,
     get_element_text_and_html_by_tag,
     update_url_query,
@@ -24,6 +25,7 @@ from .commonwebdriver import (
     my_dec_on_exception,
     Tuple,
     cast,
+    Union,
     raise_extractor_error)
 
 
@@ -46,6 +48,16 @@ _ie_data = {
 
 on_exception_req = my_dec_on_exception(TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
 logger = logging.getLogger("gvdblog")
+
+
+def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
+    if isinstance(info_dict, dict):
+        info_dict_list = [info_dict]
+    else:
+        info_dict_list = info_dict
+    for _el in info_dict_list:
+        _el.update(**kwargs)
+    return info_dict
 
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
@@ -312,7 +324,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 if isinstance(post, str) and post.startswith('http'):
                     url = unquote(post)
-                    premsg += f'[{self._get_url_print(update_url(url, query_update=self._query_upt))}]'
+                    premsg += f'[{self._get_url_print(update_url(url, query_update=self.query_upt))}]'
                     self.report_extraction(url)
                     post_content = try_get(
                         self._send_request(url),
@@ -394,7 +406,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     _el.update(_entryupdate)
                     _el.update({'__gvd_playlist_index': i + 1, '__gvd_playlist_count': len(entries)})
 
-                    _url = update_url_query(url, self._query_upt)
+                    if self.keyapi == 'gvdblog.com':
+                        _url = update_url_query(url, self.query_upt)
+                    else:
+                        _url = url
 
                     if len(entries) > 1:
                         _original_url = f'{_url}#{i + 1}'
@@ -473,7 +488,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             raise ExtractorError("no videos")
 
         if len(entries) == 1:
-            return entries[0] | {'webpage_url': url, 'original_url': url}
+            return entries[0] | {'original_url': url}
 
         return self.playlist_result(
             entries, playlist_title=sanitize_filename(title, restricted=True),
@@ -482,7 +497,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
-    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(com|cc)/(?:search|(?:(actors|categories)/[^\?]+))(\?(?P<query>[^#]+))?'
+    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(com|cc)/(?:search|(?:(actors|categories)/(?P<name>[^\?/]+)))(\?(?P<query>[^#]+))?'
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
                  'gvdblog.cc': "https://gvdblog.cc/wp-json/wp/v2/posts?per_page=100"}
 
@@ -635,7 +650,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                             self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
 
             else:
-                _entries = [self.url_result(update_url(_post_url, query_update=self._query_upt), ie=GVDBlogPostIE.ie_key())
+                _entries = [self.url_result(update_url(_post_url, query_update=self.query_upt), ie=GVDBlogPostIE.ie_key())
                             for _post_url in posts_vid_url]
 
             return _entries
@@ -645,10 +660,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             raise
 
     def get_entries(self, url, **kwargs):
+        pre = '[get_entries]'
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if x else None)
 
         if not webpage:
             raise ExtractorError("no webpage")
+
+        webpage2 = get_element_by_id('primary', webpage)
 
         partial_element_re = r'''(?x)
         <(?P<tag>article)
@@ -656,11 +674,41 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         '''
 
         items = []
-        for m in re.finditer(partial_element_re, webpage):
-            content, _ = get_element_text_and_html_by_tag(m.group('tag'), webpage[m.start():])
+        for m in re.finditer(partial_element_re, webpage2):
+            content, _ = get_element_text_and_html_by_tag(m.group('tag'), webpage2[m.start():])
             items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
 
-        return self.playlist_from_matches(items, ie=GVDBlogPostIE, video_kwargs={'original_url': url})
+        _entries = []
+
+        if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
+
+            with self.create_progress_bar(len(items), block_logging=False, msg=pre) as progress_bar:
+
+                with ThreadPoolExecutor(max_workers=16, thread_name_prefix="gvdpl") as ex:
+
+                    futures = {
+                        ex.submit(
+                            partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_url): _post_url
+                        for _post_url in items}
+
+                    wait(futures)
+
+                for fut in futures:
+                    try:
+                        if (_res := try_get(fut.result(), lambda x: x[0])):
+                            _entries += _res
+                        else:
+                            self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
+                    except Exception as e:
+                        self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
+
+        else:
+            _entries = [self.url_result(_post_url, ie=GVDBlogPostIE.ie_key())
+                        for _post_url in items]
+
+        _entries = upt_dict(_entries, playlist_url=url)
+
+        return _entries
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -685,12 +733,19 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             entries = self.iter_get_entries_search()
         else:
             if self.keyapi == 'gvdblog.cc':
-                return self.get_entries(url)
+                entries = self.get_entries(url)
             else:
                 entries = self.get_entries_search()
 
         # self.logger_debug(entries)
+        name = try_get(re.search(self._VALID_URL, url), lambda x: x.group('name'))
+        if name:
+            playlist_title = name
+            playlist_id = name
+        else:
+            playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')
+            playlist_title = "Search"
 
         return self.playlist_result(
-            entries, playlist_id=f'{sanitize_filename(query, restricted=True)}'.replace('%23', ''),
-            playlist_title="Search")
+            entries, playlist_id=playlist_id,
+            playlist_title=playlist_title)
