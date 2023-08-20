@@ -15,7 +15,8 @@ from ..utils import (
     get_element_html_by_id,
     get_element_text_and_html_by_tag,
     update_url_query,
-    update_url)
+    update_url
+)
 from .commonwebdriver import (
     unquote,
     SeleniumInfoExtractor,
@@ -26,14 +27,12 @@ from .commonwebdriver import (
     Tuple,
     cast,
     Union,
-    raise_extractor_error)
-
-
+    raise_extractor_error
+)
 from concurrent.futures import (
     ThreadPoolExecutor,
     wait
 )
-
 import logging
 from functools import partial
 
