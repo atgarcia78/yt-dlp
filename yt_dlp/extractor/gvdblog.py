@@ -272,7 +272,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             list1.append(_subvideo)
         return list1
 
-    def get_info(self, post) -> Tuple:
+    def get_info(self, post: Union[str, dict]) -> Tuple:
 
         if isinstance(post, str):
 
@@ -439,30 +439,26 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     @on_exception_req
     def _send_request(self, url, **kwargs):
 
-        driver = kwargs.get('driver', None)
         pre = f'[send_req][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
         _limiter = limiter_1 if GVDBlogBaseIE._SLOW_DOWN else limiter_0_1
 
         with _limiter.ratelimit("gvdblog", delay=True):
-            if driver:
-                driver.get(url)
-            else:
-                try:
-                    return self.send_http_request(url, **kwargs)
-                except ReExtractInfo as e:
-                    logger.debug(f"{pre}: error - {repr(e)}")
-                    raise ExtractorError(str(e))
-                except Exception as e:
-                    logger.warning(f"{pre}: error - {repr(e)}")
-                    raise
+            try:
+                return self.send_http_request(url, **kwargs)
+            except ReExtractInfo as e:
+                logger.debug(f"{pre}: error - {repr(e)}")
+                raise ExtractorError(str(e))
+            except Exception as e:
+                logger.warning(f"{pre}: error - {repr(e)}")
+                raise
 
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
-        https?://(www\.)?gvdblog\.(?:com/\d{4}/\d+/.+\.html|cc/video/)
+        https?://(www\.)?gvdblog\.(?:com/\d{4}/\d+/.+\.html|cc/video/|net/)
         (\?(?P<query>[^#]+))?'''
 
     def _real_initialize(self):
