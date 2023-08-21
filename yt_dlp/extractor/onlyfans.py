@@ -335,7 +335,10 @@ class succ_or_twrelogin:
 
 class scroll_chat:
 
-    _css_selec = "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto"
+    _css_selec = "".join([
+        "div.b-chats__scrollbar.m-custom-scrollbar.b-chat__messages.",
+        "m-native-custom-scrollbar.m-scrollbar-y.m-scroll-behavior-auto"])
+
     _class_name = "infinite-loading-container.b-chat__loading.b-chat__loading-top"
 
     def __init__(self, pre, logger):
@@ -544,10 +547,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             driver.execute_script("window.stop();")
             self.wait_until(driver, 1)
 
-    def getlicense(self, licurl, challenge):
+    def getlicense(self, licurl: str, challenge: bytes) -> bytes:
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
 
-        _path = try_get(urlparse(licurl), lambda x: x.path + '?' + x.query)
+        _path = cast(str, try_get(urlparse(licurl), lambda x: x.path + '?' + x.query))
         return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _data=challenge).content
 
     def _extract_from_json(self, data_post, user_profile=None):

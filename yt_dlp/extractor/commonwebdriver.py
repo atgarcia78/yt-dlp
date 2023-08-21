@@ -1080,7 +1080,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classmethod
     @dec_retry
-    def _get_driver(cls, noheadless=False, devtools=False, host=None, port=None, verbose=False):
+    def _get_driver(
+        cls, noheadless=False, devtools=False,
+            host=None, port=None, verbose=False) -> tuple[Firefox, FirefoxOptions]:
 
         tempdir = tempfile.mkdtemp(prefix='asyncall-')
         shutil.rmtree(tempdir, ignore_errors=True)
@@ -1095,9 +1097,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         if not noheadless:
             opts.add_argument("--headless")
 
-        # opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-application-cache")
-        # opts.add_argument("--disable-gpu")
         opts.add_argument("--disable-dev-shm-usage")
         opts.add_argument("--profile")
         opts.add_argument(tempdir)
@@ -1150,7 +1150,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if _driver:
                     cls.rm_driver(_driver)
 
-        driver = return_driver()
+        driver = cast(Firefox, return_driver())
 
         if not driver:
             shutil.rmtree(tempdir, ignore_errors=True)
