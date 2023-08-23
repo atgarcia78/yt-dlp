@@ -113,7 +113,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
             el_node = try_get(re.findall(r'var srclink\s+=\s+\$\([\'\"]#([^\'\"]+)[\'\"]', webpage), lambda x: x[0])
             if not el_node:
                 raise_extractor_error("error when retrieving video url")
-            _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^<]+)<' % (el_node), webpage), lambda x: "const res = " + x[0])
+            _code = try_get(re.findall(r'ById\([\'\"]%s[\'\"]\)\.innerHTML\s+=\s+([^;]+;)' % (el_node), webpage), lambda x: "const res = " + x[0])
             # self.to_screen(_code)
 
             video_url = None
