@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-import html
+from html import unescape
 from threading import Lock
 import json
 from ..utils import (
@@ -11,6 +11,7 @@ from ..utils import (
     int_or_none,
     unsmuggle_url,
     get_domain,
+    get_elements_by_class,
     get_element_by_id,
     get_element_html_by_id,
     get_element_text_and_html_by_tag,
@@ -337,7 +338,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     self.report_extraction(url)
                     post_content = try_get(
                         self._send_request(url),
-                        lambda x: re.sub('[\t\n]', '', html.unescape(x.text)) if x else None)
+                        lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
                     if post_content:
                         postdate, title, postid = self.get_info(post_content)
                         if self.keyapi == 'gvdblog.com':
@@ -379,7 +380,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             try:
 
                 if len(list_candidate_videos) > 1:
-                    with ThreadPoolExecutor(max_workers=min(len(list_candidate_videos), 8), thread_name_prefix="gvdblog_pl") as exe:
+                    with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
                         futures = {
                             exe.submit(partial(self.get_entry_video, msg=premsg), _el): _el
                             for _el in list_candidate_videos}
@@ -469,7 +470,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
-        https?://(www\.)?gvdblog\.(?:com/\d{4}/\d+/.+\.html|cc/video/|net/[^/_]+/?)
+        https?://(www\.)?gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(cc/video/.+)|(net/[^/_]+/?))
         (\?(?P<query>[^#]+))?$'''
 
     def _real_initialize(self):
@@ -504,7 +505,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
-    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(com|cc|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+))(\?(?P<query>[^#]+))?'
+    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(?:((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|(cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))(\?(?P<query>[^#]+))?'
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
                  'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100"}
 
@@ -615,7 +616,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
                 with self.create_progress_bar(_total, block_logging=False, msg=pre) as progress_bar:
 
-                    with ThreadPoolExecutor(max_workers=16, thread_name_prefix="gvdpl") as ex:
+                    with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
                         futures = {
                             ex.submit(
@@ -644,24 +645,58 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             logger.debug(f"{repr(e)}")
             raise
 
-    def get_entries(self, url, **kwargs):
-        pre = '[get_entries]'
-        webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text) if x else None)
-
-        if not webpage:
-            raise ExtractorError("no webpage")
-
-        webpage2 = get_element_by_id('primary', webpage)
-
+    def get_entries(self, url: str, **kwargs):
         partial_element_re = r'''(?x)
         <(?P<tag>article)
-         (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
+        (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
         '''
+        baseurl = url.strip('/')
+        pre = f"[get_entries][{baseurl}]"
+
+        def _get_entries_page(npage: int = 1, html_str: Union[str, None] = None):
+            try:
+                if html_str:
+                    _htmlpage = get_element_by_id('primary', html_str)
+                else:
+                    _htmlpage = try_get(
+                        self._send_request(f"{baseurl}/page/{npage}"),
+                        lambda x: get_element_by_id('primary', unescape(x.text)) if x else None)
+
+                if not _htmlpage:
+                    raise ExtractorError("no webpage")
+
+                _items = []
+                for m in re.finditer(partial_element_re, _htmlpage):
+                    content, _ = get_element_text_and_html_by_tag(
+                        m.group('tag'), _htmlpage[m.start():])
+                    _items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
+                return _items
+            except Exception as e:
+                self.logger_debug(f'{pre}[get_entries_page] {npage} no entries {repr(e)}')
+
+        def _get_last_page(html_str: str):
+            return try_get(get_elements_by_class('page-numbers', html_str), lambda x: int(x[-2])) or 1
+
+        if not (webpage := cast(str, try_get(
+                self._send_request(baseurl), lambda x: unescape(x.text) if x else None))):
+            raise_extractor_error(f"{pre} no webpage")
 
         items = []
-        for m in re.finditer(partial_element_re, webpage2):
-            content, _ = get_element_text_and_html_by_tag(m.group('tag'), webpage2[m.start():])
-            items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
+        if (last_page := _get_last_page(webpage)) > 1:
+            with ThreadPoolExecutor(thread_name_prefix="gvditems") as exe:
+                futures = {exe.submit(_get_entries_page, html_str=webpage): 1}
+                futures.update(
+                    {exe.submit(_get_entries_page, npage=pn): pn
+                        for pn in range(2, last_page + 1)})
+
+            for fut in futures:
+                if (_res := fut.result()):
+                    items.extend(_res)
+        else:
+            items.extend(_get_entries_page(html_str=webpage))
+
+        if not items:
+            raise ExtractorError('no entries')
 
         _entries = []
 
@@ -669,7 +704,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
             with self.create_progress_bar(len(items), block_logging=False, msg=pre) as progress_bar:
 
-                with ThreadPoolExecutor(max_workers=16, thread_name_prefix="gvdpl") as ex:
+                with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
                     futures = {
                         ex.submit(
@@ -704,9 +739,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query, _type, name = try_get(
+        query, _type, name, namecc = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('query', 'type', 'name'))
+            lambda x: x.group('query', 'type', 'name', 'name2'))
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
@@ -719,9 +754,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if (_query := self.conf_args_gvd['query']):
             _query = '&'.join([f"{key}={val}" for key, val in params.items()])
             self.logger_info(_query)
-        if name:
-            playlist_title = name
-            playlist_id = name
+        if name or namecc:
+            playlist_title = name or namecc
+            playlist_id = name or namecc
 
         else:
             playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')

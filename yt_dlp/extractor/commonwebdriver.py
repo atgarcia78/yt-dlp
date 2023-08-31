@@ -301,19 +301,19 @@ def my_dec_on_exception(exception, **kwargs):
 
 
 limiter_non = Limiter(RequestRate(10000, 0))
-limiter_0_005 = Limiter(RequestRate(1, 0.005 * Duration.SECOND))  # type: ignore
-limiter_0_07 = Limiter(RequestRate(1, 0.07 * Duration.SECOND))  # type: ignore
-limiter_0_05 = Limiter(RequestRate(1, 0.05 * Duration.SECOND))  # type: ignore
-limiter_0_01 = Limiter(RequestRate(1, 0.01 * Duration.SECOND))  # type: ignore
-limiter_0_1 = Limiter(RequestRate(1, 0.1 * Duration.SECOND))  # type: ignore
-limiter_0_5 = Limiter(RequestRate(1, 0.5 * Duration.SECOND))  # type: ignore
+limiter_0_005 = Limiter(RequestRate(1, Duration.SECOND * 0.005))  # type: ignore
+limiter_0_07 = Limiter(RequestRate(1, Duration.SECOND * 0.07))  # type: ignore
+limiter_0_05 = Limiter(RequestRate(1, Duration.SECOND * 0.05))  # type: ignore
+limiter_0_01 = Limiter(RequestRate(1, Duration.SECOND * 0.01))  # type: ignore
+limiter_0_1 = Limiter(RequestRate(1, Duration.SECOND * 0.1))  # type: ignore
+limiter_0_5 = Limiter(RequestRate(1, Duration.SECOND * 0.5))  # type: ignore
 limiter_1 = Limiter(RequestRate(1, Duration.SECOND))
-limiter_1_5 = Limiter(RequestRate(1, 1.5 * Duration.SECOND))  # type: ignore
-limiter_2 = Limiter(RequestRate(1, 2 * Duration.SECOND))
-limiter_5 = Limiter(RequestRate(1, 5 * Duration.SECOND))
-limiter_7 = Limiter(RequestRate(1, 7 * Duration.SECOND))
-limiter_10 = Limiter(RequestRate(1, 10 * Duration.SECOND))
-limiter_15 = Limiter(RequestRate(1, 15 * Duration.SECOND))
+limiter_1_5 = Limiter(RequestRate(1, Duration.SECOND * 1.5))  # type: ignore
+limiter_2 = Limiter(RequestRate(1, Duration.SECOND * 2))
+limiter_5 = Limiter(RequestRate(1, Duration.SECOND * 5))
+limiter_7 = Limiter(RequestRate(1, Duration.SECOND * 7))
+limiter_10 = Limiter(RequestRate(1, Duration.SECOND * 10))
+limiter_15 = Limiter(RequestRate(1, Duration.SECOND * 15))
 
 dec_on_exception = on_exception(
     constant, Exception,
