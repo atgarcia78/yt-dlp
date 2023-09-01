@@ -635,8 +635,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                             self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
 
             else:
-                _entries = [self.url_result(update_url(_post_url, query_update=self.query_upt), ie=GVDBlogPostIE.ie_key())
-                            for _post_url in posts_vid_url]
+                _entries = [self.url_result(
+                    update_url(_post_url, query_update=self.query_upt), ie=GVDBlogPostIE.ie_key())
+                    for _post_url in posts_vid_url]
 
             _entries = upt_dict(_entries, playlist_url=url)
             return _entries
@@ -706,9 +707,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
                 with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
-                    futures = {
-                        ex.submit(
-                            partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_url): _post_url
+                    futures = {ex.submit(
+                        partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_url): _post_url
                         for _post_url in items}
 
                     wait(futures)

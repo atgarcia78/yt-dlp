@@ -23,8 +23,8 @@ class FilemoonIE(SeleniumInfoExtractor):
 
     IE_NAME = "filemoon"  # type: ignore
     _SITE_URL = "https://filemoon.sx"
-    _VALID_URL = r'https?://filemoon\.\w\w/[e,d]/(?P<id>[^\/$]+)(?:\/|$)'
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.\w\w/[e,d]/.+?)\1']
+    _VALID_URL = r'https?://filemoon\.[^/]+/[e,d]/(?P<id>[^\/$]+)(?:\/|$)'
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https://filemoon\.[^/]+/[e,d]/.+?)\1']
 
     @dec_on_exception3
     @limiter_2.ratelimit("mixdrop", delay=True)
