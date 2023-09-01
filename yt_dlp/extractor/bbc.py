@@ -35,9 +35,7 @@ from pathlib import Path
 
 from .commonwebdriver import my_limiter, my_dec_on_exception
 
-
 limiter = my_limiter(0.001)
-# dec_on_exception = on_exception(constant, Exception, max_tries=3, jitter=my_jitter, raise_on_giveup=False, interval=2)
 dec_on_exception = my_dec_on_exception(Exception, max_tries=3, myjitter=True, raise_on_giveup=False, interval=2)
 
 import logging
@@ -1735,13 +1733,12 @@ class BBCCoUkIPlayerGroupIE(BBCCoUkIPlayerPlaylistBaseIE):
     def _call_api(self, pid, per_page, page=1, series_id=None):
 
         with limiter.ratelimit("api_bbc", delay=True):
-            with limiter.ratelimit("bbc", delay=True):
-                return self._download_json(
-                    'http://ibl.api.bbc.co.uk/ibl/v1/groups/%s/episodes' % pid,
-                    pid, query={
-                        'page': page,
-                        'per_page': per_page,
-                    })['group_episodes']
+            return self._download_json(
+                'http://ibl.api.bbc.co.uk/ibl/v1/groups/%s/episodes' % pid,
+                pid, query={
+                    'page': page,
+                    'per_page': per_page,
+                })['group_episodes']
 
     @staticmethod
     def _get_playlist_data(data):
