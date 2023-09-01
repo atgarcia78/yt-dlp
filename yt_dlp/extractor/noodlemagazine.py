@@ -44,7 +44,7 @@ class NoodleMagazineIE(InfoExtractor):
 
         player_path = extract_attributes(get_element_html_by_id('iplayer', webpage) or '')['src']
         player_iframe = self._download_webpage(
-            urljoin('https://adult.noodlemagazine.com', player_path), video_id, 'Downloading iframe page')
+            urljoin('https://adult.noodlemagazine.com', player_path), video_id, 'Downloading iframe page', headers={'Referer': url})
         playlist_url = self._search_regex(
             r'window\.playlistUrl\s*=\s*["\']([^"\']+)["\']', player_iframe, 'playlist url')
         playlist_info = self._download_json(
