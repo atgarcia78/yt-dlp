@@ -505,7 +505,11 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
-    _VALID_URL = r'https?://(?:www\.)?gvdblog\.(?:((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|(cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))(\?(?P<query>[^#]+))?'
+    _VALID_URL = r'''(?x)
+        https?://(?:www\.)?gvdblog\.(?:
+        ((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|
+        (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))(\?(?P<query>[^#]+))?'''
+
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
                  'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100"}
 
