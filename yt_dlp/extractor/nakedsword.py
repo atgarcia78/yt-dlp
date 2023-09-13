@@ -43,9 +43,7 @@ from ..utils import (
     sanitize_filename,
     traverse_obj,
     try_get,
-    js_to_json,
-    find_available_port
-
+    js_to_json
 )
 
 logger = logging.getLogger('nakedsword')
@@ -181,10 +179,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     headers_api = {}
     timer = ProgressTimer()
     call_lock = Lock()
-    _STATUS: str = 'NORMAL'
+    _STATUS = 'NORMAL'
     _LIMITERS = {
-        '403': limiter_1.ratelimit("nakedswordscene", delay=True),
-        'NORMAL': limiter_0_1.ratelimit("nakedswordscene", delay=True)}
+        '403': lambda x: limiter_1.ratelimit(x, delay=True),
+        'NORMAL': lambda x: limiter_0_1.ratelimit(x, delay=True)}
     _SEM = {
         '403': Lock(),
         'NORMAL': contextlib.nullcontext()}
@@ -385,22 +383,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     @dec_on_driver_timeout
     @dec_on_exception3
-    @limiter_0_1.ratelimit("nakedsword", delay=True)
     def _send_request(cls, url, **kwargs) -> Union[None, Response]:
 
         pre = f'[send_request][{cls._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
-
         driver = kwargs.get('driver', None)
 
-        if driver:
-            driver.get(url)
-        else:
-            try:
-                return (cls._send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
-            except (HTTPStatusError, ConnectError) as e:
-                logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
+        with NakedSwordBaseIE._LIMITERS['NORMAL']("nakedsword"):
+
+            if driver:
+                driver.get(url)
+            else:
+                try:
+                    return (cls._send_http_request(url, client=NakedSwordBaseIE._CLIENT, **kwargs))
+                except (HTTPStatusError, ConnectError) as e:
+                    logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
     @classmethod
     def _logout_api(cls):
@@ -531,7 +529,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @dec_on_reextract_3
     def get_formats(self, _types, _info):
 
-        with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]:
+        with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]("nswscene"):
 
             self.logger_debug(f"[get_formats] {_info}")
 
@@ -592,106 +590,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 raise ExtractorError("couldnt find any format")
             else:
                 return formats
-
-    @SeleniumInfoExtractor.syncsem()
-    def get_formats_by_har(self, scenes: Union[dict, list], msg=None, **kwargs):
-
-        _pre = '[get_entry_by_har]'
-        if msg:
-            _pre = f'{msg}{_pre}'
-
-        if isinstance(scenes, dict):
-            scenes = [scenes]
-
-        _port = find_available_port() or 8080
-        driver = self.get_driver(host='127.0.0.1', port=_port, **kwargs)
-        _list_results = {}
-        try:
-            for i, scene in enumerate(scenes):
-                _index = scene['_index_scene']
-                pre = f"{_pre}[{_index}]"
-                _list_results[_index] = {}
-                try:
-                    with self.get_har_logs('nakedsword', scene['id'], msg=pre, port=_port) as harlogs:
-
-                        _list_results[_index]['har_file'] = harlogs.har_file
-                        if i == 0:
-                            self._send_request(self._SITE_URL, driver=driver)
-                            if (_fetoken := driver.execute_script("return localStorage;").get('fe-token')):
-                                self.logger_debug(f'{pre} already logged with token[{_fetoken}]. Will logout first')
-                                self._logout(driver)
-                            self.wait_until(driver, 0.5)
-                            self._login(driver)
-                            self._send_request(scene['webpage_url'], driver=driver)
-                            self.wait_until(driver, 3)
-                            elvid = self.wait_until(driver, 10, toggleVideo(msg=pre))
-                            self.logger_debug(f'{pre} 1st toggle video result[{elvid}]')
-                            if not elvid or elvid == "error":
-                                return
-                            repeat = self.wait_until(driver, 30, selectHLS())
-                            self.logger_debug(f'{pre} selectHLS result[{repeat}]')
-                            if not repeat or repeat == "error":
-                                return
-                            elif repeat == "TRUE":
-
-                                self._send_request(scene['webpage_url'], driver=driver)
-                                self.wait_until(driver, 3)
-                                elvid = self.wait_until(driver, 10, toggleVideo(msg=pre))
-                                self.logger_debug(f'{pre} 2nd toggle video result[{elvid}]')
-                                if not elvid or elvid == "error":
-                                    raise ReExtractInfo("couldnt reproduce video")
-                        else:
-                            self._send_request(scene['webpage_url'], driver=driver)
-                            self.wait_until(driver, 3)
-                            elvid = self.wait_until(driver, 10, toggleVideo(msg=pre))
-                            self.logger_debug(f'{pre} toggle video result[{elvid}]')
-                            if not elvid or elvid == "error":
-                                raise ReExtractInfo("couldnt reproduce video")
-                        if i == len(scenes) - 1:
-                            self._logout(driver)
-
-                    m3u8_url, _status = try_get(
-                        self.scan_for_request(r"playlist.m3u8$", har=_list_results[_index]['har_file']),  # type: ignore
-                        lambda x: (x.get('url'), x.get('status')) if x else (None, None))
-                    self.logger_debug(f'{pre} status[{_status}] m3u8url[{m3u8_url}]')
-                    _formats = []
-                    _headers = NakedSwordBaseIE._HEADERS["MPD"]
-                    if m3u8_url and _status:
-                        if int(_status) > 400:
-                            raise ReExtractInfo(f"raise status {_status}")
-                        m3u8_doc = try_get(
-                            self._send_request(m3u8_url, headers=_headers),
-                            lambda x: (x.content).decode('utf-8', 'replace'))
-                        if not m3u8_doc:
-                            raise ReExtractInfo("couldnt get m3u8 doc")
-                        _formats, _ = self._parse_m3u8_formats_and_subtitles(
-                            m3u8_doc, m3u8_url, ext="mp4",
-                            headers=_headers, entry_protocol='m3u8_native', m3u8_id="hls")
-
-                    if not _formats:
-                        raise ReExtractInfo('Couldnt get video formats')
-
-                    for _format in _formats:
-                        if (_head := _format.get('http_headers')):
-                            _head.update(_headers)
-                        else:
-                            _format.update({'http_headers': _headers})
-
-                    _list_results[_index]['formats'] = _formats
-
-                except ReExtractInfo as e:
-                    self.logger_debug(f'{pre}[reextractinfo] {repr(e)}')
-                    _list_results[_index]['formats'] = []
-                    _list_results[_index]['error'] = repr(e)
-                except Exception as e:
-                    self.logger_debug(f"{pre} {repr(e)}")
-                    _list_results[_index]['formats'] = []
-                    _list_results[_index]['error'] = repr(e)
-
-            return _list_results
-        finally:
-            # self._logout(driver)
-            self.rm_driver(driver)
 
     def _get_api_details(self, movieid):
         return try_get(
@@ -1146,7 +1044,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         premsg += f'[{_url_movie.split("movies/")[1]}]'
 
-        _id_movie = self._match_id(_url_movie)
+        _id_movie = str(self._match_id(_url_movie))
 
         if _url_movie not in NakedSwordMovieIE._MOVIES:
             NakedSwordMovieIE._MOVIES.update(
@@ -1278,6 +1176,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                 original_url=_url_movie)
 
             except ReExtractInfo:
+                NakedSwordMovieIE._MOVIES[_url_movie]['final'] = False
                 raise
             except StatusStop:
                 raise
