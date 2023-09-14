@@ -2688,3 +2688,4 @@ from .dvdgayonline import DVDGayOnlineIE
 from .dflix import DFlixIE
 from .streamvid import StreamVidIE, FilelionsIE
 from .vgembed import VGEmbedIE
+from .mrman import MrManPlayListIE
