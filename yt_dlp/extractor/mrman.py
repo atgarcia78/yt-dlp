@@ -132,7 +132,7 @@ class MrManBaseIE(SeleniumInfoExtractor):
 class MrManPlayListIE(MrManBaseIE):
     IE_NAME = 'mrman:playlist'  # type: ignore
     IE_DESC = 'mrman:playlist'
-    _VALID_URL = r'https?://(?:(m|www|es|ru|de)\.)mrman\.com/playlist/(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
+    _VALID_URL = r'https?://(?:www\.)?mrman\.com/(?:playlist/|.*-p)(?P<playlist_id>\d*)/?(\?(?P<query>.+))?'
 
     def _get_playlist(self, url):
 
@@ -145,7 +145,11 @@ class MrManPlayListIE(MrManBaseIE):
 
         self.logger_debug(f"{premsg} playlist_id: {playlist_id} params: {params}")
 
-        info = try_get(MrManBaseIE._send_request(url, headers=MrManBaseIE._HEADERS), lambda x: x.json().get('config') if x else None)
+        _url = url
+        if '/playlist/' not in _url:
+            _url = f'https://www.mrman.com/playlist/{playlist_id}'
+
+        info = try_get(MrManBaseIE._send_request(_url, headers=MrManBaseIE._HEADERS), lambda x: x.json().get('config') if x else None)
 
         _entries = []
         _headers = {'Origin': 'https://www.mrman.com', 'Referer': 'https://www.mrman.com/'}
