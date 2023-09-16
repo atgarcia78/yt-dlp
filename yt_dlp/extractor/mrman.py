@@ -3,24 +3,24 @@ import re
 import threading
 
 from .commonwebdriver import (
-    By,
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
     dec_on_exception2,
     dec_on_exception3,
-    dec_on_driver_timeout,
-    ec,
     limiter_0_1,
-    cast,
-    WebElement
+    cast
 )
+
+from http.cookiejar import CookieJar
 
 from ..utils import (
     ExtractorError,
     traverse_obj,
     sanitize_filename,
     try_get,
+    get_elements_by_class,
+    urlencode_postdata
 )
 
 logger = logging.getLogger('mrman')
@@ -28,6 +28,7 @@ logger = logging.getLogger('mrman')
 
 class MrManBaseIE(SeleniumInfoExtractor):
     _SITE_URL = 'https://www.mrman.com/'
+    _LOGIN_URL = 'https://www.mrman.com/account/login'
     _NETRC_MACHINE = 'mrman'
     _LOCK = threading.Lock()
     _CLIENT = None
@@ -42,22 +43,34 @@ class MrManBaseIE(SeleniumInfoExtractor):
         'Pragma': 'no-cache',
         'Cache-Control': 'no-cache'}
 
+    _HEADERS_POST = {
+        'Accept': '*/*;q=0.5, text/javascript, application/javascript, application/ecmascript, application/x-ecmascript',
+        'Referer': 'https://www.mrman.com/',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-MOD-SBB-CTYPE': 'xhr',
+        'Origin': 'https://www.mrman.com',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache'}
+
+    _LOGIN_OK = '"accountState":"premium"'
+
     @classmethod
     @dec_on_exception3
     @dec_on_exception2
-    @dec_on_driver_timeout
     @limiter_0_1.ratelimit("mrman2", delay=True)
-    def _send_request(cls, url, driver=None, **kwargs):
+    def _send_request(cls, url, **kwargs):
 
-        if driver:
-            driver.get(url)
-        else:
-            try:
-                return cls._send_http_request(url, client=MrManBaseIE._CLIENT, **kwargs)
-            except (HTTPStatusError, ConnectError) as e:
-                logger.debug(f"[send_request] {cls._get_url_print(url)}: error - {repr(e)}")
+        try:
+            return cls._send_http_request(url, client=MrManBaseIE._CLIENT, **kwargs)
+        except (HTTPStatusError, ConnectError) as e:
+            logger.debug(f"[send_request] {cls._get_url_print(url)}: error - {repr(e)}")
 
-    def _login(self, driver):
+    def _login(self):
 
         username, password = self._get_login_info()
 
@@ -68,33 +81,39 @@ class MrManBaseIE(SeleniumInfoExtractor):
 
         self.report_login()
 
-        MrManBaseIE._send_request(self._SITE_URL, driver)
-        el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
-        if el_menu:
-            self.logger_debug("Login already")
-            return
+        _result_login = False
 
-        el_login = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url"))))
-        if el_login:
-            el_login.click()
-        el_username = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input#login.form-control"))))
-        el_password = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input#password.form-control"))))
-        el_login = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input.btn.btn-submit"))))
-        if el_username and el_password and el_login:
-            el_username.send_keys(username)
-            self.wait_until(driver, 2)
-            el_password.send_keys(password)
-            self.wait_until(driver, 2)
-            el_login.submit()
-            el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+        webpage = self._download_webpage(self._SITE_URL, None)
+        if self._LOGIN_OK in webpage:
+            _result_login = True
+            self.logger_info("[login] already logged")
+            return _result_login
 
-            if not el_menu:
-                self.raise_login_required("Invalid username/password")
-            else:
-                self.logger_debug("Login OK")
+        csrf_token = self._html_search_meta(
+            'csrf-token', webpage, 'csrf token', default=None)
+        _headers = MrManBaseIE._HEADERS_POST | {'X-CSRF-Token': csrf_token}
+
+        _hidden = try_get(
+            get_elements_by_class('new_customer', webpage),
+            lambda x: self._hidden_inputs(x[0]) if x else None)
+
+        _req = {
+            'customer[username]': username,
+            'customer[password]': password,
+            'customer[remember_me]': '0'} | _hidden
+
+        if _respost := self._download_json(
+                self._LOGIN_URL, None, note=None, fatal=False,
+                data=urlencode_postdata(_req), headers=_headers):
+
+            if _respost.get('success'):
+                webpage = self._download_webpage(self._SITE_URL, None)
+                if self._LOGIN_OK in webpage:
+                    _result_login = True
+
+        self.logger_info(f'[login] result login: {"OK" if _result_login else "NOK"}')
+
+        return _result_login
 
     def _real_initialize(self):
 
@@ -105,28 +124,23 @@ class MrManBaseIE(SeleniumInfoExtractor):
                 MrManBaseIE._CLIENT = self._CLIENT
                 for cookie in self._COOKIES_JAR:
                     if 'mrman.com' in cookie.domain:
-                        MrManBaseIE._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
-                if 'toniomad' in cast(str, try_get(MrManBaseIE._send_request(self._SITE_URL), lambda x: x.text if x else '')):
+                        MrManBaseIE._CLIENT.cookies.set(
+                            name=cookie.name, value=cookie.value, domain=cookie.domain)
+
+                if self._LOGIN_OK in cast(str, try_get(
+                        MrManBaseIE._send_request(self._SITE_URL),
+                        lambda x: x.text if x else '')):
+
                     self.logger_info("Already logged with cookies")
 
-                # else:
-                #     driver = self.get_driver()
-                #     try:
-                #         MrManBaseIE._send_request(self._SITE_URL, driver)
-                #         driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': '.mrman.com'})
-                #         driver.add_cookie({'name': 'videosPerRow', 'value': '5', 'domain': '.mrman.com'})
-                #         self._login(driver)
-                #         MrManBaseIE._COOKIES = driver.get_cookies()
-                #         for cookie in MrManBaseIE._COOKIES:
-                #             MrManBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                #         if 'atgarcia' in cast(str, try_get(MrManBaseIE._send_request(self._SITE_URL), lambda x: x.text if x else '')):
-                #             self.logger_debug("Already logged with cookies")
-                #             MrManBaseIE._MRMANINIT = True
-                #     except Exception:
-                #         self.to_screen("error when login")
-                #         raise
-                #     finally:
-                #         self.rm_driver(driver)
+                else:
+                    if self._login():
+                        jar = CookieJar()
+                        if (cookies := self.cookiejar.get_cookies_for_url(self._SITE_URL)):
+                            for cookie in cookies:
+                                jar.set_cookie(cookie)
+                        if jar:
+                            MrManBaseIE._CLIENT.cookies.update(jar)
 
 
 class MrManPlayListIE(MrManBaseIE):

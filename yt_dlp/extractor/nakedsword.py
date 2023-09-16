@@ -843,8 +843,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         'A valid %s account is needed to access this media.'
                         % self._NETRC_MACHINE)
 
+                if _login_menu := self.wait_until(
+                        driver, 60, ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, 'LOGIN'))):
+                    _login_menu.click()
                 _method_css = lambda x: ec.presence_of_element_located((By.CSS_SELECTOR, x))
-
                 if not (el_username := cast(WebElement, self.wait_until(
                         driver, 60, _method_css("input.Input")))):
                     raise ExtractorError("login nok")
