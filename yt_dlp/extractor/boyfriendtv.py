@@ -48,14 +48,17 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     def _get_info_for_format(self, url, **kwargs):
 
         _headers = kwargs.get('headers', {})
-        headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        headers = {
+            'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
         headers.update(_headers)
         self.logger_debug(f"[get_video_info] {url}")
 
         try:
             return self.get_info_for_format(url, client=BoyFriendTVBaseIE._CLIENT, headers=headers)
         except (HTTPStatusError, ConnectError) as e:
-            self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(
+                f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
             return {"error_res": f"{repr(e)}"}
 
     @classmethod
@@ -85,12 +88,14 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         self.report_login()
 
         BoyFriendTVBaseIE._send_request(self._SITE_URL, driver)
-        el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+        el_menu = self.wait_until(
+            driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
         if el_menu:
             self.logger_debug("Login already")
             return
 
-        el_login = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url"))))
+        el_login = cast(WebElement, self.wait_until(
+            driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url"))))
         if el_login:
             el_login.click()
         el_username = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
@@ -105,7 +110,8 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             el_password.send_keys(password)
             self.wait_until(driver, 2)
             el_login.submit()
-            el_menu = self.wait_until(driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
+            el_menu = self.wait_until(
+                driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
 
             if not el_menu:
                 self.raise_login_required("Invalid username/password")
@@ -119,10 +125,11 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         with BoyFriendTVBaseIE._LOCK:
             if not BoyFriendTVBaseIE._BFINIT:
                 BoyFriendTVBaseIE._CLIENT = self._CLIENT
-                for cookie in self._COOKIES_JAR:
-                    if 'boyfriendtv.com' in cookie.domain:
-                        BoyFriendTVBaseIE._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
-                if 'atgarcia' in cast(str, try_get(BoyFriendTVBaseIE._send_request(self._SITE_URL), lambda x: x.text if x else '')):
+                for cookie in self._COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
+                    BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
+                if 'atgarcia' in cast(str, try_get(
+                        BoyFriendTVBaseIE._send_request(self._SITE_URL),
+                        lambda x: x.text if x else '')):
                     self.logger_debug("Already logged with cookies")
                     BoyFriendTVBaseIE._BFINIT = True
 
@@ -130,13 +137,21 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                     driver = self.get_driver()
                     try:
                         BoyFriendTVBaseIE._send_request(self._SITE_URL, driver)
-                        driver.add_cookie({'name': 'rta_terms_accepted', 'value': 'true', 'domain': '.boyfriendtv.com'})
-                        driver.add_cookie({'name': 'videosPerRow', 'value': '5', 'domain': '.boyfriendtv.com'})
+                        driver.add_cookie({
+                            'name': 'rta_terms_accepted',
+                            'value': 'true',
+                            'domain': '.boyfriendtv.com'})
+                        driver.add_cookie({
+                            'name': 'videosPerRow',
+                            'value': '5',
+                            'domain': '.boyfriendtv.com'})
                         self._login(driver)
                         BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
                         for cookie in BoyFriendTVBaseIE._COOKIES:
-                            BoyFriendTVBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-                        if 'atgarcia' in cast(str, try_get(BoyFriendTVBaseIE._send_request(self._SITE_URL), lambda x: x.text if x else '')):
+                            BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
+                        if 'atgarcia' in cast(str, try_get(
+                                BoyFriendTVBaseIE._send_request(self._SITE_URL),
+                                lambda x: x.text if x else '')):
                             self.logger_debug("Already logged with cookies")
                             BoyFriendTVBaseIE._BFINIT = True
                     except Exception:
@@ -158,17 +173,25 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
         _san_url = urljoin(self._SITE_URL, f'videos/{videoid}')
 
         try:
-            webpage = try_get(BoyFriendTVBaseIE._send_request(_san_url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            webpage = try_get(
+                BoyFriendTVBaseIE._send_request(_san_url),
+                lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage:
                 raise ExtractorError("error 404 no webpage", expected=True)
 
-            _title = try_get(self._html_extract_title(webpage), lambda x: x.replace(" - BoyFriendTV.com", "").strip())
+            _title = try_get(
+                self._html_extract_title(webpage),
+                lambda x: x.replace(" - BoyFriendTV.com", "").strip())
             if _title and any(_ in _title.lower() for _ in ("deleted", "removed", "page not found")):
                 raise ExtractorError("Page not found 404", expected=True)
 
-            _rating = try_get(re.search(r'class="progress-big js-rating-title" title="(?P<rat>\d+)%"', webpage), lambda x: int(x.group('rat')))
+            _rating = try_get(
+                re.search(r'class="progress-big js-rating-title" title="(?P<rat>\d+)%"', webpage),
+                lambda x: int(x.group('rat')))
 
-            info_sources = try_get(re.findall(r'sources:\s+(\[\{.*\}\])\,\s+poster', webpage), lambda x: json.loads(js_to_json(x[0])))
+            info_sources = try_get(
+                re.findall(r'sources:\s+(\[\{.*\}\])\,\s+poster', webpage),
+                lambda x: json.loads(js_to_json(x[0])))
 
             if not info_sources:
                 raise ExtractorError("no video sources")
@@ -178,12 +201,15 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
             if not sources_mp4:
                 raise ExtractorError("no mp4 video sources")
 
-            sources_mp4 = sorted(sources_mp4, key=lambda x: int(x.get('desc', "0p")[:-1]), reverse=True)
+            sources_mp4 = sorted(
+                sources_mp4, key=lambda x: int(x.get('desc', "0p")[:-1]), reverse=True)
 
             urlp = urlparse(_san_url)
-            _headers = {'Referer': f"{urlp.scheme}://{urlp.netloc}/",
-                        'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
-                        'Accept-Encoding': 'identity'}
+            _headers = {
+                'Referer': f"{urlp.scheme}://{urlp.netloc}/",
+                'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+                'Accept-Encoding': 'identity'
+            }
 
             _formats = []
 
@@ -214,7 +240,8 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                             if not _info_video or 'error' in _info_video:
                                 self.logger_debug(f"[{url}][{_format_id}] no video info")
                             else:
-                                _format.update({'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+                                _format.update({
+                                    'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
                                 self.get_ytdl_sem(get_host(cast(str, _info_video.get('url'))))
 
                     _formats.append(_format)
@@ -237,25 +264,9 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
         except ExtractorError as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
-            # return ({
-            #     'id': videoid,
-            #     'title': videoid,
-            #     'formats': [],
-            #     'webpage_url': _san_url,
-            #     'extractor_key': self.ie_key(),
-            #     'extractor': self.IE_NAME,
-            #     'error': str(e)})
             raise
         except Exception as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
-            # return ({
-            #     'id': videoid,
-            #     'title': videoid,
-            #     'formats': [],
-            #     'webpage_url': _san_url,
-            #     'extractor_key': self.ie_key(),
-            #     'extractor': self.IE_NAME,
-            #     'error': str(e)})
             raise ExtractorError(repr(e))
 
     def _real_initialize(self):
@@ -286,9 +297,12 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
 
     def _get_entries_page(self, url_page, _min_rating, _q, page, orig_url):
 
+        _pattern = r'href="(?P<url>[^"]+)".*src="(?P<thumb>[^"]+)" alt="(?P<title>[^"]+)".*green" title="(?P<rat>\d+)%'
         try:
             logger.debug(f"page: {url_page}")
-            webpage = try_get(BoyFriendTVBaseIE._send_request(url_page), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+            webpage = try_get(
+                BoyFriendTVBaseIE._send_request(url_page),
+                lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
 
             if not webpage:
                 raise ExtractorError("error 404 no webpage", expected=True)
@@ -299,7 +313,12 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
             if el_videos:
                 for el in el_videos:
                     try:
-                        thumb, title, url, rating = try_get(re.search(r'href="(?P<url>[^"]+)".*src="(?P<thumb>[^"]+)" alt="(?P<title>[^"]+)".*green" title="(?P<rat>\d+)%', el), lambda x: (x.group('thumb'), x.group('title'), urljoin(self._SITE_URL, x.group('url').rsplit("/", 1)[0]), try_get(x.group('rat'), lambda y: int(y) if y.isdecimal() else 0)) if x else ("", "", "", ""))  # type: ignore
+                        thumb, title, url, rating = try_get(
+                            re.search(_pattern, el), lambda x: (
+                                x.group('thumb'), x.group('title'),
+                                urljoin(self._SITE_URL, x.group('url').rsplit("/", 1)[0]),
+                                try_get(x.group('rat'), lambda y: int(y) if y.isdecimal() else 0))
+                            if x else ("", "", "", ""))
                         if 'img/removed-video' in thumb or not url:
                             continue
 
@@ -337,7 +356,9 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
 
     def _get_playlist(self, url):
 
-        playlist_id, query = try_get(re.match(self._VALID_URL, url), lambda x: x.group('playlist_id', 'query'))  # type: ignore
+        playlist_id, query = try_get(
+            re.match(self._VALID_URL, url),
+            lambda x: x.group('playlist_id', 'query'))
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
         else:
@@ -346,7 +367,9 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         _sq = try_get(params.get('sort'), lambda x: f'?sort={x}' if x else "")
         self.to_screen(f'{self._BASE_URL}{_sq}' % (playlist_id, 1))
         self.to_screen(params)
-        webpage = try_get(BoyFriendTVBaseIE._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
+        webpage = try_get(
+            BoyFriendTVBaseIE._send_request(f'{self._BASE_URL}{_sq}' % (playlist_id, 1)),
+            lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
         if not webpage:
             raise ExtractorError("error 404 no webpage", expected=True)
         _title = self._html_search_regex(r'<h1[^>]*>([^<]+)<', webpage, 'title')
@@ -358,7 +381,9 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         self.to_screen(f"last_page: {last_page}, minrating: {_min_rating}")
 
         with ThreadPoolExecutor(thread_name_prefix='bftvlist') as ex:
-            futures = {ex.submit(self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page + 1)), _min_rating, _q, page, url): page for page in range(last_page)}
+            futures = {ex.submit(
+                self._get_entries_page, f'{self._BASE_URL}{_sq}' % (playlist_id, (page + 1)),
+                _min_rating, _q, page, url): page for page in range(last_page)}
 
         _entries = []
 
@@ -367,14 +392,17 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                 if (_ent := fut.result()):
                     _entries.extend(_ent)
                 else:
-                    self.report_warning(f"[{url}][page {futures[fut]}] no entries")
+                    self.report_warning(
+                        f"[{url}][page {futures[fut]}] no entries")
             except Exception as e:
-                self.report_warning(f"[{url}][page {futures[fut]}] {repr(e)}")
+                self.report_warning(
+                    f"[{url}][page {futures[fut]}] {repr(e)}")
 
         if not _entries:
             raise ExtractorError("cant find any video", expected=True)
 
-        return self.playlist_result(_entries, playlist_id, sanitize_filename(_title, restricted=True))
+        return self.playlist_result(
+            _entries, playlist_id, sanitize_filename(_title, restricted=True))
 
     def _real_initialize(self):
         super()._real_initialize()

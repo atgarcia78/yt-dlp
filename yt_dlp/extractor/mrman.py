@@ -12,8 +12,6 @@ from .commonwebdriver import (
     cast
 )
 
-from http.cookiejar import CookieJar
-
 from ..utils import (
     ExtractorError,
     traverse_obj,
@@ -44,8 +42,11 @@ class MrManBaseIE(SeleniumInfoExtractor):
         'Cache-Control': 'no-cache'}
 
     _HEADERS_POST = {
-        'Accept': "".join(['*/*;q=0.5, text/javascript, application/javascript, ',
-                           'application/ecmascript, application/x-ecmascript']),
+        'Accept': "".join(
+            [
+                '*/*;q=0.5, text/javascript, application/javascript, ',
+                'application/ecmascript, application/x-ecmascript'
+            ]),
         'Referer': 'https://www.mrman.com/',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
@@ -112,7 +113,8 @@ class MrManBaseIE(SeleniumInfoExtractor):
                 if self._LOGIN_OK in webpage:
                     _result_login = True
 
-        self.logger_info(f'[login] result login: {"OK" if _result_login else "NOK"}')
+        self.logger_info(
+            f'[login] result login: {"OK" if _result_login else "NOK"}')
 
         return _result_login
 
@@ -123,25 +125,21 @@ class MrManBaseIE(SeleniumInfoExtractor):
         with MrManBaseIE._LOCK:
             if not MrManBaseIE._CLIENT:
                 MrManBaseIE._CLIENT = self._CLIENT
-                for cookie in self._COOKIES_JAR:
-                    if 'mrman.com' in cookie.domain:
-                        MrManBaseIE._CLIENT.cookies.set(
-                            name=cookie.name, value=cookie.value, domain=cookie.domain)
-
+                for cookie in self._COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
+                    MrManBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
                 if self._LOGIN_OK in cast(str, try_get(
                         MrManBaseIE._send_request(self._SITE_URL),
                         lambda x: x.text if x else '')):
-
                     self.logger_info("Already logged with cookies")
 
                 else:
                     if self._login():
-                        jar = CookieJar()
-                        if (cookies := self.cookiejar.get_cookies_for_url(self._SITE_URL)):
-                            for cookie in cookies:
-                                jar.set_cookie(cookie)
-                        if jar:
-                            MrManBaseIE._CLIENT.cookies.update(jar)
+                        for cookie in self.cookiejar.get_cookies_for_url(self._SITE_URL):
+                            MrManBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
+                        if self._LOGIN_OK in cast(str, try_get(
+                                MrManBaseIE._send_request(self._SITE_URL),
+                                lambda x: x.text if x else '')):
+                            self.logger_info("Logged OK with cookies after login")
 
 
 class MrManPlayListIE(MrManBaseIE):

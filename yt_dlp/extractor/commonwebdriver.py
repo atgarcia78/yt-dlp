@@ -53,6 +53,7 @@ from ..utils import (
     variadic,
     unsmuggle_url,
 )
+from ..cookies import YoutubeDLCookieJar
 import http.cookiejar
 import sqlite3
 from functools import cached_property
@@ -143,7 +144,8 @@ class FirefoxBrowserCookies:
         raise BrowserCookieError('Can not find cookie file at: ' + cookie_file)
 
     def find_cookie_file(self, profile):
-        return os.path.expanduser(f'~/Library/Application Support/Firefox/Profiles/{profile}/cookies.sqlite')
+        return os.path.expanduser(
+            f'~/Library/Application Support/Firefox/Profiles/{profile}/cookies.sqlite')
 
     def extractSessionCookie(self, sessionFile, cj):
         try:
@@ -170,7 +172,7 @@ class FirefoxBrowserCookies:
 
     def load(self):
         print('firefox', self.tmp_file)
-        cj = http.cookiejar.CookieJar()
+        cj = YoutubeDLCookieJar()
         try:
             con = sqlite3.connect(self.tmp_file)
             cur = con.cursor()
@@ -973,11 +975,16 @@ class SeleniumInfoExtractor(InfoExtractor):
         with SeleniumInfoExtractor._MASTER_LOCK:
             if self._YTDL != self._downloader:
 
-                self._downloader.params.setdefault('stop_dl', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), {}) if x else {}))
-                self._downloader.params.setdefault('sem', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('sem'), {}) if x else {}))
-                self._downloader.params.setdefault('lock', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('lock'), Lock()) if x else Lock()))
-                self._downloader.params.setdefault('stop', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('stop'), Event()) if x else Event()))
-                self._downloader.params.setdefault('routing_table', try_get(self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
+                self._downloader.params.setdefault('stop_dl', try_get(
+                    self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), {}) if x else {}))
+                self._downloader.params.setdefault('sem', try_get(
+                    self._YTDL, lambda x: traverse_obj(x.params, ('sem'), {}) if x else {}))
+                self._downloader.params.setdefault('lock', try_get(
+                    self._YTDL, lambda x: traverse_obj(x.params, ('lock'), Lock()) if x else Lock()))
+                self._downloader.params.setdefault('stop', try_get(
+                    self._YTDL, lambda x: traverse_obj(x.params, ('stop'), Event()) if x else Event()))
+                self._downloader.params.setdefault('routing_table', try_get(
+                    self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
 
                 SeleniumInfoExtractor._YTDL = self._downloader
 
@@ -987,14 +994,14 @@ class SeleniumInfoExtractor(InfoExtractor):
                 'headers': self.get_param('http_headers', {}).copy(),
                 'follow_redirects': True,
                 'verify': False,
-                'proxies': {'http://': _proxy, 'https://': _proxy} if (_proxy := self.get_param('proxy')) else None}
+                'proxies': {'http://': _proxy, 'https://': _proxy}
+                if (_proxy := self.get_param('proxy')) else None}
 
             self._CLIENT = Client(**self._CLIENT_CONFIG)
 
             SeleniumInfoExtractor._REFS[id(self)] = self
 
     def extract(self, url):
-
         url, data = unsmuggle_url(url)
 
         self.indexdl = traverse_obj(data, 'indexdl')
@@ -1002,11 +1009,12 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         return super().extract(url)
 
-    def create_progress_bar(self, total: Union[int, float], block_logging: bool = True, msg: Union[str, None] = None) -> ProgressBar:
+    def create_progress_bar(
+            self, total: Union[int, float], block_logging: bool = True,
+            msg: Union[str, None] = None) -> ProgressBar:
         return ProgressBar(self._downloader, total, block_logging=block_logging, msg=msg)
 
     def _get_extractor(self, _args):
-
         def get_extractor(url):
             ies = self._downloader._ies  # type: ignore
             for ie_key, ie in ies.items():
@@ -1027,7 +1035,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             ie._real_initialize()
             return ie
         except Exception as e:
-            self.LOGGER.exception(f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
+            self.LOGGER.exception(
+                f"{repr(e)} extractor doesnt exist with ie_key {ie_key}")
         raise
 
     def _get_ie_name(self, url=None):
@@ -1220,7 +1229,9 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             _valid_url, driver=driver, har=har, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout,
             response=response, inclheaders=inclheaders, check_event=self.check_stop)
 
-    def scan_for_json(self, _valid_url, driver=None, har=None, _method="GET", _all=False, timeout=10, inclheaders=False):
+    def scan_for_json(
+            self, _valid_url, driver=None, har=None, _method="GET", _all=False,
+            timeout=10, inclheaders=False):
 
         return myHAR.scan_har_for_json(
             _valid_url, driver=driver, har=har, _method=_method, _all=_all, timeout=timeout,
@@ -1271,6 +1282,10 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
     def _is_valid(self, url, msg=None, inc_error=False) -> dict:
 
+        _not_valid_url = [
+            'rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
+            'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'pornone.com/embed/']
+
         _pre_str = f'[valid][{self._get_url_print(url)}]'
         if msg:
             _pre_str = f'[{msg}]{_pre_str}'
@@ -1283,8 +1298,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             return notvalid
 
         try:
-            if any(_ in url for _ in ['rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
-                                      'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'pornone.com/embed/']):
+            if any(_ in url for _ in _not_valid_url):
                 self.logger_debug(f'{_pre_str}:False')
                 return notvalid if not inc_error else {'error': 'in error list'} | notvalid
             elif any(_ in url for _ in ['gayforit.eu/video']):
@@ -1302,11 +1316,14 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 @_decor
                 def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
                     try:
-                        _headers = {'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
-                                    'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+                        _headers = {
+                            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+                            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
+                            'Cache-Control': 'no-cache'}
                         if short:
                             _headers.update({'Range': 'bytes=0-100'})
-                        return self.send_http_request(_url, _type="GET", timeout=5, headers=_headers, msg=f'[valid]{_pre_str}')
+                        return self.send_http_request(
+                            _url, _type="GET", timeout=5, headers=_headers, msg=f'[valid]{_pre_str}')
                     except (HTTPStatusError, ConnectError) as e:
                         self.logger_debug(f"{_pre_str}:{e}")
                         return {'error': f'{e}'}
@@ -1321,8 +1338,13 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
                     elif not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
 
-                        self.logger_debug(f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{notvalid}')
-                        return notvalid if not inc_error else {'error': f'not path in reroute url {str(res.url)}'} | notvalid
+                        self.logger_debug(
+                            f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{notvalid}')
+
+                        if not inc_error:
+                            return notvalid
+                        else:
+                            return {'error': f'not path in reroute url {str(res.url)}'} | notvalid
 
                     else:
                         webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
