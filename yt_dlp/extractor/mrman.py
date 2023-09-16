@@ -44,7 +44,8 @@ class MrManBaseIE(SeleniumInfoExtractor):
         'Cache-Control': 'no-cache'}
 
     _HEADERS_POST = {
-        'Accept': '*/*;q=0.5, text/javascript, application/javascript, application/ecmascript, application/x-ecmascript',
+        'Accept': "".join(['*/*;q=0.5, text/javascript, application/javascript, ',
+                           'application/ecmascript, application/x-ecmascript']),
         'Referer': 'https://www.mrman.com/',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
