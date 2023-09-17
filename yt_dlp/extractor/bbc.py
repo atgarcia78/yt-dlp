@@ -27,8 +27,7 @@ from ..utils import (
     unified_timestamp,
     url_or_none,
     urlencode_postdata,
-    urljoin,
-    try_get
+    urljoin
 )
 
 from threading import Lock
