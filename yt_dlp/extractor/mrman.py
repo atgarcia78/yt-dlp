@@ -125,7 +125,7 @@ class MrManBaseIE(SeleniumInfoExtractor):
         with MrManBaseIE._LOCK:
             if not MrManBaseIE._CLIENT:
                 MrManBaseIE._CLIENT = self._CLIENT
-                for cookie in self._COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
+                for cookie in self._FF_COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
                     MrManBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
                 if self._LOGIN_OK in cast(str, try_get(
                         MrManBaseIE._send_request(self._SITE_URL),

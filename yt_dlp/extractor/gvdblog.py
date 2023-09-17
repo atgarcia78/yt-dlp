@@ -75,7 +75,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self._query_upt = {}
         self._conf_args_gvd = {}
 
-        for cookie in self._COOKIES_JAR:
+        for cookie in self._FF_COOKIES_JAR:
             if 'gvdblog.' in cookie.domain and 'cf_clearance' in cookie.name:
                 self.to_screen(f"cookie: {cookie}")
                 self._CLIENT.cookies.set(

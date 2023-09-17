@@ -120,8 +120,9 @@ class FirefoxBrowserCookies:
         self.tmp_file = self.create_local_copy(cookie_file)
         self.session_file = os.path.join(
             os.path.dirname(cookie_file), 'sessionstore.js')
-        self.new_session_file = os.path.join(os.path.dirname(
-            cookie_file), 'sessionstore-backups', 'recovery.jsonlz4')
+        self.new_session_file = os.path.join(
+            os.path.dirname(cookie_file), 'sessionstore-backups',
+            'recovery.jsonlz4')
         self.session_file2 = os.path.join(
             os.path.dirname(cookie_file), 'sessionstore.jsonlz4')
 
@@ -132,7 +133,8 @@ class FirefoxBrowserCookies:
         return 'firefox'
 
     def create_local_copy(self, cookie_file):
-        """Make a local copy of the sqlite cookie database and return the new filename.
+        """
+        Make a local copy of the sqlite cookie database and return the new filename.
         This is necessary in case this database is still being written to while the user browses
         to avoid sqlite locking errors.
         """
@@ -150,16 +152,17 @@ class FirefoxBrowserCookies:
     def extractSessionCookie(self, sessionFile, cj):
         try:
             import lz4.block
-            in_file = open(sessionFile, 'rb')
-            data = lz4.block.decompress(in_file.read()) if in_file.read(
-                8) == b'mozLz40\x00' else b'{}'
-            in_file.close()
+            with open(sessionFile, 'rb') as in_file:
+                data = b'{}'
+                if in_file.read(8) == b'mozLz40\x00':
+                    data = lz4.block.decompress(in_file.read())
             jsonData = json.loads(data.decode('utf-8'))
             cookies = jsonData.get('cookies', {})
             expires = str(int(time.time()) + 604800)
             for cookie in cookies:
-                c = self.create_cookie(cookie.get('host', ''), cookie.get(
-                    'path', ''), False, expires, cookie.get('name', ''), cookie.get('value', ''))
+                c = self.create_cookie(
+                    cookie.get('host', ''), cookie.get('path', ''), False, expires,
+                    cookie.get('name', ''), cookie.get('value', ''))
                 cj.set_cookie(c)
 
         except Exception as ex:
@@ -167,37 +170,38 @@ class FirefoxBrowserCookies:
 
     def create_cookie(self, host, path, secure, expires, name, value):
         return http.cookiejar.Cookie(
-            0, name, value, None, False, host, host.startswith('.'), host.startswith('.'),
-            path, True, secure, expires, False, None, None, {})
+            0, name, value, None, False, host, host.startswith('.'),
+            host.startswith('.'), path, True, secure, expires, False,
+            None, None, {})
 
     def load(self):
         print('firefox', self.tmp_file)
         cj = YoutubeDLCookieJar()
+        con = sqlite3.connect(self.tmp_file)
         try:
-            con = sqlite3.connect(self.tmp_file)
             cur = con.cursor()
             cur.execute(
                 'select host, path, isSecure, expiry, name, value from moz_cookies')
             for item in cur.fetchall():
                 c = self.create_cookie(*item)
                 cj.set_cookie(c)
-
-            con.close()
         except Exception as e:
             print(e)
+        finally:
+            con.close()
 
         if os.path.exists(self.session_file):
             try:
                 json_data = json.loads(open(self.session_file, 'rb').read())
             except ValueError as e:
                 print('Error parsing firefox session JSON: %s' % str(e))
-
             else:
                 expires = str(int(time.time()) + 604800)
                 for window in json_data.get('windows', []):
                     for cookie in window.get('cookies', []):
-                        c = self.create_cookie(cookie.get('host', ''), cookie.get(
-                            'path', ''), False, expires, cookie.get('name', ''), cookie.get('value', ''))
+                        c = self.create_cookie(
+                            cookie.get('host', ''), cookie.get('path', ''), False,
+                            expires, cookie.get('name', ''), cookie.get('value', ''))
                         cj.set_cookie(c)
 
         elif os.path.exists(self.new_session_file):
@@ -207,15 +211,15 @@ class FirefoxBrowserCookies:
             print(self.session_file2)
             self.extractSessionCookie(self.session_file2, cj)
         else:
-            print('Firefox session filename does not exist: %s' %
-                  self.session_file)
+            print(
+                'Firefox session filename does not exist: %s' % self.session_file)
         return cj
 
 
 def subnright(pattern, repl, text, n):
     pattern = re.compile(rf"{pattern}(?!.*{pattern})", flags=re.DOTALL)
     _text = text
-    for i in range(n):
+    for _ in range(n):
         _text = pattern.sub(repl, _text)
     return _text
 
@@ -288,7 +292,7 @@ def my_limiter(seconds: Union[str, int, float]):
     if seconds == "non":
         return Limiter(RequestRate(10000, 0))
     elif isinstance(seconds, (int, float)):
-        return Limiter(RequestRate(1, seconds * Duration.SECOND))  # type: ignore
+        return Limiter(RequestRate(1, seconds * Duration.SECOND))
 
 
 def my_jitter(value: float) -> float:
@@ -407,7 +411,8 @@ def getter_basic_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE):
         return (value, key_text)
 
 
-def getter_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitContextDecorator:
+def getter_config_extr(
+        ie_name, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitContextDecorator:
 
     x = ie_name.split(':')[0]
     if x != 'generic':
@@ -426,8 +431,8 @@ def getter_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitCon
 
 class scroll:
     '''
-        To use as a predicate in the webdriver waits to scroll down to the end of the page
-        when the page has an infinite scroll where it is adding new elements dynamically
+    To use as a predicate in the webdriver waits to scroll down to the end of the page
+    when the page has an infinite scroll where it is adding new elements dynamically
     '''
     _WAIT_TIME_SCROLL = 3
 
@@ -446,7 +451,8 @@ class scroll:
         self._el_footer = 'NOTINIT'
 
     def upt_height(self, driver, lock=False):
-        if (not lock and self.timer.has_elapsed(self._WAIT_TIME_SCROLL)) or (lock and self.timer.wait_haselapsed(self._WAIT_TIME_SCROLL)):
+        if ((not lock and self.timer.has_elapsed(self._WAIT_TIME_SCROLL))
+                or (lock and self.timer.wait_haselapsed(self._WAIT_TIME_SCROLL))):
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == self.last_height:
                 return True
@@ -454,12 +460,15 @@ class scroll:
 
     def __call__(self, driver):
         if self._el_footer == 'NOTINIT':
-            self._el_footer = try_get(driver.find_elements(By.CSS_SELECTOR, "div#footer"), lambda x: x[0])
+            self._el_footer = try_get(
+                driver.find_elements(By.CSS_SELECTOR, "div#footer"),
+                lambda x: x[0])
 
         if self._el_footer:
             self._el_footer = cast(WebElement, self._el_footer)
             driver.execute_script(
-                "window.scrollTo(arguments[0]['x'], arguments[0]['y']);", self._el_footer.location)
+                "window.scrollTo(arguments[0]['x'], arguments[0]['y']);",
+                self._el_footer.location)
             return True
 
         else:
@@ -900,7 +909,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classproperty
     def IE_NAME(cls):
-        return cls.__name__[:-2].lower()  # type: ignore
+        return cls.__name__[:-2].lower()
 
     @classproperty
     def LOGGER(cls):
@@ -915,9 +924,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
         tests = tuple(cls.get_testcases(include_onlymatching=False))
         if tests:
-            if not any([k.startswith('playlist') for test in tests for k in cast(dict, test)]):
+            if not any(k.startswith('playlist') for test in tests for k in test):
                 return 'video'
-            elif all([any([k.startswith('playlist') for k in cast(dict, test)]) for test in tests]):
+            elif all(any(k.startswith('playlist') for k in test) for test in tests):
                 return 'playlist'
             return 'any'
         else:
@@ -927,7 +936,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                 return 'video'
 
     @cached_classproperty
-    def _COOKIES_JAR(cls):
+    def _FF_COOKIES_JAR(cls):
         with SeleniumInfoExtractor._MASTER_LOCK:
             cls.LOGGER.info(f"[{cls.IE_NAME}] Loading cookies from Firefox")
             return FirefoxBrowserCookies().load()
@@ -964,7 +973,10 @@ class SeleniumInfoExtractor(InfoExtractor):
                 if SeleniumInfoExtractor._WEBDRIVERS:
                     _drivers = list(SeleniumInfoExtractor._WEBDRIVERS.values())
                     for driver in _drivers:
-                        self.rm_driver(driver)
+                        try:
+                            self.rm_driver(driver)
+                        except Exception:
+                            pass
 
     def initialize(self):
         super().initialize()
@@ -1091,7 +1103,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     @dec_retry
     def _get_driver(
         cls, noheadless=False, devtools=False,
-            host=None, port=None, verbose=False) -> tuple[Firefox, FirefoxOptions]:
+            host=None, port=None, verbose=False) -> Optional[tuple[Firefox, FirefoxOptions]]:
 
         tempdir = tempfile.mkdtemp(prefix='asyncall-')
         shutil.rmtree(tempdir, ignore_errors=True)
@@ -1142,32 +1154,31 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         _logs = {True: '/Users/antoniotorres/Projects/common/logs/geckodriver.log', False: '/dev/null'}
 
-        serv = Service(log_path=_logs[verbose])  # type: ignore
+        serv = Service(log_path=_logs[verbose])
 
-        def return_driver():
+        def return_driver() -> Optional[Firefox]:
             _driver = None
             try:
                 with SeleniumInfoExtractor._MASTER_LOCK:
-                    _driver = Firefox(service=serv, options=opts)  # type: ignore
-                _driver.maximize_window()
+                    _driver = Firefox(service=serv, options=opts)
                 time.sleep(1)
                 _driver.set_script_timeout(20)
                 _driver.set_page_load_timeout(25)
                 return _driver
             except Exception as e:
-                cls.LOGGER.exception(f"[{cls.IE_NAME}] Firefox fails starting - {str(e)}")
+                cls.LOGGER.exception(
+                    f"[{cls.IE_NAME}] Firefox fails starting - {str(e)}")
                 if _driver:
                     cls.rm_driver(_driver)
 
-        driver = cast(Firefox, return_driver())
-
-        if not driver:
-            shutil.rmtree(tempdir, ignore_errors=True)
+        if not (driver := return_driver()):
             raise ExtractorError("firefox failed init")
 
         return (driver, opts)
 
-    def get_driver(self, noheadless=False, devtools=False, host=None, port=None, verbose=False):
+    def get_driver(
+            self, noheadless=False, devtools=False, host=None,
+            port=None, verbose=False) -> Optional[Firefox]:
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
         if not host and _proxy and isinstance(_proxy, str):
@@ -1176,11 +1187,14 @@ class SeleniumInfoExtractor(InfoExtractor):
         else:
             _host, _port = host, port
 
-        driver, _ = SeleniumInfoExtractor._get_driver(
-            noheadless=noheadless, devtools=devtools, host=_host, port=_port, verbose=verbose)
+        if driver := try_get(
+                SeleniumInfoExtractor._get_driver(
+                    noheadless=noheadless, devtools=devtools, host=_host,
+                    port=_port, verbose=verbose),
+                lambda x: x[0]):
 
-        SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
-        return driver
+            SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
+            return driver
 
     def set_driver_proxy_port(self, driver, port):
 
@@ -1218,27 +1232,32 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
         t0 = datetime.now()
-        har_file = f"{folder}/dump_{videoid + '_' if videoid else ''}{t0.strftime('%H%M%S_')}{t0.microsecond}.har"
-        return myHAR.network_har_handler(har_file, logger=self.logger_debug, msg=msg, port=port)
+        _time_str = f"{t0.strftime('%H%M%S_')}{t0.microsecond}"
+        _videoid_str = f"{videoid + '_' if videoid else ''}"
+        har_file = f"{folder}/dump_{_videoid_str}{_time_str}.har"
+        return myHAR.network_har_handler(
+            har_file, logger=self.logger_debug, msg=msg, port=port)
 
     def scan_for_request(
-            self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None, _all=False,
-            timeout=10, response=True, inclheaders=False):
+            self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None,
+            _all=False, timeout=10, response=True, inclheaders=False):
 
         return myHAR.scan_har_for_request(
-            _valid_url, driver=driver, har=har, _method=_method, _mimetype=_mimetype, _all=_all, timeout=timeout,
-            response=response, inclheaders=inclheaders, check_event=self.check_stop)
+            _valid_url, driver=driver, har=har, _method=_method, _mimetype=_mimetype,
+            _all=_all, timeout=timeout, response=response, inclheaders=inclheaders,
+            check_event=self.check_stop)
 
     def scan_for_json(
             self, _valid_url, driver=None, har=None, _method="GET", _all=False,
             timeout=10, inclheaders=False):
 
         return myHAR.scan_har_for_json(
-            _valid_url, driver=driver, har=har, _method=_method, _all=_all, timeout=timeout,
-            inclheaders=inclheaders, check_event=self.check_stop)
+            _valid_url, driver=driver, har=har, _method=_method, _all=_all,
+            timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop)
 
-    def wait_until(self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None,
-                   poll_freq: float = 0.5) -> Union[None, list[WebElement], WebElement]:
+    def wait_until(
+            self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None,
+            poll_freq: float = 0.5) -> Union[None, list[WebElement], WebElement]:
 
         _poll_freq = poll_freq
         if not method:
@@ -1247,7 +1266,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         try:
             return WebDriverWait(
                 driver, timeout, poll_frequency=_poll_freq).until(
-                    ec.any_of(checkStop(self.check_stop), method))  # type: ignore
+                    ec.any_of(checkStop(self.check_stop), method))
         except StatusStop:
             raise
         except Exception:
@@ -1261,30 +1280,44 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         try:
             _kwargs = kwargs.copy() | {"_type": "HEAD", "timeout": 10}
             _kwargs.setdefault('client', self._CLIENT)
-            res = SeleniumInfoExtractor._send_http_request(url, **_kwargs)
-            if not res:
+            if not (res := SeleniumInfoExtractor._send_http_request(url, **_kwargs)):
                 raise ReExtractInfo('no response')
             elif not (_filesize_str := res.headers.get('content-length')):
                 raise ReExtractInfo('no filesize')
             else:
                 _url = unquote(str(res.url))
-                _accept_ranges = any([res.headers.get('accept-ranges'), res.headers.get('content-range')])
-                info = {'url': _url, 'filesize': int(_filesize_str), 'accept_ranges': _accept_ranges}
-                return info
-        except (ConnectError, HTTPStatusError, ReExtractInfo, TimeoutError, ExtractorError) as e:
+                _accept_ranges = any([
+                    res.headers.get('accept-ranges'), res.headers.get('content-range')])
+                return {
+                    'url': _url,
+                    'filesize': int(_filesize_str),
+                    'accept_ranges': _accept_ranges
+                }
+        except (ConnectError, HTTPStatusError, ReExtractInfo,
+                TimeoutError, ExtractorError) as e:
             _msg_err = repr(e)
             raise
         except Exception as e:
             _msg_err = repr(e)
             raise ExtractorError(_msg_err)
         finally:
-            self.logger_debug(f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
+            self.logger_debug(
+                f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
 
     def _is_valid(self, url, msg=None, inc_error=False) -> dict:
 
         _not_valid_url = [
             'rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
             'thisvid.com/embed', 'xtube.com', 'xtapes.to', 'pornone.com/embed/']
+
+        _valid_url = ['xhamster', 'xhamsterembed']
+
+        _errors_page = [
+            'has been deleted', 'has been removed', 'was deleted', 'was removed',
+            'video unavailable', 'video is unavailable', 'video disabled',
+            'not allowed to watch', 'video not found', 'post not found',
+            'limit reached', 'xtube.com is no longer available',
+            'this-video-has-been-removed', 'has been flagged', 'embed-sorry']
 
         _pre_str = f'[valid][{self._get_url_print(url)}]'
         if msg:
@@ -1305,77 +1338,70 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 self.logger_debug(f'{_pre_str}:True')
                 return okvalid
             else:
-                _extr_name = self._get_ie_name(url).lower()
-                if _extr_name in ['xhamster', 'xhamsterembed']:
+                if (_extr_name := self._get_ie_name(url).lower()) in _valid_url:
                     return okvalid
-                else:
-                    _decor = getter_config_extr(_extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
-                @dec_on_exception3bis
-                @dec_on_exception2bis
-                @_decor
-                def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
-                    try:
-                        _headers = {
-                            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
-                            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
-                            'Cache-Control': 'no-cache'}
-                        if short:
-                            _headers.update({'Range': 'bytes=0-100'})
-                        return self.send_http_request(
-                            _url, _type="GET", timeout=5, headers=_headers, msg=f'[valid]{_pre_str}')
-                    except (HTTPStatusError, ConnectError) as e:
-                        self.logger_debug(f"{_pre_str}:{e}")
-                        return {'error': f'{e}'}
+            _decor = getter_config_extr(
+                _extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
-                res = _throttle_isvalid(url, True)
+            @dec_on_exception3bis
+            @dec_on_exception2bis
+            @_decor
+            def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
+                try:
+                    _headers = {
+                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+                        'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
+                        'Cache-Control': 'no-cache'}
+                    if short:
+                        _headers.update({'Range': 'bytes=0-100'})
+                    return self.send_http_request(
+                        _url, _type="GET", timeout=5, headers=_headers, msg=f'[valid]{_pre_str}')
+                except (HTTPStatusError, ConnectError) as e:
+                    self.logger_debug(f"{_pre_str}:{e}")
+                    return {'error': f'{e}'}
 
-                if res and isinstance(res, Response):
+            res = _throttle_isvalid(url, True)
 
-                    if res.headers.get('content-type') == "video/mp4":
-                        self.logger_debug(f'[valid][{_pre_str}:video/mp4:{okvalid}')
-                        return okvalid
+            if res and isinstance(res, Response):
 
-                    elif not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
+                if res.headers.get('content-type') == "video/mp4":
+                    self.logger_debug(f'[valid][{_pre_str}:video/mp4:{okvalid}')
+                    return okvalid
 
-                        self.logger_debug(
-                            f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{notvalid}')
+                elif not (_path := urlparse(str(res.url)).path) or _path in ('', '/'):
 
-                        if not inc_error:
-                            return notvalid
-                        else:
-                            return {'error': f'not path in reroute url {str(res.url)}'} | notvalid
+                    self.logger_debug(
+                        f'[valid][{_pre_str}] not path in reroute url {str(res.url)}:{notvalid}')
 
+                    if not inc_error:
+                        return notvalid
                     else:
-                        webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
-                        if not webpage:
-
-                            self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt download webpage')
-                            return notvalid if not inc_error else {'error': 'couldnt download webpage'} | notvalid
-                        else:
-                            _valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
-                            _valid = _valid and not any(
-                                _ in webpage.lower()
-                                for _ in ['has been deleted', 'has been removed', 'was deleted', 'was removed',
-                                          'video unavailable', 'video is unavailable', 'video disabled',
-                                          'not allowed to watch', 'video not found', 'post not found',
-                                          'limit reached', 'xtube.com is no longer available',
-                                          'this-video-has-been-removed', 'has been flagged', 'embed-sorry'])
-
-                            valid = {"valid": _valid}
-                            self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
-                            if not _valid and inc_error:
-                                return {'error': 'video nbot found or deleted'} | valid
-                            else:
-                                return valid
+                        return {'error': f'not path in reroute url {str(res.url)}'} | notvalid
 
                 else:
+                    webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
+                    if not webpage:
+                        self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt download webpage')
+                        return notvalid if not inc_error else {'error': 'couldnt download webpage'} | notvalid
+                    else:
+                        _valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
+                        _valid = _valid and not any(_ in webpage.lower() for _ in _errors_page)
 
-                    self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt send check request')
-                    _error = 'error'
-                    if isinstance(res, dict):
-                        _error = res.get('error', 'error')
-                    return notvalid if not inc_error else {'error': _error} | notvalid
+                        valid = {"valid": _valid}
+                        self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
+                        if not _valid and inc_error:
+                            return {'error': 'video nbot found or deleted'} | valid
+                        else:
+                            return valid
+
+            else:
+
+                self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt send check request')
+                _error = 'error'
+                if isinstance(res, dict):
+                    _error = res.get('error', 'error')
+                return notvalid if not inc_error else {'error': _error} | notvalid
 
         except Exception as e:
             self.logger_debug(f'[valid]{_pre_str} error {repr(e)}')
@@ -1401,8 +1427,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         chunk_size = kwargs.get('chunk_size', 16384)
         # could be a string i.e. download until this text is found, or max bytes to download,
         # or None, im that case will download the whole content
-        truncate_after = kwargs.get('truncate')
 
+        truncate_after = kwargs.get('truncate')
         res = None
         _msg_err = ""
 
@@ -1417,6 +1443,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             _kwargs.pop('client', None)
 
             with client.stream("GET", url, **_kwargs) as res:
+
                 res.raise_for_status()
 
                 if isinstance(truncate_after, str):
@@ -1426,43 +1453,45 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                             _res += chunk
                             if truncate_after in _res:
                                 break
-
                     return _res
 
                 else:
+                    _check_max = lambda x: x >= truncate_after if truncate_after else False
                     _res = b""
                     for chunk in res.iter_bytes(chunk_size=chunk_size):
                         if chunk:
                             _res += chunk
-                            if truncate_after and res.num_bytes_downloaded >= truncate_after:
-                                break
+                        if _check_max(res.num_bytes_downloaded):
+                            break
+
                     return _res
 
         except Exception as e:
             _msg_err = repr(e)
-            if res and res.status_code == 404:
-                res.raise_for_status()
-            elif res and res.status_code == 503:
-                raise StatusError503(repr(e))
-            elif isinstance(e, ConnectError):
+            if not res:
+                raise TimeoutError(_msg_err) from e
+            if isinstance(e, ConnectError):
                 if 'errno 61' in _msg_err.lower():
                     raise
                 else:
-                    raise ExtractorError(_msg_err)
-            elif not res:
-                raise TimeoutError(_msg_err)
-            else:
-                raise ExtractorError(_msg_err)
+                    raise_extractor_error(_msg_err, _from=e)
+
+            if res.status_code == 404:
+                res.raise_for_status()
+            if res.status_code == 503:
+                raise StatusError503(repr(e))
+            raise_extractor_error(_msg_err, _from=e)
+
         finally:
             self.logger_debug(f"{premsg} {res}:{_msg_err}")
 
-    def send_http_request(self, url, **kwargs) -> Union[None, Response]:
+    def send_http_request(self, url, **kwargs) -> Optional[Response]:
 
         kwargs.setdefault('client', self._CLIENT)
         return SeleniumInfoExtractor._send_http_request(url, **kwargs)
 
     @classmethod
-    def _send_http_request(cls, url, **kwargs) -> Union[None, Response]:
+    def _send_http_request(cls, url, **kwargs) -> Optional[Response]:
         res = None
         req = None
         _msg_err = ""
@@ -1497,20 +1526,20 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             if 'errno 61' in _msg_err.lower():
                 raise
             else:
-                raise ExtractorError(_msg_err)
+                raise_extractor_error(_msg_err, _from=e)
         except HTTPStatusError as e:
             _msg_err = str(e)
             if e.response.status_code == 403:
-                raise ReExtractInfo(f'{premsg} {str(e).split(" for url")[0]}') from e
+                raise_reextract_info(f'{premsg} {str(e).split(" for url")[0]}', _from=e)
             elif e.response.status_code == 503:
-                raise StatusError503(_msg_err)
+                raise StatusError503(_msg_err) from e
             else:
                 raise
         except Exception as e:
             _msg_err = str(e)
             if not res:
-                raise TimeoutError(_msg_err)
+                raise TimeoutError(_msg_err) from e
             else:
-                raise ExtractorError(_msg_err)
+                raise_extractor_error(_msg_err, _from=e)
         finally:
             cls.LOGGER.debug(f"[{cls.IE_NAME}] {premsg} {req}:{res}:{_msg_err}")

@@ -125,7 +125,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
         with BoyFriendTVBaseIE._LOCK:
             if not BoyFriendTVBaseIE._BFINIT:
                 BoyFriendTVBaseIE._CLIENT = self._CLIENT
-                for cookie in self._COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
+                for cookie in self._FF_COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
                     BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
                 if 'atgarcia' in cast(str, try_get(
                         BoyFriendTVBaseIE._send_request(self._SITE_URL),
