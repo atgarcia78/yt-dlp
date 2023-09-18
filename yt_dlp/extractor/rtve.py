@@ -8,7 +8,9 @@ from ..utils import (
     ExtractorError,
     determine_ext,
     float_or_none,
-    js_to_json
+    js_to_json,
+    qualities,
+    int_or_none
 )
 
 
@@ -78,53 +80,6 @@ class RTVEPlayIE(InfoExtractor):
             'http://www.rtve.es/odin/loki/' + user_agent_b64,
             None, 'Fetching manager info')['manager']
 
-    # @staticmethod
-    # def _decrypt_url(png):
-    #     encrypted_data = io.BytesIO(b64decode(png)[8:])
-    #     while True:
-    #         length = struct.unpack('!I', encrypted_data.read(4))[0]
-    #         chunk_type = encrypted_data.read(4)
-    #         if chunk_type == b'IEND':
-    #             break
-    #         data = encrypted_data.read(length)
-    #         if chunk_type == b'tEXt':
-    #             alphabet_data, text = data.split(b'\0')
-    #             print(alphabet_data, text)
-    #             quality, url_data = try_get(text.split(b'%%'), lambda x: (x[0], x[1]) if len(x) == 2 else (b'', x[0]))
-    #             print(quality, url_data)
-    #             alphabet = []
-    #             j = 0
-    #             k = 0
-    #             for l in alphabet_data.decode('iso-8859-1'):
-    #                 if k == 0:
-    #                     alphabet.append(l)
-    #                     j = (j + 1) % 4
-    #                     k = j
-    #                 else:
-    #                     k -= 1
-    #             print('alpabhet', alphabet)
-    #             url = ''
-    #             f = 0
-    #             e = 3
-    #             b = 1
-    #             for letter in url_data:
-    #                 if f == 0:
-    #                     l = letter * 10
-    #                     f = 1
-    #                 else:
-    #                     if e == 0:
-    #                         l += letter
-    #                         print(letter, l)
-    #                         url += alphabet[l]
-    #                         e = (b + 3) % 4
-    #                         f = 0
-    #                         b += 1
-    #                     else:
-    #                         e -= 1
-
-    #             yield quality.decode(), url
-    #         encrypted_data.read(4)  # CRC
-
     @staticmethod
     def _decrypt_url(png):
         cmd0 = "node /Users/antoniotorres/.config/yt-dlp/rtve_decrypt_png.js " + png
@@ -135,8 +90,12 @@ class RTVEPlayIE(InfoExtractor):
         png = self._download_webpage(
             'http://ztnr.rtve.es/ztnr/movil/thumbnail/%s/videos/%s.png' % (self._manager, video_id),
             video_id, 'Downloading url information', query={'q': 'v2'})
+        q = qualities(['Media', 'Alta', 'HQ', 'HD_READY', 'HD_FULL'])
         formats = []
-        for video_url in self._decrypt_url(png):
+        info = self._decrypt_url(png)
+        self.write_debug(info)
+        self.write_debug(q)
+        for quality, video_url in zip(info['calidades'], info['sources']):
             ext = determine_ext(video_url)
             if ext == 'm3u8':
                 formats.extend(self._extract_m3u8_formats(
@@ -146,10 +105,15 @@ class RTVEPlayIE(InfoExtractor):
                 formats.extend(self._extract_mpd_formats(
                     video_url, video_id, 'dash', fatal=False))
             else:
+                filesize = None
+                if urlh := self._request_webpage(video_url, video_id):
+                    filesize = int_or_none(urlh.headers.get('Content-Length'))
                 formats.append({
                     'format_id': 'http-mp4',
                     'url': video_url,
+                    'filesize': filesize
                 })
+
         return formats
 
     def _real_extract(self, url):
