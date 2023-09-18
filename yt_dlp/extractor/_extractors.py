@@ -1654,8 +1654,7 @@ from .rtvcplay import (
     RTVCKalturaIE,
 )
 from .rtve import (
-    RTVEALaCartaIE,
-    RTVEAudioIE,
+    RTVEPlayIE,
     RTVELiveIE,
     RTVEInfantilIE,
     RTVETelevisionIE,
