@@ -113,11 +113,11 @@ class AccountBase:
             self.logger.error(f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
             return {}
 
-    def post(self, path, _headers=None, _data=None):
+    def post(self, path, _headers=None, _content=None):
         headers = self.createHeaders(path)
         if _headers:
             headers.update(_headers)
-        response = self.session.post(f'https://onlyfans.com{path}', headers=headers, data=_data)
+        response = self.session.post(f'https://onlyfans.com{path}', headers=headers, content=_content)
 
         self.logger.debug(f'[get] {response.request.url} {response.request.headers} {response.request.content}')
 
@@ -457,7 +457,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                 _har_file = harlogs.har_file
                 self._login(driver)
 
-            req = try_get(self.scan_for_request(r'api2/v2/.+', har=_har_file, inclheaders=True, response=True, _all=True), lambda x: x[-1])
+            req = try_get(
+                self.scan_for_request(
+                    r'api2/v2/.+', har=_har_file, inclheaders=True,
+                    response=True, _all=True),
+                lambda x: x[-1])
             if req:
                 for _header_name in ('cookie', 'x-bc', 'user-agent'):
                     _auth_config.update({_header_name: req['headers'].get(_header_name)})
@@ -533,10 +537,12 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                 raise ExtractorError("login error")
 
                     else:
-                        raise ExtractorError("Error in relogin via twitter: couldnt find any of the twitter login elements")
+                        raise ExtractorError(
+                            "Error in relogin via twitter: couldnt find any of the twitter login elements")
 
             else:
-                raise ExtractorError("Error in login via twitter: couldnt find any of the twitter login elements")
+                raise ExtractorError(
+                    "Error in login via twitter: couldnt find any of the twitter login elements")
 
         except Exception as e:
             self.to_screen(f'{repr(e)}')
@@ -551,7 +557,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
 
         _path = cast(str, try_get(urlparse(licurl), lambda x: x.path + '?' + x.query))
-        return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _data=challenge).content
+        return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _content=challenge).content
 
     def _extract_from_json(self, data_post, user_profile=None):
 
@@ -606,11 +612,14 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                 self._downloader.cookiejar.set_cookie(cookie)
                             _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
                             mpd_xml = self._download_xml(_mpd_url, video_id=videoid, headers=_headers)
-                            _pssh_list = list(set(list(map(lambda x: x.text, list(mpd_xml.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))
-                            _licurl = f"https://onlyfans.com/api2/v2/users/media/{videoid}/drm/post/{data_post['id']}?type=widevine"
+                            _pssh_list = list(set(list(map(
+                                lambda x: x.text, list(mpd_xml.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))
+                            _base_api_media = "https://onlyfans.com/api2/v2/users/media"
+                            _licurl = f"{_base_api_media}/{videoid}/drm/post/{data_post['id']}?type=widevine"
                             self.logger_debug(f"[extract_from_json] drm: licurl [{_licurl}] pssh {_pssh_list}")
 
-                            _formats_dash, _ = self._extract_mpd_formats_and_subtitles(_mpd_url, videoid, mpd_id='dash', headers=_headers)
+                            _formats_dash, _ = self._extract_mpd_formats_and_subtitles(
+                                _mpd_url, videoid, mpd_id='dash', headers=_headers)
                             for _fmt in _formats_dash:
                                 if (_head := _fmt.get('http_headers')):
                                     _head.update(_headers)
@@ -726,7 +735,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         _list_json = futures[0].result() + list(reversed(futures[1].result()))
                         list_json = get_list_unique(_list_json, key='id')
 
-                        self.to_screen(f"{pre} From {len(_list_json)} number of video posts unique: {len(list_json)}")
+                        self.to_screen(
+                            f"{pre} From {len(_list_json)} number of video posts unique: {len(list_json)}")
 
                     else:
                         _conf = OnlyFansBaseIE._MODE_DICT[mode].copy()
@@ -841,10 +851,13 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
                 else:
                     entries_list = entries_list[first:]
                 if dur_min:
-                    entries_list = list(filter(lambda x: int(x.get('duration', dur_min)) >= dur_min, entries_list))
+                    entries_list = list(filter(
+                        lambda x: int(x.get('duration', dur_min)) >= dur_min,
+                        entries_list))
                 self.to_screen(f"Entries[{num_entries}] After filter duration min[{len(entries_list)}]")
                 return self.playlist_result(
-                    entries=entries_list, playlist_id=f"onlyfans:{account}:{mode}", playlist_title=f"onlyfans:{account}:{mode}")
+                    entries=entries_list, playlist_id=f"onlyfans:{account}:{mode}",
+                    playlist_title=f"onlyfans:{account}:{mode}")
             else:
                 raise ExtractorError("no entries")
 
@@ -898,10 +911,10 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
     def _real_extract(self, url):
 
         try:
-
             if (entries := self._get_videos_purchased()):
                 entries_list = upt_dict(list(entries.values()), original_url=url)
-                return self.playlist_result(entries=entries_list, playlist_id="onlyfans:paid", playlist_title="onlyfans:paid")
+                return self.playlist_result(
+                    entries=entries_list, playlist_id="onlyfans:paid", playlist_title="onlyfans:paid")
             else:
                 raise ExtractorError("no entries")
 
@@ -929,7 +942,8 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
             if (actsubs_dict := OnlyFansBaseIE.conn_api.getActSubs()):
                 self.to_screen(f"act_subs: {list(actsubs_dict.keys())}")
                 with ThreadPoolExecutor(thread_name_prefix='OFPlaylist') as ex:
-                    futures = [ex.submit(self._get_videos_from_subs, _userid, _account) for _account, _userid in actsubs_dict.items()]
+                    futures = [ex.submit(self._get_videos_from_subs, _userid, _account)
+                               for _account, _userid in actsubs_dict.items()]
 
                 for fut in futures:
                     try:
