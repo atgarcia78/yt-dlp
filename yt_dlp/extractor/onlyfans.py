@@ -429,9 +429,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _get_conn_api(self):
 
         try:
-            if (_auth_config := (self.cache.load('onlyfans', 'auth_config') or self._get_auth_config())):
+            if (_auth_config := (self.cache.load('onlyfans', 'auth_config'))):
                 OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
-
                 if OnlyFansBaseIE.conn_api.getMe():
                     return True
 
@@ -596,7 +595,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     videoid = str(_media['id'])
                     _formats = []
 
-                    # de momento disabled
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
                             _signature = cast(dict, traverse_obj(_drm, ('signature', 'dash'), default={}))
@@ -772,8 +770,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         with OnlyFansBaseIE._LOCK:
             if not hasattr(OnlyFansBaseIE, 'conn_api'):
                 self._get_conn_api()
-        assert OnlyFansBaseIE.conn_api
-        OnlyFansBaseIE.conn_api = cast(Account, OnlyFansBaseIE.conn_api)
 
 
 class OnlyFansPostIE(OnlyFansBaseIE):
@@ -793,8 +789,6 @@ class OnlyFansPostIE(OnlyFansBaseIE):
             lambda x: x.group("post", "account"))
 
         self.to_screen("post:" + post + ":" + "account:" + account)
-
-        assert OnlyFansBaseIE.conn_api
 
         data_json = OnlyFansBaseIE.conn_api.getPost(post)
 
