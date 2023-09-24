@@ -175,7 +175,7 @@ class FirefoxBrowserCookies:
             None, None, {})
 
     def load(self):
-        print('firefox', self.tmp_file)
+        # print('firefox', self.tmp_file)
         cj = YoutubeDLCookieJar()
         con = sqlite3.connect(self.tmp_file)
         try:
@@ -205,10 +205,10 @@ class FirefoxBrowserCookies:
                         cj.set_cookie(c)
 
         elif os.path.exists(self.new_session_file):
-            print(self.new_session_file)
+            # print(self.new_session_file)
             self.extractSessionCookie(self.new_session_file, cj)
         elif os.path.exists(self.session_file2):
-            print(self.session_file2)
+            # print(self.session_file2)
             self.extractSessionCookie(self.session_file2, cj)
         else:
             print(
@@ -1272,7 +1272,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         except Exception:
             return
 
-    def get_info_for_format(self, url, **kwargs):
+    def get_info_for_format(self, url, **kwargs) -> dict:
 
         res = None
         info = {}

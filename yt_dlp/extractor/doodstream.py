@@ -30,7 +30,7 @@ on_exception_vinfo = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
-    ReExtractInfo, raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
+    ReExtractInfo, raise_on_giveup=False, max_tries=10, jitter="my_jitter", interval=1)
 
 
 class DoodStreamIE(SeleniumInfoExtractor):
@@ -42,7 +42,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
     @on_exception_vinfo
     @limiter_0_1.ratelimit("doodstream", delay=True)
-    def _get_video_info(self, url, **kwargs):
+    def _get_video_info(self, url, **kwargs) -> dict:
 
         msg = kwargs.get('msg')
         pre = f'[get_video_info][{self._get_url_print(url)}]'
@@ -101,16 +101,16 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 'title': title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')}
 
     @on_retry_vinfo
-    def _get_entry(self, url, check=False, msg=None):
+    def _get_entry(self, url, **kwargs):
 
         video_id = cast(str, self._match_id(url))
         url = f'https://dood.to/e/{video_id}'
         pre = f'[get_entry][{self._get_url_print(url)}]'
-        if msg:
+        if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
         webpage = cast(str, try_get(self._send_request(url), lambda x: html.unescape(x.text)))
         if not webpage:
-            raise_reextract_info(f"{pre} error no webpage")
+            raise_extractor_error(f"{pre} error 404 no webpage")
         if any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 webpage")
         title = self._og_search_title(webpage, default=None) or self._html_extract_title(webpage, default=None)
@@ -145,21 +145,16 @@ class DoodStreamIE(SeleniumInfoExtractor):
             'ext': 'mp4'
         }
 
-        if check:
-            _host = get_domain(video_url)
-            _sem = self.get_ytdl_sem(_host)
+        with self.get_ytdl_sem(get_domain(video_url)):
+            _videoinfo = cast(dict, self._get_video_info(video_url, msg=pre, headers=headers))
 
-            with _sem:
-                _videoinfo = self._get_video_info(video_url, msg=pre, headers=headers)
+        if not _videoinfo:
+            raise_reextract_info(f"{pre} error 404: no video info")
 
-            if not _videoinfo:
-                raise ReExtractInfo(f"{pre} error 404: no video info")
-
-            _videoinfo = cast(dict, _videoinfo)
-            if _videoinfo['filesize'] >= 1000000:
-                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
-            else:
-                raise ReExtractInfo(f"{pre} error filesize[{_videoinfo['filesize']}] < 1MB")
+        if _videoinfo['filesize'] >= 10000000:
+            _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
+        else:
+            raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 10MB")
 
         _subtitles = {}
         list_subts = [subt for subt in [
