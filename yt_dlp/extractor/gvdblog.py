@@ -39,13 +39,13 @@ from functools import partial
 
 from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
-from .streamtape import StreamtapeIE
+from .voe import VoeIE
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
-               for _ie in (DoodStreamIE, StreamtapeIE, StreamSBIE)},
+               for _ie in (DoodStreamIE, VoeIE, StreamSBIE)},
     'alt': {_ie.IE_NAME: _ie._VALID_URL
-            for _ie in (StreamSBIE, DoodStreamIE, StreamtapeIE)}
+            for _ie in (VoeIE, StreamSBIE, DoodStreamIE)}
 }
 
 on_exception_req = my_dec_on_exception(
@@ -123,7 +123,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _fmt = params.pop('fmt', 'hls').lower()
         if _fmt in ['hls', 'http', 'best']:
-            if self.keyapi == 'gvdblog.com':
+            if self.keyapi == 'gvdblog.net':
                 _query_upt['fmt'] = _fmt
             else:
                 _fmt = None

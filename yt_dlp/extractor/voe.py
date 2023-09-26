@@ -106,7 +106,7 @@ class VoeIE(SeleniumInfoExtractor):
 
             # self._sort_formats(_formats)
 
-            _title = try_get(self._html_extract_title(webpage), lambda x: x.replace('Watch OFS -', '').replace(' - VOE | Content Delivery Network (CDN) & Video Cloud', '').replace('.mp4', ''))
+            _title = try_get(self._html_extract_title(webpage), lambda x: x.replace('Watch OFS -', '').replace('Watch ', '').replace(' - VOE | Content Delivery Network (CDN) & Video Cloud', '').replace('.mp4', '').replace('.mkv', '').replace('.', '_').strip('_. \n-'))
 
             entry_video = {
                 'id': videoid,
