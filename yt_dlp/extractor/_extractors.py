@@ -2680,7 +2680,6 @@ from .hulu123 import Hulu123IE
 from .eplayvid import EPlayVidIE
 from .gayguytop import GayGuyTopIE
 from .fembed import FembedIE
-from .fxggxt import FxggxtIE
 from .gaymoviesupport import GayMovieSupportIE
 from .twinksvids import TwinksVidsIE
 from .gaypornvideos import GayPornVideosIE

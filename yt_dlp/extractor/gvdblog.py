@@ -137,8 +137,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _type = params.pop('type', None)
         name = params.pop('name', None)
-        if _type:
-            _query_upt[_type] = name
+
+        if _type and name:
+            params[_type] = name
 
         self.query_upt = _query_upt
 
@@ -332,6 +333,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             premsg = f'[{self.keyapi}][get_entries_from_post]'
             try:
 
+                if self.keyapi == 'fxggxt.com':
+                    post = post['link']
+
                 if isinstance(post, str) and post.startswith('http'):
                     url = unquote(post)
                     premsg += f'[{self._get_url_print(update_url(url, query_update=self.query_upt))}]'
@@ -469,8 +473,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
-    _VALID_URL = r'''(?x)
-        https?://(www\.)?gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(cc/video/.+)|(net/[^/_]+/?))
+    _VALID_URL = _VALID_URL = r'''(?x)
+        https?://(www\.)?(?:
+            (fxggxt\.com/[^/_]+/?)|
+            (gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(cc/video/.+)|(net/[^/_]+/?))))
         (\?(?P<query>[^#]+))?$'''
 
     def _real_initialize(self):
@@ -505,13 +511,25 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
-    _VALID_URL = r'''(?x)
-        https?://(?:www\.)?gvdblog\.(?:
-        ((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|
-        (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))(\?(?P<query>[^#]+))?'''
+    _VALID_URL = r'''(?x)https?://(?:www\.)?(?:
+                (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
+                (gvdblog\.(?:
+                ((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|
+                (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))))
+                (\?(?P<query>[^#]+))?'''
 
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
-                 'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100"}
+                 'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100",
+                 'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100"}
+
+    def get_id(self, label, name):
+        webpage = try_get(self._send_request(f"https://fxggxt.com/{label}/{name}"), lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
+        if label == 'actor':
+            attribute = 'actors'
+        if label == 'category':
+            attribute = 'categories'
+        if (_id := try_get(re.findall(rf'{attribute}/(\d+)', webpage), lambda x: x[0])):
+            return (attribute, _id)
 
     def send_api_search(self, query):
 
@@ -529,6 +547,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 return res.json()
 
         try:
+
             video_entries = try_get(self._send_request(self._BASE_API[self.keyapi], params=query), lambda x: get_list_videos(x))
 
             if not video_entries:
@@ -574,6 +593,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                     urlquery.append(f"before={val}T23:59:59&after={val}T00:00:00")
                 elif key not in ('entries', 'from'):
                     urlquery.append(f"{key}={val}")
+
+            if self.query_upt:
+                urlquery.extend([f"{key}={value}" for key, value in self.query_upt.items()])
 
             post_blog_entries_search = cast(list, self.send_api_search('&'.join(urlquery)))
 
@@ -743,9 +765,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query, _type, name, namecc = try_get(
+        query, _type, _typefx, name, namecc, namefx = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('query', 'type', 'name', 'name2'))
+            lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3'))
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
@@ -753,14 +775,19 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             params['name'] = name
             params['type'] = _type
 
+        elif namefx and _typefx:
+            _name_api, _id, = self.get_id(_typefx, namefx)
+            params['name'] = _id
+            params['type'] = _name_api
+
         self.conf_args_gvd = params
 
         if (_query := self.conf_args_gvd['query']):
             _query = '&'.join([f"{key}={val}" for key, val in params.items()])
             self.logger_info(_query)
-        if name or namecc:
-            playlist_title = name or namecc
-            playlist_id = name or namecc
+        if name or namecc or namefx:
+            playlist_title = name or namecc or namefx
+            playlist_id = name or namecc or namefx
 
         else:
             playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')
