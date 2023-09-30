@@ -143,7 +143,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         self.query_upt = _query_upt
 
-        self._conf_args_gvd = {'check': _check, 'fmt': _fmt, 'type': _type, 'name': name, 'query': params}
+        self._conf_args_gvd = {
+            'check': _check, 'fmt': _fmt,
+            'type': _type, 'name': name, 'query': params}
 
     def get_entry_video(self, x, **kwargs):
 
@@ -199,12 +201,15 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if fmt == 'best' and _entries:
             ytdl = self._downloader
             assert ytdl
-            _process_entry = lambda x: ytdl.sanitize_info(ytdl.process_ie_result(x, download=False))
+            _process_entry = lambda x: ytdl.sanitize_info(
+                ytdl.process_ie_result(x, download=False))
             if len(_entries) == 2:
                 entalt, entleg = _process_entry(_entries[0]), _process_entry(_entries[1])
-                entaltfilesize = entalt.get('filesize_approx') or (entalt.get('tbr', 0) * entalt.get('duration', 0) * 1024 / 8)
+                entaltfilesize = entalt.get('filesize_approx') or (
+                    entalt.get('tbr', 0) * entalt.get('duration', 0) * 1024 / 8)
                 entlegfilesize = entleg.get('filesize')
-                if entlegfilesize and entaltfilesize and entaltfilesize >= 2 * entlegfilesize and (entaltfilesize > 786432000 or entlegfilesize < 157286400):
+                if all([entlegfilesize, entaltfilesize, entaltfilesize >= 2 * entlegfilesize,
+                        (entaltfilesize > 786432000 or entlegfilesize < 157286400)]):
                     return _entries[0]
                 else:
                     return _entries[1]
@@ -223,15 +228,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
         p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
-        # self.logger_debug(f"{premsg} p1:\n{p1}")
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2])
               for l1 in p1 if any(
             [(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])),
              (l1[2] and not any([_ in l1[2].lower() for _ in ['subtitle', 'imdb']]))])]
-        # self.logger_debug(f"{premsg} p2:\n{p2}")
         p3 = [{_el.split('="')[0]: _el.split('="')[1].strip('"')
                for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
-        # self.logger_debug(f"{premsg} p3:\n{p3}")
 
         list_urls = []
 
