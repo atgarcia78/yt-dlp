@@ -500,5 +500,5 @@ class XHamsterPornStarIE(InfoExtractor):
                 break
 
     def _real_extract(self, url):
-        user_id = self._match_id(url)
-        return self.playlist_result(self._entries(user_id), user_id)
+        user, user_id = self._match_valid_url(url).group('user', 'id')
+        return self.playlist_result(self._entries(user_id, bool(user)), user_id)
