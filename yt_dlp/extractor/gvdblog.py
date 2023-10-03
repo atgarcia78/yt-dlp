@@ -476,12 +476,12 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
-    _VALID_URL = _VALID_URL = r'''(?x)
+    _VALID_URL = r'''(?x)
         https?://(www\.)?(?:
-            (fxggxt\.com/[^/_]+/?)|
+            (fxggxt\.com/[^/_\?]+/?)|
             (gvdblog\.(?:
                 (com/\d{4}/\d+/.+\.html)|
-                (cc/video/.+)|(net/[^/_]+/?))))
+                (cc/video/.+)|(net/[^/_\?]+/?))))
         (\?(?P<query>[^#]+))?$'''
 
     def _real_initialize(self):
@@ -521,7 +521,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         https?://(?:www\.)?(?:
             (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
             (gvdblog\.(?:
-                ((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|
+                ((com|net)/(?:_search|(?P<type>(actor|category))/(?P<name>[^\?/]+)))|
                 (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))))
         (\?(?P<query>[^#]+))?'''
 
@@ -531,7 +531,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def get_id(self, label, name):
         webpage = try_get(
-            self._send_request(f"https://fxggxt.com/{label}/{name}"),
+            self._send_request(f"https://{self.keyapi}/{label}/{name}"),
             lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
         if label == 'actor':
             attribute = 'actors'
@@ -784,15 +784,16 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query, _type, _typefx, name, namecc, namefx = try_get(
+        query, _typenet, _typefx, namenet, namecc, namefx = try_get(
             re.search(self._VALID_URL, url),
             lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3'))
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
-        if name and _type:
-            params['name'] = name
-            params['type'] = _type
+        if namenet and _typenet:
+            _name_api, _id, = self.get_id(_typenet, namenet)
+            params['name'] = _id
+            params['type'] = _name_api
 
         elif namefx and _typefx:
             _name_api, _id, = self.get_id(_typefx, namefx)
@@ -804,9 +805,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if (_query := self.conf_args_gvd['query']):
             _query = '&'.join([f"{key}={val}" for key, val in params.items()])
             self.logger_info(_query)
-        if name or namecc or namefx:
-            playlist_title = name or namecc or namefx
-            playlist_id = name or namecc or namefx
+        if namenet or namecc or namefx:
+            playlist_title = namenet or namecc or namefx
+            playlist_id = namenet or namecc or namefx
 
         else:
             playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')
