@@ -377,7 +377,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 logger.debug(f"{premsg} {repr(e)}")
                 raise
 
-            self.logger_debug(f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
+            self.logger_debug(
+                f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
             if not title or not list_candidate_videos:
                 raise ExtractorError(f"[{url} no video info")
 
@@ -478,7 +479,9 @@ class GVDBlogPostIE(GVDBlogBaseIE):
     _VALID_URL = _VALID_URL = r'''(?x)
         https?://(www\.)?(?:
             (fxggxt\.com/[^/_]+/?)|
-            (gvdblog\.(?:(com/\d{4}/\d+/.+\.html)|(cc/video/.+)|(net/[^/_]+/?))))
+            (gvdblog\.(?:
+                (com/\d{4}/\d+/.+\.html)|
+                (cc/video/.+)|(net/[^/_]+/?))))
         (\?(?P<query>[^#]+))?$'''
 
     def _real_initialize(self):
@@ -490,7 +493,8 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
+        query = try_get(
+            re.search(self._VALID_URL, url), lambda x: x.group('query'))
         if query:
             params = {el.split('=')[0]: el.split('=')[1]
                       for el in query.split('&') if el.count('=') == 1}
@@ -513,24 +517,29 @@ class GVDBlogPostIE(GVDBlogBaseIE):
 
 class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
-    _VALID_URL = r'''(?x)https?://(?:www\.)?(?:
-                (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
-                (gvdblog\.(?:
+    _VALID_URL = r'''(?x)
+        https?://(?:www\.)?(?:
+            (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
+            (gvdblog\.(?:
                 ((com|net)/(?:_search|(?P<type>(actors|categories|actor|category))/(?P<name>\d+)))|
                 (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))))
-                (\?(?P<query>[^#]+))?'''
+        (\?(?P<query>[^#]+))?'''
 
     _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
                  'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100",
                  'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100"}
 
     def get_id(self, label, name):
-        webpage = try_get(self._send_request(f"https://fxggxt.com/{label}/{name}"), lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
+        webpage = try_get(
+            self._send_request(f"https://fxggxt.com/{label}/{name}"),
+            lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
         if label == 'actor':
             attribute = 'actors'
         if label == 'category':
             attribute = 'categories'
-        if (_id := try_get(re.findall(rf'{attribute}/(\d+)', webpage), lambda x: x[0])):
+        if (_id := try_get(
+                re.findall(rf'{attribute}/(\d+)', webpage),
+                lambda x: x[0])):
             return (attribute, _id)
 
     def send_api_search(self, query):
@@ -540,7 +549,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 raise ExtractorError("no res from api")
 
             if self.keyapi == 'gvdblog.com':
-                data = try_get(re.search(r"gdata.io.handleScriptLoaded\((?P<data>.*)\);", res.text.replace(',,', ',')), lambda x: x.group('data'))
+                data = try_get(
+                    re.search(
+                        r"gdata.io.handleScriptLoaded\((?P<data>.*)\);",
+                        res.text.replace(',,', ',')),
+                    lambda x: x.group('data'))
                 if not data:
                     raise ExtractorError("no data from api")
                 info_json = json.loads(data)
@@ -550,12 +563,15 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
         try:
 
-            video_entries = try_get(self._send_request(self._BASE_API[self.keyapi], params=query), lambda x: get_list_videos(x))
+            video_entries = try_get(
+                self._send_request(self._BASE_API[self.keyapi], params=query),
+                lambda x: get_list_videos(x))
 
             if not video_entries:
                 raise_extractor_error("no video entries")
             else:
-                self.logger_debug(f'[entries result] videos entries [{len(video_entries)}]')
+                self.logger_debug(
+                    f'[entries result] videos entries [{len(video_entries)}]')
 
                 return video_entries
 
@@ -648,7 +664,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
                         futures = {
                             ex.submit(
-                                partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_blog): _post_url
+                                partial(self.get_entries_from_blog_post, progress_bar=progress_bar),
+                                _post_blog): _post_url
                             for (_post_blog, _post_url) in zip(blog_posts_list, posts_vid_url)}
 
                         wait(futures)
