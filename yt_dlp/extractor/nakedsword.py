@@ -200,9 +200,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Connection': 'keep-alive',
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site',
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache'},
+                'Sec-Fetch-Site': 'same-site'},
             "LOGOUT": {
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.5',
@@ -214,23 +212,44 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Connection': 'keep-alive',
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site',
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache'},
+                'Sec-Fetch-Site': 'same-site'},
             "REFRESH": {
                 'Accept': '*/*',
                 'Accept-Language': 'en,es-ES;q=0.5',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Access-Control-Request-Method': 'GET',
                 'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
-                'Referer': 'https',
-                'Origin': 'https',
+                'Referer': 'https://www.nakedsword.com/',
+                'Origin': 'https://www.nakedsword.com',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site'},
+            "GETAPI": {
+                'Accept': '*/*',
+                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Access-Control-Request-Method': 'GET',
+                'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
+                'Referer': 'https://www.nakedsword.com/',
+                'Origin': 'https://www.nakedsword.com',
                 'Connection': 'keep-alive',
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
                 'Sec-Fetch-Site': 'same-site',
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache',
+                'TE': 'trailers'},
+            "POSTAPI": {
+                'Accept': '*/*',
+                'Accept-Language': 'en,es-ES;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
+                'Referer': 'https://www.nakedsword.com/',
+                'Origin': 'https://www.nakedsword.com',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
                 'TE': 'trailers'}},
         "POST": {
             "AUTH": {
@@ -244,9 +263,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
                 'Sec-Fetch-Site': 'same-site',
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache',
-                'Content-Length': '0',
+                # 'Pragma': 'no-cache',
+                # 'Cache-Control': 'no-cache',
                 'TE': 'trailers'}},
         "DELETE": {
             "LOGOUT": {
@@ -260,9 +278,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
                 'Sec-Fetch-Site': 'same-site',
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache',
-                'Content-Length': '0',
+                # 'Pragma': 'no-cache',
+                # 'Cache-Control': 'no-cache',
                 'TE': 'trailers'}},
         "FINAL": {
             'Accept': 'application/json, text/plain, */*',
@@ -277,8 +294,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',
             'Sec-Fetch-Site': 'same-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
+            # 'Pragma': 'no-cache',
+            # 'Cache-Control': 'no-cache',
             'TE': 'trailers'},
         "MPD": {
             'Accept': '*/*',
@@ -290,8 +307,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',
             'Sec-Fetch-Site': 'cross-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
+            # 'Pragma': 'no-cache',
+            # 'Cache-Control': 'no-cache',
             'TE': 'trailers'}}
 
     @classmethod
@@ -592,6 +609,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 return formats
 
     def _get_api_details(self, movieid):
+        self._send_request(
+            f"{NakedSwordBaseIE._API_URLS['movies']}/{movieid}/details",
+            _type="OPTIONS", headers=NakedSwordBaseIE._HEADERS["OPTIONS"]["GETAPI"])
+
         return try_get(
             self._send_request(
                 f"{NakedSwordBaseIE._API_URLS['movies']}/{movieid}/details",
@@ -726,6 +747,29 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         return _res
 
+    def _get_api_scene_info(self, urlsc, scid):
+        url_fav = f"https://ns-api.nakedsword.com/frontend/nats_user_favorites/has?scenes_id={scid}"
+        url_likes = f"https://ns-api.nakedsword.com/frontend/nats_user_likes/has?scenes_id={scid}"
+        url_click = f"https://ns-api.nakedsword.com/frontend/nats_user_clicks/add?scenes_id={scid}"
+        for _url in (url_fav, url_likes, urlsc):
+            self._send_request(
+                _url,
+                _type="OPTIONS", headers=NakedSwordBaseIE._HEADERS["OPTIONS"]["GETAPI"])
+        for _url in (url_fav, url_likes):
+            self._send_request(
+                _url,
+                headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS())
+        _info_scene = try_get(
+            self._send_request(urlsc, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),
+            lambda x: x.json().get('data') if x else None)
+        self._send_request(
+            url_click,
+            _type="OPTIONS", headers=NakedSwordBaseIE._HEADERS["OPTIONS"]["POSTAPI"])
+        self._send_request(
+            url_click,
+            _type="POST", headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS())
+        return _info_scene
+
     def get_streaming_info(self, url, **kwargs):
 
         premsg = f"[get_streaming_info][{url}]"
@@ -760,10 +804,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
             for ind in range(_start_ind, _end_ind):
                 _urls_sc.append(f"{_url_movie}/scene/{ind}")
-                _info_scene = try_get(
-                    self._send_request(_urls_api[ind - 1], headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),
-                    lambda x: x.json().get('data') if x else None)
-                if _info_scene:
+                # _info_scene = try_get(
+                #     self._send_request(_urls_api[ind - 1], headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS()),
+                #     lambda x: x.json().get('data') if x else None)
+                if (_info_scene := self._get_api_scene_info(_urls_api[ind - 1], details["scenes"][ind - 1]["id"])):
                     m3u8urls_scenes.append(_info_scene)
 
             if len(m3u8urls_scenes) != len(_urls_sc):

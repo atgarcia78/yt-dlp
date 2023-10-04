@@ -368,12 +368,14 @@ CONFIG_EXTRACTORS_MODE = "ie_per_key"
 
 def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
     try:
-
-        data = httpx.get('https://raw.githubusercontent.com/atgarcia78/yt-dlp/master/config_extractors.json').json()
-
+        with open("/Users/antoniotorres/Projects/yt-dlp/config_extractors.json", "r") as file:
+            data = json.loads(file.read())
     except Exception:
-        print("ERROR LOADING CONFIG EXTRACTORS FILE")
-        raise
+        try:
+            data = httpx.get('https://raw.githubusercontent.com/atgarcia78/yt-dlp/master/config_extractors.json').json()
+        except Exception:
+            print("ERROR LOADING CONFIG EXTRACTORS FILE")
+            raise
 
     if mode == "legacy":
         return {
