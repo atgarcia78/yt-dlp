@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import (
     Event,
     Lock,
@@ -57,6 +57,7 @@ from ..cookies import YoutubeDLCookieJar
 import http.cookiejar
 import sqlite3
 from functools import cached_property
+import contextlib
 
 import httpx
 from backoff import (
@@ -1306,7 +1307,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             self.logger_debug(
                 f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
 
-    def _is_valid(self, url, msg=None, inc_error=False) -> dict:
+    def _is_valid(self, url, timeout=45, msg=None, inc_error=False) -> dict:
 
         _not_valid_url = [
             'rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
@@ -1346,22 +1347,35 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             _decor = getter_config_extr(
                 _extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
-            @dec_on_exception3bis
-            @dec_on_exception2bis
-            @_decor
+            # @dec_on_exception3bis
+            # @dec_on_exception2bis
             def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
-                try:
-                    _headers = {
-                        'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
-                        'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
-                        'Cache-Control': 'no-cache'}
-                    if short:
-                        _headers.update({'Range': 'bytes=0-100'})
-                    return self.send_http_request(
-                        _url, _type="GET", timeout=5, headers=_headers, msg=f'[valid]{_pre_str}')
-                except (HTTPStatusError, ConnectError) as e:
-                    self.logger_debug(f"{_pre_str}:{e}")
-                    return {'error': f'{e}'}
+                if (_res := self.cache.load('is_valid', get_host(_url))):
+                    _time_modif = datetime.fromtimestamp(
+                        os.stat(self.cache._get_cache_fn('is_valid', get_host(_url), 'json')).st_mtime)
+                    if (datetime.now() - _time_modif) <= timedelta(hours=1):
+                        return _res
+                    else:
+                        with contextlib.suppress(OSError):
+                            os.remove(self.cache._get_cache_fn('is_valid', get_host(_url), 'json'))
+                with _decor:
+                    try:
+                        _headers = {
+                            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
+                            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
+                            'Cache-Control': 'no-cache'}
+                        if short:
+                            _headers.update({'Range': 'bytes=0-100'})
+                        return self.send_http_request(
+                            _url, _type="GET", timeout=timeout, headers=_headers, msg=f'[valid]{_pre_str}')
+                    except HTTPStatusError as e:
+                        self.logger_debug(f"{_pre_str}:{e}")
+                        if e.response.status_code >= 500:
+                            self.cache.store('is_valid', get_host(_url), {'valid': False, 'error': repr(e)})
+                        return {'error': repr(e)}
+                    except Exception as e:
+                        self.logger_debug(f"{_pre_str}:{e}")
+                        return {'error': repr(e)}
 
             res = _throttle_isvalid(url, True)
 
@@ -1393,7 +1407,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         valid = {"valid": _valid}
                         self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
                         if not _valid and inc_error:
-                            return {'error': 'video nbot found or deleted'} | valid
+                            return {'error': 'video not found or deleted 404'} | valid
                         else:
                             return valid
 
@@ -1530,9 +1544,10 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             else:
                 raise_extractor_error(_msg_err, _from=e)
         except HTTPStatusError as e:
+            e.args = (e.args[0].split('\nFor more')[0],)
             _msg_err = str(e)
             if e.response.status_code == 403:
-                raise_reextract_info(f'{premsg} {str(e).split(" for url")[0]}', _from=e)
+                raise_reextract_info(f'{premsg} {str(e)}', _from=e)
             elif e.response.status_code == 503:
                 raise StatusError503(_msg_err) from e
             else:

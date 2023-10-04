@@ -6,8 +6,10 @@ import html
 from httpx import Cookies
 import re
 
+from ..YoutubeDL import YoutubeDL
 from ..utils import (
     ExtractorError,
+    DownloadError,
     get_elements_by_class,
     sanitize_filename,
     try_get,
@@ -233,6 +235,30 @@ class MyVidsterIE(MyVidsterBaseIE):
 
     def getvid(self, x, **kwargs):
 
+        def ytdl_silent():
+            opts = {}
+            opts["quiet"] = True
+            opts["verbose"] = False
+            opts["verboseplus"] = False
+            opts["no_warnings"] = True
+
+            class SilentLogger:
+                def debug(self, msg):
+                    pass
+
+                def info(self, msg):
+                    pass
+
+                def warning(self, msg):
+                    pass
+
+                def error(self, msg):
+                    pass
+
+            opts["logger"] = SilentLogger()
+
+            return YoutubeDL(params=self._downloader.params | opts, auto_init=True)
+
         def _check_extr(x):
             if x in SeleniumInfoExtractor._CONFIG_REQ:
                 return True
@@ -261,7 +287,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     return {"error": f"[{el}] error url not valid"}
 
                 ie = self._get_extractor(el)
-                if _check_extr(self._get_ie_name(el)):  # get entry
+                if _check_extr(ie.IE_NAME.lower()):  # get entry
                     try:
                         if (_ent := ie._get_entry(el, check=_check, msg=pre)):
                             self.logger_debug(f"{pre} OK got entry video\n {_ent}")
@@ -276,17 +302,31 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 else:
                     try:
-                        if (_ent := ie.extract(el)):
+                        if ie.IE_NAME.lower() == 'generic':
+                            with ytdl_silent() as _ytdl:
+                                _ent = _ytdl.extract_info(el, download=False)
+                        else:
+                            _ent = ie.extract(el)
+                        if _ent:
                             if _ent.get('_type') == 'url' and (get_domain(el) == get_domain(_ent['url'])):
                                 self.logger_debug(f'{pre} not entry video')
                                 return {"error": f"[{el}] not entry video"}
-
-                            _ent.update({'extractor': ie.IE_NAME, 'extractor_key': type(ie).ie_key(), 'webpage_url': el})
+                            if 'extractor' not in _ent:
+                                _ent.update({'extractor': ie.IE_NAME, 'extractor_key': ie.ie_key(), 'webpage_url': el})
                             self.logger_debug(f"{pre} OK got entry video\n {_ent}")
                             return _ent
                         else:
                             self.logger_debug(f'{pre} not entry video')
                             return {"error": f"[{el}] not entry video"}
+                    except DownloadError as e:
+                        _check_valid = self._is_valid(el, inc_error=True)
+                        if _check_valid.get('valid'):
+                            _msg_error = str(e).replace(bug_reports_message(), '')
+                        else:
+                            _msg_error = _check_valid.get('error')
+                        self.logger_debug(f'{pre} error entry video {_msg_error}')
+                        return {"error": f"[{el}] error entry video - {_msg_error}"}
+
                     except Exception as e:
                         _msg_error = str(e).replace(bug_reports_message(), '')
                         self.logger_debug(f'{pre} error entry video {_msg_error}')
@@ -601,8 +641,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                         except Exception as e:
                             _wurl = cast(str, futures[fut])
                             self.logger_debug(
-                                f"[get_entries][{self._get_url_print(_wurl)}] error - {str(e)}",
-                                exc_info=True)
+                                f"[get_entries][{self._get_url_print(_wurl)}] error - {str(e)}")
                             _id, _title = cast(list[str], try_get(
                                 MyVidsterIE._match_valid_url(_wurl),
                                 lambda x: x.group('id', 'title') if x else (None, None)))
@@ -633,7 +672,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         except ExtractorError:
             raise
         except Exception as e:
-            self.logger_debug(str(e), exc_info=True)
+            self.logger_debug(str(e))
             self.report_warning(str(e))
             raise_extractor_error(str(e), _from=e)
 

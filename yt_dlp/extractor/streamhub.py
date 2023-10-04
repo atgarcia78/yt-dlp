@@ -73,6 +73,7 @@ class StreamHubIE(SeleniumInfoExtractor):
         _har_file = None
 
         try:
+            self.send_http_request(url_dl)
             _port = find_available_port() or 8080
             driver = self.get_driver(host='127.0.0.1', port=_port)
             try:
@@ -150,10 +151,10 @@ class StreamHubIE(SeleniumInfoExtractor):
             return _entry
 
         except Exception as e:
-            logger.exception(f"{pre} {repr(e)}")
+            logger.debug(f"{pre} {repr(e)}")
             raise ExtractorError(f"Couldnt get video entry - {repr(e)}")
         finally:
-            if _har_file == 'dummy':
+            if _har_file:
                 try:
                     if os.path.exists(_har_file):
                         os.remove(_har_file)

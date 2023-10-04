@@ -10,7 +10,7 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
-    limiter_5,
+    limiter_1,
     my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info,
@@ -44,7 +44,6 @@ class StreamVidIE(SeleniumInfoExtractor):
 
     @dec_on_exception2
     @on_exception
-    @on_retry
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
@@ -52,13 +51,16 @@ class StreamVidIE(SeleniumInfoExtractor):
         if (msg := _kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
 
-        with limiter_5.ratelimit(self.IE_NAME, delay=True):
+        with limiter_1.ratelimit(self.IE_NAME, delay=True):
             try:
                 return self.send_http_request(url, **_kwargs)
             except (HTTPStatusError, ConnectError) as e:
                 _msg_error = f"{repr(e)}"
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return
+            except Exception as e:
+                self.logger_debug(f"{pre}: {repr(e)}")
+                raise
 
     def _get_m3u8url(self, webpage):
         _filter_func = lambda x: 'function(p,a,c,k,e,d)' in x
@@ -100,16 +102,25 @@ class StreamVidIE(SeleniumInfoExtractor):
 
             m3u8_url, poster_url = self._get_m3u8url(webpage)
 
-            self.logger_debug(f'{pre} {m3u8_url} - {poster_url}')
+            self.logger_debug(f'{pre} {m3u8_url}\n{poster_url}')
 
             if not m3u8_url:
                 raise_extractor_error(f"{pre} couldnt get m3u8 url")
 
             headers = {'Referer': self._SITE_URL + '/'}
+            base_headers = {
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'TE': 'trailers'}
             m3u8_doc = None
             try:
                 m3u8_doc = try_get(
-                    self._send_request(m3u8_url, headers=headers),
+                    self._send_request(m3u8_url, headers=base_headers | headers, timeout=60),
                     lambda x: x.text if x else None)
             except ReExtractInfo as e:
                 raise_extractor_error(f"{pre} Error M3U8 doc {str(e)}", _from=e)
@@ -150,10 +161,10 @@ class StreamVidIE(SeleniumInfoExtractor):
                 _entry.update({'duration': self._extract_m3u8_vod_duration(
                     _formats[0]['url'], video_id, headers=_formats[0].get('http_headers', {}))})
             except Exception as e:
-                self.logger_debug(f"{pre}: error trying to get vod {repr(e)}", exc_info=True)
+                self.logger_debug(f"{pre}: error trying to get vod {repr(e)}")
             return _entry
         except Exception as e:
-            self.logger_debug(f"{pre}: {str(e)}", exc_info=True)
+            self.logger_debug(f"{pre}: {repr(e)}")
             raise
 
     def _real_initialize(self):
@@ -172,7 +183,7 @@ class StreamVidIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            raise_extractor_error(repr(e))
+            raise_extractor_error(_from=e)
 
 
 class FilelionsIE(StreamVidIE):

@@ -333,7 +333,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 _logout = True
                 raise_reextract_info(f"{_pre} couldnt auth {str(e)}", _from=e)
             except Exception as e:
-                logger.debug(f"{_pre}[get_auth] {str(e)}", exc_info=True)
+                logger.debug(f"{_pre}[get_auth] {str(e)}")
                 raise_extractor_error(f"{_pre} error get auth {str(e)}", _from=e)
             finally:
                 if _logout:
@@ -353,7 +353,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except ExtractorError:
             raise
         except Exception as e:
-            logger.debug(f"[refresh_api] {str(e)}", exc_info=True)
+            logger.debug(f"[refresh_api] {str(e)}")
             raise_extractor_error(f"error refresh {str(e)}", _from=e)
 
     @classmethod
