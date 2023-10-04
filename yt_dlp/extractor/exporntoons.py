@@ -38,6 +38,7 @@ class ExPornToonsIE(SeleniumInfoExtractor):
     def get_info_for_format(self, *args, **kwargs):
         return super().get_info_for_format(*args, **kwargs)
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)

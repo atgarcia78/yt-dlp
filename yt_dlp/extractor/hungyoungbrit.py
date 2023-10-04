@@ -113,61 +113,63 @@ class HungYoungBritBaseIE(SeleniumInfoExtractor):
 
             self.to_screen("[login] start new login with driver")
             self.report_login()
-            driver = self.get_driver()
 
-            try:
+            with SeleniumInfoExtractor._SEMAPHORE:
+                driver = self.get_driver()
 
-                self._send_request(self._SITE_URL, driver=driver)
-                driver.add_cookie({"name": "warn", "value": "1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})
+                try:
 
-                self._send_request(_home_url, driver=driver)
-                self.wait_until(driver, 30, ec.url_changes(""))
-                self.to_screen(f"[login] current url: {driver.current_url}")
-                if _home_url not in driver.current_url:
+                    self._send_request(self._SITE_URL, driver=driver)
+                    driver.add_cookie({"name": "warn", "value": "1", "domain": "www.hungyoungbrit.com", "secure": False, "httpOnly": False, "sameSite": "Lax"})
 
-                    el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
-                    assert el
-                    el.click()
-                    el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
-                    el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
-                    button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "button#btnLogin.btn.btn-primary.btn-sm.btn-block")))
-                    username, password = self._get_login_info()
-                    assert el_username and el_password and button_login
-                    el_username.send_keys(username)
-                    self.wait_until(driver, 2)
-                    el_password.send_keys(password)
-                    self.wait_until(driver, 2)
-                    button_login.click()
-                    self.wait_until(driver, 300, ec.invisibility_of_element(button_login))
-                    el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
-                    assert el
-                    if el.text != 'ACCOUNT':
-                        raise ExtractorError("log in error")
+                    self._send_request(_home_url, driver=driver)
+                    self.wait_until(driver, 30, ec.url_changes(""))
+                    self.to_screen(f"[login] current url: {driver.current_url}")
+                    if _home_url not in driver.current_url:
 
-                self.to_screen("[login] success with driver")
+                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+                        assert el
+                        el.click()
+                        el_username = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#username.form-control")))
+                        el_password = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "input#password.form-control")))
+                        button_login = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "button#btnLogin.btn.btn-primary.btn-sm.btn-block")))
+                        username, password = self._get_login_info()
+                        assert el_username and el_password and button_login
+                        el_username.send_keys(username)
+                        self.wait_until(driver, 2)
+                        el_password.send_keys(password)
+                        self.wait_until(driver, 2)
+                        button_login.click()
+                        self.wait_until(driver, 300, ec.invisibility_of_element(button_login))
+                        el = self.wait_until(driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a.dropdown-toggle.londrina")))
+                        assert el
+                        if el.text != 'ACCOUNT':
+                            raise ExtractorError("log in error")
 
-                HungYoungBritBaseIE._COOKIES = driver.get_cookies()
+                    self.to_screen("[login] success with driver")
 
-                with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
-                    json.dump(HungYoungBritBaseIE._COOKIES, f)
+                    HungYoungBritBaseIE._COOKIES = driver.get_cookies()
 
-                for cookie in HungYoungBritBaseIE._COOKIES:
-                    self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    with open("/Users/antoniotorres/Projects/common/logs/HYB_cookies.json", "w") as f:
+                        json.dump(HungYoungBritBaseIE._COOKIES, f)
 
-                _login_ok = try_get(self._send_request(_home_url), lambda x: _home_url in str(x.url) if x else None)
-                if _login_ok:
-                    self.to_screen("[login] login valid for http client")
-                else:
-                    raise ExtractorError("Error cookies")
+                    for cookie in HungYoungBritBaseIE._COOKIES:
+                        self._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
-            except ExtractorError:
-                raise
-            except Exception as e:
-                lines = traceback.format_exception(*sys.exc_info())
-                self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
-                raise ExtractorError(repr(e))
-            finally:
-                self.rm_driver(driver)
+                    _login_ok = try_get(self._send_request(_home_url), lambda x: _home_url in str(x.url) if x else None)
+                    if _login_ok:
+                        self.to_screen("[login] login valid for http client")
+                    else:
+                        raise ExtractorError("Error cookies")
+
+                except ExtractorError:
+                    raise
+                except Exception as e:
+                    lines = traceback.format_exception(*sys.exc_info())
+                    self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
+                    raise ExtractorError(repr(e))
+                finally:
+                    self.rm_driver(driver)
 
     def _real_initialize(self):
         super()._real_initialize()

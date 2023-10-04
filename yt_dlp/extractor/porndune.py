@@ -55,6 +55,7 @@ class PornDuneIE(SeleniumInfoExtractor):
 
         super()._real_initialize()
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)

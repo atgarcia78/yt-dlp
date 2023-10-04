@@ -30,6 +30,7 @@ class UpVideoIE(SeleniumInfoExtractor):
         elif _type == "url_request":
             self._send_request(*args)
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)

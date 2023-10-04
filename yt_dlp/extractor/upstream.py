@@ -28,6 +28,7 @@ class trigger_m3u8:
 
 class HLSStream(SeleniumInfoExtractor):
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         @dec_on_exception

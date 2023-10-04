@@ -46,15 +46,15 @@ class GayForFansIE(SeleniumInfoExtractor):
         self.logger_debug(f"{pre} {self._get_url_print(url)}")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, check=False, msg=None):
 
-        driver = None
+        driver = self.get_driver()
         try:
 
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg:
                 pre = f'{msg}{pre}'
-            driver = self.get_driver()
             self._send_request(url, driver)
 
             _videourl = try_get(
@@ -139,6 +139,7 @@ class GayForFansPlayListIE(SeleniumInfoExtractor):
                 /?$|(/(?P<name>[^\/$\?]+))))(?:
                     /?$|/?\?(?P<search>[^$]+)$)|/?\?(?P<search2>[^$]+)$)'''
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)
@@ -180,3 +181,5 @@ class GayForFansPlayListIE(SeleniumInfoExtractor):
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
+        finally:
+            self.rm_driver(driver)

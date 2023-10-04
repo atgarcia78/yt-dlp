@@ -100,11 +100,11 @@ class GayBeegBaseIE(SeleniumInfoExtractor):
 
         return entries
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entries(self, url):
 
+        _driver = self.get_driver()
         try:
-
-            _driver = self.get_driver()
 
             self.logger_debug(f'[get_entries] {url}')
 

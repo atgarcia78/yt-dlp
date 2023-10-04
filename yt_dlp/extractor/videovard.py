@@ -83,6 +83,7 @@ class VideovardIE(SeleniumInfoExtractor):
 
         super()._real_initialize()
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         driver = self.get_driver(devtools=True)

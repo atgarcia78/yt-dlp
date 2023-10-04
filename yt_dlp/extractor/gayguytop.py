@@ -16,10 +16,12 @@ class GayGuyTopIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
+        driver = self.get_driver()
         try:
-            driver = self.get_driver()
+
             self._send_request(url, driver)
 
             el_ifr = self.wait_until(driver, 30, ec.any_of(ec.presence_of_all_elements_located((By.TAG_NAME, "iframe")), ec.presence_of_element_located((By.CSS_SELECTOR, ".error-404"))))

@@ -135,31 +135,33 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                     BoyFriendTVBaseIE._BFINIT = True
 
                 else:
-                    driver = self.get_driver()
-                    try:
-                        BoyFriendTVBaseIE._send_request(self._SITE_URL, driver)
-                        driver.add_cookie({
-                            'name': 'rta_terms_accepted',
-                            'value': 'true',
-                            'domain': '.boyfriendtv.com'})
-                        driver.add_cookie({
-                            'name': 'videosPerRow',
-                            'value': '5',
-                            'domain': '.boyfriendtv.com'})
-                        self._login(driver)
-                        BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
-                        for cookie in BoyFriendTVBaseIE._COOKIES:
-                            BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
-                        if 'atgarcia' in cast(str, try_get(
-                                BoyFriendTVBaseIE._send_request(self._SITE_URL),
-                                lambda x: x.text if x else '')):
-                            self.logger_debug("Already logged with cookies")
-                            BoyFriendTVBaseIE._BFINIT = True
-                    except Exception:
-                        self.to_screen("error when login")
-                        raise
-                    finally:
-                        self.rm_driver(driver)
+
+                    with SeleniumInfoExtractor._SEMAPHORE:
+                        driver = self.get_driver()
+                        try:
+                            BoyFriendTVBaseIE._send_request(self._SITE_URL, driver)
+                            driver.add_cookie({
+                                'name': 'rta_terms_accepted',
+                                'value': 'true',
+                                'domain': '.boyfriendtv.com'})
+                            driver.add_cookie({
+                                'name': 'videosPerRow',
+                                'value': '5',
+                                'domain': '.boyfriendtv.com'})
+                            self._login(driver)
+                            BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
+                            for cookie in BoyFriendTVBaseIE._COOKIES:
+                                BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
+                            if 'atgarcia' in cast(str, try_get(
+                                    BoyFriendTVBaseIE._send_request(self._SITE_URL),
+                                    lambda x: x.text if x else '')):
+                                self.logger_debug("Already logged with cookies")
+                                BoyFriendTVBaseIE._BFINIT = True
+                        except Exception:
+                            self.to_screen("error when login")
+                            raise
+                        finally:
+                            self.rm_driver(driver)
 
 
 class BoyFriendTVIE(BoyFriendTVBaseIE):

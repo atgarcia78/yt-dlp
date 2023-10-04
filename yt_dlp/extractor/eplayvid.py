@@ -52,14 +52,15 @@ class EPlayVidIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, check=False, msg=None):
 
+        driver = self.get_driver()
         try:
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg:
                 pre = f'{msg}{pre}'
 
-            driver = self.get_driver()
             self._send_request(url, driver)
             video_url = self.wait_until(driver, 30, video_or_error_eplayvid())
             if not video_url or video_url == 'error':

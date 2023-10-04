@@ -80,6 +80,7 @@ class UserLoadIE(SeleniumInfoExtractor):
                 except (HTTPStatusError, ConnectError) as e:
                     self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         check = kwargs.get('check', False)

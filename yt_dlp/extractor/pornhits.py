@@ -106,6 +106,7 @@ class BasePornhitsIE(SeleniumInfoExtractor):
                 except (HTTPStatusError, ConnectError) as e:
                     self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         msg = kwargs.get('msg', None)

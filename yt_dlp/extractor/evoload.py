@@ -120,6 +120,7 @@ class EvoLoadIE(SeleniumInfoExtractor):
         driver.execute_script("window.stop();")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, check=False, msg=None):
 
         pre = f'[get_entry][{self._get_url_print(url)}]'

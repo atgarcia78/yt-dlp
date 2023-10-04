@@ -37,16 +37,18 @@ class FembedIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         check = kwargs.get('check', False)
         msg = kwargs.get('msg', None)
 
+        driver = self.get_driver()
+
         try:
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg:
                 pre = f'{msg}{pre}'
-            driver = self.get_driver()
             videoid = self._match_id(url)
             title = try_get(unquote(url).split('#'), lambda x: x[1].replace(".mp4", ""))
             _wurl = url.split('#')[0].replace('fembed', 'vanfem')

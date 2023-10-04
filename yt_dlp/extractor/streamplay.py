@@ -55,6 +55,7 @@ class StreamplayIE(SeleniumInfoExtractor):
         elif _type == "url_request":
             self._send_request(url, driver)
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)

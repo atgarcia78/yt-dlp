@@ -112,7 +112,6 @@ class VGEmbedIE(SeleniumInfoExtractor):
     #                 return func(*args, **kwargs)
     #         return wrapper
 
-    # @locked()
     @SeleniumInfoExtractor.syncsem()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):

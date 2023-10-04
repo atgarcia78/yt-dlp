@@ -41,6 +41,7 @@ class ThatGVideoIE(SeleniumInfoExtractor):
     def _real_initialize(self):
         super()._real_initialize()
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)

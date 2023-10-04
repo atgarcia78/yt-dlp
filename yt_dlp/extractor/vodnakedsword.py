@@ -95,13 +95,6 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
-    def get_driver_NS(self):
-        driver = self.get_driver()
-        driver.get(self._SITE_URL)
-        for cookie in VODNakedSwordBaseIE._COOKIES:
-            driver.add_cookie(cookie)
-        return driver
-
     def _get_api_info(self, url, movieid, sceneid=None):
         def data_upt():
             data_copy = VODNakedSwordBaseIE.data_post.copy()

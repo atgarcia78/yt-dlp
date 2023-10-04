@@ -130,6 +130,7 @@ class XvidgayIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         check = kwargs.get('check', False)

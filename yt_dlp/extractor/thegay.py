@@ -64,6 +64,7 @@ class TheGayIE(SeleniumInfoExtractor):
             self.logger_debug(f"{pre} {self._get_url_print(url)}")
             driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
         check = kwargs.get('check', False)
@@ -74,6 +75,7 @@ class TheGayIE(SeleniumInfoExtractor):
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg:
                 pre = f'{msg}{pre}'
+
             driver = self.get_driver()
 
             driver.delete_all_cookies()
@@ -112,7 +114,6 @@ class TheGayIE(SeleniumInfoExtractor):
                 'webpage_url': url})
 
         except Exception:
-
             raise
         finally:
             self.rm_driver(driver)

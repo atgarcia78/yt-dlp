@@ -186,6 +186,7 @@ class NetDNAIE(SeleniumInfoExtractor):
         self.report_extraction(url)
 
         @dec_retry_raise
+        @SeleniumInfoExtractor.syncsem()
         def _get_entry_video():
 
             driver = self.get_driver()

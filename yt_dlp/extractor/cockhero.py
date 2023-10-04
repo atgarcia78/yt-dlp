@@ -40,6 +40,7 @@ class CockHeroIE(SeleniumInfoExtractor):
         self.logger_debug(f"[send_request] {url}")
         driver.get(url)
 
+    @SeleniumInfoExtractor.syncsem()
     def _real_extract(self, url):
 
         self.report_extraction(url)

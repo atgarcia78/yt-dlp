@@ -86,6 +86,7 @@ class DFlixIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error_res": _msg_error}
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, check=False, msg=None):
 
         video_id = cast(str, self._match_id(url))

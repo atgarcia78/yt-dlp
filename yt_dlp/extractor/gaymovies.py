@@ -36,10 +36,12 @@ class GayMoviesIE(SeleniumInfoExtractor):
             res = self.send_http_request(url)
             return res
 
+    @SeleniumInfoExtractor.syncsem()
     def _get_playlist(self, url, check=False):
 
+        driver = self.get_driver()
         try:
-            driver = self.get_driver()
+
             self._send_request(url, driver)
             _type, el_episodes = try_get(self.wait_until(driver, 30, get_episodes()), lambda x: (x['type'], x['el'])) or (None, None)
             if not el_episodes:

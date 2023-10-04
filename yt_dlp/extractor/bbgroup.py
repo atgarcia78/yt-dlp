@@ -151,16 +151,17 @@ class BBGroupIE(SeleniumInfoExtractor):
 
         if not type(self)._COOKIES:
 
-            driver = self.get_driver()
-            try:
+            with SeleniumInfoExtractor._SEMAPHORE:
+                driver = self.get_driver()
+                try:
 
-                if (self._login(driver) == "OK"):
-                    type(self)._COOKIES = driver.get_cookies()
-                else:
-                    raise Exception("login nok")
+                    if (self._login(driver) == "OK"):
+                        type(self)._COOKIES = driver.get_cookies()
+                    else:
+                        raise Exception("login nok")
 
-            finally:
-                self.rm_driver(driver)
+                finally:
+                    self.rm_driver(driver)
 
     def _new_driver(self):
         with BBGroupIE._SLOCK:
