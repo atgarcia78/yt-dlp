@@ -151,10 +151,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if not _videoinfo:
             raise_reextract_info(f"{pre} error 404: no video info")
 
-        if _videoinfo['filesize'] >= 10000000:
+        if _videoinfo['filesize'] >= 30000000:
             _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
         else:
-            raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 10MB")
+            raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 30MB")
 
         _subtitles = {}
         list_subts = [subt for subt in [
