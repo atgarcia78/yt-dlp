@@ -128,9 +128,10 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
             if not _title:
                 _title = self._html_search_meta(('og:title', 'twitter:title'), webpage, None)
+                if not _title:
+                    raise_extractor_error("error title")
 
-            assert isinstance(_title, str)
-            assert isinstance(video_url, str)
+            _title = _title.split('@')[0].replace('.mp4', '').strip('\n_ .-')
 
             _headers = {'Referer': f'https://{get_domain(url)}/', 'Origin': f'https://{get_domain(url)}'}
             _format = {
@@ -149,7 +150,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
             _entry_video = {
                 'id': videoid,
-                'title': sanitize_filename(_title.replace('.mp4', ''), restricted=True),
+                'title': sanitize_filename(_title, restricted=True),
                 'formats': [_format],
                 'ext': 'mp4',
                 'extractor_key': 'Streamtape',
