@@ -304,7 +304,7 @@ class ThePlatformIE(ThePlatformBaseIE, AdobePassIE):
 
         # With some sites, manifest URL must be forced to extract HLS formats
         if not traverse_obj(formats, lambda _, v: v['format_id'].startswith('hls')):
-            m3u8_url = update_url(url, query='mbr=true&manifest=m3u', fragment=None)
+            m3u8_url = update_url(url, query='mbr=true&formats=m3u', fragment=None)
             urlh = self._request_webpage(
                 HEADRequest(m3u8_url), video_id, 'Checking for HLS formats', 'No HLS formats found', fatal=False)
             if urlh and urlhandle_detect_ext(urlh) == 'm3u8':
