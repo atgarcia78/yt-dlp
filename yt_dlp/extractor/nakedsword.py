@@ -104,59 +104,6 @@ class checkLogged:
                 return "TRUE"
 
 
-class toggleVideo:
-
-    def __init__(self, msg=None):
-        self.init = False
-        self.logger = logger
-        self.pre = '[togglevideo]'
-        if msg:
-            self.pre = f'{msg}{self.pre}'
-
-    def __call__(self, driver):
-
-        if not self.init:
-            el_play = driver.find_elements(By.CSS_SELECTOR, "button.vjs-big-play-button")
-            if not el_play:
-                time.sleep(2)
-                return False
-            el_play[0].click()
-            self.init = True
-            time.sleep(2)
-
-        el_video = driver.find_elements(By.TAG_NAME, "video")
-        if not el_video:
-            time.sleep(2)
-            return False
-        try:
-            el_video[0].click()
-            self.logger.debug(f'{self.pre} play-pause ok')
-            return "ok"
-        except Exception as e:
-            self.logger.debug(f'{self.pre} error click video: {el_video[0].get_attribute("src")} {repr(e)}')
-            return "error"
-
-
-class selectHLS:
-    def __call__(self, driver):
-        el_menu = try_get(driver.find_elements(By.CSS_SELECTOR, "button.vjs-control.vjs-button.fas.fa-cog"), lambda x: x[0] if x and not x[0].click() else None)
-        time.sleep(0.5)
-        menu_hls = try_get(driver.find_elements(By.CLASS_NAME, "BaseVideoPlayerSettingsMenu-item-inner"), lambda x: x[1])
-        if el_menu and menu_hls:
-            if "checked=" not in menu_hls.get_attribute('outerHTML'):
-                menu_hls.click()
-                time.sleep(0.5)
-                try_get(driver.find_elements(By.CSS_SELECTOR, "div.Button"), lambda x: (x[1].text, x[1].click()))
-                time.sleep(0.5)
-                el_menu.click()
-                return "TRUE"
-            else:
-                el_menu.click()
-                return "FALSE"
-        else:
-            return "error"
-
-
 class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = 'https://www.nakedsword.com/'
