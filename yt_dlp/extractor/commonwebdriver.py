@@ -53,6 +53,7 @@ from ..utils import (
     variadic,
     unsmuggle_url,
 )
+from ..utils.networking import random_user_agent
 from ..cookies import YoutubeDLCookieJar
 import http.cookiejar
 import sqlite3
@@ -1508,26 +1509,37 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
     @classmethod
     def _send_http_request(cls, url, **kwargs) -> Optional[Response]:
-        res = None
-        req = None
-        _msg_err = ""
+
         _type = kwargs.get('_type', "GET")
+        fatal = kwargs.get('fatal', True)
         msg = kwargs.get('msg', None)
         premsg = f'[send_http_request][{cls._get_url_print(url)}][{_type}]'
         if msg:
             premsg = f'{msg}{premsg}'
 
+        _close_cl = False
         client = kwargs.get('client')
+        if not client:
+            _config = {
+                'timeout': Timeout(20),
+                'limits': Limits(max_keepalive_connections=None, max_connections=None),
+                'follow_redirects': True,
+                'verify': False,
+                'headers': {"User-Agent": random_user_agent()}}
+            client = Client(**_config)
+            _close_cl = True
 
-        fatal = kwargs.get('fatal', True)
+        _kwargs = kwargs.copy()
+        _kwargs.pop('_type', None)
+        _kwargs.pop('msg', None)
+        _kwargs.pop('client', None)
+        _kwargs.pop('fatal', None)
+
+        res = None
+        req = None
+        _msg_err = ""
 
         try:
-
-            _kwargs = kwargs.copy()
-            _kwargs.pop('_type', None)
-            _kwargs.pop('msg', None)
-            _kwargs.pop('client', None)
-            _kwargs.pop('fatal', None)
 
             req = client.build_request(_type, url, **_kwargs)
             res = client.send(req)
@@ -1560,3 +1572,5 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 raise_extractor_error(_msg_err, _from=e)
         finally:
             cls.LOGGER.debug(f"[{cls.IE_NAME}] {premsg} {req}:{res}:{_msg_err}")
+            if _close_cl:
+                client.close()
