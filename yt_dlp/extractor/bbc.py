@@ -419,8 +419,8 @@ class BBCCoUkIE(BBCBaseIE):
             url, programme_id, 'Downloading media selection JSON',
             expected_status=(403, 404))
 
-        self.to_screen(url)
-        self.write_debug(f'Media identified: {media_selection}')
+        # self.to_screen(url)
+        # self.write_debug(f'Media identified: {media_selection}')
 
         return self._process_media_selector(media_selection, programme_id)
 

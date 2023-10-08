@@ -1,4 +1,5 @@
 import re
+import html
 
 from ..utils import (
     ExtractorError,
@@ -7,7 +8,8 @@ from ..utils import (
     int_or_none,
     js_to_json,
     urlencode_postdata,
-    sanitize_filename
+    sanitize_filename,
+    try_get
 )
 
 from .commonwebdriver import SeleniumInfoExtractor
@@ -100,7 +102,7 @@ class XFileShareIE(SeleniumInfoExtractor):
         host, video_id = self._match_valid_url(url).groups()
 
         url = 'https://%s/' % host + ('embed-%s.html' % video_id if host in ('govid.me', 'vidlo.us') else video_id)
-        webpage = self._download_webpage(url, video_id)
+        webpage = try_get(self._download_webpage(url, video_id), lambda x: html.unescape(x))
 
         if any(re.search(p, webpage) for p in self._FILE_NOT_FOUND_REGEXES):
             raise ExtractorError('Video %s does not exist' % video_id, expected=True)

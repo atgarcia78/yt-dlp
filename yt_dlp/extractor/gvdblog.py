@@ -40,12 +40,13 @@ from functools import partial
 from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
 from .voe import VoeIE
+from .xfileshare import XFileShareIE
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
-               for _ie in (DoodStreamIE, VoeIE, StreamSBIE)},
+               for _ie in (DoodStreamIE, VoeIE, StreamSBIE, XFileShareIE)},
     'alt': {_ie.IE_NAME: _ie._VALID_URL
-            for _ie in (VoeIE, StreamSBIE, DoodStreamIE)}
+            for _ie in (VoeIE, StreamSBIE, XFileShareIE, DoodStreamIE)}
 }
 
 on_exception_req = my_dec_on_exception(
@@ -121,7 +122,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _check = False
             _query_upt['check'] = 'no'
 
-        _fmt = params.pop('fmt', 'hls').lower()
+        _fmt = params.pop('fmt', 'best').lower()
         if _fmt in ['hls', 'http', 'best']:
             if self.keyapi == 'gvdblog.net':
                 _query_upt['fmt'] = _fmt
@@ -227,7 +228,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             premsg = f'{msg}{premsg}'
 
         _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
-        p1 = re.findall(_pattern, webpage, flags=re.IGNORECASE)
+        p1 = list(map(lambda x: (x[0].lower(), x[1], x[2]), re.findall(_pattern, webpage, flags=re.IGNORECASE)))
         p2 = [(l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2])
               for l1 in p1 if any(
             [(l1[0] and 'src=' in l1[0]), (l1[1] and not any([_ in l1[1].lower() for _ in ['subtitle', 'imdb']])),
