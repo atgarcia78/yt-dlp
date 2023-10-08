@@ -31,51 +31,15 @@ from ..utils import (
 )
 
 from threading import Lock
-import subprocess
-import time
-from pathlib import Path
 
 from .commonwebdriver import my_limiter, my_dec_on_exception
 
 limiter = my_limiter(0.001)
-dec_on_exception = my_dec_on_exception(Exception, max_tries=3, myjitter=True, raise_on_giveup=False, interval=2)
+dec_on_exception = my_dec_on_exception(Exception, max_tries=3, jitter='my_jitter', raise_on_giveup=False, interval=2)
 
 import logging
 
 logger = logging.getLogger("bbc")
-
-
-def _open_vpn(func):
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        try:
-            with BBCBaseIE._LOCK:
-                if not Path('/Users/antoniotorres/.config/openvpn/openvpn.pid').exists():
-                    _proc = subprocess.run(['pkill', 'TorGuardDesktopQt'])
-                    relaunch = (_proc.returncode == 0)
-                    if relaunch:
-                        rl = Path('/Users/antoniotorres/.config/openvpn/openvpn.relaunch')
-                        rl.touch
-                        time.sleep(5)
-                    cmd = 'sudo openvpn --config /Users/antoniotorres/.config/openvpn/openvpnbrit.conf'
-                    _openvpn = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-                    _openvpn.poll()
-                    cont = 0
-                    while (_openvpn.returncode is None):
-                        _openvpn.poll()
-                        time.sleep(1)
-                        cont += 1
-                        if cont == 15:
-                            raise ExtractorError("openvpn couldnt get started")
-                    _openvpn.poll()
-                    self.to_screen(f"openvpn: {_openvpn}")
-                    _ip = try_get(self._download_json("https://api.ipify.org?format=json", None), lambda x: x.get('ip'))
-                    self.to_screen(f"openvpn: ok, IP origen; {_ip}")
-            return func(self, *args, **kwargs)
-        except BaseException as e:
-            self.to_screen(f"openvpn error: {repr(e)}")
-
-    return wrapper
 
 
 class BBCBaseIE(InfoExtractor):
@@ -83,17 +47,6 @@ class BBCBaseIE(InfoExtractor):
     _LOCK = Lock()
 
     _IS_LOGGED = False
-
-    def close(self):
-
-        try:
-            subprocess.run(['sudo', 'pkill', 'openvpn'])
-            rl = Path('/Users/antoniotorres/.config/openvpn/openvpn.relaunch')
-            if rl.exists():
-                subprocess.run(['open', '/Applications/Torguard.app'])
-                rl.unlink()
-        except Exception:
-            pass
 
     @dec_on_exception
     @limiter.ratelimit("bbc", delay=True)
@@ -153,7 +106,7 @@ class BBCCoUkIE(BBCBaseIE):
     _LOGIN_URL = 'https://account.bbc.com/signin'
     _NETRC_MACHINE = 'bbc'
 
-    _MEDIA_SELECTOR_URL_TEMPL = 'https://open.live.bbc.co.uk/mediaselector/6/select/version/2.0/mediaset/%s/vpid/%s'
+    _MEDIA_SELECTOR_URL_TEMPL = 'https://open.live.bbc.co.uk/mediaselector/6/select/version/2.0/mediaset/%s/vpid/%s/format/json/cors/1'
     _MEDIA_SETS = [
         # Provides HQ HLS streams with even better quality that pc mediaset but fails
         # with geolocation in some cases when it's even not geo restricted at all (e.g.
@@ -359,7 +312,7 @@ class BBCCoUkIE(BBCBaseIE):
             login_page, urlh = self._download_webpage_handle(
                 self._LOGIN_URL, None, 'Downloading signin page')
 
-            if self._LOGIN_URL not in urlh.geturl():
+            if self._LOGIN_URL not in urlh.url:
                 self.to_screen("Already logged in")
                 BBCBaseIE._IS_LOGGED = True
                 return
@@ -390,7 +343,7 @@ class BBCCoUkIE(BBCBaseIE):
                 unescapeHTML(post_url), None, 'Logging in', data=urlencode_postdata(login_form),
                 headers={'Referer': self._LOGIN_URL})
 
-            if self._LOGIN_URL in urlh.geturl():
+            if self._LOGIN_URL in urlh.url:
                 error = clean_html(get_element_by_class('form-message', response))
                 if error:
                     raise ExtractorError(
@@ -462,13 +415,12 @@ class BBCCoUkIE(BBCBaseIE):
         return (_formats, _subt)
 
     def _download_media_selector_url(self, url, programme_id=None):
-
         media_selection = self._download_json(
             url, programme_id, 'Downloading media selection JSON',
             expected_status=(403, 404))
 
-        # self.to_screen(url)
-        # self.write_debug(f'Media identified: {media_selection}')
+        self.to_screen(url)
+        self.write_debug(f'Media identified: {media_selection}')
 
         return self._process_media_selector(media_selection, programme_id)
 
@@ -662,7 +614,6 @@ class BBCCoUkIE(BBCBaseIE):
 
         return programme_id, title, description, duration, formats, subtitles
 
-    @_open_vpn
     def _real_extract(self, url):
 
         group_id = self._match_id(url)
@@ -681,13 +632,13 @@ class BBCCoUkIE(BBCBaseIE):
         duration = None
 
         tviplayer = self._search_regex(
-            r'mediator\.bind\(({.+?})\s*,\s*document\.getElementById',
+            r'__IPLAYER_REDUX_STATE__\s*=\s*([^;]+);',
             webpage, 'player', default=None)
 
         if tviplayer:
-            player = self._parse_json(tviplayer, group_id).get('player', {})
-            duration = int_or_none(player.get('duration'))
-            programme_id = player.get('vpid')
+            player = try_get(traverse_obj(self._parse_json(tviplayer, group_id), ('versions', lambda _, x: x['kind'] == 'original')), lambda x: x[0])
+            duration = int_or_none(traverse_obj(player, ('duration', 'seconds')))
+            programme_id = player.get('id')
 
         if not programme_id:
             programme_id = self._search_regex(
@@ -1044,7 +995,6 @@ class BBCIE(BBCCoUkIE):  # XXX: Do not subclass from concrete IE
             'subtitles': subtitles,
         }
 
-    @_open_vpn
     def _real_extract(self, url):
         playlist_id = self._match_id(url)
 
@@ -1500,7 +1450,6 @@ class BBCCoUkArticleIE(BBCBaseIE):
         'add_ie': ['BBCCoUk'],
     }
 
-    @_open_vpn
     def _real_extract(self, url):
         playlist_id = self._match_id(url)
 
@@ -1535,7 +1484,6 @@ class BBCCoUkPlaylistBaseIE(BBCBaseIE):
                 compat_urlparse.urljoin(url, next_page), playlist_id,
                 'Downloading page %d' % page_num, page_num)
 
-    @_open_vpn
     def _real_extract(self, url):
         playlist_id = self._match_id(url)
 
@@ -1584,7 +1532,6 @@ class BBCCoUkIPlayerPlaylistBaseIE(BBCBaseIE):
                 'ie_key': BBCCoUkIE.ie_key(),
             }
 
-    @_open_vpn
     def _real_extract(self, url):
         pid = self._match_id(url)
         qs = parse_qs(url)
