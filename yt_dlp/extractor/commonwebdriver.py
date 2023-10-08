@@ -1546,7 +1546,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         if not client:
             _config = {
                 'timeout': Timeout(20),
-                'limits': Limits(max_keepalive_connections=None, max_connections=None),
+                'limits': Limits(
+                    max_keepalive_connections=None, max_connections=None),
                 'follow_redirects': True,
                 'verify': False,
                 'headers': {"User-Agent": random_user_agent()}}
@@ -1564,7 +1565,6 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         _msg_err = ""
 
         try:
-
             req = client.build_request(_type, url, **_kwargs)
             res = client.send(req)
             if res:
@@ -1574,27 +1574,27 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             else:
                 return None
         except ConnectError as e:
-            _msg_err = str(e)
+            _msg_err = f"{premsg} {str(e)}"
             if 'errno 61' in _msg_err.lower():
                 raise
             else:
-                raise_extractor_error(_msg_err, _from=e)
+                raise_extractor_error(_msg_err)
         except HTTPStatusError as e:
             e.args = (e.args[0].split('\nFor more')[0],)
-            _msg_err = str(e)
+            _msg_err = f"{premsg} {str(e)}"
             if e.response.status_code == 403:
-                raise_reextract_info(f'{premsg} {str(e)}', _from=e)
+                raise_reextract_info(_msg_err)
             elif e.response.status_code == 503:
-                raise StatusError503(_msg_err) from e
+                raise StatusError503(_msg_err)
             else:
                 raise
         except Exception as e:
-            _msg_err = str(e)
+            _msg_err = f"{premsg} {str(e)}"
             if not res:
-                raise TimeoutError(_msg_err) from e
+                raise TimeoutError(_msg_err)
             else:
-                raise_extractor_error(_msg_err, _from=e)
+                raise_extractor_error(_msg_err)
         finally:
-            cls.LOGGER.debug(f"[{cls.IE_NAME}] {premsg} {req}:{res}:{_msg_err}")
+            cls.LOGGER.debug(f"[{cls.IE_NAME}] {_msg_err} {req}:{res}")
             if _close_cl:
                 client.close()
