@@ -6,7 +6,6 @@ import html
 from httpx import Cookies
 import re
 
-from ..YoutubeDL import YoutubeDL
 from ..utils import (
     ExtractorError,
     DownloadError,
@@ -15,7 +14,8 @@ from ..utils import (
     try_get,
     get_domain,
     bug_reports_message,
-    variadic
+    variadic,
+    determine_ext
 )
 
 from .commonwebdriver import (
@@ -27,6 +27,7 @@ from .commonwebdriver import (
     SeleniumInfoExtractor,
     limiter_0_5,
     HTTPStatusError,
+    ytdl_silent,
     By,
     ConnectError,
     raise_extractor_error)
@@ -55,9 +56,11 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
             self.logger_debug(f"[send_req] {self._get_url_print(url)}")
             return (self.send_http_request(url, **kwargs))
         except (HTTPStatusError, ConnectError) as e:
-            self.logger_debug(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(
+                f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
         except Exception as e:
-            self.report_warning(f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
+            self.report_warning(
+                f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
             raise
 
     @dec_on_exception3
@@ -68,7 +71,8 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
         try:
             return self.get_info_for_format(url, **kwargs)
         except (HTTPStatusError, ConnectError) as e:
-            self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(
+                f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
     def _login(self):
 
@@ -235,30 +239,6 @@ class MyVidsterIE(MyVidsterBaseIE):
 
     def getvid(self, x, **kwargs):
 
-        def ytdl_silent():
-            opts = {}
-            opts["quiet"] = True
-            opts["verbose"] = False
-            opts["verboseplus"] = False
-            opts["no_warnings"] = True
-
-            class SilentLogger:
-                def debug(self, msg):
-                    pass
-
-                def info(self, msg):
-                    pass
-
-                def warning(self, msg):
-                    pass
-
-                def error(self, msg):
-                    pass
-
-            opts["logger"] = SilentLogger()
-
-            return YoutubeDL(params=self._downloader.params | opts, auto_init=True)
-
         def _check_extr(x):
             if x in SeleniumInfoExtractor._CONFIG_REQ:
                 return True
@@ -303,7 +283,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 else:
                     try:
                         if ie.IE_NAME.lower() == 'generic':
-                            with ytdl_silent() as _ytdl:
+                            with ytdl_silent(self._downloader) as _ytdl:
                                 _ent = _ytdl.extract_info(el, download=False)
                         else:
                             _ent = ie.extract(el)
@@ -313,6 +293,13 @@ class MyVidsterIE(MyVidsterBaseIE):
                                 return {"error": f"[{el}] not entry video"}
                             if 'extractor' not in _ent:
                                 _ent.update({'extractor': ie.IE_NAME, 'extractor_key': ie.ie_key(), 'webpage_url': el})
+                            if _ent.get('_type', 'video') == 'video':
+                                if not (_ext := _ent.get('ext')) or _ext == 'unknown_video':
+                                    _ent['ext'] = _ent['video_ext'] = _newext = determine_ext(_ent['url'].partition('#')[0])
+                                    for fmt in _ent['formats']:
+                                        if not (_ext := fmt.get('ext')) or _ext == 'unknown_video':
+                                            fmt['ext'] = fmt['video_ext'] = _newext
+
                             self.logger_debug(f"{pre} OK got entry video\n {_ent}")
                             return _ent
                         else:
@@ -401,7 +388,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                         lambda x: self.getvid(x[0], msg='source_url') if x else None)):
 
                     if isinstance(source_url_res, dict):
-                        return _prepare_entry(source_url_res)
+                        if "error" not in source_url_res:
+                            return _prepare_entry(source_url_res)
+                        raise_extractor_error("Error 404: no valid video urls found")
 
                     elif isinstance(source_url_res, str):
                         self.logger_debug(f"source url: {source_url_res}")

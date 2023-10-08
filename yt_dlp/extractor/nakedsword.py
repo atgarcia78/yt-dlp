@@ -36,7 +36,7 @@ from .commonwebdriver import (
     WebElement,
     raise_extractor_error,
     raise_reextract_info,
-    cached_classproperty
+    cached_classproperty,
 )
 
 from ..utils import (
@@ -349,9 +349,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     @dec_retry
     def API_GET_XIDENT(cls):
-        if not cls.headers_api:
-            logger.debug("[get_xident] headers_api empty")
-            return True
+        # if not cls.headers_api:
+        #     logger.debug("[get_xident] headers_api empty")
+        #     return True
         try:
             if (xident := cls._get_api_xident()):
                 cls.headers_api['x-ident'] = xident

@@ -832,6 +832,30 @@ class myIP:
         return cls.get_myiptryall(key=key, timeout=timeout, ie=ie)
 
 
+class SilentLogger:
+    def debug(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+
+def ytdl_silent(self, ytdl: YoutubeDL):
+    opts = {}
+    opts["quiet"] = True
+    opts["verbose"] = False
+    opts["verboseplus"] = False
+    opts["no_warnings"] = True
+    opts["logger"] = SilentLogger()
+    return YoutubeDL(params=ytdl.params | opts, auto_init=True)
+
+
 class ProgressBar(MultilinePrinter):
     _DELAY = 0.1
 
