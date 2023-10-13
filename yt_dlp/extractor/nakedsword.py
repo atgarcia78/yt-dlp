@@ -57,9 +57,6 @@ dec_on_reextract = my_dec_on_exception(
 dec_on_reextract_1 = my_dec_on_exception(
     ReExtractInfo, max_time=300, jitter='my_jitter', raise_on_giveup=True, interval=1)
 
-dec_on_reextract_3 = my_dec_on_exception(
-    ReExtractInfo, max_tries=3, jitter='my_jitter', raise_on_giveup=True, interval=2)
-
 
 def _wait_for_either(progress_bar, check: Callable, timeout: Union[float, int]):
 
@@ -1013,7 +1010,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             try:
 
                 sublist = []
-                if hasattr(self, 'args_ie'):
+                if getattr(self, 'args_ie', None):
                     sublist = traverse_obj(self.args_ie, (_id_movie, 'listreset')) or []
 
                     self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
