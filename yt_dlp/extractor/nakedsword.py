@@ -376,6 +376,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def API_LOGOUT(cls, msg=None):
         _pre = msg if msg else ''
         with cls.call_lock:
+            if not cls.headers_api:
+                logger.info(f"{_pre}[logout] Already logged out")
+                return "OK"
             if cls._logout_api():
                 logger.info(f"{_pre}[logout] OK")
                 return "OK"
