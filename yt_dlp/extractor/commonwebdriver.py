@@ -1045,7 +1045,11 @@ class SeleniumInfoExtractor(InfoExtractor):
         url, data = unsmuggle_url(url)
 
         self.indexdl = traverse_obj(data, 'indexdl')
-        self.args_ie = traverse_obj(data, 'args')
+        _args = traverse_obj(data, 'args')
+        if getattr(self, 'args_ie', None) is None:
+            self.args_ie = _args
+        elif _args:
+            self.args_ie.update(_args)
 
         return super().extract(url)
 
