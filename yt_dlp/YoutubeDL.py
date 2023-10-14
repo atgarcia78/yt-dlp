@@ -950,6 +950,17 @@ class YoutubeDL:
         self.save_cookies()
         self._request_director.close()
 
+        def ies_close(ies):
+            if not ies:
+                return
+            for _, ins in ies.items():
+                if close := getattr(ins, "close", None):
+                    try:
+                        close()
+                    except Exception:
+                        pass
+        ies_close(self._ies_instances)
+
     def trouble(self, message=None, tb=None, is_error=True):
         """Determine action to take when a download problem appears.
 
