@@ -8,3 +8,5 @@ backoff
 pyrate-limiter==2.10.0
 selenium
 httpx
+requests>=2.31.0,<3
+urllib3>=1.26.17,<3
