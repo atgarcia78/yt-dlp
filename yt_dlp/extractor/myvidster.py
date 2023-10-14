@@ -239,10 +239,6 @@ class MyVidsterIE(MyVidsterBaseIE):
 
     def getvid(self, x, **kwargs):
 
-        def _check_extr(x):
-            if x in SeleniumInfoExtractor._CONFIG_REQ:
-                return True
-
         _check = kwargs.get('check', True)
         pre = "[getvid]"
         if (msg := kwargs.get('msg', None)):
@@ -267,7 +263,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     return {"error": f"[{el}] error url not valid"}
 
                 ie = self._get_extractor(el)
-                if _check_extr(ie.IE_NAME.lower()):  # get entry
+                if hasattr(ie, '_get_entry'):  # get entry
                     try:
                         if (_ent := ie._get_entry(el, check=_check, msg=pre)):
                             self.logger_debug(f"{pre} OK got entry video\n {_ent}")
@@ -282,13 +278,12 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 else:
                     try:
-                        if ie.IE_NAME.lower() == 'generic':
-                            with ytdl_silent(self._downloader) as _ytdl:
-                                _ent = _ytdl.extract_info(el, download=False)
-                        else:
-                            _ent = ie.extract(el)
+
+                        with ytdl_silent(self._downloader) as _ytdl:
+                            _ent = _ytdl.extract_info(el, download=False)
+
                         if _ent:
-                            if _ent.get('_type') == 'url' and (get_domain(el) == get_domain(_ent['url'])):
+                            if _ent.get('_type', 'video') == 'url' and (get_domain(el) == get_domain(_ent['url'])):
                                 self.logger_debug(f'{pre} not entry video')
                                 return {"error": f"[{el}] not entry video"}
                             if 'extractor' not in _ent:

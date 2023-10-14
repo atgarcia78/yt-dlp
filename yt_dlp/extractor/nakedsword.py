@@ -1476,7 +1476,7 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
 
                 for fut in futures:
                     if _res := fut.result():
-                        list(map(lambda x: x.update({'playlist_url': url})), _res)
+                        list(map(lambda x: x.update({'playlist_url': url}), _res))
                         _entries.extend(_res)
                 return self.playlist_result(
                     _entries, playlist_id=playlist_id, playlist_title=playlist_title)

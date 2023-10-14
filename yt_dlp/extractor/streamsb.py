@@ -136,6 +136,7 @@ class StreamSBIE(SeleniumInfoExtractor):
                 m3u8_doc = None
 
             if m3u8_doc and m3u8_url:
+                self.logger_debug(m3u8_doc)
                 if 'SDR,AUDIO="audio' in m3u8_doc:
                     m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
                     m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)

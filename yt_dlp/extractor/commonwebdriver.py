@@ -353,12 +353,6 @@ dec_on_reextract = on_exception(
 retry_on_driver_except = on_exception(
     constant, WebDriverException,
     max_tries=3, raise_on_giveup=True, interval=2)
-dec_on_exception2bis = on_exception(
-    constant, StatusError503,
-    max_time=300, jitter=my_jitter, interval=15)
-dec_on_exception3bis = on_exception(
-    constant, (TimeoutError, ExtractorError),
-    max_tries=3, jitter=my_jitter, interval=0.1)
 
 map_limiter = {
     15: limiter_15, 10: limiter_10, 5: limiter_5, 2: limiter_2, 1: limiter_1,
@@ -692,7 +686,6 @@ class myHAR:
                 return try_get(_hints, func_getter)
             else:
                 return [_info for _info in list(map(func_getter, _hints)) if _info]
-                # return [_info_json for el in _hints if (_info_json := try_get(el, func_getter))]
 
     class getNetworkHAR:
 
@@ -846,7 +839,7 @@ class SilentLogger:
         pass
 
 
-def ytdl_silent(self, ytdl: YoutubeDL):
+def ytdl_silent(ytdl: YoutubeDL):
     opts = {}
     opts["quiet"] = True
     opts["verbose"] = False
@@ -1376,8 +1369,6 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             _decor = getter_config_extr(
                 _extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
-            # @dec_on_exception3bis
-            # @dec_on_exception2bis
             def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
                 if (_res := self.cache.load('is_valid', get_host(_url))):
                     _time_modif = datetime.fromtimestamp(
