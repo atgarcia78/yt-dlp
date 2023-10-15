@@ -1004,7 +1004,8 @@ class InfoExtractor:
         if transform_source:
             xml_string = transform_source(xml_string)
         try:
-            return compat_etree_fromstring(xml_string.encode('utf-8'))
+            # return compat_etree_fromstring(xml_string.encode('utf-8'))
+            return compat_etree_fromstring(xml_string)
         except xml.etree.ElementTree.ParseError as ve:
             self.__print_error('Failed to parse XML' if errnote is None else errnote, fatal, video_id, ve)
 

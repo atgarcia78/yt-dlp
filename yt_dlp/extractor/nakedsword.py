@@ -901,7 +901,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                 {url: {'final': True}})
 
         if not NakedSwordSceneIE._SCENES[url]['final']:
-            _timeout = my_jitter(30)
+            _timeout = my_jitter(60)
             self.wait_with_pb(_timeout, premsg)
 
         try:
@@ -1007,7 +1007,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if not NakedSwordMovieIE._MOVIES[_id_movie]['final']:
 
-            _timeout = my_jitter(30)
+            _timeout = my_jitter(60)
 
             self.wait_with_pb(_timeout, premsg)
 
@@ -1180,7 +1180,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
         if NakedSwordMovieIE._MOVIES[_movie_url]['on_backoff']:
 
             NakedSwordBaseIE.API_LOGOUT(msg=premsg)
-            _timeout = my_jitter(30)
+            _timeout = my_jitter(60)
 
             _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
 

@@ -10,7 +10,9 @@ from ..utils import (
     float_or_none,
     js_to_json,
     qualities,
-    int_or_none
+    int_or_none,
+    try_get,
+    traverse_obj
 )
 
 
@@ -101,9 +103,6 @@ class RTVEPlayIE(InfoExtractor):
                 formats.extend(self._extract_m3u8_formats(
                     video_url, video_id, 'mp4', 'm3u8_native',
                     m3u8_id='hls', fatal=False))
-            elif ext == 'mpd':
-                formats.extend(self._extract_mpd_formats(
-                    video_url, video_id, 'dash', fatal=False))
             else:
                 filesize = None
                 if urlh := self._request_webpage(video_url, video_id):
@@ -113,8 +112,24 @@ class RTVEPlayIE(InfoExtractor):
                     'url': video_url,
                     'filesize': filesize
                 })
-
         return formats
+
+    def _extract_drm_mpd_formats(self, video_id):
+        _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
+
+        if (_mpd_fmts := self._extract_mpd_formats(
+                f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, 'dash', headers=_headers, fatal=False)):
+
+            _list_pssh = []
+            _lic_drm = None
+            if (_mpd_doc := self._download_xml(f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, headers=_headers)):
+                if (_list_pssh := list(set(list(map(
+                        lambda x: x.text, list(_mpd_doc.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))):
+                    _list_pssh.sort(key=len)
+                    _lic_drm = traverse_obj(self._download_json(
+                        f"https://api.rtve.es/api/token/{video_id}", video_id, headers=_headers), "widevineURL")
+
+            return (_mpd_fmts, {"licurl": _lic_drm, "pssh": _list_pssh})
 
     def _real_extract(self, url):
         groups = re.match(self._VALID_URL, url).groupdict()
@@ -138,10 +153,16 @@ class RTVEPlayIE(InfoExtractor):
 
         is_live = info.get('consumption') == 'live'
 
+        _mpd_fmts, _info_drm = try_get(self._extract_drm_mpd_formats(video_id), lambda x: x if x else (None, None))
+
+        if _mpd_fmts:
+            formats.extend(_mpd_fmts)
+
         return {
             'id': video_id,
             'title': self._live_title(title) if is_live else title,
             'formats': formats,
+            '_drm': _info_drm,
             'url': info.get('htmlUrl'),
             'description': (info.get('description')),
             'thumbnail': info.get('thumbnail'),
