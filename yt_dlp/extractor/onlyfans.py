@@ -552,7 +552,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             driver.execute_script("window.stop();")
             self.wait_until(driver, 1)
 
-    def getlicense(self, licurl: str, challenge: bytes) -> bytes:
+    @classmethod
+    def validate_drm_lic(cls, licurl: str, challenge: bytes) -> bytes:
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
 
         _path = cast(str, try_get(urlparse(licurl), lambda x: x.path + '?' + x.query))
