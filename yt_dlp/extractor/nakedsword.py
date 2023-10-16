@@ -23,8 +23,8 @@ from .commonwebdriver import (
     dec_on_driver_timeout,
     my_jitter,
     dec_retry,
+    limiter_0_1,
     limiter_0_01,
-    limiter_0_005,
     SeleniumInfoExtractor,
     Optional,
     Union,
@@ -126,8 +126,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     call_lock = Lock()
     _STATUS = 'NORMAL'
     _LIMITERS = {
-        '403': lambda x: limiter_0_01.ratelimit(x, delay=True),
-        'NORMAL': lambda x: limiter_0_005.ratelimit(x, delay=True)}
+        '403': lambda x: limiter_0_1.ratelimit(x, delay=True),
+        'NORMAL': lambda x: limiter_0_01.ratelimit(x, delay=True)}
     _SEM = {
         '403': Lock(),
         'NORMAL': contextlib.nullcontext()}
@@ -249,8 +249,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'TE': 'trailers'}}
 
     def close(self):
-        NakedSwordBaseIE.API_LOGOUT(msg='[close]', _logger=self.logger_info)
-        super().close()
+        try:
+            NakedSwordBaseIE.API_LOGOUT(msg='[close]', _logger=self.logger_info)
+        except Exception:
+            pass
+        finally:
+            super().close()
 
     @cached_classproperty
     def _APP_DATA_PASSPHRASE(cls):
@@ -319,20 +323,21 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     @dec_retry
-    def API_REFRESH(cls):
+    def API_REFRESH(cls, msg=None):
+        _pre = msg if msg else ''
         try:
             cls.API_GET_XIDENT()
             with cls.call_lock:
                 if cls._refresh_api():
-                    logger.debug("[refresh_api] ok")
+                    logger.debug(f"{_pre}[refresh_api] ok")
                     return True
                 else:
-                    raise_extractor_error("refresh nok")
+                    raise_extractor_error(f"{_pre}[refresh_api] nok")
         except ExtractorError:
             raise
         except Exception as e:
-            logger.debug(f"[refresh_api] {str(e)}")
-            raise_extractor_error(f"error refresh {str(e)}", _from=e)
+            logger.debug(f"{_pre}[refresh_api] {str(e)}")
+            raise_extractor_error(f"{_pre}[refresh_api] error refresh {str(e)}", _from=e)
 
     @classmethod
     def _refresh_api(cls):
@@ -351,9 +356,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     @dec_retry
     def API_GET_XIDENT(cls):
-        # if not cls.headers_api:
-        #     logger.debug("[get_xident] headers_api empty")
-        #     return True
         try:
             if (xident := cls._get_api_xident()):
                 cls.headers_api['x-ident'] = xident
@@ -411,6 +413,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     cls._USERTOKEN = None
                     cls._CLIENT.cookies = None
                     return True
+                else:
+                    return False
             else:
                 return False
         else:
@@ -422,14 +426,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def API_GET_HTTP_HEADERS(cls):
         with cls.call_lock:
             if not cls.headers_api:
-                cls.API_LOGIN()
-                return cls.headers_api
+                if cls.API_LOGIN():
+                    return cls.headers_api
             elif not cls.timer.has_elapsed(50):
                 return cls.headers_api
             else:
                 logger.debug("[call] timeout to new xident")
-                cls.API_GET_XIDENT()
-                return cls.headers_api
+                if cls.API_GET_XIDENT():
+                    return cls.headers_api
 
     @classmethod
     @dec_on_driver_timeout
@@ -830,7 +834,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     def wait_with_pb(self, timeout, premsg):
 
-        NakedSwordBaseIE.API_LOGOUT(msg='[getentries]')
+        NakedSwordBaseIE.API_REFRESH(msg=premsg)
+        NakedSwordBaseIE.API_LOGOUT(msg=premsg)
         NakedSwordBaseIE._CLIENT.close()
         super()._real_initialize()
         NakedSwordBaseIE._CLIENT = self._CLIENT
@@ -1179,6 +1184,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if NakedSwordMovieIE._MOVIES[_movie_url]['on_backoff']:
 
+            NakedSwordBaseIE.API_REFRESH(msg=premsg)
             NakedSwordBaseIE.API_LOGOUT(msg=premsg)
             _timeout = my_jitter(60)
 

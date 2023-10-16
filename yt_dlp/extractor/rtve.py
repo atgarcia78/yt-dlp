@@ -147,13 +147,14 @@ class RTVEPlayIE(InfoExtractor):
         formats = self._extract_png_formats(video_id)
 
         subtitles = None
-        sbt_file = info.get('subtitleRef')
-        if sbt_file:
+        if (sbt_file := info.get('subtitleRef')):
             subtitles = self.extract_subtitles(video_id, sbt_file)
 
         is_live = info.get('consumption') == 'live'
 
-        _mpd_fmts, _info_drm = try_get(self._extract_drm_mpd_formats(video_id), lambda x: x if x else (None, None))
+        _mpd_fmts, _info_drm = try_get(
+            self._extract_drm_mpd_formats(video_id),
+            lambda x: x if x else (None, None))
 
         if _mpd_fmts:
             formats.extend(_mpd_fmts)
