@@ -166,7 +166,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
 class BoyFriendTVIE(BoyFriendTVBaseIE):
     IE_NAME = 'boyfriendtv'  # type: ignore
-    _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/(?:videos|embed)/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
+    _VALID_URL = r'https?://(?:(?P<prefix>m|www|es|ru|de)\.)?(?P<url>boyfriendtv\.com/(?:es/)?(?:videos|embed)/(?P<id>[0-9]+)/?(?:([0-9a-zA-z_-]+/?)|$))'
 
     def _get_entry(self, url, **kwargs):
 
@@ -243,8 +243,7 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                             if not _info_video or 'error' in _info_video:
                                 self.logger_debug(f"[{url}][{_format_id}] no video info")
                             else:
-                                _format.update({
-                                    'url': _info_video.get('url'), 'filesize': _info_video.get('filesize')})
+                                _format.update(_info_video)
                                 self.get_ytdl_sem(get_host(cast(str, _info_video.get('url'))))
 
                     _formats.append(_format)
