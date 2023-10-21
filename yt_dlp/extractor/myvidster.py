@@ -15,7 +15,8 @@ from ..utils import (
     get_domain,
     bug_reports_message,
     variadic,
-    determine_ext
+    determine_ext,
+    sanitize_url
 )
 
 from .commonwebdriver import (
@@ -360,12 +361,13 @@ class MyVidsterIE(MyVidsterBaseIE):
                         info['error'] = _msg_error
                     info.update({'original_url': url})
                     info.update(_entry)
-                    if not info.get('extractor'):
-                        info['extractor'] = self.IE_NAME
-                        info['extractor_key'] = self.ie_key()
-                    if not info.get('id'):
+                    if not (_extractor := info.get('extractor')):
+                        _extractor = info['extractor'] = 'generic'
+                        info['extractor_key'] = 'Generic'
+
+                    if not info.get('id') or _extractor == 'generic':
                         info['id'] = video_id
-                    if not (_title := info.get('title')):
+                    if not (_title := info.get('title')) or info.get('_try_title') or _extractor == 'generic':
                         if (wurl := info.get('webpage_url')):
                             domain = get_domain(wurl)
                             _pattern = r'''(?x)(?i)
@@ -375,12 +377,13 @@ class MyVidsterIE(MyVidsterBaseIE):
                             _title = re.sub(_pattern, '', title).strip('[,-_ ')
                         else:
                             _title = title
+                    info.pop('_try_title', None)
                     info.update({'title': sanitize_filename(_title, restricted=True)})
                     return info
 
                 if (source_url_res := try_get(
                         re.findall(self._conf['source_url'], webpage),
-                        lambda x: self.getvid(x[0], msg='source_url') if x else None)):
+                        lambda x: self.getvid(sanitize_url(x[0], scheme='https'), msg='source_url') if x else None)):
 
                     if isinstance(source_url_res, dict):
                         if "error" not in source_url_res:
@@ -414,7 +417,7 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 link0_res = try_get(
                     re.findall(self._conf[orderlinks[0]], webpage),
-                    lambda x: self.getvid(x[0], check=_check, msg=orderlinks[0]) if x else None)
+                    lambda x: self.getvid(sanitize_url(x[0], scheme='https'), check=_check, msg=orderlinks[0]) if x else None)
 
                 if isinstance(link0_res, dict):
                     if "error" not in link0_res:
@@ -423,7 +426,7 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 link1_res = try_get(
                     re.findall(self._conf[orderlinks[1]], webpage),
-                    lambda x: self.getvid(x[0], check=_check, msg=orderlinks[1]) if x else None)
+                    lambda x: self.getvid(sanitize_url(x[0], scheme='https'), check=_check, msg=orderlinks[1]) if x else None)
 
                 if isinstance(link1_res, dict):
                     if "error" not in link1_res:

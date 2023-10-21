@@ -51,7 +51,7 @@ class getvideourl:
 
 class VGEmbedIE(SeleniumInfoExtractor):
 
-    _VALID_URL = r'https?://(?:.+?\.)?(?:vgembed|vgfplay)\.com/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
+    _VALID_URL = r'https?://(?:.+?\.)?(?:vgembed|vgfplay|vembed)\.(com|net)/((?:d|e|v)/)?(?P<id>[\dA-Za-z]+)'
     IE_NAME = 'vgembed'  # type: ignore
     _LOCK = Lock()
 
@@ -101,7 +101,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
             except (HTTPStatusError, ConnectError) as e:
                 _msg_error = f"{repr(e)}"
                 self.logger_debug(f"{pre}: {_msg_error}")
-                return {"error_res": _msg_error}
+                return {"error": _msg_error}
 
     # class locked:
 
@@ -118,7 +118,8 @@ class VGEmbedIE(SeleniumInfoExtractor):
 
         check = kwargs.get('check', True)
         videoid = self._match_id(url)
-        url_dl = f"https://vgembed.com/v/{videoid}"
+        host = cast(str, get_host(url))
+        url_dl = url.replace('/e/', '/v/')
         pre = f'[get_entry][{self._get_url_print(url)}][{videoid}]'
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
@@ -129,10 +130,10 @@ class VGEmbedIE(SeleniumInfoExtractor):
         try:
             self.logger_debug(f"{pre} start to get entry - check[{check}]")
             _msgerror = '404 no webpage'
-            if not (_res := self._send_request(url_dl)) or (_msgerror := traverse_obj(_res, 'error')):
+            if not (_res := try_get(self._send_request(url_dl), lambda x: html.unescape(x.text) if isinstance(x, Response) else x)) or (_msgerror := traverse_obj(_res, 'error')):
                 raise_extractor_error(f"{pre} {_msgerror}")
 
-            title = cast(str, self._html_extract_title(html.unescape(cast(Response, _res).text)))
+            title = cast(str, self._html_extract_title(_res))
 
             videourl = None
             _port = find_available_port() or 8080
@@ -145,7 +146,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
                     self._send_request(url_dl.replace('/v/', '/e/'), driver=driver)
                     if (_vid := cast(str, self.wait_until(driver, 60, getvideourl()))) and 'blob:' not in _vid:
                         videourl = _vid
-                        self.logger_debug(f"{pre} videourl {videourl}")
+                        self.logger_info(f"{pre} videourl {videourl}")
                     self.wait_until(driver, 1)
 
             except ReExtractInfo:
@@ -156,7 +157,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
             finally:
                 self.rm_driver(driver)
 
-            _headers = {'Origin': "https://vgembed.com", 'Referer': "https://vgembed.com/"}
+            _headers = {'Origin': f"https://{host}", 'Referer': f"https://{host}/"}
             _subtitles = {}
             _formats = []
             _entry = {}
@@ -209,6 +210,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
             _entry.update({
                 'id': videoid,
                 'title': sanitize_filename(title.replace('.mp4', ''), restricted=True),
+                '_try_title': True,
                 'formats': _formats,
                 'subtitles': _subtitles,
                 'ext': 'mp4',
