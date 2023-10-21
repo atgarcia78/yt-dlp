@@ -64,6 +64,8 @@ class TxxxIE(InfoExtractor):
         'vxxx.com',
         'voyeurhit.com',
         'voyeurhit.tube',
+        'thegay.tube',
+        'thegay.com',
     )
     _VALID_URL = rf'''(?x)
         https?://(?:www\.)?(?P<host>{"|".join(map(re.escape, _DOMAINS))})/
