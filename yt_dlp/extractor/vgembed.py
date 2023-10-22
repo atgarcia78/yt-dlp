@@ -32,7 +32,8 @@ import logging
 logger = logging.getLogger('vgembed')
 
 on_exception = my_dec_on_exception(
-    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False,
+    max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
     ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
@@ -103,15 +104,6 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 self.logger_debug(f"{pre}: {_msg_error}")
                 return {"error": _msg_error}
 
-    # class locked:
-
-    #     def __call__(self, func):
-    #         @functools.wraps(func)
-    #         def wrapper(*args, **kwargs):
-    #             with VGEmbedIE._LOCK:
-    #                 return func(*args, **kwargs)
-    #         return wrapper
-
     @SeleniumInfoExtractor.syncsem()
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
@@ -130,7 +122,11 @@ class VGEmbedIE(SeleniumInfoExtractor):
         try:
             self.logger_debug(f"{pre} start to get entry - check[{check}]")
             _msgerror = '404 no webpage'
-            if not (_res := try_get(self._send_request(url_dl), lambda x: html.unescape(x.text) if isinstance(x, Response) else x)) or (_msgerror := traverse_obj(_res, 'error')):
+            if not (_res := try_get(
+                    self._send_request(url_dl),
+                    lambda x: html.unescape(x.text)
+                    if isinstance(x, Response) else x)) or (_msgerror := traverse_obj(_res, 'error')):
+
                 raise_extractor_error(f"{pre} {_msgerror}")
 
             title = cast(str, self._html_extract_title(_res))
@@ -138,8 +134,8 @@ class VGEmbedIE(SeleniumInfoExtractor):
             videourl = None
             _port = find_available_port() or 8080
             driver = self.get_driver(host='127.0.0.1', port=_port)
-            try:
 
+            try:
                 with self.get_har_logs('vgembed', videoid, msg=pre, port=_port) as harlogs:
 
                     _har_file = harlogs.har_file
@@ -174,12 +170,13 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 _sem = self.get_ytdl_sem(_host)
                 if check:
                     with _sem:
-                        _videoinfo = cast(dict, self._get_video_info(videourl, msg=pre, headers=_headers))
+                        _videoinfo = cast(dict, self._get_video_info(
+                            videourl, msg=pre, headers=_headers))
 
                     if not _videoinfo:
                         raise_reextract_info(f"{pre} no video info")
 
-                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
+                    _format.update(_videoinfo)
 
                 _formats.append(_format)
 
@@ -191,7 +188,8 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 if not m3u8_url or not m3u8_doc:
                     raise_reextract_info(f'{pre} no video info')
 
-                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
                 if not _formats:
                     raise_extractor_error(f'{pre} Couldnt get video formats')
