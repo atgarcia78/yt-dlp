@@ -5,6 +5,7 @@ from urllib.parse import unquote, urljoin
 import html
 from httpx import Cookies
 import re
+import itertools
 
 from ..utils import (
     ExtractorError,
@@ -160,18 +161,18 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                     raise ExtractorError("no logged")
 
     def _get_last_page(self, _urlqbase):
-        i = 1
-        while True:
+
+        for i in itertools.count(1):
             try:
-                webpage = try_get(self._send_request(f"{_urlqbase}{i}"), lambda x: html.unescape(x.text))
-                assert webpage
-                if "next »" in webpage:
-                    i += 1
+                if (webpage := try_get(
+                        self._send_request(f"{_urlqbase}{i}"),
+                        lambda x: html.unescape(x.text))):
+                    if "next »" not in webpage:
+                        return i
                 else:
-                    break
+                    return
             except Exception:
-                break
-        return (i - 1)
+                return
 
     def _get_videos(self, _urlq):
 
@@ -227,10 +228,12 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 class MyVidsterIE(MyVidsterBaseIE):
     IE_NAME = 'myvidster:playlist'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?P<title>[\w\-\_]+)?'
+
     _conf = {
         'source_url': r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video',
         'videolink': r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]',
         'embedlink': r'reload_video\([\'\"]([^\'\"]+)[\'\"]'}
+
     _URL_NOT_VALID = [
         '//syndication', 'rawassaddiction.blogspot', 'twitter.com',
         'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed',
@@ -239,7 +242,6 @@ class MyVidsterIE(MyVidsterBaseIE):
         'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4']
 
     def getvid(self, x, **kwargs):
-
         _check = kwargs.get('check', True)
         pre = "[getvid]"
         if (msg := kwargs.get('msg', None)):
@@ -279,16 +281,15 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 else:
                     try:
-
                         with ytdl_silent(self._downloader) as _ytdl:
                             _ent = _ytdl.extract_info(el, download=False)
 
                         if _ent:
-                            if _ent.get('_type', 'video') == 'url' and (get_domain(el) == get_domain(_ent['url'])):
+                            if _ent.get('_type', 'video').startswith('url') and (get_domain(el) == get_domain(_ent['url'])):
                                 self.logger_debug(f'{pre} not entry video')
                                 return {"error": f"[{el}] not entry video"}
                             if 'extractor' not in _ent:
-                                _ent.update({'extractor': ie.IE_NAME, 'extractor_key': ie.ie_key(), 'webpage_url': el})
+                                _ent.update({'extractor': 'generic', 'extractor_key': 'Generic', 'webpage_url': el})
                             if _ent.get('_type', 'video') == 'video':
                                 if not (_ext := _ent.get('ext')) or _ext == 'unknown_video':
                                     _ent['ext'] = _ent['video_ext'] = _newext = determine_ext(_ent['url'].partition('#')[0])
@@ -348,11 +349,11 @@ class MyVidsterIE(MyVidsterBaseIE):
 
             postdate = try_get(re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage, flags=re.I),
                                lambda x: datetime.strptime(x[0].strip(), "%d %b, %Y"))
+            _entry = {}
             if postdate:
-                _entry = {'release_date': postdate.strftime("%Y%m%d"),
-                          'release_timestamp': int(postdate.timestamp())}
-            else:
-                _entry = {}
+                _entry.update({
+                    'release_date': postdate.strftime("%Y%m%d"),
+                    'release_timestamp': int(postdate.timestamp())})
 
             def _getter(orderlinks):
 
@@ -417,7 +418,9 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 link0_res = try_get(
                     re.findall(self._conf[orderlinks[0]], webpage),
-                    lambda x: self.getvid(sanitize_url(x[0], scheme='https'), check=_check, msg=orderlinks[0]) if x else None)
+                    lambda x: self.getvid(
+                        sanitize_url(x[0], scheme='https'), check=_check, msg=orderlinks[0])
+                    if x else None)
 
                 if isinstance(link0_res, dict):
                     if "error" not in link0_res:
@@ -426,7 +429,9 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 link1_res = try_get(
                     re.findall(self._conf[orderlinks[1]], webpage),
-                    lambda x: self.getvid(sanitize_url(x[0], scheme='https'), check=_check, msg=orderlinks[1]) if x else None)
+                    lambda x: self.getvid(
+                        sanitize_url(x[0], scheme='https'), check=_check, msg=orderlinks[1])
+                    if x else None)
 
                 if isinstance(link1_res, dict):
                     if "error" not in link1_res:
