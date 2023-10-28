@@ -1,30 +1,24 @@
+import contextlib
 import functools
 import html
+import http.cookiejar
 import json
 import logging
 import os
 import random
 import re
 import shutil
+import sqlite3
 import subprocess
+import sys
 import tempfile
 import time
-from datetime import datetime, timedelta
-from threading import (
-    Event,
-    Lock,
-    RLock,
-    Semaphore
-)
-from urllib.parse import (
-    unquote,
-    urlparse
-)
-from ..YoutubeDL import YoutubeDL
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+from functools import cached_property
 from io import TextIOWrapper
 from ipaddress import ip_address
+from threading import Event, Lock, RLock, Semaphore
 from typing import (
     Any,
     Callable,
@@ -38,33 +32,10 @@ from typing import (
     Union,
     cast,
 )
-from .common import (
-    ExtractorError,
-    InfoExtractor
-)
-from ..minicurses import MultilinePrinter
-from ..utils import (
-    ReExtractInfo,
-    classproperty,
-    find_available_port,
-    int_or_none,
-    traverse_obj,
-    try_get,
-    variadic,
-    unsmuggle_url,
-)
-from ..utils.networking import random_user_agent
-from ..cookies import YoutubeDLCookieJar
-import http.cookiejar
-import sqlite3
-from functools import cached_property
-import contextlib
+from urllib.parse import unquote, urlparse
 
 import httpx
-from backoff import (
-    constant,
-    on_exception
-)
+from backoff import constant, on_exception
 from httpx import (
     Client,
     ConnectError,
@@ -75,26 +46,31 @@ from httpx import (
     StreamError,
     Timeout,
 )
-from pyrate_limiter import (
-    Duration,
-    LimitContextDecorator,
-    Limiter,
-    RequestRate
-)
-from selenium.common.exceptions import (
-    TimeoutException,
-    WebDriverException
-)
-from selenium.webdriver import (
-    Firefox,
-    FirefoxOptions
-)
+from pyrate_limiter import Duration, LimitContextDecorator, Limiter, RequestRate
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
+
+from .common import ExtractorError, InfoExtractor
+from ..cookies import YoutubeDLCookieJar
+from ..minicurses import MultilinePrinter
+from ..utils import (
+    ReExtractInfo,
+    classproperty,
+    find_available_port,
+    int_or_none,
+    traverse_obj,
+    try_get,
+    unsmuggle_url,
+    variadic,
+)
+from ..utils.networking import random_user_agent
+from ..YoutubeDL import YoutubeDL
 
 assert Keys  # for flake8
 
@@ -428,10 +404,10 @@ def getter_config_extr(
 
 
 class scroll:
-    '''
+    """
     To use as a predicate in the webdriver waits to scroll down to the end of the page
     when the page has an infinite scroll where it is adding new elements dynamically
-    '''
+    """
     _WAIT_TIME_SCROLL = 3
 
     def __init__(self, wait_time=2):
@@ -1324,7 +1300,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             raise
         except Exception as e:
             _msg_err = repr(e)
-            raise ExtractorError(_msg_err)
+            raise ExtractorError(_msg_err) from None
         finally:
             self.logger_debug(
                 f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
@@ -1515,7 +1491,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             if res.status_code == 404:
                 res.raise_for_status()
             if res.status_code == 503:
-                raise StatusError503(repr(e))
+                raise StatusError503(repr(e)) from None
             raise_extractor_error(_msg_err, _from=e)
 
         finally:
@@ -1580,13 +1556,13 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             if e.response.status_code == 403:
                 raise_reextract_info(_msg_err)
             elif e.response.status_code == 503:
-                raise StatusError503(_msg_err)
+                raise StatusError503(_msg_err) from None
             else:
                 raise
         except Exception as e:
             _msg_err = f"{premsg} {str(e)}"
             if not res:
-                raise TimeoutError(_msg_err)
+                raise TimeoutError(_msg_err) from None
             else:
                 raise_extractor_error(_msg_err)
         finally:
