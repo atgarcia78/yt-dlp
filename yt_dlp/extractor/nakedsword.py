@@ -1,52 +1,52 @@
+import base64
+import contextlib
 import html
 import json
 import logging
+import netrc
+import os
 import re
+import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import Lock
-import base64
-import subprocess
-import time
-import contextlib
-import netrc
-import os
 
 from .commonwebdriver import (
-    ConnectError,
-    StatusStop,
-    HTTPStatusError,
-    ProgressTimer,
-    ReExtractInfo,
-    dec_on_exception3,
-    my_dec_on_exception,
-    dec_on_driver_timeout,
-    my_jitter,
-    dec_retry,
-    limiter_0_1,
-    limiter_0_01,
-    SeleniumInfoExtractor,
-    Optional,
-    Union,
-    Response,
-    ec,
     By,
     Callable,
-    cast,
+    ConnectError,
+    HTTPStatusError,
+    Optional,
+    ProgressTimer,
+    ReExtractInfo,
+    Response,
+    SeleniumInfoExtractor,
+    StatusStop,
+    Union,
     WebElement,
+    cached_classproperty,
+    cast,
+    dec_on_driver_timeout,
+    dec_on_exception3,
+    dec_retry,
+    ec,
+    limiter_0_1,
+    limiter_0_01,
+    limiter_0_005,
+    my_dec_on_exception,
+    my_jitter,
     raise_extractor_error,
     raise_reextract_info,
-    cached_classproperty,
 )
-
 from ..utils import (
     ExtractorError,
     extract_timezone,
     int_or_none,
+    js_to_json,
     sanitize_filename,
     traverse_obj,
     try_get,
-    js_to_json
 )
 
 logger = logging.getLogger('nakedsword')
@@ -438,22 +438,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     @dec_on_driver_timeout
     @dec_on_exception3
+    @limiter_0_005.ratelimit("nakedsword", delay=True)
     def _send_request(cls, url, **kwargs) -> Union[None, Response]:
 
         pre = f'[send_request][{cls._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
-        driver = kwargs.get('driver', None)
-
-        with cls._LIMITERS['NORMAL']("nakedsword"):
-
-            if driver:
-                driver.get(url)
-            else:
-                try:
-                    return (cls._send_http_request(url, client=cls._CLIENT, **kwargs))
-                except (HTTPStatusError, ConnectError) as e:
-                    logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
+        if (driver := kwargs.get('driver', None)):
+            driver.get(url)
+        else:
+            try:
+                return (cls._send_http_request(url, client=cls._CLIENT, **kwargs))
+            except (HTTPStatusError, ConnectError) as e:
+                logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
     @classmethod
     def _get_app_data_passphrase(cls) -> Optional[str]:
@@ -478,68 +475,68 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     def get_formats(self, _types, _info):
 
-        with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]("nswscene"):
+        # with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]("nswscene"):
 
-            self.logger_debug(f"[get_formats] {_info}")
+        self.logger_debug(f"[get_formats] {_info}")
 
-            m3u8_url = _info.get('m3u8_url')
+        m3u8_url = _info.get('m3u8_url')
 
-            formats = []
+        formats = []
 
-            for _type in _types:
+        for _type in _types:
 
-                self.check_stop()
-                try:
-                    if _type == "hls":
+            self.check_stop()
+            try:
+                if _type == "hls":
 
-                        if not (m3u8_doc := try_get(
-                            self._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
-                            lambda x: (x.content).decode('utf-8', 'replace')
-                        )):
-                            raise ReExtractInfo("couldnt get m3u8 doc")
+                    if not (m3u8_doc := try_get(
+                        self._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
+                        lambda x: (x.content).decode('utf-8', 'replace')
+                    )):
+                        raise ReExtractInfo("couldnt get m3u8 doc")
 
-                        formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                            m3u8_doc, m3u8_url, ext='mp4', entry_protocol='m3u8_native', m3u8_id='hls')
-                        if formats_m3u8:
-                            formats.extend(formats_m3u8)
+                    formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
+                        m3u8_doc, m3u8_url, ext='mp4', entry_protocol='m3u8_native', m3u8_id='hls')
+                    if formats_m3u8:
+                        formats.extend(formats_m3u8)
 
-                    elif _type == "dash":
+                elif _type == "dash":
 
-                        mpd_url = m3u8_url.replace('playlist.m3u8', 'manifest.mpd')
-                        if not (_doc := try_get(
-                            self._send_request(mpd_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
-                            lambda x: (x.content).decode('utf-8', 'replace')
-                        )):
-                            raise ExtractorError("couldnt get mpd doc")
+                    mpd_url = m3u8_url.replace('playlist.m3u8', 'manifest.mpd')
+                    if not (_doc := try_get(
+                        self._send_request(mpd_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
+                        lambda x: (x.content).decode('utf-8', 'replace')
+                    )):
+                        raise ExtractorError("couldnt get mpd doc")
 
-                        mpd_doc = self._parse_xml(_doc, None)
+                    mpd_doc = self._parse_xml(_doc, None)
 
-                        formats_dash = self._parse_mpd_formats(
-                            mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
-                        if formats_dash:
-                            formats.extend(formats_dash)
+                    formats_dash = self._parse_mpd_formats(
+                        mpd_doc, mpd_id="dash", mpd_url=mpd_url, mpd_base_url=(mpd_url.rsplit('/', 1))[0])
+                    if formats_dash:
+                        formats.extend(formats_dash)
 
-                    elif _type == "ism":
+                elif _type == "ism":
 
-                        ism_url = m3u8_url.replace('playlist.m3u8', 'Manifest')
-                        _doc = try_get(
-                            self._send_request(ism_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
-                            lambda x: (x.content).decode('utf-8', 'replace'))
-                        if _doc:
-                            ism_doc = self._parse_xml(_doc, None)
-                            formats_ism, _ = self._parse_ism_formats_and_subtitles(ism_doc, ism_url)
-                            if formats_ism:
-                                formats.extend(formats_ism)
+                    ism_url = m3u8_url.replace('playlist.m3u8', 'Manifest')
+                    _doc = try_get(
+                        self._send_request(ism_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
+                        lambda x: (x.content).decode('utf-8', 'replace'))
+                    if _doc:
+                        ism_doc = self._parse_xml(_doc, None)
+                        formats_ism, _ = self._parse_ism_formats_and_subtitles(ism_doc, ism_url)
+                        if formats_ism:
+                            formats.extend(formats_ism)
 
-                except ReExtractInfo:
-                    raise
-                except Exception as e:
-                    logger.error(f"[get_formats][{_type}][{_info.get('url')}] {str(e)}")
+            except ReExtractInfo:
+                raise
+            except Exception as e:
+                logger.error(f"[get_formats][{_type}][{_info.get('url')}] {str(e)}")
 
-            if not formats:
-                raise ExtractorError("couldnt find any format")
-            else:
-                return formats
+        if not formats:
+            raise ExtractorError("couldnt find any format")
+        else:
+            return formats
 
     def _get_api_details(self, movieid):
 

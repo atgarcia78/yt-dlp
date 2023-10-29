@@ -17,14 +17,9 @@ from .commonwebdriver import (
     limiter_0_1,
     my_dec_on_exception,
     raise_extractor_error,
-    raise_reextract_info
+    raise_reextract_info,
 )
-from ..utils import (
-    get_domain,
-    js_to_json,
-    sanitize_url,
-    try_get,
-)
+from ..utils import get_domain, js_to_json, sanitize_url, try_get
 
 on_exception_vinfo = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
@@ -38,7 +33,6 @@ class DoodStreamIE(SeleniumInfoExtractor):
     IE_NAME = 'doodstream'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?(?:ds2play|(d(oo)+d(?:s|stream)?))\.[^/]+/[ed]/(?P<id>[a-z0-9]+)'
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?d(oo)*d(?:stream)?\.[^/]+/[ed]/[a-z0-9]+)\1']
-    _SITE_URL = 'https://dood.to/'
 
     @on_exception_vinfo
     @limiter_0_1.ratelimit("doodstream", delay=True)
@@ -80,7 +74,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
     def _get_metadata(self, url):
         video_id = self._match_id(url)
-        url = f'https://dood.to/e/{video_id}'
+        domain = get_domain(url)
+        url = f'https://{domain}/e/{video_id}'
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error("error 404 no webpage")
@@ -104,7 +99,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
     def _get_entry(self, url, **kwargs):
 
         video_id = cast(str, self._match_id(url))
-        url = f'https://dood.to/e/{video_id}'
+        domain = get_domain(url)
+        url = f'https://{domain}/e/{video_id}'
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
@@ -127,11 +123,11 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 
-        headers = {'Referer': self._SITE_URL}
+        headers = {'Referer': f'https://{domain}/'}
 
         pass_md5 = self._html_search_regex(r"(/pass_md5.*?)'", webpage, 'pass_md5')
         video_url = ''.join([
-            try_get(self._send_request(f'https://dood.to{pass_md5}', headers=headers), lambda x: html.unescape(x.text)),  # type: ignore
+            try_get(self._send_request(f'https://{domain}{pass_md5}', headers=headers), lambda x: html.unescape(x.text)),  # type: ignore
             *(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
             f'?token={token}&expiry={int(time.time() * 1000)}']
         )
@@ -149,12 +145,14 @@ class DoodStreamIE(SeleniumInfoExtractor):
             _videoinfo = cast(dict, self._get_video_info(video_url, msg=pre, headers=headers))
 
         if not _videoinfo:
+            self._count += 1
             raise_reextract_info(f"{pre} error 404: no video info")
 
-        if _videoinfo['filesize'] >= 30000000:
+        if _videoinfo['filesize'] >= 25000000 or self._count >= 9:
             _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
         else:
-            raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 30MB")
+            self._count += 1
+            raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 25MB")
 
         _subtitles = {}
         list_subts = [subt for subt in [
@@ -193,6 +191,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
     def _real_initialize(self):
         super()._real_initialize()
+        self._count = 0
 
     def _real_extract(self, url):
 
