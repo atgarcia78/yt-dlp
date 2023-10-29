@@ -61,7 +61,6 @@ from ..cookies import YoutubeDLCookieJar
 from ..minicurses import MultilinePrinter
 from ..utils import (
     ReExtractInfo,
-    classproperty,
     find_available_port,
     int_or_none,
     traverse_obj,
@@ -200,6 +199,12 @@ def subnright(pattern, repl, text, n):
     for _ in range(n):
         _text = pattern.sub(repl, _text)
     return _text
+
+
+class classproperty(property):
+
+    def __get__(self, owner_self, owner_cls):
+        return self.fget(owner_cls)
 
 
 class cached_classproperty(cached_property):
@@ -913,6 +918,21 @@ class SeleniumInfoExtractor(InfoExtractor):
         return logging.getLogger('yt_dlp')
 
     @cached_classproperty
+    def TEMP_CLIENT_CONFIG(cls):
+        return {
+            'timeout': Timeout(20),
+            'limits': Limits(max_keepalive_connections=None, max_connections=None),
+            'follow_redirects': True,
+            'verify': False,
+            'headers': {"User-Agent": random_user_agent()}
+        }
+
+    @classproperty
+    def TEMP_CLIENT(cls):
+        config = SeleniumInfoExtractor.TEMP_CLIENT_CONFIG
+        return Client(**config)
+
+    @cached_classproperty
     def IE_LIMITER(cls):
         return getter_config_extr(cls.IE_NAME, cls._CONFIG_REQ)
 
@@ -985,13 +1005,13 @@ class SeleniumInfoExtractor(InfoExtractor):
             if self._YTDL != self._downloader:
 
                 self._downloader.params.setdefault('stop_dl', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), {}) if x else {}))
+                    self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), default={}) if x else {}))
                 self._downloader.params.setdefault('sem', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('sem'), {}) if x else {}))
+                    self._YTDL, lambda x: traverse_obj(x.params, ('sem'), default={}) if x else {}))
                 self._downloader.params.setdefault('lock', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('lock'), Lock()) if x else Lock()))
+                    self._YTDL, lambda x: traverse_obj(x.params, ('lock'), default=Lock()) if x else Lock()))
                 self._downloader.params.setdefault('stop', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('stop'), Event()) if x else Event()))
+                    self._YTDL, lambda x: traverse_obj(x.params, ('stop'), default=Event()) if x else Event()))
                 self._downloader.params.setdefault('routing_table', try_get(
                     self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
 
@@ -1044,8 +1064,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             ie_key = _args
             ie = self._downloader.get_info_extractor(ie_key)  # type: ignore
         try:
-            ie._ready = False
-            ie._real_initialize()
+            # ie._ready = False
+            ie.initialize()
             return ie
         except Exception as e:
             self.LOGGER.exception(
@@ -1515,14 +1535,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         _close_cl = False
         client = kwargs.get('client')
         if not client:
-            _config = {
-                'timeout': Timeout(20),
-                'limits': Limits(
-                    max_keepalive_connections=None, max_connections=None),
-                'follow_redirects': True,
-                'verify': False,
-                'headers': {"User-Agent": random_user_agent()}}
-            client = Client(**_config)
+            client = cls.TEMP_CLIENT
             _close_cl = True
 
         _kwargs = kwargs.copy()

@@ -453,10 +453,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             driver.get(url)
         else:
             try:
-                if cls._CLIENT is None:
-                    raise NakedSwordError('CLIENT is None')
+                if not (_client := kwargs.pop('client', None)):
+                    if cls._CLIENT is None:
+                        raise NakedSwordError('CLIENT is None')
+                    else:
+                        _client = cls._CLIENT
                 upt_headers = try_get(kwargs.get('headers'), lambda x: {'headers': x()} if isinstance(x, Callable) else {})
-                return (cls._send_http_request(url, client=cls._CLIENT, **(kwargs | upt_headers)))
+                return (cls._send_http_request(url, client=_client, **(kwargs | upt_headers)))
             except (HTTPStatusError, ConnectError) as e:
                 cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
             except Exception as e:
@@ -549,12 +552,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         else:
             return formats
 
-    def _get_api_details(self, movieid):
+    @classmethod
+    def _get_api_details(cls, movieid):
 
         return try_get(
-            NakedSwordBaseIE._send_request(
-                f"{NakedSwordBaseIE._API_URLS['movies']}/{movieid}/details",
-                headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS),
+            cls._send_request(
+                f"{cls._API_URLS['movies']}/{movieid}/details",
+                headers=cls.API_GET_HTTP_HEADERS),
             lambda x: x.json().get('data') if x else None)
 
     def _get_api_newest_movies(self, pages=2):
@@ -701,7 +705,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         _id_movie = NakedSwordMovieIE._match_id(_url_movie)
         if not (details := traverse_obj(NakedSwordMovieIE._MOVIES, (_id_movie, 'details'))):
-            if not (details := self._get_api_details(_id_movie)):
+            if not (details := NakedSwordBaseIE._get_api_details(_id_movie)):
                 raise ReExtractInfo(f"{premsg} no details info")
             NakedSwordMovieIE._MOVIES[_id_movie]['details'] = details
 
@@ -994,24 +998,32 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^?#&/]+)(?:/?\?(?P<by>by=movie))?"
     _MOVIES = {}
 
-    def save_images(self, _id_movie, download_path, include_scenes=True):
+    @classmethod
+    def save_images(cls, _id_movie, download_path, include_scenes=True):
+        if _id_movie not in NakedSwordMovieIE._MOVIES:
+            NakedSwordMovieIE._MOVIES.update(
+                {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'final': True}})
         if not (details := traverse_obj(NakedSwordMovieIE._MOVIES, (_id_movie, 'details'))):
-            if not (details := self._get_api_details(_id_movie)):
+            if not (details := NakedSwordBaseIE._get_api_details(_id_movie)):
                 raise_extractor_error("no details info")
             NakedSwordMovieIE._MOVIES[_id_movie]['details'] = details
-        if include_scenes:
-            for i in range(1, len(details['scenes']) + 1):
-                for key in ('gallery', 'cover_images'):
-                    for n, el in enumerate(details['scenes'][i - 1][key]):
-                        if (_img_bin := try_get(NakedSwordBaseIE._send_request(el['url']), lambda x: x.content if x else None)):
-                            _file = f"{str(download_path)}/scene_{i}_{key.split('_')[0]}_{n}.jpg"
-                            with open(_file, "wb") as f:
-                                f.write(_img_bin)
-        for el in traverse_obj(details['images'], (lambda _, x: '_xl' in x['url'])):
-            if (_img_bin := try_get(NakedSwordBaseIE._send_request(el['url']), lambda x: x.content if x else None)):
-                _file = f"{str(download_path)}/movie_{_id_movie}_{sanitize_filename(el['type'], restricted=True)}.jpg"
-                with open(_file, "wb") as f:
-                    f.write(_img_bin)
+        _client = SeleniumInfoExtractor.TEMP_CLIENT
+        try:
+            if include_scenes:
+                for i in range(1, len(details['scenes']) + 1):
+                    for key in ('gallery', 'cover_images'):
+                        for n, el in enumerate(details['scenes'][i - 1][key]):
+                            if (_img_bin := try_get(NakedSwordBaseIE._send_request(el['url'], client=_client), lambda x: x.content if x else None)):
+                                _file = f"{str(download_path)}/scene_{i}_{key.split('_')[0]}_{n}.jpg"
+                                with open(_file, "wb") as f:
+                                    f.write(_img_bin)
+            for el in traverse_obj(details['images'], (lambda _, x: '_xl' in x['url'])):
+                if (_img_bin := try_get(NakedSwordBaseIE._send_request(el['url'], client=_client), lambda x: x.content if x else None)):
+                    _file = f"{str(download_path)}/movie_{_id_movie}_{sanitize_filename(el['type'], restricted=True)}.jpg"
+                    with open(_file, "wb") as f:
+                        f.write(_img_bin)
+        finally:
+            _client.close()
 
     @dec_on_reextract_1
     def get_entries(self, url, **kwargs):
