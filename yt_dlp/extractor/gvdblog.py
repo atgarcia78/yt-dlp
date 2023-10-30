@@ -1,46 +1,43 @@
+import json
+import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
+from functools import partial
 from html import unescape
 from threading import Lock
-import json
-from ..utils import (
-    ExtractorError,
-    try_get,
-    sanitize_filename,
-    traverse_obj,
-    int_or_none,
-    unsmuggle_url,
-    get_domain,
-    get_elements_by_class,
-    get_element_by_id,
-    get_element_html_by_id,
-    get_element_text_and_html_by_tag,
-    update_url_query,
-    update_url
-)
-from .commonwebdriver import (
-    unquote,
-    SeleniumInfoExtractor,
-    limiter_1,
-    limiter_0_1,
-    ReExtractInfo,
-    my_dec_on_exception,
-    Tuple,
-    cast,
-    Union,
-    raise_extractor_error
-)
-from concurrent.futures import (
-    ThreadPoolExecutor,
-    wait
-)
-import logging
-from functools import partial
 
+from .commonwebdriver import (
+    ReExtractInfo,
+    SeleniumInfoExtractor,
+    Tuple,
+    Union,
+    cast,
+    limiter_0_1,
+    limiter_1,
+    my_dec_on_exception,
+    raise_extractor_error,
+    unquote,
+)
 from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
 from .voe import VoeIE
 from .xfileshare import XFileShareIE
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    get_element_by_id,
+    get_element_html_by_id,
+    get_element_text_and_html_by_tag,
+    get_elements_by_class,
+    int_or_none,
+    sanitize_filename,
+    traverse_obj,
+    try_get,
+    unsmuggle_url,
+    update_url,
+    update_url_query,
+)
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
@@ -469,7 +466,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 return self.send_http_request(url, **kwargs)
             except ReExtractInfo as e:
                 logger.debug(f"{pre}: error - {repr(e)}")
-                raise ExtractorError(str(e))
+                raise_extractor_error(str(e), _from=e)
             except Exception as e:
                 logger.warning(f"{pre}: error - {repr(e)}")
                 raise
@@ -522,7 +519,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         https?://(?:www\.)?(?:
             (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
             (gvdblog\.(?:
-                ((com|net)/(?:_search|(?P<type>(actor|category))/(?P<name>[^\?/]+)))|
+                ((com|net)/(?:_search|(?P<type>(actor|category|tag))/(?P<name>[^\?/]+)))|
                 (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))))
         (\?(?P<query>[^#]+))?'''
 
@@ -530,14 +527,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                  'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100",
                  'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100"}
 
+    _MAP = {'actor': 'actors', 'category': 'categories', 'tag': 'tags'}
+
     def get_id(self, label, name):
         webpage = try_get(
             self._send_request(f"https://{self.keyapi}/{label}/{name}"),
             lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
-        if label == 'actor':
-            attribute = 'actors'
-        if label == 'category':
-            attribute = 'categories'
+        attribute = self._MAP[label]
         if (_id := try_get(
                 re.findall(rf'{attribute}/(\d+)', webpage),
                 lambda x: x[0])):
