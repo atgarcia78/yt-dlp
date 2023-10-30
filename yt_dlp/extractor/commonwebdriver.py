@@ -675,7 +675,7 @@ class myHAR:
             self.har_file = har_file
             self.port = port
             self.cmd = f"mitmdump -p {port} -s {self._har_script} --set hardump={self.har_file}"
-            self.logger = logger if logger else logging.getLogger('getHAR').debug
+            self.logger = logger or logging.getLogger('getHAR').debug
             self.pre = '[getHAR]'
             if msg:
                 self.pre += msg
