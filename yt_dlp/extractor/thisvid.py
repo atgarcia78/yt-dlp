@@ -8,6 +8,7 @@ from ..utils import (
     clean_html,
     get_element_by_class,
     int_or_none,
+    unsmuggle_url,
     url_or_none,
     urljoin,
 )
@@ -202,13 +203,13 @@ class ThisVidPlaylistIE(ThisVidPlaylistBaseIE):
 
     def _generate_playlist_entries(self, url, playlist_id, html=None):
         for wrapped_url in super()._generate_playlist_entries(url, playlist_id, html):
-            video_id = re.match(self._VALID_URL, wrapped_url).group('video_id')
+            video_id = re.match(self._VALID_URL, wrapped_url)['video_id']
             yield urljoin(url, f'/videos/{video_id}/')
 
     def _real_extract(self, url):
+        url, res_data = unsmuggle_url(url)
         playlist_id, video_id = self._match_valid_url(url).group('id', 'video_id')
-
-        if not self._yes_playlist(playlist_id, video_id):
+        if not self._yes_playlist(playlist_id, video_id, smuggled_data=res_data):
             redirect_url = urljoin(url, f'/videos/{video_id}/')
             return self.url_result(redirect_url, ThisVidIE)
 
@@ -218,7 +219,7 @@ class ThisVidPlaylistIE(ThisVidPlaylistBaseIE):
         title = result['title']
         t_len = len(title)
         if t_len > 5 and t_len % 2 != 0:
-            t_len = t_len // 2
+            t_len //= 2
             if title[t_len] == '-':
                 first, second = map(str.strip, (title[:t_len], title[t_len + 1:]))
                 if first and first == second:

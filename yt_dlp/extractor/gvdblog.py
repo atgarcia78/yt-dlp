@@ -289,9 +289,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 re.search(r"(?:(class='related-tag' data-id='(?P<id1>\d+)')|(wp-json/wp/v2/posts/(?P<id2>\d+)))", post),
                 lambda x: traverse_obj(x.groupdict(), ('id1'), ('id2')))
 
-            title = self._html_search_meta(('og:title', 'twitter:title'), post, default=None)
-            if not title:
-                title = try_get(self._html_extract_title(post), lambda x: x.replace(' – GVDBlog', ''))
+            title = self._html_search_meta(
+                ('og:title', 'twitter:title'), post, default=None) or try_get(
+                    self._html_extract_title(post), lambda x: x.replace(' – GVDBlog', ''))
 
             _pattern = r"(?:(class='entry-time mi'><time class='published' datetime='[^']+'>(?P<date1>[^<]+)<)|(calendar[\"']></i> Date: (?P<date2>[^<]+)<))"
             postdate = try_get(

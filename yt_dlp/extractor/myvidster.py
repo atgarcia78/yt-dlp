@@ -1,40 +1,42 @@
+import html
+import itertools
+import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import Lock
 from urllib.parse import unquote, urljoin
-import html
-from httpx import Cookies
-import re
-import itertools
 
-from ..utils import (
-    ExtractorError,
-    DownloadError,
-    get_elements_by_class,
-    sanitize_filename,
-    try_get,
-    get_domain,
-    bug_reports_message,
-    variadic,
-    determine_ext,
-    sanitize_url
-)
+from httpx import Cookies
 
 from .commonwebdriver import (
-    Union,
-    cast,
-    ec,
-    dec_on_exception2,
-    dec_on_exception3,
-    SeleniumInfoExtractor,
-    limiter_0_5,
-    HTTPStatusError,
-    ytdl_silent,
     By,
     ConnectError,
-    raise_extractor_error)
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    Union,
+    cast,
+    dec_on_exception2,
+    dec_on_exception3,
+    ec,
+    limiter_0_5,
+    raise_extractor_error,
+    ytdl_silent,
+)
+from ..utils import (
+    DownloadError,
+    ExtractorError,
+    bug_reports_message,
+    determine_ext,
+    get_domain,
+    get_elements_by_class,
+    sanitize_filename,
+    sanitize_url,
+    smuggle_url,
+    try_get,
+    variadic,
+)
 
-import logging
 logger = logging.getLogger('myvidster')
 
 
@@ -241,6 +243,8 @@ class MyVidsterIE(MyVidsterBaseIE):
         '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
         'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4']
 
+    _URL_NO_PLAYLIST = ['thisvid.com/playlist']
+
     def getvid(self, x, **kwargs):
         _check = kwargs.get('check', True)
         pre = "[getvid]"
@@ -264,6 +268,8 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if any(_ in el for _ in self._URL_NOT_VALID):
                     self.logger_debug(f"{pre} url not valid")
                     return {"error": f"[{el}] error url not valid"}
+                if any(_ in el for _ in self._URL_NO_PLAYLIST):
+                    el = smuggle_url(el, {'force_noplaylist': True})
 
                 ie = self._get_extractor(el)
                 if hasattr(ie, '_get_entry'):  # get entry
