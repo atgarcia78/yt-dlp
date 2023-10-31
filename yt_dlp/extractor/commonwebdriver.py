@@ -120,7 +120,7 @@ class FirefoxBrowserCookies:
             tmp_file = tempfile.NamedTemporaryFile(suffix='.sqlite').name
             copyfile(cookie_file, tmp_file)
             return tmp_file
-        raise BrowserCookieError('Can not find cookie file at: ' + cookie_file)
+        raise BrowserCookieError(f'Can not find cookie file at: {cookie_file}')
 
     def find_cookie_file(self, profile):
         return os.path.expanduser(
@@ -171,7 +171,7 @@ class FirefoxBrowserCookies:
             try:
                 json_data = json.loads(open(self.session_file, 'rb').read())
             except ValueError as e:
-                print('Error parsing firefox session JSON: %s' % str(e))
+                print(f'Error parsing firefox session JSON: {str(e)}')
             else:
                 expires = str(int(time.time()) + 604800)
                 for window in json_data.get('windows', []):
@@ -188,8 +188,7 @@ class FirefoxBrowserCookies:
             # print(self.session_file2)
             self.extractSessionCookie(self.session_file2, cj)
         else:
-            print(
-                'Firefox session filename does not exist: %s' % self.session_file)
+            print(f'Firefox session filename does not exist: {self.session_file}')
         return cj
 
 
@@ -460,10 +459,7 @@ class scroll:
                 if self.upt_height(driver):
                     return True
                 self._page.send_keys(Keys.PAGE_DOWN)
-
-            if self.exit_func(driver):
-                return True
-            return False
+            return bool(self.exit_func(driver))
 
 
 class checkStop:
@@ -531,27 +527,44 @@ class myHAR:
                     _res = cast(list, traverse_obj(json.load(f), ('log', 'entries')))
 
         if not _res:
-            raise Exception('no HAR entries')
+            raise ExtractorError('no HAR entries')
 
+        if _mimetype:
+            _mimetype_list = list(variadic(_mimetype))
+            _non_mimetype_list = []
         else:
-            if _mimetype:
-                _mimetype_list = list(variadic(_mimetype))
-                _non_mimetype_list = []
-            else:
-                _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
-                _mimetype_list = []
+            _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
+            _mimetype_list = []
 
-            _res_filt = [el for el in _res if all(
+        return [
+            el
+            for el in _res
+            if all(
                 [
                     traverse_obj(el, ('request', 'method')) == _method,
-                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,  # type: ignore
-                    not any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
-                             for _ in _non_mimetype_list]) if _non_mimetype_list else True,
-                    any([_ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
-                        for _ in _mimetype_list]) if _mimetype_list else True
-                ])]
-
-            return _res_filt
+                    int(traverse_obj(el, ('response', 'bodySize'), default='0'))
+                    >= 0,
+                    all(
+                        _
+                        not in traverse_obj(
+                            el, ('response', 'content', 'mimeType'), default=''
+                        )
+                        for _ in _non_mimetype_list
+                    )
+                    if _non_mimetype_list
+                    else True,
+                    any(
+                        _
+                        in traverse_obj(
+                            el, ('response', 'content', 'mimeType'), default=''
+                        )
+                        for _ in _mimetype_list
+                    )
+                    if _mimetype_list
+                    else True,
+                ]
+            )
+        ]
 
     @classmethod
     def headers_from_entry(cls, entry):
@@ -566,8 +579,22 @@ class myHAR:
             _all=False, timeout=10, response=True,
             inclheaders=False, check_event=None):
 
-        _har_old = []
+        def _get_hint(entry):
+            _url = cast(str, traverse_obj(entry, ('request', 'url')))
+            if not _url or not re.search(_valid_url, _url):
+                return None
+            _hint = {'url': _url}
+            if inclheaders:
+                _hint |= {'headers': cls.headers_from_entry(entry)}
+            if response:
+                _resp_status = traverse_obj(entry, ('response', 'status'))
+                _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
+                _hint |= {
+                    'content': _resp_content,
+                    'status': int_or_none(_resp_status)}
+            return _hint
 
+        _har_old = []
         _list_hints_old = []
         _list_hints = []
         _first = True
@@ -576,36 +603,17 @@ class myHAR:
 
         while (time.monotonic() - _started) < timeout:
 
-            _newhar = myHAR.get_har(driver=driver, har=har, _method=_method, _mimetype=_mimetype)
+            _newhar = myHAR.get_har(
+                driver=driver, har=har, _method=_method, _mimetype=_mimetype)
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
             for entry in _har:
-
-                _hint = {}
-                _url = cast(str, traverse_obj(entry, ('request', 'url')))
-                if not _url or not re.search(_valid_url, _url):
+                if not (_hint := _get_hint(entry)):
                     continue
-                _hint.update({'url': _url})
-                if inclheaders:
-                    _hint.update({'headers': cls.headers_from_entry(entry)})
-                if not response:
-                    if not _all:
-                        return _hint
-                    else:
-                        _list_hints.append(_hint)
+                if not _all:
+                    return _hint
                 else:
-                    _resp_status = traverse_obj(entry, ('response', 'status'))
-                    _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
-
-                    _hint.update({
-                        'content': _resp_content,
-                        'status': int_or_none(_resp_status)})
-
-                    if not _all:
-                        return (_hint)
-                    else:
-                        _list_hints.append(_hint)
-
+                    _list_hints.append(_hint)
                 if check_event:
                     if isinstance(check_event, Callable):
                         check_event()
@@ -614,27 +622,24 @@ class myHAR:
                             raise StatusStop("stop event")
             if har:
                 break
-
             if _all:
                 if not _first and (len(_list_hints) == len(_list_hints_old)):
                     return _list_hints
                 if _first:
                     _first = False
-                    if not _list_hints:
-                        time.sleep(0.5)
-                    else:
+                    if _list_hints:
                         time.sleep(0.01)
+                    else:
+                        time.sleep(0.5)
                 else:
                     time.sleep(0.01)
-
                 _list_hints_old = _list_hints
 
+            elif _first:
+                _first = False
+                time.sleep(0.5)
             else:
-                if _first:
-                    _first = False
-                    time.sleep(0.5)
-                else:
-                    time.sleep(0.01)
+                time.sleep(0.01)
 
         if _all:
             return _list_hints
@@ -650,10 +655,7 @@ class myHAR:
             _info = ""
             if _content := x.get('content'):
                 _info = json.loads(re.sub('[\t\n]', '', html.unescape(_content)))
-            if inclheaders:
-                return (_info, x.get('headers'))
-            else:
-                return _info
+            return (_info, x.get('headers')) if inclheaders else _info
 
         _hints = myHAR.scan_har_for_request(
             _link, driver=driver, har=har, _method=_method, _mimetype="json", _all=_all,
@@ -662,11 +664,10 @@ class myHAR:
         if not _hints:
             return
 
+        if not _all:
+            return try_get(_hints, func_getter)
         else:
-            if not _all:
-                return try_get(_hints, func_getter)
-            else:
-                return [_info for _info in list(map(func_getter, _hints)) if _info]
+            return [_info for _info in list(map(func_getter, _hints)) if _info]
 
     class getNetworkHAR:
 
@@ -709,8 +710,9 @@ class myHAR:
                 finally:
                     self.ps.wait()
 
-                self.logger(f"{self.pre}error rcode[{self.ps.returncode}]\n{_logerr}\n{_logout}")
-                raise Exception("couldnt launch mitmdump")
+                self.logger(
+                    f"{self.pre}error rcode[{self.ps.returncode}]\n{_logerr}\n{_logout}")
+                raise ExtractorError("couldnt launch mitmdump")
 
             return self
 
@@ -740,7 +742,7 @@ class myHAR:
                 return False
 
             if not wait_for_file(self.har_file, 5):
-                raise Exception("couldnt get har file")
+                raise ExtractorError("couldnt get har file")
 
             self.logger(f'{self.pre} har file ready in {self.har_file}')
 
@@ -760,24 +762,29 @@ class myIP:
     def get_ip(cls, key=None, timeout=1, api="ipify", ie=None):
 
         if api not in cls.URLS_API_GETMYIP:
-            raise Exception("api not supported")
+            raise ExtractorError("api not supported")
 
         _urlapi = cls.URLS_API_GETMYIP[api]['url']
         _keyapi = cls.URLS_API_GETMYIP[api]['key']
 
         try:
-            if not ie:
-                _proxies = {'all://': f'http://127.0.0.1:{key}'} if key is not None else None
-                myip = try_get(
-                    httpx.get(
-                        _urlapi, timeout=httpx.Timeout(timeout=timeout),
-                        proxies=_proxies, follow_redirects=True),  # type: ignore
-                    lambda x: x.json().get(_keyapi))  # type: ignore
-            else:
-                myip = try_get(
-                    ie.send_http_request(_urlapi, timeout=httpx.Timeout(timeout=timeout)),
-                    lambda x: x.json().get(_keyapi))
-            return myip
+            if ie:
+                return try_get(
+                    ie.send_http_request(
+                        _urlapi, timeout=httpx.Timeout(timeout=timeout)
+                    ),
+                    lambda x: x.json().get(_keyapi),
+                )
+            _proxies = {'all://': f'http://127.0.0.1:{key}'} if key is not None else None
+            return try_get(
+                httpx.get(
+                    _urlapi,
+                    timeout=httpx.Timeout(timeout=timeout),
+                    proxies=_proxies,
+                    follow_redirects=True,
+                ),  # type: ignore
+                lambda x: x.json().get(_keyapi),
+            )
         except Exception as e:
             return repr(e)
 
@@ -821,19 +828,22 @@ class SilentLogger:
 
 
 def ytdl_silent(ytdl: YoutubeDL):
-    opts = {}
-    opts["quiet"] = True
-    opts["verbose"] = False
-    opts["verboseplus"] = False
-    opts["no_warnings"] = True
-    opts["logger"] = SilentLogger()
+    opts = {
+        "quiet": True,
+        "verbose": False,
+        "verboseplus": False,
+        "no_warnings": True,
+        "logger": SilentLogger(),
+    }
     return YoutubeDL(params=ytdl.params | opts, auto_init=True)
 
 
 class ProgressBar(MultilinePrinter):
     _DELAY = 0.1
 
-    def __init__(self, stream: Union[TextIOWrapper, YoutubeDL, None], total: Union[int, float], preserve_output: bool = True, block_logging: bool = True, msg: Union[str, None] = None):
+    def __init__(
+            self, stream: Union[TextIOWrapper, YoutubeDL, None], total: Union[int, float],
+            preserve_output: bool = True, block_logging: bool = True, msg: Union[str, None] = None):
         self._pre = ''
         if msg:
             self._pre = msg
@@ -938,19 +948,16 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @cached_classproperty
     def _RETURN_TYPE(cls):
-        """What the extractor returns: "video", "playlist", "any", or None (Unknown)"""
-        tests = tuple(cls.get_testcases(include_onlymatching=False))
-        if tests:
-            if not any(k.startswith('playlist') for test in tests for k in test):
-                return 'video'
-            elif all(any(k.startswith('playlist') for k in test) for test in tests):
-                return 'playlist'
-            return 'any'
-        else:
-            if 'playlist' in cls.IE_NAME:
-                return 'playlist'
-            else:
-                return 'video'
+        """
+        What the extractor returns: "video", "playlist", "any", or None (Unknown)
+        """
+        if not (tests := tuple(cls.get_testcases(include_onlymatching=False))):
+            return 'playlist' if 'playlist' in cls.IE_NAME else 'video'
+        if not any(k.startswith('playlist') for test in tests for k in test):
+            return 'video'
+        elif all(any(k.startswith('playlist') for k in test) for test in tests):
+            return 'playlist'
+        return 'any'
 
     @cached_classproperty
     def _FF_COOKIES_JAR(cls):
@@ -973,27 +980,18 @@ class SeleniumInfoExtractor(InfoExtractor):
     @staticmethod
     def _get_url_print(url):
         if url:
-            if len(url) > 150:
-                return (f'{url[:140]}...{url[-10:]}')
-            else:
-                return url
+            return f'{url[:140]}...{url[-10:]}' if len(url) > 150 else url
 
     def close(self):
-        try:
+        with contextlib.suppress(Exception):
             self._CLIENT.close()
-        except Exception:
-            pass
-
         with SeleniumInfoExtractor._MASTER_LOCK:
             SeleniumInfoExtractor._REFS.pop(id(self), None)
-            if not SeleniumInfoExtractor._REFS:
-                if SeleniumInfoExtractor._WEBDRIVERS:
-                    _drivers = list(SeleniumInfoExtractor._WEBDRIVERS.values())
-                    for driver in _drivers:
-                        try:
-                            self.rm_driver(driver)
-                        except Exception:
-                            pass
+            if not SeleniumInfoExtractor._REFS and SeleniumInfoExtractor._WEBDRIVERS:
+                _drivers = list(SeleniumInfoExtractor._WEBDRIVERS.values())
+                for driver in _drivers:
+                    with contextlib.suppress(Exception):
+                        self.rm_driver(driver)
 
     def initialize(self):
         super().initialize()
@@ -1001,21 +999,23 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _real_initialize(self):
 
+        def _update():
+            self._downloader.params.setdefault('stop_dl', try_get(
+                self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), default={}) if x else {}))
+            self._downloader.params.setdefault('sem', try_get(
+                self._YTDL, lambda x: traverse_obj(x.params, ('sem'), default={}) if x else {}))
+            self._downloader.params.setdefault('lock', try_get(
+                self._YTDL, lambda x: traverse_obj(x.params, ('lock'), default=Lock()) if x else Lock()))
+            self._downloader.params.setdefault('stop', try_get(
+                self._YTDL, lambda x: traverse_obj(x.params, ('stop'), default=Event()) if x else Event()))
+            self._downloader.params.setdefault('routing_table', try_get(
+                self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
+
+            SeleniumInfoExtractor._YTDL = self._downloader
+
         with SeleniumInfoExtractor._MASTER_LOCK:
             if self._YTDL != self._downloader:
-
-                self._downloader.params.setdefault('stop_dl', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), default={}) if x else {}))
-                self._downloader.params.setdefault('sem', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('sem'), default={}) if x else {}))
-                self._downloader.params.setdefault('lock', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('lock'), default=Lock()) if x else Lock()))
-                self._downloader.params.setdefault('stop', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('stop'), default=Event()) if x else Event()))
-                self._downloader.params.setdefault('routing_table', try_get(
-                    self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
-
-                SeleniumInfoExtractor._YTDL = self._downloader
+                _update()
 
             self._CLIENT_CONFIG = {
                 'timeout': Timeout(20),
@@ -1074,21 +1074,18 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _get_ie_name(self, url=None):
 
-        if url:
-            extractor = self._get_extractor(url)
-            extr_name = extractor.IE_NAME
-            return extr_name.lower()
-        else:
+        if not url:
             return self.IE_NAME.lower()
+        extractor = self._get_extractor(url)
+        extr_name = extractor.IE_NAME
+        return extr_name.lower()
 
     def _get_ie_key(self, url=None):
 
-        if url:
-            extractor = self._get_extractor(url)
-            extr_key = extractor.ie_key()
-            return extr_key
-        else:
+        if not url:
             return self.ie_key()
+        extractor = self._get_extractor(url)
+        return extractor.ie_key()
 
     def get_ytdl_sem(self, _host) -> Lock:
         with self._downloader.params.setdefault('lock', Lock()):
@@ -1254,7 +1251,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             os.makedirs(folder, exist_ok=True)
         t0 = datetime.now()
         _time_str = f"{t0.strftime('%H%M%S_')}{t0.microsecond}"
-        _videoid_str = f"{videoid + '_' if videoid else ''}"
+        _videoid_str = f"{f'{videoid}_' if videoid else ''}"
         har_file = f"{folder}/dump_{_videoid_str}{_time_str}.har"
         return myHAR.network_har_handler(
             har_file, logger=self.logger_debug, msg=msg, port=port)
@@ -1299,7 +1296,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         info = {}
         _msg_err = ""
         try:
-            _kwargs = kwargs.copy() | {"_type": "HEAD", "timeout": 10}
+            _kwargs = kwargs | {"_type": "HEAD", "timeout": 10}
             _kwargs.setdefault('client', self._CLIENT)
             if not (res := SeleniumInfoExtractor._send_http_request(url, **_kwargs)):
                 raise ReExtractInfo('no response')
@@ -1354,7 +1351,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         try:
             if any(_ in url for _ in _not_valid_url):
                 self.logger_debug(f'{_pre_str}:False')
-                return notvalid if not inc_error else {'error': 'in error list'} | notvalid
+                return {'error': 'in error list'} | notvalid if inc_error else notvalid
             elif any(_ in url for _ in ['gayforit.eu/video']):
                 self.logger_debug(f'{_pre_str}:True')
                 return okvalid
@@ -1371,9 +1368,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         os.stat(self.cache._get_cache_fn('is_valid', get_host(_url), 'json')).st_mtime)
                     if (datetime.now() - _time_modif) <= timedelta(hours=1):
                         return _res
-                    else:
-                        with contextlib.suppress(OSError):
-                            os.remove(self.cache._get_cache_fn('is_valid', get_host(_url), 'json'))
+                    with contextlib.suppress(OSError):
+                        os.remove(self.cache._get_cache_fn('is_valid', get_host(_url), 'json'))
                 with _decor:
                     try:
                         _headers = {
@@ -1381,7 +1377,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                             'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
                             'Cache-Control': 'no-cache'}
                         if short:
-                            _headers.update({'Range': 'bytes=0-100'})
+                            _headers['Range'] = 'bytes=0-100'
                         return self.send_http_request(
                             _url, _type="GET", timeout=timeout, headers=_headers, msg=f'[valid]{_pre_str}')
                     except HTTPStatusError as e:
@@ -1412,13 +1408,17 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         return {'error': f'not path in reroute url {str(res.url)}'} | notvalid
 
                 else:
-                    webpage = try_get(_throttle_isvalid(url, False), lambda x: html.unescape(x.text) if x else None)
+                    webpage = try_get(
+                        _throttle_isvalid(url, False),
+                        lambda x: html.unescape(x.text) if x else None)
                     if not webpage:
                         self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt download webpage')
-                        return notvalid if not inc_error else {'error': 'couldnt download webpage'} | notvalid
+                        return {'error': 'couldnt download webpage'} | notvalid if inc_error else notvalid
                     else:
-                        _valid = not any(_ in str(res.url) for _ in ['status=not_found', 'status=broken'])
-                        _valid = _valid and not any(_ in webpage.lower() for _ in _errors_page)
+                        _valid = all(
+                            _ not in str(res.url)
+                            for _ in ['status=not_found', 'status=broken'])
+                        _valid = _valid and all(_ not in webpage.lower() for _ in _errors_page)
 
                         valid = {"valid": _valid}
                         self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
@@ -1428,32 +1428,25 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                             return valid
 
             else:
-
-                self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt send check request')
+                self.logger_debug(
+                    f'[valid]{_pre_str}:{notvalid} couldnt send check request')
                 _error = 'error'
                 if isinstance(res, dict):
                     _error = res.get('error', 'error')
-                return notvalid if not inc_error else {'error': _error} | notvalid
+                return {'error': _error} | notvalid if inc_error else notvalid
 
         except Exception as e:
             self.logger_debug(f'[valid]{_pre_str} error {repr(e)}')
             _msgerror = 'timeout' if 'timeout' in repr(e).lower() else repr(e)
-            return notvalid if not inc_error else {'error': _msgerror} | notvalid
+            return {'error': _msgerror} | notvalid if inc_error else notvalid
 
     def get_ip_origin(self, key=None, timeout=1, own=True):
-
-        if own:
-            ie = self
-        else:
-            ie = None
-
+        ie = self if own else None
         return myIP.get_myip(key=key, timeout=timeout, ie=ie)
 
     def stream_http_request(self, url, **kwargs):
-
         premsg = f'[stream_http_request][{self._get_url_print(url)}]'
-        msg = kwargs.get('msg', None)
-        if msg:
+        if msg := kwargs.get('msg', None):
             premsg = f'{msg}{premsg}'
 
         chunk_size = kwargs.get('chunk_size', 16384)
@@ -1485,8 +1478,6 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                             _res += chunk
                             if truncate_after in _res:
                                 break
-                    return _res
-
                 else:
                     _check_max = lambda x: x >= truncate_after if truncate_after else False
                     _res = b""
@@ -1496,26 +1487,31 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         if _check_max(res.num_bytes_downloaded):
                             break
 
-                    return _res
+                return _res
 
         except Exception as e:
-            _msg_err = repr(e)
-            if not res:
-                raise TimeoutError(_msg_err) from e
-            if isinstance(e, ConnectError):
-                if 'errno 61' in _msg_err.lower():
-                    raise
-                else:
-                    raise_extractor_error(_msg_err, _from=e)
-
-            if res.status_code == 404:
-                res.raise_for_status()
-            if res.status_code == 503:
-                raise StatusError503(repr(e)) from None
-            raise_extractor_error(_msg_err, _from=e)
-
+            _msg_err = self._extracted_from_stream_http_request_48(e, res)
         finally:
             self.logger_debug(f"{premsg} {res}:{_msg_err}")
+
+    # TODO Rename this here and in `stream_http_request`
+    def _extracted_from_stream_http_request_48(self, e, res):
+        result = repr(e)
+        if not res:
+            raise TimeoutError(result) from e
+        if isinstance(e, ConnectError):
+            if 'errno 61' in result.lower():
+                raise
+            else:
+                raise_extractor_error(result, _from=e)
+
+        if res.status_code == 404:
+            res.raise_for_status()
+        if res.status_code == 503:
+            raise StatusError503(repr(e)) from None
+        raise_extractor_error(result, _from=e)
+
+        return result
 
     def send_http_request(self, url, **kwargs) -> Optional[Response]:
 
@@ -1551,12 +1547,11 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         try:
             req = client.build_request(_type, url, **_kwargs)
             res = client.send(req)
-            if res:
-                if fatal:
-                    res.raise_for_status()
-                return res
-            else:
+            if not res:
                 return None
+            if fatal:
+                res.raise_for_status()
+            return res
         except ConnectError as e:
             _msg_err = f"{premsg} {str(e)}"
             if 'errno 61' in _msg_err.lower():
