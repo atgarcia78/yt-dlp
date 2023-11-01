@@ -1567,6 +1567,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 raise StatusError503(_msg_err) from None
             else:
                 raise
+
         except Exception as e:
             _msg_err = f"{premsg} {str(e)}"
             if not res:
