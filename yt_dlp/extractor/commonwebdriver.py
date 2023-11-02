@@ -339,10 +339,7 @@ map_limiter = {
     0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, 0: limiter_non}
 
 
-CONFIG_EXTRACTORS_MODE = "ie_per_key"
-
-
-def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
+def load_config_extractors():
     try:
         with open("/Users/antoniotorres/Projects/yt-dlp/config_extractors.json", "r") as file:
             data = json.loads(file.read())
@@ -353,57 +350,31 @@ def load_config_extractors(mode=CONFIG_EXTRACTORS_MODE):
             print("ERROR LOADING CONFIG EXTRACTORS FILE")
             raise
 
-    if mode == "legacy":
-        return {
-            tuple(key.split('#')): {
-                'interval': value.get('ratelimit', 1),
-                'ratelimit': map_limiter[value.get('ratelimit', 1)],
-                'maxsplits': value.get('maxsplits', 16)
-            }
-            for key, value in data.items()
+    return {
+        key: {
+            'interval': value.get('ratelimit', 1),
+            'ratelimit': map_limiter[value.get('ratelimit', 1)],
+            'maxsplits': value.get('maxsplits', 16)
         }
-    else:
-        return {
-            ie: {
-                'interval': value.get('ratelimit', 1),
-                'ratelimit': map_limiter[value.get('ratelimit', 1)],
-                'maxsplits': value.get('maxsplits', 16)
-            }
-            for key, value in data.items() for ie in key.split('#')
-        }
+        for key, value in data.items()
+    }
 
 
-def getter_basic_config_extr(ie_name, config, mode=CONFIG_EXTRACTORS_MODE):
+def getter_basic_config_extr(ie_name, config):
 
     if not ie_name or ie_name.lower() == "generic":
         return
-    x = ie_name.split(':')[0]
-    if mode == "legacy":
-        value, key_text = try_get(
-            [(v, sk) for k, v in config.items() for sk in k if sk == x],
-            lambda y: y[0]) or (None, None)
-    else:
-        key_text = x
-        value = config.get(x)
-    if value:
+    key_text = ie_name.split(':')[0]
+    if value := config.get(key_text):
         return (value, key_text)
 
 
 def getter_config_extr(
-        ie_name, config, mode=CONFIG_EXTRACTORS_MODE) -> LimitContextDecorator:
+        ie_name, config) -> LimitContextDecorator:
 
-    x = ie_name.split(':')[0]
-    if x != 'generic':
-        if mode == "legacy":
-            value, key_text = try_get(
-                [(v, sk) for k, v in config.items() for sk in k if sk == x],
-                lambda y: y[0]) or ("", "")
-        else:
-            key_text = x
-            value = config.get(x)
-        if value:
+    if (key_text := ie_name.split(':')[0]) != 'generic':
+        if value := config.get(key_text):
             return (value['ratelimit'].ratelimit(key_text, delay=True))
-
     return limiter_non.ratelimit("nonlimit", delay=True)
 
 
