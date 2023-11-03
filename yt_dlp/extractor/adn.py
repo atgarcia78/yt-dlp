@@ -9,10 +9,10 @@ from ..aes import aes_cbc_decrypt_bytes, unpad_pkcs7
 from ..compat import compat_b64decode
 from ..networking.exceptions import HTTPError
 from ..utils import (
+    ExtractorError,
     ass_subtitles_timecode,
     bytes_to_intlist,
     bytes_to_long,
-    ExtractorError,
     float_or_none,
     int_or_none,
     intlist_to_bytes,
@@ -80,6 +80,9 @@ class ADNIE(InfoExtractor):
                 fatal=False, headers={'Origin': 'https://' + self._BASE})
         if not enc_subtitles:
             return None
+        print(enc_subtitles)
+        print('\n')
+        print(self._K)
 
         # http://animationdigitalnetwork.fr/components/com_vodvideo/videojs/adn-vjs.min.js
         dec_subtitles = unpad_pkcs7(aes_cbc_decrypt_bytes(
