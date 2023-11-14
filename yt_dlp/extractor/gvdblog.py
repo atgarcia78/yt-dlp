@@ -319,51 +319,51 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         return (postdate, title, postid)
 
+    def _get_metadata(self, post, premsg) -> list:
+        url = postdate = title = postid = list_candidate_videos = None
+
+        if isinstance(post, str) and post.startswith('http'):
+            url = unquote(post)
+            premsg += f'[{self._get_url_print(update_url(url, query_update=self.query_upt))}]'
+            self.report_extraction(url)
+            if (post_content := try_get(
+                    self._send_request(url),
+                    lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)):
+                postdate, title, postid = self.get_info(post_content)
+                if self.keyapi == 'gvdblog.com':
+                    post_content = get_element_html_by_id('post-body', post_content)
+                list_candidate_videos = self.get_urls(post_content, msg=url)
+        elif isinstance(post, dict):
+            if self.keyapi == 'gvdblog.com':
+                url = try_get(
+                    traverse_obj(post, ('link', -1, 'href')),
+                    lambda x: unquote(x) if x is not None else None)
+                post_content = traverse_obj(post, ('content', '$t'))
+            else:
+                url = try_get(
+                    post.get('link'),
+                    lambda x: unquote(x) if x is not None else None)
+                post_content = traverse_obj(post, ('content', 'rendered'))
+            premsg += f'[{self._get_url_print(url)}]'
+            self.report_extraction(url)
+            if post_content:
+                postdate, title, postid = self.get_info(post)
+                list_candidate_videos = self.get_urls(post_content, msg=url)
+
+        self.logger_debug(
+            f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
+        if not title or not list_candidate_videos:
+            raise_extractor_error(f"{premsg} no video info")
+        return (url, postdate, title, postid, list_candidate_videos, premsg)
+
     def get_entries_from_blog_post(self, post, **kwargs):
 
         progress_bar = kwargs.get('progress_bar', None)
-
-        def _get_metadata() -> list:
-            premsg = f'[{self.keyapi}][get_entries_from_post]'
-            url, postdate, title, postid, list_candidate_videos = None
-
-            if isinstance(post, str) and post.startswith('http'):
-                url = unquote(post)
-                premsg += f'[{self._get_url_print(update_url(url, query_update=self.query_upt))}]'
-                self.report_extraction(url)
-                if (post_content := try_get(
-                        self._send_request(url),
-                        lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)):
-                    postdate, title, postid = self.get_info(post_content)
-                    if self.keyapi == 'gvdblog.com':
-                        post_content = get_element_html_by_id('post-body', post_content)
-                    list_candidate_videos = self.get_urls(post_content, msg=url)
-            elif isinstance(post, dict):
-                if self.keyapi == 'gvdblog.com':
-                    url = try_get(
-                        traverse_obj(post, ('link', -1, 'href')),
-                        lambda x: unquote(x) if x is not None else None)
-                    post_content = traverse_obj(post, ('content', '$t'))
-                else:
-                    url = try_get(
-                        post.get('link'),
-                        lambda x: unquote(x) if x is not None else None)
-                    post_content = traverse_obj(post, ('content', 'rendered'))
-                premsg += f'[{self._get_url_print(url)}]'
-                self.report_extraction(url)
-                if post_content:
-                    postdate, title, postid = self.get_info(post)
-                    list_candidate_videos = self.get_urls(post_content, msg=url)
-
-            self.logger_debug(
-                f"{premsg} {postid} - {title} - {postdate} - {list_candidate_videos}")
-            if not title or not list_candidate_videos:
-                raise_extractor_error(f"{premsg} no video info")
-            return (url, postdate, title, postid, list_candidate_videos, premsg)
+        premsg = f'[{self.keyapi}][get_entries_from_post]'
 
         try:
             (url, postdate, title, postid,
-             list_candidate_videos, premsg) = _get_metadata()
+             list_candidate_videos, premsg) = self._get_metadata(post, premsg)
 
             entries = []
 
