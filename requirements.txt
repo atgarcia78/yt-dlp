@@ -10,7 +10,4 @@ selenium
 httpx
 requests>=2.31.0,<3
 urllib3>=1.26.17,<3
-<<<<<<< HEAD
-=======
 secretstorage; sys_platform=='linux' and (implementation_name!='pypy' or implementation_version>='7.3.10')
->>>>>>> upstream/master
