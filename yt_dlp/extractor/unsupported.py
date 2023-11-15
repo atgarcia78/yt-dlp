@@ -167,10 +167,14 @@ class KnownPiracyIE(UnsupportedInfoExtractor):
         r'https://viewsb\.com',
         r'https://filemdummmmmyoon\.sx',
         r'trrtgghghndood\.(?:to|watch|so|pm|wf|ru)',
+        r'thisav\.com',
     )
 
     _TESTS = [{
         'url': 'http://trrtgghghndood.to/e/5s1wmbdacezb',
+        'only_matching': True,
+    }, {
+        'url': 'https://thisav.com/en/terms',
         'only_matching': True,
     }]
 
