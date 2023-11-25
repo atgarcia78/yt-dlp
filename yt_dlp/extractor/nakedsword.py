@@ -397,15 +397,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             driver.get(url)
         else:
             try:
-                if not (_client := kwargs.pop('client', None)):
-                    if cls._CLIENT is None:
-                        raise NakedSwordError('CLIENT is None')
-                    else:
-                        _client = cls._CLIENT
-                upt_headers = {}
-                if (_headers := kwargs.pop('headers', {})):
-                    upt_headers = {'headers': (_headers() if isinstance(_headers, Callable) else _headers) | cls._UA}
-                return (cls._send_http_request(url, client=_client, **(kwargs | upt_headers)))
+                if not (_client := kwargs.get('client', cls._CLIENT)):
+                    raise NakedSwordError('CLIENT is None')
+                upt_headers = None
+                if (_headers := kwargs.get('headers', None)):
+                    upt_headers = (_headers() if isinstance(_headers, Callable) else _headers) | cls._UA
+                return (cls._send_http_request(url, **(kwargs | {'client': _client, 'headers': upt_headers})))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:
                 cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
             except Exception as e:
