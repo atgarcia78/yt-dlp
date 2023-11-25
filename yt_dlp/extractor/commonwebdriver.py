@@ -1494,6 +1494,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
         _type = kwargs.get('_type', "GET")
         fatal = kwargs.get('fatal', True)
+        _logger = kwargs.get('logger', cls.LOGGER.debug)
         msg = kwargs.get('msg', None)
         premsg = f'[send_http_request][{cls._get_url_print(url)}][{_type}]'
         if msg:
@@ -1507,6 +1508,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
         _kwargs = kwargs.copy()
         _kwargs.pop('_type', None)
+        _kwargs.pop('logger', None)
         _kwargs.pop('msg', None)
         _kwargs.pop('client', None)
         _kwargs.pop('fatal', None)
@@ -1541,11 +1543,12 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
         except Exception as e:
             _msg_err = f"{premsg} {str(e)}"
+            _logger(f"[{cls.IE_NAME}] {_msg_err}")
             if not res:
                 raise TimeoutError(_msg_err) from None
             else:
                 raise_extractor_error(_msg_err)
         finally:
-            cls.LOGGER.debug(f"[{cls.IE_NAME}] {_msg_err} {req}:{res}")
+            _logger(f"[{cls.IE_NAME}] {_msg_err} {req}:{req.headers}:{res}")
             if _close_cl:
                 client.close()

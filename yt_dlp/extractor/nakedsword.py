@@ -399,10 +399,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             try:
                 if not (_client := kwargs.get('client', cls._CLIENT)):
                     raise NakedSwordError('CLIENT is None')
-                upt_headers = None
+                upt_headers = {}
                 if (_headers := kwargs.get('headers', None)):
                     upt_headers = (_headers() if isinstance(_headers, Callable) else _headers) | cls._UA
-                return (cls._send_http_request(url, **(kwargs | {'client': _client, 'headers': upt_headers})))
+                _kwargs = kwargs | {'logger': cls._INST_IE.to_screen, 'client': _client, 'headers': upt_headers}
+                cls._INST_IE.to_screen(f"{pre}: KWARGS\n{_kwargs}")
+                return (cls._send_http_request(url, **_kwargs))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:
                 cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
             except Exception as e:
