@@ -402,8 +402,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 upt_headers = {}
                 if (_headers := kwargs.get('headers', None)):
                     upt_headers = (_headers() if isinstance(_headers, Callable) else _headers) | cls._UA
-                _kwargs = kwargs | {'logger': cls._INST_IE.to_screen, 'client': _client, 'headers': upt_headers}
-                cls._INST_IE.to_screen(f"{pre}: KWARGS\n{_kwargs}")
+                _kwargs = kwargs | {'client': _client, 'headers': upt_headers}
+                # cls._INST_IE.to_screen(f"{pre}: KWARGS\n{_kwargs}")
                 return (cls._send_http_request(url, **_kwargs))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:
                 cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
@@ -816,7 +816,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 if not NakedSwordBaseIE._CLIENT:
                     NakedSwordBaseIE._INST_IE = self
                     NakedSwordBaseIE._CLIENT = self._CLIENT
-                    NakedSwordBaseIE._UA = {'User-Agent': self.get_param('user_agent')}
+                    # self.to_screen(f"USER_AGENT: {self.get_param('user_agent')}\nHEADERS: {self.get_param('http_headers')}")
+                    NakedSwordBaseIE._UA = {'User-Agent': self.get_param('http_headers').get('User-Agent')}
                     NakedSwordBaseIE.API_LOGIN(_logger=self.logger_info)
         except Exception as e:
             logger.error(repr(e))
