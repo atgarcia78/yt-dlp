@@ -133,95 +133,38 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         'NORMAL': contextlib.nullcontext()}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
     _HEADERS = {
-        "OPTIONS": {
-            "AUTH": {
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Access-Control-Request-Method': 'POST',
-                'Access-Control-Request-Headers': 'authorization,x-ident',
-                'Referer': 'https://www.nakedsword.com/',
-                'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site'},
-            "LOGOUT": {
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Access-Control-Request-Method': 'DELETE',
-                'Access-Control-Request-Headers': 'authorization,donotrefreshtoken,x-ident',
-                'Referer': 'https://www.nakedsword.com/',
-                'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site'},
-            "REFRESH": {
-                'Accept': '*/*',
-                'Accept-Language': 'en,es-ES;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Access-Control-Request-Method': 'GET',
-                'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
-                'Referer': 'https://www.nakedsword.com/',
-                'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site'},
-            "GETAPI": {
-                'Accept': '*/*',
-                'Accept-Language': 'en,es-ES;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Access-Control-Request-Method': 'GET',
-                'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
-                'Referer': 'https://www.nakedsword.com/',
-                'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site',
-                'TE': 'trailers'},
-            "POSTAPI": {
-                'Accept': '*/*',
-                'Accept-Language': 'en,es-ES;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Access-Control-Request-Method': 'POST',
-                'Access-Control-Request-Headers': 'authorization,x-csrf-token,x-ident',
-                'Referer': 'https://www.nakedsword.com/',
-                'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-site',
-                'TE': 'trailers'}},
         "POST": {
             "AUTH": {
                 'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Authorization': None,
+                'Connection': 'keep-alive',
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
                 'Referer': 'https://www.nakedsword.com/',
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
                 'Sec-Fetch-Site': 'same-site',
-                'TE': 'trailers'}},
+                'TE': 'trailers',
+                'User-Agent': None,
+                'x-ident': None}},
         "DELETE": {
             "LOGOUT": {
                 'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Authorization': None,
+                'Connection': 'keep-alive',
                 'doNotRefreshToken': 'true',
                 'Origin': 'https://www.nakedsword.com',
-                'Connection': 'keep-alive',
                 'Referer': 'https://www.nakedsword.com/',
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
                 'Sec-Fetch-Site': 'same-site',
-                'TE': 'trailers'}},
+                'TE': 'trailers',
+                'User-Agent': None,
+                'x-ident': None}},
         "FINAL": {
             'Accept': 'application/json, text/plain, */*',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -239,15 +182,16 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'x-ident': None},
         "MPD": {
             'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
-            'Origin': 'https://www.nakedsword.com',
+            'Accept-Language': 'en-US,en;q=0.5',
             'Connection': 'keep-alive',
+            'Origin': 'https://www.nakedsword.com',
             'Referer': 'https://www.nakedsword.com/',
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',
             'Sec-Fetch-Site': 'cross-site',
-            'TE': 'trailers'}}
+            'TE': 'trailers',
+            'User-Agent': None}}
 
     def close(self):
         try:
@@ -299,16 +243,21 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             logger.debug('[get_api_auth] skipping getting new auth')
             return True
 
-        username, pwd = try_get(
-            netrc.netrc(os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
-            lambda x: (x[0], x[2]))
+        # username, pwd = try_get(
+        #     netrc.netrc(os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
+        #     lambda x: (x[0], x[2]))
 
-        _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
-        _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
-            f"{username}:{pwd}".encode()).decode('utf-8')
+        # _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
+        # _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
+        #     f"{username}:{pwd}".encode()).decode('utf-8')
 
         if (xident := cls._get_api_xident()):
-            _headers_post['x-ident'] = xident
+            username, pwd = try_get(
+                netrc.netrc(os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
+                lambda x: (x[0], x[2]))
+            _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
+            _auth = base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
+            _headers_post |= {'x-ident': xident, 'Authorization': f'Basic {_auth}'}
             if (token := try_get(
                     cls._send_request(cls._API_URLS['login'], _type="POST", headers=_headers_post),
                     lambda x: traverse_obj(x.json(), ('data', 'jwt')))):
@@ -453,7 +402,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         raise NakedSwordError('CLIENT is None')
                     else:
                         _client = cls._CLIENT
-                upt_headers = try_get(kwargs.get('headers'), lambda x: {'headers': x() | cls._UA} if isinstance(x, Callable) else {})
+                upt_headers = {}
+                if (_headers := kwargs.pop('headers', {})):
+                    upt_headers = {'headers': (_headers() if isinstance(_headers, Callable) else _headers) | cls._UA}
                 return (cls._send_http_request(url, client=_client, **(kwargs | upt_headers)))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:
                 cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
