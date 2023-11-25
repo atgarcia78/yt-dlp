@@ -32,6 +32,7 @@ from ..utils import (
     get_element_text_and_html_by_tag,
     get_elements_by_class,
     int_or_none,
+    orderedSet,
     sanitize_filename,
     traverse_obj,
     try_get,
@@ -720,17 +721,23 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if not items:
             raise ExtractorError('no entries')
 
+        items = orderedSet(items)
+        _nentries = try_get(int_or_none(traverse_obj(self.conf_args_gvd, ('query', 'entries'))), lambda x: x if x is not None and x >= 0 else len(items))
+        _from = int(traverse_obj(self.conf_args_gvd, ('query', 'from'), default='1'))
+
+        final_items = items[_from - 1:_from - 1 + _nentries]
+
         _entries = []
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-            with self.create_progress_bar(len(items), block_logging=False, msg=pre) as progress_bar:
+            with self.create_progress_bar(len(final_items), block_logging=False, msg=pre) as progress_bar:
 
                 with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
                     futures = {ex.submit(
                         partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_url): _post_url
-                        for _post_url in items}
+                        for _post_url in final_items}
 
                     wait(futures)
 
@@ -739,13 +746,13 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                         if (_res := try_get(fut.result(), lambda x: x[0])):
                             _entries += _res
                         else:
-                            self.logger_debug(f'{pre} no entry, fails fut {futures[fut]}')
+                            self.report_warning(f'{pre} no entry, fails fut {futures[fut]}')
                     except Exception as e:
-                        self.logger_debug(f'{pre} fails fut {futures[fut]} {repr(e)}')
+                        self.report_warning(f'{pre} fails fut {futures[fut]} {str(e)}')
 
         else:
             _entries = [self.url_result(_post_url, ie=GVDBlogPostIE.ie_key())
-                        for _post_url in items]
+                        for _post_url in final_items]
 
         _entries = upt_dict(_entries, playlist_url=url)
 
