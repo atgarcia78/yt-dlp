@@ -232,7 +232,7 @@ class MyVidsterIE(MyVidsterBaseIE):
     _VALID_URL = r'https?://(?:www\.)?myvidster\.com/(?:video|vsearch)/(?P<id>\d+)/?(?P<title>[\w\-\_]+)?'
 
     _conf = {
-        'source_url': r'source src=[\'\"]([^\'\"]+)[\'\"] type=[\'\"]video',
+        'source_url': r'source src=[\'\"]([^\'\"]+)[\'\"](?:\s*>|\s*type=[\'\"]video)',
         'videolink': r'rel=[\'\"]videolink[\'\"] href=[\'\"]([^\'\"]+)[\'\"]',
         'embedlink': r'reload_video\([\'\"]([^\'\"]+)[\'\"]'}
 

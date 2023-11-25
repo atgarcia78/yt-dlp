@@ -118,6 +118,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _TAGS = {}
     _MAXPAGE_SCENES_LIST = 2
     _CLIENT = None
+    _UA = {}
     _INST_IE = None
     _USERTOKEN = None
     headers_api = {}
@@ -223,18 +224,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 'TE': 'trailers'}},
         "FINAL": {
             'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Language': 'en-US,en;q=0.5',
             'Authorization': None,
-            'x-ident': None,
-            'X-CSRF-TOKEN': None,
-            'Origin': 'https://www.nakedsword.com',
             'Connection': 'keep-alive',
+            'Origin': 'https://www.nakedsword.com',
             'Referer': 'https://www.nakedsword.com/',
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',
             'Sec-Fetch-Site': 'same-site',
-            'TE': 'trailers'},
+            'TE': 'trailers',
+            'User-Agent': None,
+            'X-CSRF-TOKEN': None,
+            'x-ident': None},
         "MPD": {
             'Accept': '*/*',
             'Accept-Language': 'en-US,en;q=0.5',
@@ -451,7 +453,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         raise NakedSwordError('CLIENT is None')
                     else:
                         _client = cls._CLIENT
-                upt_headers = try_get(kwargs.get('headers'), lambda x: {'headers': x()} if isinstance(x, Callable) else {})
+                upt_headers = try_get(kwargs.get('headers'), lambda x: {'headers': x() | cls._UA} if isinstance(x, Callable) else {})
                 return (cls._send_http_request(url, client=_client, **(kwargs | upt_headers)))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:
                 cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
@@ -864,6 +866,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 if not NakedSwordBaseIE._CLIENT:
                     NakedSwordBaseIE._INST_IE = self
                     NakedSwordBaseIE._CLIENT = self._CLIENT
+                    NakedSwordBaseIE._UA = {'User-Agent': self.get_param('user_agent')}
                     NakedSwordBaseIE.API_LOGIN(_logger=self.logger_info)
         except Exception as e:
             logger.error(repr(e))
