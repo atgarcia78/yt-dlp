@@ -1,4 +1,5 @@
 import contextlib
+import itertools
 import json
 import logging
 import re
@@ -30,7 +31,6 @@ from ..utils import (
     get_element_by_id,
     get_element_html_by_id,
     get_element_text_and_html_by_tag,
-    get_elements_by_class,
     int_or_none,
     orderedSet,
     sanitize_filename,
@@ -673,17 +673,33 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         <(?P<tag>article)
         (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
         '''
-        baseurl = url.strip('/')
+        baseurl = f"{url.split('?')[0].strip('/')}/page/"
+        queryurl = try_get(
+            traverse_obj(self.conf_args_gvd, 'query'),
+            lambda x: '?' + '&'.join([
+                f'{k}={v}' for k, v in x.items() if k not in ['from', 'entries']]) if x else '')
         pre = f"[get_entries][{baseurl}]"
 
-        def _get_entries_page(npage: int = 1, html_str: Union[str, None] = None):
+        self.logger_debug(f'{pre} baseurl[{baseurl}] queryurl[{queryurl}]')
+
+        def _get_last_page():
+            for i in itertools.count(1):
+                try:
+                    if (webpage := try_get(
+                            self._send_request(f"{baseurl}{i}"),
+                            lambda x: unescape(x.text))):
+                        if 'link rel="next"' not in webpage:
+                            return i
+                    else:
+                        return -1
+                except Exception:
+                    return -1
+
+        def _get_entries_page(npage: int = 1):
             try:
-                if html_str:
-                    _htmlpage = get_element_by_id('primary', html_str)
-                else:
-                    _htmlpage = try_get(
-                        self._send_request(f"{baseurl}/page/{npage}"),
-                        lambda x: get_element_by_id('primary', unescape(x.text)) if x else None)
+                _htmlpage = try_get(
+                    self._send_request(f"{baseurl}{npage}{queryurl}"),
+                    lambda x: get_element_by_id('us_grid_1', unescape(x.text)) if x else None)
 
                 if not _htmlpage:
                     raise ExtractorError("no webpage")
@@ -697,32 +713,24 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             except Exception as e:
                 self.logger_debug(f'{pre}[get_entries_page] {npage} no entries {repr(e)}')
 
-        def _get_last_page(html_str: str):
-            return try_get(get_elements_by_class('page-numbers', html_str), lambda x: int(x[-2])) or 1
-
-        if not (webpage := cast(str, try_get(
-                self._send_request(baseurl), lambda x: unescape(x.text) if x else None))):
-            raise_extractor_error(f"{pre} no webpage")
-
         items = []
-        if (last_page := _get_last_page(webpage)) > 1:
+        if (last_page := _get_last_page()) > 1:
             with ThreadPoolExecutor(thread_name_prefix="gvditems") as exe:
-                futures = {exe.submit(_get_entries_page, html_str=webpage): 1}
-                futures.update(
-                    {exe.submit(_get_entries_page, npage=pn): pn
-                        for pn in range(2, last_page + 1)})
+                futures = [exe.submit(_get_entries_page, npage=pn) for pn in range(1, last_page + 1)]
 
             for fut in futures:
                 if (_res := fut.result()):
                     items.extend(_res)
-        else:
-            items.extend(_get_entries_page(html_str=webpage))
+        elif last_page == 1:
+            items.extend(_get_entries_page(npage=1))
 
         if not items:
-            raise ExtractorError('no entries')
+            raise ExtractorError('no video links')
 
         items = orderedSet(items)
-        _nentries = try_get(int_or_none(traverse_obj(self.conf_args_gvd, ('query', 'entries'))), lambda x: x if x is not None and x >= 0 else len(items))
+        _nentries = try_get(
+            int_or_none(traverse_obj(self.conf_args_gvd, ('query', 'entries'))),
+            lambda x: x if x is not None and x >= 0 else len(items))
         _from = int(traverse_obj(self.conf_args_gvd, ('query', 'from'), default='1'))
 
         final_items = items[_from - 1:_from - 1 + _nentries]
@@ -773,10 +781,16 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
+
+        def _upt_params(arg0, arg1):
+            _name_api, _id, = self.get_id(arg0, arg1)
+            params['name'] = _id
+            params['type'] = _name_api
+
         if namenet and _typenet:
-            self._extracted_from__real_extract_14(_typenet, namenet, params)
+            _upt_params(_typenet, namenet)
         elif namefx and _typefx:
-            self._extracted_from__real_extract_14(_typefx, namefx, params)
+            _upt_params(_typefx, namefx)
         self.conf_args_gvd = params
 
         if (_query := self.conf_args_gvd['query']):
@@ -798,9 +812,3 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         return self.playlist_result(
             entries, playlist_id=playlist_id,
             playlist_title=playlist_title)
-
-    # TODO Rename this here and in `_real_extract`
-    def _extracted_from__real_extract_14(self, arg0, arg1, params):
-        _name_api, _id, = self.get_id(arg0, arg1)
-        params['name'] = _id
-        params['type'] = _name_api
