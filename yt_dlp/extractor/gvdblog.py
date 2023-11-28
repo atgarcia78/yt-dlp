@@ -57,7 +57,6 @@ def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
     info_dict_list = [info_dict] if isinstance(info_dict, dict) else info_dict
     for _el in info_dict_list:
         _el.update(**kwargs)
-    return info_dict
 
 
 class GVDBlogBaseIE(SeleniumInfoExtractor):
@@ -122,6 +121,10 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if _fmt not in ['hls', 'http', 'best']:
             raise ExtractorError('fmt not valid')
 
+        _entries = int_or_none(params.pop('entries', None))
+        _from = int(params.pop('from', '1'))
+        _query_upt |= {'from': _from, 'entries': _entries}
+
         if self.keyapi == 'gvdblog.net':
             _query_upt['fmt'] = _fmt
         else:
@@ -136,7 +139,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         self.query_upt = _query_upt
 
         self._conf_args_gvd = {
-            'check': _check, 'fmt': _fmt,
+            'check': _check, 'fmt': _fmt, 'entries': _entries, 'from': _from,
             'type': _type, 'name': name, 'query': params}
 
     def get_entry_video(self, x, **kwargs):
@@ -525,7 +528,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         def get_list_videos(res):
             if not res:
                 return None
-
             if self.keyapi == 'gvdblog.com':
                 if data := try_get(
                         re.search(
@@ -593,20 +595,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             if _nentries is not None and _nentries >= 0
             else post_blog_entries_search[_from - 1:])
 
+    # TODO Rename this here and in `get_entries_search`
     def get_entries_search(self, url):
-
         pre = f'[get_entries_search][{url}]'
 
-        try:
-            return self._extracted_from_get_entries_search_6(pre, url)
-        except Exception as e:
-            logger.debug(f"{repr(e)}")
-            raise
-
-    # TODO Rename this here and in `get_entries_search`
-    def _extracted_from_get_entries_search_6(self, pre, url):
         blog_posts_list = self.get_blog_posts_search()
-
         _total = len(blog_posts_list)
 
         self.logger_info(f'{pre}[blog_post_list] len[{_total}]')
@@ -615,26 +608,14 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             GVDBlogBaseIE._SLOW_DOWN = True
             self._conf_args_gvd.update({'check': False})
 
-        posts_vid_url = (
-            cast(
-                list,
-                [
-                    try_get(
-                        traverse_obj(post_entry, ('link', -1, 'href')),
-                        lambda x: unquote(x),
-                    )
-                    for post_entry in blog_posts_list
-                ],
-            )
-            if self.keyapi == 'gvdblog.com'
-            else cast(
-                list,
-                [
-                    try_get(post_entry.get('link'), lambda x: unquote(x))
-                    for post_entry in blog_posts_list
-                ],
-            )
-        )
+        posts_vid_url = [
+            try_get(
+                traverse_obj(post_entry, ('link', -1, 'href')) if self.keyapi == 'gvdblog.com'
+                else post_entry.get('link'),
+                lambda x: unquote(x))
+            for post_entry in blog_posts_list
+        ]
+
         _entries = []
 
         if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
@@ -665,22 +646,19 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 update_url(_post_url, query_update=self.query_upt), ie=GVDBlogPostIE.ie_key())
                 for _post_url in posts_vid_url]
 
-        _entries = upt_dict(_entries, playlist_url=url)
-        return _entries
+        if _entries:
+            upt_dict(_entries, playlist_url=url)
+            return _entries
 
     def get_entries(self, url: str, **kwargs):
         partial_element_re = r'''(?x)
         <(?P<tag>article)
         (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
         '''
-        baseurl = f"{url.split('?')[0].strip('/')}/page/"
-        queryurl = try_get(
-            traverse_obj(self.conf_args_gvd, 'query'),
-            lambda x: '?' + '&'.join([
-                f'{k}={v}' for k, v in x.items() if k not in ['from', 'entries']]) if x else '')
+        baseurl = f"{update_url(url, query='')}/page/"
         pre = f"[get_entries][{baseurl}]"
 
-        self.logger_debug(f'{pre} baseurl[{baseurl}] queryurl[{queryurl}]')
+        self.logger_debug(f'{pre} baseurl[{baseurl}] query[{self.conf_args_gvd["query"]}]')
 
         def _get_last_page():
             for i in itertools.count(1):
@@ -698,7 +676,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         def _get_entries_page(npage: int = 1):
             try:
                 _htmlpage = try_get(
-                    self._send_request(f"{baseurl}{npage}{queryurl}"),
+                    self._send_request(update_url_query(f"{baseurl}{npage}", query=self.conf_args_gvd['query'])),
                     lambda x: get_element_by_id('us_grid_1', unescape(x.text)) if x else None)
 
                 if not _htmlpage:
@@ -728,10 +706,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             raise ExtractorError('no video links')
 
         items = orderedSet(items)
-        _nentries = try_get(
-            int_or_none(traverse_obj(self.conf_args_gvd, ('query', 'entries'))),
-            lambda x: x if x is not None and x >= 0 else len(items))
-        _from = int(traverse_obj(self.conf_args_gvd, ('query', 'from'), default='1'))
+
+        _nentries = self.conf_args_gvd['entries'] or len(items)
+        _from = self.conf_args_gvd['from']
 
         final_items = items[_from - 1:_from - 1 + _nentries]
 
@@ -759,12 +736,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                         self.report_warning(f'{pre} fails fut {futures[fut]} {str(e)}')
 
         else:
-            _entries = [self.url_result(_post_url, ie=GVDBlogPostIE.ie_key())
-                        for _post_url in final_items]
+            _entries = [self.url_result(_post_url, ie=GVDBlogPostIE.ie_key()) for _post_url in final_items]
 
-        _entries = upt_dict(_entries, playlist_url=url)
-
-        return _entries
+        if _entries:
+            upt_dict(_entries, playlist_url=url)
+            return _entries
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -793,9 +769,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             _upt_params(_typefx, namefx)
         self.conf_args_gvd = params
 
-        if (_query := self.conf_args_gvd['query']):
-            _query = '&'.join([f"{key}={val}" for key, val in params.items()])
-            self.logger_info(_query)
         if namenet or namecc or namefx:
             playlist_title = namenet or namecc or namefx
             playlist_id = namenet or namecc or namefx
