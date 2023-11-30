@@ -33,8 +33,7 @@ class APAIE(InfoExtractor):
         mobj = self._match_valid_url(url)
         video_id, base_url = mobj.group('id', 'base_url')
 
-        webpage = self._download_webpage(
-            '%s/player/%s' % (base_url, video_id), video_id)
+        webpage = self._download_webpage(f'{base_url}/player/{video_id}', video_id)
 
         jwplatform_id = self._search_regex(
             r'media[iI]d\s*:\s*["\'](?P<id>[a-zA-Z0-9]{8})', webpage,
@@ -42,8 +41,8 @@ class APAIE(InfoExtractor):
 
         if jwplatform_id:
             return self.url_result(
-                'jwplatform:' + jwplatform_id, ie='JWPlatform',
-                video_id=video_id)
+                f'jwplatform:{jwplatform_id}', ie='JWPlatform', video_id=video_id
+            )
 
         def extract(field, name=None):
             return self._search_regex(

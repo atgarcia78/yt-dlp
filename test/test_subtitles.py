@@ -40,12 +40,11 @@ class BaseTestSubtitles(unittest.TestCase):
         self.ie = self.IE()
         self.DL.add_info_extractor(self.ie)
         if not self.IE.working():
-            print('Skipping: %s marked as not _WORKING' % self.IE.ie_key())
+            print(f'Skipping: {self.IE.ie_key()} marked as not _WORKING')
             self.skipTest('IE marked as not _WORKING')
 
     def getInfoDict(self):
-        info_dict = self.DL.extract_info(self.url, download=False)
-        return info_dict
+        return self.DL.extract_info(self.url, download=False)
 
     def getSubtitles(self):
         info_dict = self.getInfoDict()
@@ -383,11 +382,6 @@ class TestRtveSubtitles(BaseTestSubtitles):
     def test_allsubtitles(self):
         print('Skipping, only available from Spain')
         return
-        self.DL.params['writesubtitles'] = True
-        self.DL.params['allsubtitles'] = True
-        subtitles = self.getSubtitles()
-        self.assertEqual(set(subtitles.keys()), {'es'})
-        self.assertEqual(md5(subtitles['es']), '69e70cae2d40574fb7316f31d6eb7fca')
 
 
 @is_download_test

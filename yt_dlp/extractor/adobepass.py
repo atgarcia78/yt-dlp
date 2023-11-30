@@ -1379,12 +1379,11 @@ class AdobePassIE(InfoExtractor):  # XXX: Conventionally, base classes should en
         resource_rating = etree.SubElement(item, 'media:rating')
         resource_rating.attrib = {'scheme': 'urn:v-chip'}
         resource_rating.text = rating
-        return '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">' + etree.tostring(channel).decode() + '</rss>'
+        return f'<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">{etree.tostring(channel).decode()}</rss>'
 
     def _extract_mvpd_auth(self, url, video_id, requestor_id, resource):
         def xml_text(xml_str, tag):
-            return self._search_regex(
-                '<%s>(.+?)</%s>' % (tag, tag), xml_str, tag)
+            return self._search_regex(f'<{tag}>(.+?)</{tag}>', xml_str, tag)
 
         def is_expired(token, date_ele):
             token_expires = unified_timestamp(re.sub(r'[_ ]GMT', '', xml_text(token, date_ele)))

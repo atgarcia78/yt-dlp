@@ -37,31 +37,42 @@ class ChaturbateIE(InfoExtractor):
         video_id = self._match_id(url)
 
         webpage = self._download_webpage(
-            'https://chaturbate.com/%s/' % video_id, video_id,
-            headers=self.geo_verification_headers())
+            f'https://chaturbate.com/{video_id}/',
+            video_id,
+            headers=self.geo_verification_headers(),
+        )
 
         found_m3u8_urls = []
 
-        data = self._parse_json(
+        if data := self._parse_json(
             self._search_regex(
                 r'initialRoomDossier\s*=\s*(["\'])(?P<value>(?:(?!\1).)+)\1',
-                webpage, 'data', default='{}', group='value'),
-            video_id, transform_source=lowercase_escape, fatal=False)
-        if data:
-            m3u8_url = url_or_none(data.get('hls_source'))
-            if m3u8_url:
+                webpage,
+                'data',
+                default='{}',
+                group='value',
+            ),
+            video_id,
+            transform_source=lowercase_escape,
+            fatal=False,
+        ):
+            if m3u8_url := url_or_none(data.get('hls_source')):
                 found_m3u8_urls.append(m3u8_url)
 
         if not found_m3u8_urls:
-            for m in re.finditer(
-                    r'(\\u002[27])(?P<url>http.+?\.m3u8.*?)\1', webpage):
-                found_m3u8_urls.append(lowercase_escape(m.group('url')))
-
+            found_m3u8_urls.extend(
+                lowercase_escape(m.group('url'))
+                for m in re.finditer(
+                    r'(\\u002[27])(?P<url>http.+?\.m3u8.*?)\1', webpage
+                )
+            )
         if not found_m3u8_urls:
-            for m in re.finditer(
-                    r'(["\'])(?P<url>http.+?\.m3u8.*?)\1', webpage):
-                found_m3u8_urls.append(m.group('url'))
-
+            found_m3u8_urls.extend(
+                m.group('url')
+                for m in re.finditer(
+                    r'(["\'])(?P<url>http.+?\.m3u8.*?)\1', webpage
+                )
+            )
         m3u8_urls = []
         for found_m3u8_url in found_m3u8_urls:
             m3u8_fast_url, m3u8_no_fast_url = found_m3u8_url, found_m3u8_url.replace('_fast', '')
@@ -84,12 +95,14 @@ class ChaturbateIE(InfoExtractor):
 
         formats = []
         for m3u8_url in m3u8_urls:
-            for known_id in ('fast', 'slow'):
-                if '_%s' % known_id in m3u8_url:
-                    m3u8_id = known_id
-                    break
-            else:
-                m3u8_id = None
+            m3u8_id = next(
+                (
+                    known_id
+                    for known_id in ('fast', 'slow')
+                    if f'_{known_id}' in m3u8_url
+                ),
+                None,
+            )
             formats.extend(self._extract_m3u8_formats(
                 m3u8_url, video_id, ext='mp4',
                 # ffmpeg skips segments for fast m3u8
@@ -99,7 +112,7 @@ class ChaturbateIE(InfoExtractor):
         return {
             'id': video_id,
             'title': video_id,
-            'thumbnail': 'https://roomimg.stream.highwebmedia.com/ri/%s.jpg' % video_id,
+            'thumbnail': f'https://roomimg.stream.highwebmedia.com/ri/{video_id}.jpg',
             'age_limit': self._rta_search(webpage),
             'is_live': True,
             'formats': formats,

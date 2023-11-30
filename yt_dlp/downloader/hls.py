@@ -72,7 +72,7 @@ class HlsFD(FragmentFD):
 
     def real_download(self, filename, info_dict):
         man_url = info_dict['url']
-        self.to_screen('[%s] Downloading m3u8 manifest' % self.FD_NAME)
+        self.to_screen(f'[{self.FD_NAME}] Downloading m3u8 manifest')
 
         urlh = self.ydl.urlopen(self._prepare_url(info_dict, man_url))
         man_url = urlh.url
@@ -170,7 +170,11 @@ class HlsFD(FragmentFD):
         external_aes_key = traverse_obj(info_dict, ('hls_aes', 'key'))
         if external_aes_key:
             external_aes_key = binascii.unhexlify(remove_start(external_aes_key, '0x'))
-            assert len(external_aes_key) in (16, 24, 32), 'Invalid length for HLS AES-128 key'
+            assert len(external_aes_key) in {
+                16,
+                24,
+                32,
+            }, 'Invalid length for HLS AES-128 key'
         external_aes_iv = traverse_obj(info_dict, ('hls_aes', 'iv'))
         if external_aes_iv:
             external_aes_iv = binascii.unhexlify(remove_start(external_aes_iv, '0x').zfill(32))

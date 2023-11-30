@@ -123,11 +123,15 @@ class ABCIE(InfoExtractor):
                 mobj = re.search(
                     r'inline(?P<type>Video|Audio|YouTube)Data\.push\((?P<json_data>[^)]+)\);',
                     webpage)
-                if mobj is None:
-                    expired = self._html_search_regex(r'(?s)class="expired-(?:video|audio)".+?<span>(.+?)</span>', webpage, 'expired', None)
-                    if expired:
-                        raise ExtractorError('%s said: %s' % (self.IE_NAME, expired), expected=True)
-                    raise ExtractorError('Unable to extract video urls')
+            if mobj is None:
+                if expired := self._html_search_regex(
+                    r'(?s)class="expired-(?:video|audio)".+?<span>(.+?)</span>',
+                    webpage,
+                    'expired',
+                    None,
+                ):
+                    raise ExtractorError(f'{self.IE_NAME} said: {expired}', expected=True)
+                raise ExtractorError('Unable to extract video urls')
 
             urls_info = self._parse_json(
                 mobj.group('json_data'), video_id, transform_source=js_to_json)
@@ -148,10 +152,10 @@ class ABCIE(InfoExtractor):
             bitrate = int_or_none(url_info.get('bitrate'))
             width = int_or_none(url_info.get('width'))
             format_id = None
-            mobj = re.search(r'_(?:(?P<height>\d+)|(?P<bitrate>\d+)k)\.mp4$', url_info['url'])
-            if mobj:
-                height_from_url = mobj.group('height')
-                if height_from_url:
+            if mobj := re.search(
+                r'_(?:(?P<height>\d+)|(?P<bitrate>\d+)k)\.mp4$', url_info['url']
+            ):
+                if height_from_url := mobj.group('height'):
                     height = height or int_or_none(height_from_url)
                     width = width or int_or_none(url_info.get('label'))
                 else:
@@ -286,7 +290,8 @@ class ABCIViewIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
         video_params = self._download_json(
-            'https://iview.abc.net.au/api/programs/' + video_id, video_id)
+            f'https://iview.abc.net.au/api/programs/{video_id}', video_id
+        )
         title = unescapeHTML(video_params.get('title') or video_params['seriesTitle'])
         stream = next(s for s in video_params['playlist'] if s.get('type') in ('program', 'livestream'))
 

@@ -14,18 +14,23 @@ class AdobeConnectIE(InfoExtractor):
         title = self._html_extract_title(webpage)
         qs = compat_parse_qs(self._search_regex(r"swfUrl\s*=\s*'([^']+)'", webpage, 'swf url').split('?')[1])
         is_live = qs.get('isLive', ['false'])[0] == 'true'
-        formats = []
-        for con_string in qs['conStrings'][0].split(','):
-            formats.append({
+        formats = [
+            {
                 'format_id': con_string.split('://')[0],
-                'app': compat_urlparse.quote('?' + con_string.split('?')[1] + 'flvplayerapp/' + qs['appInstance'][0]),
+                'app': compat_urlparse.quote(
+                    '?'
+                    + con_string.split('?')[1]
+                    + 'flvplayerapp/'
+                    + qs['appInstance'][0]
+                ),
                 'ext': 'flv',
                 'play_path': 'mp4:' + qs['streamName'][0],
                 'rtmp_conn': 'S:' + qs['ticket'][0],
                 'rtmp_live': is_live,
                 'url': con_string,
-            })
-
+            }
+            for con_string in qs['conStrings'][0].split(',')
+        ]
         return {
             'id': video_id,
             'title': title,

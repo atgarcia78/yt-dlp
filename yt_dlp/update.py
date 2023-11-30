@@ -319,11 +319,11 @@ class Updater:
                 if not line.startswith(f'lockV2 {self.requested_repo} '):
                     continue
                 _, _, tag, pattern = line.split(' ', 3)
-            else:
-                if not line.startswith('lock '):
-                    continue
+            elif line.startswith('lock '):
                 _, tag, pattern = line.split(' ', 2)
 
+            else:
+                continue
             if re.match(pattern, self._identifier):
                 if _VERSION_RE.fullmatch(tag):
                     if not self._exact:
@@ -434,8 +434,7 @@ class Updater:
         if not update_info:
             return False
 
-        err = is_non_updateable()
-        if err:
+        if err := is_non_updateable():
             self._report_error(err, True)
             return False
 

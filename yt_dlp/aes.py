@@ -318,9 +318,7 @@ def aes_decrypt_text(data, password, key_size_bytes):
     cipher = data[NONCE_LENGTH_BYTES:]
 
     decrypted_data = aes_ctr_decrypt(cipher, key, nonce + [0] * (BLOCK_SIZE_BYTES - NONCE_LENGTH_BYTES))
-    plaintext = intlist_to_bytes(decrypted_data)
-
-    return plaintext
+    return intlist_to_bytes(decrypted_data)
 
 
 RCON = (0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36)

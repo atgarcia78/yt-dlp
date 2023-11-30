@@ -35,7 +35,8 @@ class ACastBaseIE(InfoExtractor):
 
     def _call_api(self, path, video_id, query=None):
         return self._download_json(
-            'https://feeder.acast.com/api/v1/shows/' + path, video_id, query=query)
+            f'https://feeder.acast.com/api/v1/shows/{path}', video_id, query=query
+        )
 
 
 class ACastIE(ACastBaseIE):
@@ -99,8 +100,8 @@ class ACastIE(ACastBaseIE):
     def _real_extract(self, url):
         channel, display_id = self._match_valid_url(url).groups()
         episode = self._call_api(
-            '%s/episodes/%s' % (channel, display_id),
-            display_id, {'showInfo': 'true'})
+            f'{channel}/episodes/{display_id}', display_id, {'showInfo': 'true'}
+        )
         return self._extract_episode(
             episode, self._extract_show_info(episode.get('show') or {}))
 
@@ -136,8 +137,9 @@ class ACastChannelIE(ACastBaseIE):
         show_slug = self._match_id(url)
         show = self._call_api(show_slug, show_slug)
         show_info = self._extract_show_info(show)
-        entries = []
-        for episode in (show.get('episodes') or []):
-            entries.append(self._extract_episode(episode, show_info))
+        entries = [
+            self._extract_episode(episode, show_info)
+            for episode in (show.get('episodes') or [])
+        ]
         return self.playlist_result(
             entries, show.get('id'), show.get('title'), show.get('description'))

@@ -15,8 +15,7 @@ class AudiusBaseIE(InfoExtractor):
             if response_data is not None:
                 return response_data
             if len(response) == 1 and 'message' in response:
-                raise ExtractorError('API error: %s' % response['message'],
-                                     expected=True)
+                raise ExtractorError(f"API error: {response['message']}", expected=True)
         raise ExtractorError('Unexpected API response')
 
     def _select_api_base(self):
@@ -55,8 +54,12 @@ class AudiusBaseIE(InfoExtractor):
             self._select_api_base()
         try:
             response = super(AudiusBaseIE, self)._download_json(
-                '%s%s%s' % (self._API_BASE, self._API_V, path), item_id, note=note,
-                errnote=errnote, expected_status=expected_status)
+                f'{self._API_BASE}{self._API_V}{path}',
+                item_id,
+                note=note,
+                errnote=errnote,
+                expected_status=expected_status,
+            )
         except ExtractorError as exc:
             # some of Audius API hosts may not work as expected and return HTML
             if 'Failed to parse JSON' in compat_str(exc):
@@ -66,8 +69,7 @@ class AudiusBaseIE(InfoExtractor):
         return self._get_response_data(response)
 
     def _resolve_url(self, url, item_id):
-        return self._api_request('/resolve?url=%s' % url, item_id,
-                                 expected_status=404)
+        return self._api_request(f'/resolve?url={url}', item_id, expected_status=404)
 
 
 class AudiusIE(AudiusBaseIE):
@@ -130,7 +132,7 @@ class AudiusIE(AudiusBaseIE):
         else:  # API link
             title = None
             # uploader = None
-            track_data = self._api_request('/tracks/%s' % track_id, track_id)
+            track_data = self._api_request(f'/tracks/{track_id}', track_id)
 
         if not isinstance(track_data, dict):
             raise ExtractorError('Unexpected API response')
@@ -154,7 +156,7 @@ class AudiusIE(AudiusBaseIE):
         return {
             'id': track_id,
             'title': track_data.get('title', title),
-            'url': '%s/v1/tracks/%s/stream' % (self._API_BASE, track_id),
+            'url': f'{self._API_BASE}/v1/tracks/{track_id}/stream',
             'ext': 'mp3',
             'description': track_data.get('description'),
             'duration': track_data.get('duration'),
@@ -203,12 +205,16 @@ class AudiusPlaylistIE(AudiusBaseIE):
         for track in tracks:
             if not isinstance(track, dict):
                 raise ExtractorError('Unexpected API response')
-            track_id = str_or_none(track.get('id'))
-            if not track_id:
+            if track_id := str_or_none(track.get('id')):
+                entries.append(
+                    self.url_result(
+                        f'audius:{track_id}',
+                        ie=AudiusTrackIE.ie_key(),
+                        video_id=track_id,
+                    )
+                )
+            else:
                 raise ExtractorError('Unable to get track ID from playlist')
-            entries.append(self.url_result(
-                'audius:%s' % track_id,
-                ie=AudiusTrackIE.ie_key(), video_id=track_id))
         return entries
 
     def _real_extract(self, url):
@@ -231,9 +237,11 @@ class AudiusPlaylistIE(AudiusBaseIE):
             raise ExtractorError('Unable to get playlist ID')
 
         playlist_tracks = self._api_request(
-            '/playlists/%s/tracks' % playlist_id,
-            title, note='Downloading playlist tracks metadata',
-            errnote='Unable to download playlist tracks metadata')
+            f'/playlists/{playlist_id}/tracks',
+            title,
+            note='Downloading playlist tracks metadata',
+            errnote='Unable to download playlist tracks metadata',
+        )
         if not isinstance(playlist_tracks, list):
             raise ExtractorError('Unexpected API response')
 
@@ -261,11 +269,15 @@ class AudiusProfileIE(AudiusPlaylistIE):  # XXX: Do not subclass from concrete I
         self._select_api_base()
         profile_id = self._match_id(url)
         try:
-            _profile_data = self._api_request('/full/users/handle/' + profile_id, profile_id)
+            _profile_data = self._api_request(
+                f'/full/users/handle/{profile_id}', profile_id
+            )
         except ExtractorError as e:
-            raise ExtractorError('Could not download profile info; ' + str(e))
+            raise ExtractorError(f'Could not download profile info; {str(e)}')
         profile_audius_id = _profile_data[0]['id']
         profile_bio = _profile_data[0].get('bio')
 
-        api_call = self._api_request('/full/users/handle/%s/tracks' % profile_id, profile_id)
+        api_call = self._api_request(
+            f'/full/users/handle/{profile_id}/tracks', profile_id
+        )
         return self.playlist_result(self._build_playlist(api_call), profile_audius_id, profile_id, profile_bio)

@@ -278,8 +278,9 @@ class TestUtil(unittest.TestCase):
             self.assertEqual(expand_path(env('HOME')), os.getenv('HOME'))
             self.assertEqual(expand_path('~'), os.getenv('HOME'))
             self.assertEqual(
-                expand_path('~/%s' % env('yt_dlp_EXPATH_PATH')),
-                '%s/expanded' % os.getenv('HOME'))
+                expand_path(f"~/{env('yt_dlp_EXPATH_PATH')}"),
+                f"{os.getenv('HOME')}/expanded",
+            )
         finally:
             os.environ['HOME'] = old_home or ''
 
@@ -2062,8 +2063,11 @@ Line 1
                          msg='allow tuple path')
         self.assertEqual(traverse_obj(_TEST_DATA, ['str']), 'str',
                          msg='allow list path')
-        self.assertEqual(traverse_obj(_TEST_DATA, (value for value in ("str",))), 'str',
-                         msg='allow iterable path')
+        self.assertEqual(
+            traverse_obj(_TEST_DATA, iter(("str",))),
+            'str',
+            msg='allow iterable path',
+        )
         self.assertEqual(traverse_obj(_TEST_DATA, 'str'), 'str',
                          msg='single items should be treated as a path')
         self.assertEqual(traverse_obj(_TEST_DATA, None), _TEST_DATA)

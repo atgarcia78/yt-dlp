@@ -96,18 +96,15 @@ class CCMAIE(InfoExtractor):
         if isinstance(subtitols, dict):
             subtitols = [subtitols]
         for st in subtitols:
-            sub_url = st.get('url')
-            if sub_url:
+            if sub_url := st.get('url'):
                 subtitles.setdefault(
                     st.get('iso') or st.get('text') or 'ca', []).append({
                         'url': sub_url,
                     })
 
         thumbnails = []
-        imatges = media.get('imatges', {})
-        if imatges:
-            thumbnail_url = imatges.get('url')
-            if thumbnail_url:
+        if imatges := media.get('imatges', {}):
+            if thumbnail_url := imatges.get('url'):
                 thumbnails = [{
                     'url': thumbnail_url,
                     'width': int_or_none(imatges.get('amplada')),
@@ -115,15 +112,10 @@ class CCMAIE(InfoExtractor):
                 }]
 
         age_limit = None
-        codi_etic = try_get(informacio, lambda x: x['codi_etic']['id'])
-        if codi_etic:
+        if codi_etic := try_get(informacio, lambda x: x['codi_etic']['id']):
             codi_etic_s = codi_etic.split('_')
             if len(codi_etic_s) == 2:
-                if codi_etic_s[1] == 'TP':
-                    age_limit = 0
-                else:
-                    age_limit = int_or_none(codi_etic_s[1])
-
+                age_limit = 0 if codi_etic_s[1] == 'TP' else int_or_none(codi_etic_s[1])
         return {
             'id': media_id,
             'title': title,

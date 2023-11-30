@@ -65,14 +65,18 @@ class CamdemyIE(InfoExtractor):
 
         webpage = self._download_webpage(url, video_id)
 
-        src_from = self._html_search_regex(
+        if src_from := self._html_search_regex(
             r"class=['\"]srcFrom['\"][^>]*>Sources?(?:\s+from)?\s*:\s*<a[^>]+(?:href|title)=(['\"])(?P<url>(?:(?!\1).)+)\1",
-            webpage, 'external source', default=None, group='url')
-        if src_from:
+            webpage,
+            'external source',
+            default=None,
+            group='url',
+        ):
             return self.url_result(src_from)
 
         oembed_obj = self._download_json(
-            'http://www.camdemy.com/oembed/?format=json&url=' + url, video_id)
+            f'http://www.camdemy.com/oembed/?format=json&url={url}', video_id
+        )
 
         title = oembed_obj['title']
         thumb_url = oembed_obj['thumbnail_url']
@@ -143,15 +147,17 @@ class CamdemyFolderIE(InfoExtractor):
         # Add displayMode=list so that all links are displayed in a single page
         parsed_url = list(compat_urlparse.urlparse(url))
         query = dict(compat_urlparse.parse_qsl(parsed_url[4]))
-        query.update({'displayMode': 'list'})
+        query['displayMode'] = 'list'
         parsed_url[4] = compat_urllib_parse_urlencode(query)
         final_url = compat_urlparse.urlunparse(parsed_url)
 
         page = self._download_webpage(final_url, folder_id)
         matches = re.findall(r"href='(/media/\d+/?)'", page)
 
-        entries = [self.url_result('http://www.camdemy.com' + media_path)
-                   for media_path in matches]
+        entries = [
+            self.url_result(f'http://www.camdemy.com{media_path}')
+            for media_path in matches
+        ]
 
         folder_title = self._html_search_meta('keywords', page)
 

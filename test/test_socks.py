@@ -80,8 +80,7 @@ class Socks5ProxyHandler(StreamRequestHandler, SocksProxyHandler):
     # SOCKS5 username/password authentication https://tools.ietf.org/html/rfc1929
 
     def handle(self):
-        sleep = self.socks_kwargs.get('sleep')
-        if sleep:
+        if sleep := self.socks_kwargs.get('sleep'):
             time.sleep(sleep)
         version, nmethods = self.connection.recv(2)
         assert version == SOCKS5_VERSION
@@ -153,8 +152,7 @@ class Socks4ProxyHandler(StreamRequestHandler, SocksProxyHandler):
         return b''.join(iter(functools.partial(self.connection.recv, 1), b'\x00'))
 
     def handle(self):
-        sleep = self.socks_kwargs.get('sleep')
-        if sleep:
+        if sleep := self.socks_kwargs.get('sleep'):
             time.sleep(sleep)
         socks_info = {
             'version': SOCKS4_VERSION,

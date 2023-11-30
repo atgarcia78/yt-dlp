@@ -58,21 +58,20 @@ class ArnesIE(InfoExtractor):
         video_id = self._match_id(url)
 
         video = self._download_json(
-            self._BASE_URL + '/api/public/video/' + video_id, video_id)['data']
+            f'{self._BASE_URL}/api/public/video/{video_id}', video_id
+        )['data']
         title = video['title']
 
         formats = []
         for media in (video.get('media') or []):
-            media_url = media.get('url')
-            if not media_url:
-                continue
-            formats.append({
-                'url': self._BASE_URL + media_url,
-                'format_id': remove_start(media.get('format'), 'FORMAT_'),
-                'format_note': media.get('formatTranslation'),
-                'width': int_or_none(media.get('width')),
-                'height': int_or_none(media.get('height')),
-            })
+            if media_url := media.get('url'):
+                formats.append({
+                    'url': self._BASE_URL + media_url,
+                    'format_id': remove_start(media.get('format'), 'FORMAT_'),
+                    'format_note': media.get('formatTranslation'),
+                    'width': int_or_none(media.get('width')),
+                    'height': int_or_none(media.get('height')),
+                })
 
         channel = video.get('channel') or {}
         channel_id = channel.get('url')

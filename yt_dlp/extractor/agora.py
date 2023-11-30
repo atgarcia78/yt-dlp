@@ -41,17 +41,22 @@ class WyborczaVideoIE(InfoExtractor):
 
         formats = []
         base_url = meta['redirector'].replace('http://', 'https://') + meta['basePath']
-        for quality in ('standard', 'high'):
-            if not meta['files'].get(quality):
-                continue
-            formats.append({
+        formats.extend(
+            {
                 'url': base_url + meta['files'][quality],
                 'height': int_or_none(
                     self._search_regex(
-                        r'p(\d+)[a-z]+\.mp4$', meta['files'][quality],
-                        'mp4 video height', default=None)),
+                        r'p(\d+)[a-z]+\.mp4$',
+                        meta['files'][quality],
+                        'mp4 video height',
+                        default=None,
+                    )
+                ),
                 'format_id': quality,
-            })
+            }
+            for quality in ('standard', 'high')
+            if meta['files'].get(quality)
+        )
         if meta['files'].get('dash'):
             formats.extend(self._extract_mpd_formats(base_url + meta['files']['dash'], video_id))
 
@@ -168,7 +173,9 @@ class TokFMPodcastIE(InfoExtractor):
         for ext in ('aac', 'mp3'):
             url_data = self._download_json(
                 f'https://api.podcast.radioagora.pl/api4/getSongUrl?podcast_id={media_id}&device_id={uuid.uuid4()}&ppre=false&audio={ext}',
-                media_id, 'Downloading podcast %s URL' % ext)
+                media_id,
+                f'Downloading podcast {ext} URL',
+            )
             # prevents inserting the mp3 (default) multiple times
             if 'link_ssl' in url_data and f'.{ext}' in url_data['link_ssl']:
                 formats.append({

@@ -196,8 +196,7 @@ class AbemaTVBaseIE(InfoExtractor):
             jsonld = self._parse_json(jld.group('json_ld'), video_id, fatal=False)
             if traverse_obj(jsonld, '@type') != 'BreadcrumbList':
                 continue
-            items = traverse_obj(jsonld, ('itemListElement', ..., 'name'))
-            if items:
+            if items := traverse_obj(jsonld, ('itemListElement', ..., 'name')):
                 return items
         return []
 
@@ -285,9 +284,7 @@ class AbemaTVIE(AbemaTVBaseIE):
         # and never be fixed in the future; you must trigger downloads by directly specifying URL.
         # (unless there's a way to hook before downloading by extractor)
         video_id, video_type = self._match_valid_url(url).group('id', 'type')
-        headers = {
-            'Authorization': 'Bearer ' + self._get_device_token(),
-        }
+        headers = {'Authorization': f'Bearer {self._get_device_token()}'}
         video_type = video_type.split('/')[-1]
 
         webpage = self._download_webpage(url, video_id)
@@ -318,13 +315,11 @@ class AbemaTVIE(AbemaTVBaseIE):
             for slot in self._TIMETABLE.get('slots', []):
                 if slot.get('channelId') != video_id:
                     continue
-                if slot['startAt'] <= now and now < slot['endAt']:
+                if slot['startAt'] <= now < slot['endAt']:
                     title = slot['title']
                     break
 
-        # read breadcrumb on top of page
-        breadcrumb = self._extract_breadcrumb_list(webpage, video_id)
-        if breadcrumb:
+        if breadcrumb := self._extract_breadcrumb_list(webpage, video_id):
             # breadcrumb list translates to: (e.g. 1st test for this IE)
             # Home > Anime (genre) > Isekai Shokudo 2 (series name) > Episode 1 "Cheese cakes" "Morning again" (episode title)
             # hence this works
@@ -338,9 +333,9 @@ class AbemaTVIE(AbemaTVBaseIE):
              r'<span\s+class=".+?SlotSummary.+?">(.+?)</span></div><div',),
             webpage, 'description', default=None, group=1)
         if not description:
-            og_desc = self._html_search_meta(
-                ('description', 'og:description', 'twitter:description'), webpage)
-            if og_desc:
+            if og_desc := self._html_search_meta(
+                ('description', 'og:description', 'twitter:description'), webpage
+            ):
                 description = re.sub(r'''(?sx)
                     ^(.+?)(?:
                         アニメの動画を無料で見るならABEMA！| # anime
@@ -348,9 +343,7 @@ class AbemaTVIE(AbemaTVBaseIE):
                     )?
                 ''', r'\1', og_desc)
 
-        # canonical URL may contain season and episode number
-        mobj = re.search(r's(\d+)_p(\d+)$', canonical_url)
-        if mobj:
+        if mobj := re.search(r's(\d+)_p(\d+)$', canonical_url):
             seri = int_or_none(mobj.group(1), default=float('inf'))
             epis = int_or_none(mobj.group(2), default=float('inf'))
             info['season_number'] = seri if seri < 100 else None

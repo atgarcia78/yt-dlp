@@ -45,8 +45,9 @@ class DashSegmentsFD(FragmentFD):
             ctx['start'] = real_start
 
             extra_query = None
-            extra_param_to_segment_url = info_dict.get('extra_param_to_segment_url')
-            if extra_param_to_segment_url:
+            if extra_param_to_segment_url := info_dict.get(
+                'extra_param_to_segment_url'
+            ):
                 extra_query = urllib.parse.parse_qs(extra_param_to_segment_url)
 
             fragments_to_download = self._get_fragments(fmt, ctx, extra_query)

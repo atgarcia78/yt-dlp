@@ -76,10 +76,8 @@ class BuzzFeedIE(InfoExtractor):
         entries = []
         for bd_json in all_buckets:
             bd = json.loads(bd_json)
-            video = bd.get('video') or bd.get('progload_video')
-            if not video:
-                continue
-            entries.append(self.url_result(video['url']))
+            if video := bd.get('video') or bd.get('progload_video'):
+                entries.append(self.url_result(video['url']))
 
         facebook_urls = FacebookIE._extract_embed_urls(url, webpage)
         entries.extend([

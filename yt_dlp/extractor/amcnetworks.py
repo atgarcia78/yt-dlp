@@ -64,8 +64,9 @@ class AMCNetworksIE(ThePlatformIE):  # XXX: Do not subclass from concrete IE
         site, display_id = self._match_valid_url(url).groups()
         requestor_id = self._REQUESTOR_ID_MAP[site]
         page_data = self._download_json(
-            'https://content-delivery-gw.svc.ds.amcn.com/api/v2/content/amcn/%s/url/%s'
-            % (requestor_id.lower(), display_id), display_id)['data']
+            f'https://content-delivery-gw.svc.ds.amcn.com/api/v2/content/amcn/{requestor_id.lower()}/url/{display_id}',
+            display_id,
+        )['data']
         properties = page_data.get('properties') or {}
         query = {
             'mbr': 'true',
@@ -77,8 +78,8 @@ class AMCNetworksIE(ThePlatformIE):  # XXX: Do not subclass from concrete IE
             for v in page_data['children']:
                 if v.get('type') == 'video-player':
                     releasePid = v['properties']['currentVideo']['meta']['releasePid']
-                    tp_path = 'M_UwQC/' + releasePid
-                    media_url = 'https://link.theplatform.com/s/' + tp_path
+                    tp_path = f'M_UwQC/{releasePid}'
+                    media_url = f'https://link.theplatform.com/s/{tp_path}'
                     video_player_count += 1
         except KeyError:
             pass
@@ -90,7 +91,7 @@ class AMCNetworksIE(ThePlatformIE):  # XXX: Do not subclass from concrete IE
         # TODO: Fall back to videoPid if releasePid manifest uses DRM.
         if not video_player_count:
             tp_path = 'M_UwQC/media/' + properties['videoPid']
-            media_url = 'https://link.theplatform.com/s/' + tp_path
+            media_url = f'https://link.theplatform.com/s/{tp_path}'
 
         theplatform_metadata = self._download_theplatform_metadata(tp_path, display_id)
         info = self._parse_theplatform_metadata(theplatform_metadata)
@@ -129,15 +130,12 @@ class AMCNetworksIE(ThePlatformIE):  # XXX: Do not subclass from concrete IE
             'subtitles': subtitles,
             'thumbnails': thumbnails,
         })
-        ns_keys = theplatform_metadata.get('$xmlns', {}).keys()
-        if ns_keys:
+        if ns_keys := theplatform_metadata.get('$xmlns', {}).keys():
             ns = list(ns_keys)[0]
-            episode = theplatform_metadata.get(ns + '$episodeTitle') or None
-            episode_number = int_or_none(
-                theplatform_metadata.get(ns + '$episode'))
-            season_number = int_or_none(
-                theplatform_metadata.get(ns + '$season'))
-            series = theplatform_metadata.get(ns + '$show') or None
+            episode = theplatform_metadata.get(f'{ns}$episodeTitle') or None
+            episode_number = int_or_none(theplatform_metadata.get(f'{ns}$episode'))
+            season_number = int_or_none(theplatform_metadata.get(f'{ns}$season'))
+            series = theplatform_metadata.get(f'{ns}$show') or None
             info.update({
                 'episode': episode,
                 'episode_number': episode_number,

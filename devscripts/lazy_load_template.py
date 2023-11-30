@@ -16,14 +16,18 @@ _WARNED = False
 
 
 class LazyLoadMetaClass(type):
-    def __getattr__(cls, name):
+    def __getattr__(self, name):
         global _WARNED
-        if ('_real_class' not in cls.__dict__
-                and name not in ALLOWED_CLASSMETHODS and not _WARNED):
+        if (
+            '_real_class' not in self.__dict__
+            and name not in ALLOWED_CLASSMETHODS
+            and not _WARNED
+        ):
             _WARNED = True
-            write_string('WARNING: Falling back to normal extractor since lazy extractor '
-                         f'{cls.__name__} does not have attribute {name}{bug_reports_message()}\n')
-        return getattr(cls.real_class, name)
+            write_string(
+                f'WARNING: Falling back to normal extractor since lazy extractor {self.__name__} does not have attribute {name}{bug_reports_message()}\n'
+            )
+        return getattr(self.real_class, name)
 
 
 class LazyLoadExtractor(metaclass=LazyLoadMetaClass):

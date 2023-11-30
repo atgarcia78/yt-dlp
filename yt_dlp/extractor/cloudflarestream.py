@@ -40,21 +40,29 @@ class CloudflareStreamIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
         domain = 'bytehighway.net' if 'bytehighway.net/' in url else 'videodelivery.net'
-        base_url = 'https://%s/%s/' % (domain, video_id)
+        base_url = f'https://{domain}/{video_id}/'
         if '.' in video_id:
             video_id = self._parse_json(base64.urlsafe_b64decode(
                 video_id.split('.')[1] + '==='), video_id)['sub']
-        manifest_base_url = base_url + 'manifest/video.'
+        manifest_base_url = f'{base_url}manifest/video.'
 
         formats = self._extract_m3u8_formats(
-            manifest_base_url + 'm3u8', video_id, 'mp4',
-            'm3u8_native', m3u8_id='hls', fatal=False)
-        formats.extend(self._extract_mpd_formats(
-            manifest_base_url + 'mpd', video_id, mpd_id='dash', fatal=False))
+            f'{manifest_base_url}m3u8',
+            video_id,
+            'mp4',
+            'm3u8_native',
+            m3u8_id='hls',
+            fatal=False,
+        )
+        formats.extend(
+            self._extract_mpd_formats(
+                f'{manifest_base_url}mpd', video_id, mpd_id='dash', fatal=False
+            )
+        )
 
         return {
             'id': video_id,
             'title': video_id,
-            'thumbnail': base_url + 'thumbnails/thumbnail.jpg',
+            'thumbnail': f'{base_url}thumbnails/thumbnail.jpg',
             'formats': formats,
         }

@@ -55,22 +55,23 @@ class ABCOTVSIE(InfoExtractor):
         station = self._SITE_MAP[site]
 
         data = self._download_json(
-            'https://api.abcotvs.com/v2/content', display_id, query={
+            'https://api.abcotvs.com/v2/content',
+            display_id,
+            query={
                 'id': video_id,
-                'key': 'otv.web.%s.story' % station,
+                'key': f'otv.web.{station}.story',
                 'station': station,
-            })['data']
+            },
+        )['data']
         video = try_get(data, lambda x: x['featuredMedia']['video'], dict) or data
         video_id = compat_str(dict_get(video, ('id', 'publishedKey'), video_id))
         title = video.get('title') or video['linkText']
 
         formats = []
-        m3u8_url = video.get('m3u8')
-        if m3u8_url:
+        if m3u8_url := video.get('m3u8'):
             formats = self._extract_m3u8_formats(
                 video['m3u8'].split('?')[0], display_id, 'mp4', m3u8_id='hls', fatal=False)
-        mp4_url = video.get('mp4')
-        if mp4_url:
+        if mp4_url := video.get('mp4'):
             formats.append({
                 'abr': 128,
                 'format_id': 'https',
@@ -114,7 +115,10 @@ class ABCOTVSClipsIE(InfoExtractor):
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
-        video_data = self._download_json('https://clips.abcotvs.com/vogo/video/getByIds?ids=' + video_id, video_id)['results'][0]
+        video_data = self._download_json(
+            f'https://clips.abcotvs.com/vogo/video/getByIds?ids={video_id}',
+            video_id,
+        )['results'][0]
         title = video_data['title']
         formats = self._extract_m3u8_formats(
             video_data['videoURL'].split('?')[0], video_id, 'mp4')

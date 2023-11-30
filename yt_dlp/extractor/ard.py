@@ -42,8 +42,7 @@ class ARDMediathekBaseIE(InfoExtractor):
                     countries=self._GEO_COUNTRIES, metadata_available=True)
 
         subtitles = {}
-        subtitle_url = media_info.get('_subtitleUrl')
-        if subtitle_url:
+        if subtitle_url := media_info.get('_subtitleUrl'):
             subtitles['de'] = [{
                 'ext': 'ttml',
                 'url': subtitle_url,
@@ -81,8 +80,7 @@ class ARDMediathekBaseIE(InfoExtractor):
             # from: https://www.ardmediathek.de/ard/sendung/die-fallers/Y3JpZDovL3N3ci5kZS8yMzAyMDQ4/
             r'.*(?P<ep_info>Folge (?P<episode_number>\d+)(?:/\d+)?(?:\:| -|) ).*',
         ]:
-            m = re.match(pattern, title)
-            if m:
+            if m := re.match(pattern, title):
                 groupdict = m.groupdict()
                 res['season_number'] = int_or_none(groupdict.get('season_number'))
                 res['episode_number'] = int_or_none(groupdict.get('episode_number'))
@@ -134,17 +132,13 @@ class ARDMediathekBaseIE(InfoExtractor):
                             f = {
                                 'url': server,
                                 'play_path': stream_url,
-                                'format_id': 'a%s-rtmp-%s' % (num, quality),
+                                'format_id': f'a{num}-rtmp-{quality}',
                             }
                         else:
-                            f = {
-                                'url': stream_url,
-                                'format_id': 'a%s-%s-%s' % (num, ext, quality)
-                            }
-                        m = re.search(
-                            r'_(?P<width>\d+)x(?P<height>\d+)\.mp4$',
-                            stream_url)
-                        if m:
+                            f = {'url': stream_url, 'format_id': f'a{num}-{ext}-{quality}'}
+                        if m := re.search(
+                            r'_(?P<width>\d+)x(?P<height>\d+)\.mp4$', stream_url
+                        ):
                             f.update({
                                 'width': int(m.group('width')),
                                 'height': int(m.group('height')),
@@ -202,8 +196,7 @@ class ARDMediathekIE(ARDMediathekBaseIE):
 
         document_id = None
 
-        numid = re.search(r'documentId=([0-9]+)', url)
-        if numid:
+        if numid := re.search(r'documentId=([0-9]+)', url):
             document_id = video_id = numid.group(1)
         else:
             video_id = m.group('video_id')
@@ -246,11 +239,12 @@ class ARDMediathekIE(ARDMediathekBaseIE):
         # structure altogether.
         thumbnail = self._og_search_thumbnail(webpage, default=None)
 
-        media_streams = re.findall(r'''(?x)
+        if media_streams := re.findall(
+            r'''(?x)
             mediaCollection\.addMediaStream\([0-9]+,\s*[0-9]+,\s*"[^"]*",\s*
-            "([^"]+)"''', webpage)
-
-        if media_streams:
+            "([^"]+)"''',
+            webpage,
+        ):
             QUALITIES = qualities(['lo', 'hi', 'hq'])
             formats = []
             for furl in set(media_streams):
@@ -267,14 +261,16 @@ class ARDMediathekIE(ARDMediathekBaseIE):
             info = {
                 'formats': formats,
             }
-        else:  # request JSON file
+        else:
             if not document_id:
                 video_id = self._search_regex(
                     (r'/play/(?:config|media|sola)/(\d+)', r'contentId["\']\s*:\s*(\d+)'),
                     webpage, 'media id', default=None)
             info = self._extract_media_info(
-                'http://www.ardmediathek.de/play/media/%s' % video_id,
-                webpage, video_id)
+                f'http://www.ardmediathek.de/play/media/{video_id}',
+                webpage,
+                video_id,
+            )
 
         info.update({
             'id': video_id,
@@ -361,16 +357,15 @@ class ARDIE(InfoExtractor):
                 'vcodec': xpath_text(a, './codecVideo'),
                 'tbr': int_or_none(xpath_text(a, './totalBitrate')),
             }
-            server_prefix = xpath_text(a, './serverPrefix', default=None)
-            if server_prefix:
+            if server_prefix := xpath_text(a, './serverPrefix', default=None):
                 f.update({
                     'url': server_prefix,
                     'playpath': file_name,
                 })
-            else:
-                if not format_url:
-                    continue
+            elif format_url:
                 f['url'] = format_url
+            else:
+                continue
             formats.append(f)
 
         _SUB_FORMATS = (
@@ -534,9 +529,10 @@ class ARDBetaMediathekIE(ARDMediathekBaseIE):
         # https://api-test.ardmediathek.de/public-gateway
         show_page = self._download_json(
             'https://api.ardmediathek.de/public-gateway',
-            '[Playlist] %s' % display_id,
+            f'[Playlist] {display_id}',
             data=graphQL,
-            headers={'Content-Type': 'application/json'})['data']
+            headers={'Content-Type': 'application/json'},
+        )['data']
         # align the structure of the returned data:
         if mode == 'sendung':
             show_page = show_page['showPage']
@@ -548,8 +544,8 @@ class ARDBetaMediathekIE(ARDMediathekBaseIE):
         """ Collects all playlist entries and returns them as info dict.
         Supports playlists of mode 'sendung' and 'sammlung', and also nested
         playlists. """
-        entries = []
         pageNumber = 0
+        entries = []
         while True:  # iterate by pageNumber
             show_page = self._ARD_load_playlist_snipped(
                 playlist_id, display_id, client, mode, pageNumber)
@@ -562,15 +558,7 @@ class ARDBetaMediathekIE(ARDMediathekBaseIE):
                 else:
                     link_mode = 'video'
 
-                item_url = 'https://www.ardmediathek.de/%s/%s/%s/%s/%s' % (
-                    client, link_mode, display_id,
-                    # perform HTLM quoting of episode title similar to ARD:
-                    re.sub('^-|-$', '',  # remove '-' from begin/end
-                           re.sub('[^a-zA-Z0-9]+', '-',  # replace special chars by -
-                                  teaser['links']['target']['title'].lower()
-                                  .replace('ä', 'ae').replace('ö', 'oe')
-                                  .replace('ü', 'ue').replace('ß', 'ss'))),
-                    teaser['links']['target']['id'])
+                item_url = f"https://www.ardmediathek.de/{client}/{link_mode}/{display_id}/{re.sub('^-|-$', '', re.sub('[^a-zA-Z0-9]+', '-', teaser['links']['target']['title'].lower().replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')))}/{teaser['links']['target']['id']}"
                 entries.append(self.url_result(
                     item_url,
                     ie=ARDBetaMediathekIE.ie_key()))
@@ -638,16 +626,20 @@ class ARDBetaMediathekIE(ARDMediathekBaseIE):
             player_page, lambda x: x['tracking']['atiCustomVars']['contentId']))
         media_collection = player_page.get('mediaCollection') or {}
         if not media_collection and content_id:
-            media_collection = self._download_json(
-                'https://www.ardmediathek.de/play/media/' + content_id,
-                content_id, fatal=False) or {}
+            media_collection = (
+                self._download_json(
+                    f'https://www.ardmediathek.de/play/media/{content_id}',
+                    content_id,
+                    fatal=False,
+                )
+                or {}
+            )
         info = self._parse_media_info(
             media_collection, content_id or video_id,
             player_page.get('blockedByFsk'))
         age_limit = None
         description = player_page.get('synopsis')
-        maturity_content_rating = player_page.get('maturityContentRating')
-        if maturity_content_rating:
+        if maturity_content_rating := player_page.get('maturityContentRating'):
             age_limit = int_or_none(maturity_content_rating.lstrip('FSK'))
         if not age_limit and description:
             age_limit = int_or_none(self._search_regex(

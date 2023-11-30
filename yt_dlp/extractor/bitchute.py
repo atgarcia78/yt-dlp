@@ -211,16 +211,18 @@ class BitChuteChannelIE(InfoExtractor):
             return
         classes = self.HTML_CLASS_NAMES[playlist_type]
         for video_html in get_elements_html_by_class(classes['container'], data.get('html')):
-            video_id = self._search_regex(
-                r'<a\s[^>]*\bhref=["\']/video/([^"\'/]+)', video_html, 'video id', default=None)
-            if not video_id:
-                continue
-            yield self.url_result(
-                f'https://www.bitchute.com/video/{video_id}', BitChuteIE, video_id, url_transparent=True,
-                title=clean_html(get_element_by_class(classes['title'], video_html)),
-                description=clean_html(get_element_by_class(classes['description'], video_html)),
-                duration=parse_duration(get_element_by_class('video-duration', video_html)),
-                view_count=parse_count(clean_html(get_element_by_class('video-views', video_html))))
+            if video_id := self._search_regex(
+                r'<a\s[^>]*\bhref=["\']/video/([^"\'/]+)',
+                video_html,
+                'video id',
+                default=None,
+            ):
+                yield self.url_result(
+                    f'https://www.bitchute.com/video/{video_id}', BitChuteIE, video_id, url_transparent=True,
+                    title=clean_html(get_element_by_class(classes['title'], video_html)),
+                    description=clean_html(get_element_by_class(classes['description'], video_html)),
+                    duration=parse_duration(get_element_by_class('video-duration', video_html)),
+                    view_count=parse_count(clean_html(get_element_by_class('video-views', video_html))))
 
     def _real_extract(self, url):
         playlist_type, playlist_id = self._match_valid_url(url).group('type', 'id')

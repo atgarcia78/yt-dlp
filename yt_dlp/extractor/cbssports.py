@@ -44,8 +44,7 @@ class CBSSportsEmbedIE(InfoExtractor):
         image = video.get('image')
         thumbnails = None
         if image:
-            image_path = image.get('path')
-            if image_path:
+            if image_path := image.get('path'):
                 thumbnails = [{
                     'url': image_path,
                     'width': int_or_none(image.get('width')),

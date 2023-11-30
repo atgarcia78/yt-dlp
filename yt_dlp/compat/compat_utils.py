@@ -37,10 +37,10 @@ class EnhancedModule(types.ModuleType):
         except AttributeError:
             if _is_dunder(attr):
                 raise
-            getter = getattr(self, '__getattr__', None)
-            if not getter:
+            if getter := getattr(self, '__getattr__', None):
+                ret = getter(attr)
+            else:
                 raise
-            ret = getter(attr)
         return ret.fget() if isinstance(ret, property) else ret
 
 

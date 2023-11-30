@@ -94,9 +94,7 @@ class MultilinePrinterBase:
         pass
 
     def _add_line_number(self, text, line):
-        if self.maximum:
-            return f'{line + 1}: {text}'
-        return text
+        return f'{line + 1}: {text}' if self.maximum else text
 
     def write(self, *text):
         write_string(''.join(text), self.stream)
@@ -157,11 +155,10 @@ class MultilinePrinter(MultilinePrinterBase):
             prefix = '\r'
             if self._lastlength > textlen:
                 text += ' ' * (self._lastlength - textlen)
-            self._lastlength = textlen
         else:
             # otherwise, break the line
             prefix = '\n'
-            self._lastlength = textlen
+        self._lastlength = textlen
         self.write(prefix, text)
         self._lastline = pos
 

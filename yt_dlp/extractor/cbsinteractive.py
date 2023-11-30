@@ -78,9 +78,8 @@ class CBSInteractiveIE(CBSIE):  # XXX: Do not subclass from concrete IE
         video_id = vdata['mpxRefId']
 
         title = vdata['title']
-        author = vdata.get('author')
-        if author:
-            uploader = '%s %s' % (author['firstName'], author['lastName'])
+        if author := vdata.get('author'):
+            uploader = f"{author['firstName']} {author['lastName']}"
             uploader_id = author.get('id')
         else:
             uploader = None

@@ -64,12 +64,16 @@ class AWSIE(InfoExtractor):  # XXX: Conventionally, base classes should end with
         signature = aws_hmac_hexdigest(k_signing, string_to_sign)
 
         # Task 4: http://docs.aws.amazon.com/general/latest/gr/sigv4-add-signature-to-request.html
-        headers['Authorization'] = ', '.join([
-            '%s Credential=%s/%s' % (self._AWS_ALGORITHM, aws_dict['access_key'], credential_scope),
-            'SignedHeaders=%s' % signed_headers,
-            'Signature=%s' % signature,
-        ])
+        headers['Authorization'] = ', '.join(
+            [
+                f"{self._AWS_ALGORITHM} Credential={aws_dict['access_key']}/{credential_scope}",
+                f'SignedHeaders={signed_headers}',
+                f'Signature={signature}',
+            ]
+        )
 
         return self._download_json(
-            'https://%s%s%s' % (self._AWS_PROXY_HOST, aws_dict['uri'], '?' + canonical_querystring if canonical_querystring else ''),
-            video_id, headers=headers)
+            f"https://{self._AWS_PROXY_HOST}{aws_dict['uri']}{f'?{canonical_querystring}' if canonical_querystring else ''}",
+            video_id,
+            headers=headers,
+        )

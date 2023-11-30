@@ -41,23 +41,28 @@ class AudiMediaIE(InfoExtractor):
         # TODO: handle s and e stage_mode (live streams and ended live streams)
         if stage_mode not in ('s', 'e'):
             video_data = self._download_json(
-                'https://www.audimedia.tv/api/video/v1/videos/' + video_id,
-                video_id, query={
+                f'https://www.audimedia.tv/api/video/v1/videos/{video_id}',
+                video_id,
+                query={
                     'embed[]': ['video_versions', 'thumbnail_image'],
-                })['results']
+                },
+            )['results']
             formats = []
 
-            stream_url_hls = video_data.get('stream_url_hls')
-            if stream_url_hls:
+            if stream_url_hls := video_data.get('stream_url_hls'):
                 formats.extend(self._extract_m3u8_formats(
                     stream_url_hls, video_id, 'mp4',
                     entry_protocol='m3u8_native', m3u8_id='hls', fatal=False))
 
-            stream_url_hds = video_data.get('stream_url_hds')
-            if stream_url_hds:
-                formats.extend(self._extract_f4m_formats(
-                    stream_url_hds + '?hdcore=3.4.0',
-                    video_id, f4m_id='hds', fatal=False))
+            if stream_url_hds := video_data.get('stream_url_hds'):
+                formats.extend(
+                    self._extract_f4m_formats(
+                        f'{stream_url_hds}?hdcore=3.4.0',
+                        video_id,
+                        f4m_id='hds',
+                        fatal=False,
+                    )
+                )
 
             for video_version in video_data.get('video_versions', []):
                 video_version_url = video_version.get('download_url') or video_version.get('stream_url')
@@ -70,11 +75,10 @@ class AudiMediaIE(InfoExtractor):
                     'abr': int_or_none(video_version.get('audio_bitrate')),
                     'vbr': int_or_none(video_version.get('video_bitrate')),
                 }
-                bitrate = self._search_regex(r'(\d+)k', video_version_url, 'bitrate', default=None)
-                if bitrate:
-                    f.update({
-                        'format_id': 'http-%s' % bitrate,
-                    })
+                if bitrate := self._search_regex(
+                    r'(\d+)k', video_version_url, 'bitrate', default=None
+                ):
+                    f['format_id'] = f'http-{bitrate}'
                 formats.append(f)
 
             return {

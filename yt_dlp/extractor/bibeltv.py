@@ -120,13 +120,13 @@ class BibelTVVideoIE(BibelTVBaseIE):
 
     def _real_extract(self, url):
         crn_id = self._match_id(url)
-        video_data = traverse_obj(
+        if video_data := traverse_obj(
             self._search_nextjs_data(self._download_webpage(url, crn_id), crn_id),
-            ('props', 'pageProps', 'videoPageData', 'videos', 0, {dict}))
-        if not video_data:
+            ('props', 'pageProps', 'videoPageData', 'videos', 0, {dict}),
+        ):
+            return self._extract_video_info(video_data)
+        else:
             raise ExtractorError('Missing video data.')
-
-        return self._extract_video_info(video_data)
 
 
 class BibelTVSeriesIE(BibelTVBaseIE):
@@ -148,13 +148,14 @@ class BibelTVSeriesIE(BibelTVBaseIE):
         crn_id = self._match_id(url)
         webpage = self._download_webpage(url, crn_id)
         nextjs_data = self._search_nextjs_data(webpage, crn_id)
-        series_data = traverse_obj(nextjs_data, ('props', 'pageProps', 'seriePageData', {dict}))
-        if not series_data:
+        if series_data := traverse_obj(
+            nextjs_data, ('props', 'pageProps', 'seriePageData', {dict})
+        ):
+            return self.playlist_result(
+                traverse_obj(series_data, ('videos', ..., {dict}, {self._extract_url_info})),
+                crn_id, series_data.get('title'), clean_html(series_data.get('description')))
+        else:
             raise ExtractorError('Missing series data.')
-
-        return self.playlist_result(
-            traverse_obj(series_data, ('videos', ..., {dict}, {self._extract_url_info})),
-            crn_id, series_data.get('title'), clean_html(series_data.get('description')))
 
 
 class BibelTVLiveIE(BibelTVBaseIE):

@@ -69,12 +69,12 @@ class AlJazeeraIE(InfoExtractor):
             account, player_id, embed, video_id = self._search_regex(self.BRIGHTCOVE_URL_RE, webpage, 'video id',
                                                                      group=(1, 2, 3, 4), default=(None, None, None, None))
 
-            if video_id is None:
-                return {
-                    '_type': 'url_transparent',
-                    'url': url,
-                    'ie_key': 'Generic'
-                }
+        if video_id is None:
+            return {
+                '_type': 'url_transparent',
+                'url': url,
+                'ie_key': 'Generic'
+            }
 
         return {
             '_type': 'url_transparent',

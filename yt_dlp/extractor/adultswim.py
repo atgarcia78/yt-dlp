@@ -129,7 +129,7 @@ class AdultSwimIE(TurnerBaseIE):
             episode_title = title = video_data['title']
             series = show_data.get('title')
             if series:
-                title = '%s - %s' % (series, title)
+                title = f'{series} - {title}'
             info = {
                 'id': video_id,
                 'title': title,
@@ -147,8 +147,7 @@ class AdultSwimIE(TurnerBaseIE):
             }
 
             auth = video_data.get('auth')
-            media_id = video_data.get('mediaID')
-            if media_id:
+            if media_id := video_data.get('mediaID'):
                 info.update(self._extract_ngtv_info(media_id, {
                     # CDN_TOKEN_APP_ID from:
                     # https://d2gg02c3xr550i.cloudfront.net/assets/asvp.e9c8bef24322d060ef87.bundle.js
@@ -160,9 +159,15 @@ class AdultSwimIE(TurnerBaseIE):
                 }))
 
             if not auth:
-                extract_data = self._download_json(
-                    'https://www.adultswim.com/api/shows/v1/videos/' + video_id,
-                    video_id, query={'fields': 'stream'}, fatal=False) or {}
+                extract_data = (
+                    self._download_json(
+                        f'https://www.adultswim.com/api/shows/v1/videos/{video_id}',
+                        video_id,
+                        query={'fields': 'stream'},
+                        fatal=False,
+                    )
+                    or {}
+                )
                 assets = try_get(extract_data, lambda x: x['data']['video']['stream']['assets'], list) or []
                 for asset in assets:
                     asset_url = asset.get('url')
@@ -188,12 +193,14 @@ class AdultSwimIE(TurnerBaseIE):
             entries = []
             for edge in show_data.get('videos', {}).get('edges', []):
                 video = edge.get('node') or {}
-                slug = video.get('slug')
-                if not slug:
-                    continue
-                entries.append(self.url_result(
-                    'http://adultswim.com/videos/%s/%s' % (show_path, slug),
-                    'AdultSwim', video.get('_id')))
+                if slug := video.get('slug'):
+                    entries.append(
+                        self.url_result(
+                            f'http://adultswim.com/videos/{show_path}/{slug}',
+                            'AdultSwim',
+                            video.get('_id'),
+                        )
+                    )
             return self.playlist_result(
                 entries, show_path, show_data.get('title'),
                 strip_or_none(show_data.get('metaDescription')))

@@ -11,16 +11,14 @@ class get_videourl_title:
 
     def __call__(self, driver):
 
-        el_player = driver.find_elements(by=By.ID, value="player")
-        if not el_player:
-            return False
+        if el_player := driver.find_elements(by=By.ID, value="player"):
+            return (
+                (video_url, driver.title)
+                if (video_url := el_player[0].get_attribute('src'))
+                else False
+            )
         else:
-
-            video_url = el_player[0].get_attribute('src')
-            if video_url:
-                return (video_url, driver.title)
-            else:
-                return False
+            return False
 
 
 class CockHeroIE(SeleniumInfoExtractor):
@@ -64,20 +62,24 @@ class CockHeroIE(SeleniumInfoExtractor):
             if not info_video:
                 raise ExtractorError("error video info")
 
-            formats = [{'format_id': 'http', 'url': info_video.get('url'), 'filesize': info_video.get('filesize'), 'ext': 'mp4'}]
-            if not formats:
-                raise ExtractorError("No formats found")
-            else:
+            if formats := [
+                {
+                    'format_id': 'http',
+                    'url': info_video.get('url'),
+                    'filesize': info_video.get('filesize'),
+                    'ext': 'mp4',
+                }
+            ]:
                 self._sort_formats(formats)
 
-                entry = {
+                return {
                     'id': video_id,
                     'title': sanitize_filename(title, restricted=True),
                     'formats': formats,
-                    'ext': 'mp4'
+                    'ext': 'mp4',
                 }
-                return entry
-
+            else:
+                raise ExtractorError("No formats found")
         except Exception as e:
             lines = traceback.format_exception(*sys.exc_info())
             self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")

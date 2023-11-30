@@ -82,15 +82,17 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
         if not username or not password:
             self.raise_login_required(
-                'A valid %s account is needed to access this media.'
-                % self._NETRC_MACHINE)
+                f'A valid {self._NETRC_MACHINE} account is needed to access this media.'
+            )
 
         self.report_login()
 
         BoyFriendTVBaseIE._send_request(self._SITE_URL, driver)
-        el_menu = self.wait_until(
-            driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
-        if el_menu:
+        if el_menu := self.wait_until(
+            driver,
+            10,
+            ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")),
+        ):
             self.logger_debug("Login already")
             return
 
@@ -110,13 +112,16 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             el_password.send_keys(password)
             self.wait_until(driver, 2)
             el_login.submit()
-            el_menu = self.wait_until(
-                driver, 10, ec.presence_of_element_located((By.CSS_SELECTOR, "a.show-user-menu")))
-
-            if not el_menu:
-                self.raise_login_required("Invalid username/password")
-            else:
+            if el_menu := self.wait_until(
+                driver,
+                10,
+                ec.presence_of_element_located(
+                    (By.CSS_SELECTOR, "a.show-user-menu")
+                ),
+            ):
                 self.logger_debug("Login OK")
+            else:
+                self.raise_login_required("Invalid username/password")
 
     def _real_initialize(self):
 
@@ -294,8 +299,13 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
         if not last_page_url:
             return 1
 
-        last_page = try_get(re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url), lambda x: int(x.group('last'))) or 1
-        return last_page
+        return (
+            try_get(
+                re.search(r'(?P<last>\d+)/?(?:$|\?)', last_page_url),
+                lambda x: int(x.group('last')),
+            )
+            or 1
+        )
 
     def _get_entries_page(self, url_page, _min_rating, _q, page, orig_url):
 
@@ -310,7 +320,6 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                 raise ExtractorError("error 404 no webpage", expected=True)
 
             el_videos = try_get(webpage.split(self._CSS_SEL), lambda x: x[1:])
-            entries = []
             urls = []
             if el_videos:
                 for el in el_videos:
@@ -327,32 +336,33 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                         if rating and (rating < _min_rating):
                             continue
                         if title and _q:
-                            if not any(_.lower() in title.lower() for _ in _q):
+                            if all(_.lower() not in title.lower() for _ in _q):
                                 continue
 
                         urls.append(url)
                     except Exception as e:
                         logger.exception(repr(e))
             if urls:
-
-                if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
-                    ie_bf = self._get_extractor("BoyFriendTV")
-                    with ThreadPoolExecutor(thread_name_prefix=f'bftventries{page}') as ex:
-                        futures = {ex.submit(ie_bf._get_entry, _url): _url for _url in urls}
-                    for fut in futures:
-                        try:
-                            if (_ent := fut.result()):
-                                _ent.update({'original_url': orig_url})
-                                entries.append(_ent)
-                            else:
-                                self.report_warning(f"[{url_page}][{futures[fut]}] no entry")
-                        except Exception as e:
-                            self.report_warning(f"[{url_page}][{futures[fut]}] {repr(e)}")
-                    if entries:
-                        return (entries)
-                else:
-                    entries = [self.url_result(_url, ie=BoyFriendTVIE.ie_key()) for _url in urls]
-                    return entries
+                if (
+                    not self.get_param('embed')
+                    and self.get_param('extract_flat', '') == 'in_playlist'
+                ):
+                    return [self.url_result(_url, ie=BoyFriendTVIE.ie_key()) for _url in urls]
+                ie_bf = self._get_extractor("BoyFriendTV")
+                with ThreadPoolExecutor(thread_name_prefix=f'bftventries{page}') as ex:
+                    futures = {ex.submit(ie_bf._get_entry, _url): _url for _url in urls}
+                entries = []
+                for fut, value in futures.items():
+                    try:
+                        if (_ent := fut.result()):
+                            _ent.update({'original_url': orig_url})
+                            entries.append(_ent)
+                        else:
+                            self.report_warning(f"[{url_page}][{value}] no entry")
+                    except Exception as e:
+                        self.report_warning(f"[{url_page}][{futures[fut]}] {repr(e)}")
+                if entries:
+                    return (entries)
         except Exception as e:
             logger.exception(repr(e))
 

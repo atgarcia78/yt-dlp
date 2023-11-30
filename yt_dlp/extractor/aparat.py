@@ -44,8 +44,10 @@ class AparatIE(InfoExtractor):
 
         if not options:
             webpage = self._download_webpage(
-                'http://www.aparat.com/video/video/embed/vt/frame/showvideo/yes/videohash/' + video_id,
-                video_id, 'Downloading embed webpage')
+                f'http://www.aparat.com/video/video/embed/vt/frame/showvideo/yes/videohash/{video_id}',
+                video_id,
+                'Downloading embed webpage',
+            )
             options = self._parse_options(webpage, video_id)
 
         formats = []
@@ -65,20 +67,27 @@ class AparatIE(InfoExtractor):
                 else:
                     ext = mimetype2ext(item.get('type'))
                     label = item.get('label')
-                    formats.append({
-                        'url': file_url,
-                        'ext': ext,
-                        'format_id': 'http-%s' % (label or ext),
-                        'height': int_or_none(self._search_regex(
-                            r'(\d+)[pP]', label or '', 'height',
-                            default=None)),
-                    })
+                    formats.append(
+                        {
+                            'url': file_url,
+                            'ext': ext,
+                            'format_id': f'http-{label or ext}',
+                            'height': int_or_none(
+                                self._search_regex(
+                                    r'(\d+)[pP]',
+                                    label or '',
+                                    'height',
+                                    default=None,
+                                )
+                            ),
+                        }
+                    )
 
         info = self._search_json_ld(webpage, video_id, default={})
 
         if not info.get('title'):
             info['title'] = get_element_by_id('videoTitle', webpage) or \
-                self._html_search_meta(['og:title', 'twitter:title', 'DC.Title', 'title'], webpage, fatal=True)
+                    self._html_search_meta(['og:title', 'twitter:title', 'DC.Title', 'title'], webpage, fatal=True)
 
         return merge_dicts(info, {
             'id': video_id,

@@ -36,9 +36,7 @@ def _js_bit_op(op):
 def _js_arith_op(op):
 
     def wrapped(a, b):
-        if JS_Undefined in (a, b):
-            return float('nan')
-        return op(a or 0, b or 0)
+        return float('nan') if JS_Undefined in (a, b) else op(a or 0, b or 0)
 
     return wrapped
 
@@ -50,9 +48,7 @@ def _js_div(a, b):
 
 
 def _js_mod(a, b):
-    if JS_Undefined in (a, b) or not b:
-        return float('nan')
-    return (a or 0) % b
+    return float('nan') if JS_Undefined in (a, b) or not b else (a or 0) % b
 
 
 def _js_exp(a, b):
@@ -66,9 +62,7 @@ def _js_exp(a, b):
 def _js_eq_op(op):
 
     def wrapped(a, b):
-        if {a, b} <= {None, JS_Undefined}:
-            return op(a, a)
-        return op(a, b)
+        return op(a, a) if {a, b} <= {None, JS_Undefined} else op(a, b)
 
     return wrapped
 
@@ -190,9 +184,10 @@ class Debugger:
                     cls.write('=> Raises:', e, '<-|', stmt, level=allow_recursion)
                 raise
             if cls.ENABLED and stmt.strip():
-                if should_ret or not repr(ret) == stmt:
+                if should_ret or repr(ret) != stmt:
                     cls.write(['->', '=>'][should_ret], repr(ret), '<-|', stmt, level=allow_recursion)
             return ret, should_ret
+
         return interpret_statement
 
 

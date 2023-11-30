@@ -16,9 +16,7 @@ BASH_COMPLETION_TEMPLATE = "devscripts/bash-completion.in"
 def build_completion(opt_parser):
     opts_flag = []
     for group in opt_parser.option_groups:
-        for option in group.option_list:
-            # for every long flag
-            opts_flag.append(option.get_opt_string())
+        opts_flag.extend(option.get_opt_string() for option in group.option_list)
     with open(BASH_COMPLETION_TEMPLATE) as f:
         template = f.read()
     with open(BASH_COMPLETION_FILE, "w") as f:

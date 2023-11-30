@@ -63,17 +63,17 @@ class BrilliantpalaBaseIE(InfoExtractor):
 
         entries = []
         for stream in traverse_obj(content_json, ('video', 'streams', lambda _, v: v['id'] and v['url'])):
-            formats = self._extract_m3u8_formats(stream['url'], video_id, fatal=False)
-            if not formats:
-                continue
-            entries.append({
-                'id': str(stream['id']),
-                'title': content_json.get('title'),
-                'formats': formats,
-                'hls_aes': {'uri': self._HLS_AES_URI.format(content_id=content_id)},
-                'http_headers': {'X-Key': hashlib.sha256(username.encode('ascii')).hexdigest()},
-                'thumbnail': content_json.get('cover_image'),
-            })
+            if formats := self._extract_m3u8_formats(
+                stream['url'], video_id, fatal=False
+            ):
+                entries.append({
+                    'id': str(stream['id']),
+                    'title': content_json.get('title'),
+                    'formats': formats,
+                    'hls_aes': {'uri': self._HLS_AES_URI.format(content_id=content_id)},
+                    'http_headers': {'X-Key': hashlib.sha256(username.encode('ascii')).hexdigest()},
+                    'thumbnail': content_json.get('cover_image'),
+                })
 
         return self.playlist_result(
             entries, playlist_id=video_id, playlist_title=content_json.get('title'))

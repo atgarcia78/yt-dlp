@@ -24,7 +24,7 @@ def _download_restricted(url, filename, age):
     }
     ydl = YoutubeDL(params)
     ydl.add_default_info_extractors()
-    json_filename = os.path.splitext(filename)[0] + '.info.json'
+    json_filename = f'{os.path.splitext(filename)[0]}.info.json'
     try_rm(json_filename)
     try:
         ydl.download([url])

@@ -42,9 +42,9 @@ class AluraIE(InfoExtractor):
         course, video_id = self._match_valid_url(url)
         video_url = self._VIDEO_URL % (course, video_id)
 
-        video_dict = self._download_json(video_url, video_id, 'Searching for videos')
-
-        if video_dict:
+        if video_dict := self._download_json(
+            video_url, video_id, 'Searching for videos'
+        ):
             webpage = self._download_webpage(url, video_id)
             video_title = clean_html(self._search_regex(
                 r'<span[^>]+class=(["\'])task-body-header-title-text\1[^>]*>(?P<title>[^<]+)',
@@ -57,8 +57,9 @@ class AluraIE(InfoExtractor):
                     video_url_m3u8, None, 'mp4', entry_protocol='m3u8_native',
                     m3u8_id='hls', fatal=False)
                 for f in video_format:
-                    m = re.search(r'^[\w \W]*-(?P<res>\w*).mp4[\W \w]*', f['url'])
-                    if m:
+                    if m := re.search(
+                        r'^[\w \W]*-(?P<res>\w*).mp4[\W \w]*', f['url']
+                    ):
                         if not f.get('height'):
                             f['height'] = int('720' if m.group('res') == 'hd' else '480')
                 formats.extend(video_format)
@@ -107,7 +108,7 @@ class AluraIE(InfoExtractor):
                 r'(?s)<p[^>]+class="alert-message[^"]*">(.+?)</p>',
                 response, 'error message', default=None)
             if error:
-                raise ExtractorError('Unable to login: %s' % error, expected=True)
+                raise ExtractorError(f'Unable to login: {error}', expected=True)
             raise ExtractorError('Unable to log in')
 
 

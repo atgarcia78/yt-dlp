@@ -261,12 +261,11 @@ def _extract_chrome_cookies(browser_name, profile, keyring, logger):
     elif _is_path(profile):
         search_root = profile
         config['browser_dir'] = os.path.dirname(profile) if config['supports_profiles'] else profile
+    elif config['supports_profiles']:
+        search_root = os.path.join(config['browser_dir'], profile)
     else:
-        if config['supports_profiles']:
-            search_root = os.path.join(config['browser_dir'], profile)
-        else:
-            logger.error(f'{browser_name} does not support profiles')
-            search_root = config['browser_dir']
+        logger.error(f'{browser_name} does not support profiles')
+        search_root = config['browser_dir']
 
     cookie_database_path = _find_most_recently_used_file(search_root, 'Cookies', logger)
     if cookie_database_path is None:
@@ -439,13 +438,13 @@ class MacChromeCookieDecryptor(ChromeCookieDecryptor):
 
     def decrypt(self, encrypted_value):
         version = encrypted_value[:3]
-        ciphertext = encrypted_value[3:]
-
         if version == b'v10':
             self._cookie_counts['v10'] += 1
             if self._v10_key is None:
                 self._logger.warning('cannot decrypt v10 cookies: no key found', only_once=True)
                 return None
+
+            ciphertext = encrypted_value[3:]
 
             return _decrypt_aes_cbc_multi(ciphertext, (self._v10_key,), self._logger)
 
@@ -711,10 +710,12 @@ def _get_linux_desktop_environment(env, logger):
         xdg_current_desktop = xdg_current_desktop.split(':')[0].strip()
 
         if xdg_current_desktop == 'Unity':
-            if desktop_session is not None and 'gnome-fallback' in desktop_session:
-                return _LinuxDesktopEnvironment.GNOME
-            else:
-                return _LinuxDesktopEnvironment.UNITY
+            return (
+                _LinuxDesktopEnvironment.GNOME
+                if desktop_session is not None
+                and 'gnome-fallback' in desktop_session
+                else _LinuxDesktopEnvironment.UNITY
+            )
         elif xdg_current_desktop == 'Deepin':
             return _LinuxDesktopEnvironment.DEEPIN
         elif xdg_current_desktop == 'GNOME':
@@ -762,14 +763,13 @@ def _get_linux_desktop_environment(env, logger):
         else:
             logger.info(f'DESKTOP_SESSION is set to an unknown value: "{desktop_session}"')
 
-    else:
-        if 'GNOME_DESKTOP_SESSION_ID' in env:
-            return _LinuxDesktopEnvironment.GNOME
-        elif 'KDE_FULL_SESSION' in env:
-            if 'KDE_SESSION_VERSION' in env:
-                return _LinuxDesktopEnvironment.KDE4
-            else:
-                return _LinuxDesktopEnvironment.KDE3
+    elif 'GNOME_DESKTOP_SESSION_ID' in env:
+        return _LinuxDesktopEnvironment.GNOME
+    elif 'KDE_FULL_SESSION' in env:
+        if 'KDE_SESSION_VERSION' in env:
+            return _LinuxDesktopEnvironment.KDE4
+        else:
+            return _LinuxDesktopEnvironment.KDE3
     return _LinuxDesktopEnvironment.OTHER
 
 
@@ -788,18 +788,17 @@ def _choose_linux_keyring(logger):
     desktop_environment = _get_linux_desktop_environment(os.environ, logger)
     logger.debug(f'detected desktop environment: {desktop_environment.name}')
     if desktop_environment == _LinuxDesktopEnvironment.KDE4:
-        linux_keyring = _LinuxKeyring.KWALLET
+        return _LinuxKeyring.KWALLET
     elif desktop_environment == _LinuxDesktopEnvironment.KDE5:
-        linux_keyring = _LinuxKeyring.KWALLET5
+        return _LinuxKeyring.KWALLET5
     elif desktop_environment == _LinuxDesktopEnvironment.KDE6:
-        linux_keyring = _LinuxKeyring.KWALLET6
+        return _LinuxKeyring.KWALLET6
     elif desktop_environment in (
         _LinuxDesktopEnvironment.KDE3, _LinuxDesktopEnvironment.LXQT, _LinuxDesktopEnvironment.OTHER
     ):
-        linux_keyring = _LinuxKeyring.BASICTEXT
+        return _LinuxKeyring.BASICTEXT
     else:
-        linux_keyring = _LinuxKeyring.GNOMEKEYRING
-    return linux_keyring
+        return _LinuxKeyring.GNOMEKEYRING
 
 
 def _get_kwallet_network_wallet(keyring, logger):
@@ -976,10 +975,8 @@ def pbkdf2_sha1(password, salt, iterations, key_length):
 def _decrypt_aes_cbc_multi(ciphertext, keys, logger, initialization_vector=b' ' * 16):
     for key in keys:
         plaintext = unpad_pkcs7(aes_cbc_decrypt_bytes(ciphertext, key, initialization_vector))
-        try:
+        with contextlib.suppress(UnicodeDecodeError):
             return plaintext.decode()
-        except UnicodeDecodeError:
-            pass
     logger.warning('failed to decrypt cookie (AES-CBC) because UTF-8 decoding failed. Possibly the key is wrong?', only_once=True)
     return None
 
@@ -1164,17 +1161,14 @@ class LenientSimpleCookie(http.cookies.SimpleCookie):
 
                 morsel[key] = value
 
-            elif is_attribute:
+            elif is_attribute or value is None:
                 morsel = None
 
-            elif value is not None:
+            else:
                 morsel = self.get(key, http.cookies.Morsel())
                 real_value, coded_value = self.value_decode(value)
                 morsel.set(key, real_value, coded_value)
                 self[key] = morsel
-
-            else:
-                morsel = None
 
 
 class YoutubeDLCookieJar(http.cookiejar.MozillaCookieJar):
@@ -1274,7 +1268,7 @@ class YoutubeDLCookieJar(http.cookiejar.MozillaCookieJar):
                 raise http.cookiejar.LoadError('invalid length %d' % len(cookie_list))
             cookie = self._CookieFileEntry(*cookie_list)
             if cookie.expires_at and not cookie.expires_at.isdigit():
-                raise http.cookiejar.LoadError('invalid expires at %s' % cookie.expires_at)
+                raise http.cookiejar.LoadError(f'invalid expires at {cookie.expires_at}')
             return line
 
         cf = io.StringIO()

@@ -30,7 +30,7 @@ if compat_os_name == 'nt':
 
         for scheme in ('https', 'ftp'):
             if scheme in proxies and proxies[scheme].startswith(f'{scheme}://'):
-                proxies[scheme] = 'http' + proxies[scheme][len(scheme):]
+                proxies[scheme] = f'http{proxies[scheme][len(scheme):]}'
 
         return proxies
 

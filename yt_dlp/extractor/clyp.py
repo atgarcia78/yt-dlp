@@ -58,14 +58,14 @@ class ClypIE(InfoExtractor):
             query['token'] = token
 
         metadata = self._download_json(
-            'https://api.clyp.it/%s' % audio_id, audio_id, query=query)
+            f'https://api.clyp.it/{audio_id}', audio_id, query=query
+        )
 
         formats = []
         for secure in ('', 'Secure'):
             for ext in ('Ogg', 'Mp3'):
-                format_id = '%s%s' % (secure, ext)
-                format_url = metadata.get('%sUrl' % format_id)
-                if format_url:
+                format_id = f'{secure}{ext}'
+                if format_url := metadata.get(f'{format_id}Url'):
                     formats.append({
                         'url': format_url,
                         'format_id': format_id,
@@ -74,9 +74,12 @@ class ClypIE(InfoExtractor):
                     })
 
         page = self._download_webpage(url, video_id=audio_id)
-        wav_url = self._html_search_regex(
-            r'var\s*wavStreamUrl\s*=\s*["\'](?P<url>https?://[^\'"]+)', page, 'url', default=None)
-        if wav_url:
+        if wav_url := self._html_search_regex(
+            r'var\s*wavStreamUrl\s*=\s*["\'](?P<url>https?://[^\'"]+)',
+            page,
+            'url',
+            default=None,
+        ):
             formats.append({
                 'url': wav_url,
                 'format_id': 'wavStreamUrl',

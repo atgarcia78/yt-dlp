@@ -54,9 +54,13 @@ class CBSNewsBaseIE(InfoExtractor):
         return traverse_obj(item, 'video', 'video2', expected_type=url_or_none)
 
     def _extract_playlist(self, webpage, playlist_id):
-        entries = [self.url_result(embed_url, CBSNewsEmbedIE) for embed_url in re.findall(
-            r'<iframe[^>]+data-src="(https?://(?:www\.)?cbsnews\.com/embed/video/[^#]*#[^"]+)"', webpage)]
-        if entries:
+        if entries := [
+            self.url_result(embed_url, CBSNewsEmbedIE)
+            for embed_url in re.findall(
+                r'<iframe[^>]+data-src="(https?://(?:www\.)?cbsnews\.com/embed/video/[^#]*#[^"]+)"',
+                webpage,
+            )
+        ]:
             return self.playlist_result(
                 entries, playlist_id, self._html_search_meta(['og:title', 'twitter:title'], webpage),
                 self._html_search_meta(['og:description', 'twitter:description', 'description'], webpage))
@@ -223,8 +227,7 @@ class CBSNewsIE(CBSNewsBaseIE):
         display_id = self._match_id(url)
         webpage = self._download_webpage(url, display_id)
 
-        playlist = self._extract_playlist(webpage, display_id)
-        if playlist:
+        if playlist := self._extract_playlist(webpage, display_id):
             return playlist
 
         item = self._get_item(webpage, display_id)
@@ -252,8 +255,7 @@ class CBSLocalBaseIE(CBSNewsBaseIE):
                 webpage, 'Anvato URL', default=None)
 
             if not anv_params:
-                playlist = self._extract_playlist(webpage, display_id)
-                if playlist:
+                if playlist := self._extract_playlist(webpage, display_id):
                     return playlist
                 self.raise_no_formats('No video content was found', expected=True, video_id=video_id)
 

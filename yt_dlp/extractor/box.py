@@ -34,23 +34,30 @@ class BoxIE(InfoExtractor):
             r'Box\.config\s*=\s*({.+?});', webpage,
             'Box config'), file_id)['requestToken']
         access_token = self._download_json(
-            'https://app.box.com/app-api/enduserapp/elements/tokens', file_id,
+            'https://app.box.com/app-api/enduserapp/elements/tokens',
+            file_id,
             'Downloading token JSON metadata',
-            data=json.dumps({'fileIDs': [file_id]}).encode(), headers={
+            data=json.dumps({'fileIDs': [file_id]}).encode(),
+            headers={
                 'Content-Type': 'application/json',
                 'X-Request-Token': request_token,
-                'X-Box-EndUser-API': 'sharedName=' + shared_name,
-            })[file_id]['read']
-        shared_link = 'https://app.box.com/s/' + shared_name
+                'X-Box-EndUser-API': f'sharedName={shared_name}',
+            },
+        )[file_id]['read']
+        shared_link = f'https://app.box.com/s/{shared_name}'
         f = self._download_json(
-            'https://api.box.com/2.0/files/' + file_id, file_id,
-            'Downloading file JSON metadata', headers={
-                'Authorization': 'Bearer ' + access_token,
-                'BoxApi': 'shared_link=' + shared_link,
-                'X-Rep-Hints': '[dash]',  # TODO: extract `hls` formats
-            }, query={
+            f'https://api.box.com/2.0/files/{file_id}',
+            file_id,
+            'Downloading file JSON metadata',
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'BoxApi': f'shared_link={shared_link}',
+                'X-Rep-Hints': '[dash]',
+            },
+            query={
                 'fields': 'authenticated_download_url,created_at,created_by,description,extension,is_download_available,name,representations,size'
-            })
+            },
+        )
         title = f['name']
 
         query = {

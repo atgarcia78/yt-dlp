@@ -118,9 +118,16 @@ class BandcampIE(InfoExtractor):
     }]
 
     def _extract_data_attr(self, webpage, video_id, attr='tralbum', fatal=True):
-        return self._parse_json(self._html_search_regex(
-            r'data-%s=(["\'])({.+?})\1' % attr, webpage,
-            attr + ' data', group=2), video_id, fatal=fatal)
+        return self._parse_json(
+            self._html_search_regex(
+                r'data-%s=(["\'])({.+?})\1' % attr,
+                webpage,
+                f'{attr} data',
+                group=2,
+            ),
+            video_id,
+            fatal=fatal,
+        )
 
     def _real_extract(self, url):
         title, uploader = self._match_valid_url(url).group('id', 'uploader')
@@ -134,8 +141,7 @@ class BandcampIE(InfoExtractor):
         duration = None
 
         formats = []
-        track_info = try_get(tralbum, lambda x: x['trackinfo'][0], dict)
-        if track_info:
+        if track_info := try_get(tralbum, lambda x: x['trackinfo'][0], dict):
             file_ = track_info.get('file')
             if isinstance(file_, dict):
                 for format_id, format_url in file_.items():
@@ -165,8 +171,7 @@ class BandcampIE(InfoExtractor):
         timestamp = unified_timestamp(
             current.get('publish_date') or tralbum.get('album_publish_date'))
 
-        download_link = tralbum.get('freeDownloadPage')
-        if download_link:
+        if download_link := tralbum.get('freeDownloadPage'):
             track_id = compat_str(tralbum['id'])
 
             download_webpage = self._download_webpage(
@@ -174,10 +179,14 @@ class BandcampIE(InfoExtractor):
 
             blob = self._extract_data_attr(download_webpage, track_id, 'blob')
 
-            info = try_get(
-                blob, (lambda x: x['digital_items'][0],
-                       lambda x: x['download_items'][0]), dict)
-            if info:
+            if info := try_get(
+                blob,
+                (
+                    lambda x: x['digital_items'][0],
+                    lambda x: x['download_items'][0],
+                ),
+                dict,
+            ):
                 downloads = info.get('downloads')
                 if isinstance(downloads, dict):
                     if not track:
@@ -207,25 +216,28 @@ class BandcampIE(InfoExtractor):
                             })
                         format_id = f.get('encoding_name') or format_id
                         stat = self._download_json(
-                            stat_url, track_id, 'Downloading %s JSON' % format_id,
-                            transform_source=lambda s: s[s.index('{'):s.rindex('}') + 1],
-                            fatal=False)
+                            stat_url,
+                            track_id,
+                            f'Downloading {format_id} JSON',
+                            transform_source=lambda s: s[
+                                s.index('{') : s.rindex('}') + 1
+                            ],
+                            fatal=False,
+                        )
                         if not stat:
                             continue
-                        retry_url = url_or_none(stat.get('retry_url'))
-                        if not retry_url:
-                            continue
-                        formats.append({
-                            'url': self._proto_relative_url(retry_url, 'http:'),
-                            'ext': download_formats.get(format_id),
-                            'format_id': format_id,
-                            'format_note': f.get('description'),
-                            'filesize': parse_filesize(f.get('size_mb')),
-                            'vcodec': 'none',
-                            'acodec': format_id.split('-')[0],
-                        })
+                        if retry_url := url_or_none(stat.get('retry_url')):
+                            formats.append({
+                                'url': self._proto_relative_url(retry_url, 'http:'),
+                                'ext': download_formats.get(format_id),
+                                'format_id': format_id,
+                                'format_note': f.get('description'),
+                                'filesize': parse_filesize(f.get('size_mb')),
+                                'vcodec': 'none',
+                                'acodec': format_id.split('-')[0],
+                            })
 
-        title = '%s - %s' % (artist, track) if artist else track
+        title = f'{artist} - {track}' if artist else track
 
         if not duration:
             duration = float_or_none(self._html_search_meta(
@@ -391,12 +403,14 @@ class BandcampWeeklyIE(BandcampIE):  # XXX: Do not subclass from concrete IE
         for format_id, format_url in show['audio_stream'].items():
             if not url_or_none(format_url):
                 continue
-            for known_ext in KNOWN_EXTENSIONS:
-                if known_ext in format_id:
-                    ext = known_ext
-                    break
-            else:
-                ext = None
+            ext = next(
+                (
+                    known_ext
+                    for known_ext in KNOWN_EXTENSIONS
+                    if known_ext in format_id
+                ),
+                None,
+            )
             formats.append({
                 'format_id': format_id,
                 'url': format_url,
@@ -405,9 +419,8 @@ class BandcampWeeklyIE(BandcampIE):  # XXX: Do not subclass from concrete IE
             })
 
         title = show.get('audio_title') or 'Bandcamp Weekly'
-        subtitle = show.get('subtitle')
-        if subtitle:
-            title += ' - %s' % subtitle
+        if subtitle := show.get('subtitle'):
+            title += f' - {subtitle}'
 
         return {
             'id': show_id,

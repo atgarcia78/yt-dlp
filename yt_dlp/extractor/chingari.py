@@ -26,12 +26,14 @@ class ChingariBaseIE(InfoExtractor):
         } for frmt, frmt_path in media_data.get('transcoded', {}).items()]
 
         if media_data.get('path'):
-            formats.append({
-                'format_id': 'original',
-                'format_note': 'Direct video.',
-                'url': base_url + '/apipublic' + media_data['path'],
-                'quality': 10,
-            })
+            formats.append(
+                {
+                    'format_id': 'original',
+                    'format_note': 'Direct video.',
+                    'url': f'{base_url}/apipublic' + media_data['path'],
+                    'quality': 10,
+                }
+            )
         timestamp = str_to_int(post_data.get('created_at'))
         if timestamp:
             timestamp = int_or_none(timestamp, 1000)
@@ -186,10 +188,15 @@ class ChingariUserIE(ChingariBaseIE):
         skip = 0
         has_more = True
         for page in itertools.count():
-            posts = self._download_json('https://api.chingari.io/users/getPosts', id,
-                                        data=json.dumps({'userId': id, 'ownerId': id, 'skip': skip, 'limit': 20}).encode(),
-                                        headers={'content-type': 'application/json;charset=UTF-8'},
-                                        note='Downloading page %s' % page)
+            posts = self._download_json(
+                'https://api.chingari.io/users/getPosts',
+                id,
+                data=json.dumps(
+                    {'userId': id, 'ownerId': id, 'skip': skip, 'limit': 20}
+                ).encode(),
+                headers={'content-type': 'application/json;charset=UTF-8'},
+                note=f'Downloading page {page}',
+            )
             for post in posts.get('data', []):
                 post_data = post['post']
                 yield self._get_post(post_data['_id'], post_data)

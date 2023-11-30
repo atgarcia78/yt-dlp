@@ -306,95 +306,6 @@ class TestFormatSelection(unittest.TestCase):
         # FIXME: Rewrite in accordance with the new format sorting options
         return
 
-        order = [
-            '38', '37', '46', '22', '45', '35', '44', '18', '34', '43', '6', '5', '17', '36', '13',
-            # Apple HTTP Live Streaming
-            '96', '95', '94', '93', '92', '132', '151',
-            # 3D
-            '85', '84', '102', '83', '101', '82', '100',
-            # Dash video
-            '137', '248', '136', '247', '135', '246',
-            '245', '244', '134', '243', '133', '242', '160',
-            # Dash audio
-            '141', '172', '140', '171', '139',
-        ]
-
-        def format_info(f_id):
-            info = YoutubeIE._formats[f_id].copy()
-
-            # XXX: In real cases InfoExtractor._parse_mpd_formats() fills up 'acodec'
-            # and 'vcodec', while in tests such information is incomplete since
-            # commit a6c2c24479e5f4827ceb06f64d855329c0a6f593
-            # test_YoutubeDL.test_youtube_format_selection is broken without
-            # this fix
-            if 'acodec' in info and 'vcodec' not in info:
-                info['vcodec'] = 'none'
-            elif 'vcodec' in info and 'acodec' not in info:
-                info['acodec'] = 'none'
-
-            info['format_id'] = f_id
-            info['url'] = 'url:' + f_id
-            return info
-        formats_order = [format_info(f_id) for f_id in order]
-
-        info_dict = _make_result(list(formats_order), extractor='youtube')
-        ydl = YDL({'format': 'bestvideo+bestaudio'})
-        ydl.sort_formats(info_dict)
-        ydl.process_ie_result(info_dict)
-        downloaded = ydl.downloaded_info_dicts[0]
-        self.assertEqual(downloaded['format_id'], '248+172')
-        self.assertEqual(downloaded['ext'], 'mp4')
-
-        info_dict = _make_result(list(formats_order), extractor='youtube')
-        ydl = YDL({'format': 'bestvideo[height>=999999]+bestaudio/best'})
-        ydl.sort_formats(info_dict)
-        ydl.process_ie_result(info_dict)
-        downloaded = ydl.downloaded_info_dicts[0]
-        self.assertEqual(downloaded['format_id'], '38')
-
-        info_dict = _make_result(list(formats_order), extractor='youtube')
-        ydl = YDL({'format': 'bestvideo/best,bestaudio'})
-        ydl.sort_formats(info_dict)
-        ydl.process_ie_result(info_dict)
-        downloaded_ids = [info['format_id'] for info in ydl.downloaded_info_dicts]
-        self.assertEqual(downloaded_ids, ['137', '141'])
-
-        info_dict = _make_result(list(formats_order), extractor='youtube')
-        ydl = YDL({'format': '(bestvideo[ext=mp4],bestvideo[ext=webm])+bestaudio'})
-        ydl.sort_formats(info_dict)
-        ydl.process_ie_result(info_dict)
-        downloaded_ids = [info['format_id'] for info in ydl.downloaded_info_dicts]
-        self.assertEqual(downloaded_ids, ['137+141', '248+141'])
-
-        info_dict = _make_result(list(formats_order), extractor='youtube')
-        ydl = YDL({'format': '(bestvideo[ext=mp4],bestvideo[ext=webm])[height<=720]+bestaudio'})
-        ydl.sort_formats(info_dict)
-        ydl.process_ie_result(info_dict)
-        downloaded_ids = [info['format_id'] for info in ydl.downloaded_info_dicts]
-        self.assertEqual(downloaded_ids, ['136+141', '247+141'])
-
-        info_dict = _make_result(list(formats_order), extractor='youtube')
-        ydl = YDL({'format': '(bestvideo[ext=none]/bestvideo[ext=webm])+bestaudio'})
-        ydl.sort_formats(info_dict)
-        ydl.process_ie_result(info_dict)
-        downloaded_ids = [info['format_id'] for info in ydl.downloaded_info_dicts]
-        self.assertEqual(downloaded_ids, ['248+141'])
-
-        for f1, f2 in zip(formats_order, formats_order[1:]):
-            info_dict = _make_result([f1, f2], extractor='youtube')
-            ydl = YDL({'format': 'best/bestvideo'})
-            ydl.sort_formats(info_dict)
-            ydl.process_ie_result(info_dict)
-            downloaded = ydl.downloaded_info_dicts[0]
-            self.assertEqual(downloaded['format_id'], f1['format_id'])
-
-            info_dict = _make_result([f2, f1], extractor='youtube')
-            ydl = YDL({'format': 'best/bestvideo'})
-            ydl.sort_formats(info_dict)
-            ydl.process_ie_result(info_dict)
-            downloaded = ydl.downloaded_info_dicts[0]
-            self.assertEqual(downloaded['format_id'], f1['format_id'])
-
     def test_audio_only_extractor_format_selection(self):
         # For extractors with incomplete formats (all formats are audio-only or
         # video-only) best and worst should fallback to corresponding best/worst
@@ -836,6 +747,7 @@ class TestYoutubeDL(unittest.TestCase):
         def gen():
             yield from range(5)
             raise self.assertTrue(False, 'LazyList should not be evaluated till here')
+
         test('%(key.4)s', '4', info={'key': LazyList(gen())})
 
         # Empty filename
@@ -858,7 +770,10 @@ class TestYoutubeDL(unittest.TestCase):
         test('Hello %(title1)s', 'Hello $PATH')
         test('Hello %(title2)s', 'Hello %PATH%')
         test('%(title3)s', ('foo/bar\\test', 'foo⧸bar⧹test'))
-        test('folder/%(title3)s', ('folder/foo/bar\\test', 'folder%sfoo⧸bar⧹test' % os.path.sep))
+        test(
+            'folder/%(title3)s',
+            ('folder/foo/bar\\test', f'folder{os.path.sep}foo⧸bar⧹test'),
+        )
 
     def test_format_note(self):
         ydl = YoutubeDL()
@@ -872,7 +787,7 @@ class TestYoutubeDL(unittest.TestCase):
 
     def test_postprocessors(self):
         filename = 'post-processor-testfile.mp4'
-        audiofile = filename + '.mp3'
+        audiofile = f'{filename}.mp3'
 
         class SimplePP(PostProcessor):
             def run(self, info):
@@ -894,7 +809,7 @@ class TestYoutubeDL(unittest.TestCase):
         os.unlink(audiofile)
 
         run_pp({'keepvideo': False}, SimplePP)
-        self.assertFalse(os.path.exists(filename), '%s exists' % filename)
+        self.assertFalse(os.path.exists(filename), f'{filename} exists')
         self.assertTrue(os.path.exists(audiofile), '%s doesn\'t exist' % audiofile)
         os.unlink(audiofile)
 
@@ -945,10 +860,8 @@ class TestYoutubeDL(unittest.TestCase):
         self.assertEqual(res, ['1', '2'])
 
         def f(v, incomplete):
-            if v['id'] == '1':
-                return None
-            else:
-                return 'Video id is not 1'
+            return None if v['id'] == '1' else 'Video id is not 1'
+
         res = get_videos(f)
         self.assertEqual(res, ['1'])
 
@@ -1042,7 +955,7 @@ class TestYoutubeDL(unittest.TestCase):
             elif not expected_ids:
                 generator_eval = pagedlist_eval = []
             else:
-                generator_eval = INDICES[0: max(expected_ids)]
+                generator_eval = INDICES[:max(expected_ids)]
                 pagedlist_eval = INDICES[PAGE_SIZE * page_num(min(expected_ids)) - PAGE_SIZE:
                                          PAGE_SIZE * page_num(max(expected_ids))]
 
@@ -1147,6 +1060,7 @@ class TestYoutubeDL(unittest.TestCase):
     # Test case for https://github.com/ytdl-org/youtube-dl/issues/27064
     def test_ignoreerrors_for_playlist_with_url_transparent_iterable_entries(self):
 
+
         class _YDL(YDL):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -1158,6 +1072,8 @@ class TestYoutubeDL(unittest.TestCase):
             'format': 'extra',
             'ignoreerrors': True,
         })
+
+
 
         class VideoIE(InfoExtractor):
             _VALID_URL = r'video:(?P<id>\d+)'
@@ -1175,11 +1091,10 @@ class TestYoutubeDL(unittest.TestCase):
                         'format_id': 'extra',
                         'url': TEST_URL,
                     })
-                return {
-                    'id': video_id,
-                    'title': 'Video %s' % video_id,
-                    'formats': formats,
-                }
+                return {'id': video_id, 'title': f'Video {video_id}', 'formats': formats}
+
+
+
 
         class PlaylistIE(InfoExtractor):
             _VALID_URL = r'playlist:'
@@ -1191,12 +1106,13 @@ class TestYoutubeDL(unittest.TestCase):
                         '_type': 'url_transparent',
                         'ie_key': VideoIE.ie_key(),
                         'id': video_id,
-                        'url': 'video:%s' % video_id,
-                        'title': 'Video Transparent %s' % video_id,
+                        'url': f'video:{video_id}',
+                        'title': f'Video Transparent {video_id}',
                     }
 
             def _real_extract(self, url):
                 return self.playlist_result(self._entries())
+
 
         ydl.add_info_extractor(VideoIE(ydl))
         ydl.add_info_extractor(PlaylistIE(ydl))

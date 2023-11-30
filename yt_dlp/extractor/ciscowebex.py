@@ -29,8 +29,7 @@ class CiscoWebexIE(InfoExtractor):
 
     def _real_extract(self, url):
         mobj = self._match_valid_url(url)
-        rcid = mobj.group('rcid')
-        if rcid:
+        if rcid := mobj.group('rcid'):
             webpage = self._download_webpage(url, None, note='Getting video ID')
             url = self._search_regex(self._VALID_URL, webpage, 'redirection url', group='url')
         url = self._request_webpage(url, None, note='Resolving final URL').url
@@ -46,8 +45,12 @@ class CiscoWebexIE(InfoExtractor):
             headers['accessPwd'] = password
 
         stream, urlh = self._download_json_handle(
-            'https://%s.webex.com/webappng/api/v1/recordings/%s/stream' % (subdomain, video_id),
-            video_id, headers=headers, query={'siteurl': siteurl}, expected_status=(403, 429))
+            f'https://{subdomain}.webex.com/webappng/api/v1/recordings/{video_id}/stream',
+            video_id,
+            headers=headers,
+            query={'siteurl': siteurl},
+            expected_status=(403, 429),
+        )
 
         if urlh.status == 403:
             if stream['code'] == 53004:
@@ -74,8 +77,10 @@ class CiscoWebexIE(InfoExtractor):
             'acodec': 'mp4a.40.2',
         }]
         if stream.get('preventDownload') is False:
-            mp4url = try_get(stream, lambda x: x['downloadRecordingInfo']['downloadInfo']['mp4URL'])
-            if mp4url:
+            if mp4url := try_get(
+                stream,
+                lambda x: x['downloadRecordingInfo']['downloadInfo']['mp4URL'],
+            ):
                 formats.append({
                     'format_id': 'video',
                     'url': mp4url,
@@ -83,8 +88,10 @@ class CiscoWebexIE(InfoExtractor):
                     'vcodec': 'avc1.640028',
                     'acodec': 'mp4a.40.2',
                 })
-            audiourl = try_get(stream, lambda x: x['downloadRecordingInfo']['downloadInfo']['audioURL'])
-            if audiourl:
+            if audiourl := try_get(
+                stream,
+                lambda x: x['downloadRecordingInfo']['downloadInfo']['audioURL'],
+            ):
                 formats.append({
                     'format_id': 'audio',
                     'url': audiourl,
@@ -101,6 +108,6 @@ class CiscoWebexIE(InfoExtractor):
             'uploader_id': stream.get('ownerUserName') or stream.get('ownerId'),
             'timestamp': unified_timestamp(stream.get('createTime')),
             'duration': int_or_none(stream.get('duration'), 1000),
-            'webpage_url': 'https://%s.webex.com/recordingservice/sites/%s/recording/playback/%s' % (subdomain, siteurl, video_id),
+            'webpage_url': f'https://{subdomain}.webex.com/recordingservice/sites/{siteurl}/recording/playback/{video_id}',
             'formats': formats,
         }

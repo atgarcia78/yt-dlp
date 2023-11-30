@@ -63,8 +63,7 @@ class CazzoFilmIE(InfoExtractor):
         # print(content)
 
         regex_mediaid = r"media_id: '(?P<mediaid>.*?)'"
-        mobj = re.search(regex_mediaid, content)
-        if mobj:
+        if mobj := re.search(regex_mediaid, content):
             media_id = mobj.group("mediaid")
 
         # print(media_id)
@@ -90,8 +89,8 @@ class CazzoFilmIE(InfoExtractor):
         # pp.pprint(info)
 
         signed_id = info['stream']['signed_id']
-        url_hls = "https://videodelivery.net/" + signed_id + "/manifest/video.m3u8"
-        url_dash = "https://videodelivery.net/" + signed_id + "/manifest/video.mpd"
+        url_hls = f"https://videodelivery.net/{signed_id}/manifest/video.m3u8"
+        url_dash = f"https://videodelivery.net/{signed_id}/manifest/video.mpd"
         # print(url_hls)
 
         formats_m3u8 = self._extract_m3u8_formats(

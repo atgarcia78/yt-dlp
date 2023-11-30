@@ -94,7 +94,7 @@ def generator(test_case, tname):
             'playlist', [] if is_playlist else [test_case])
 
         def print_skipping(reason):
-            print('Skipping %s: %s' % (test_case['name'], reason))
+            print(f"Skipping {test_case['name']}: {reason}")
             self.skipTest(reason)
 
         if not ie.working():
@@ -117,10 +117,10 @@ def generator(test_case, tname):
 
         for other_ie in other_ies:
             if not other_ie.working():
-                print_skipping('test depends on %sIE, marked as not WORKING' % other_ie.ie_key())
+                print_skipping(f'test depends on {other_ie.ie_key()}IE, marked as not WORKING')
 
         params = get_params(test_case.get('params', {}))
-        params['outtmpl'] = tname + '_' + params['outtmpl']
+        params['outtmpl'] = f'{tname}_' + params['outtmpl']
         if is_playlist and 'playlist' not in test_case:
             params.setdefault('extract_flat', 'in_playlist')
             params.setdefault('playlistend', test_case.get(
@@ -134,6 +134,7 @@ def generator(test_case, tname):
         def _hook(status):
             if status['status'] == 'finished':
                 finished_hook_called.add(status['filename'])
+
         ydl.add_progress_hook(_hook)
         expect_warnings(ydl, test_case.get('expected_warnings', []))
 
@@ -159,8 +160,9 @@ def generator(test_case, tname):
             for tc in tcs:
                 tc_filename = get_tc_filename(tc)
                 try_rm(tc_filename)
-                try_rm(tc_filename + '.part')
-                try_rm(os.path.splitext(tc_filename)[0] + '.info.json')
+                try_rm(f'{tc_filename}.part')
+                try_rm(f'{os.path.splitext(tc_filename)[0]}.info.json')
+
         try_rm_tcs_files()
         try:
             try_num = 1
@@ -181,7 +183,7 @@ def generator(test_case, tname):
                         raise
 
                     if try_num == RETRIES:
-                        report_warning('%s failed due to network errors, skipping...' % tname)
+                        report_warning(f'{tname} failed due to network errors, skipping...')
                         return
 
                     print(f'Retrying: {try_num} failed tries\n\n##########\n\n')
@@ -235,7 +237,7 @@ def generator(test_case, tname):
                 # Now, check downloaded file consistency
                 tc_filename = get_tc_filename(tc)
                 if not test_case.get('params', {}).get('skip_download', False):
-                    self.assertTrue(os.path.exists(tc_filename), msg='Missing file ' + tc_filename)
+                    self.assertTrue(os.path.exists(tc_filename), msg=f'Missing file {tc_filename}')
                     self.assertTrue(tc_filename in finished_hook_called)
                     expected_minsize = tc.get('file_minsize', 10000)
                     if expected_minsize is not None:
@@ -252,10 +254,11 @@ def generator(test_case, tname):
                         self.assertEqual(tc['md5'], md5_for_file)
                 # Finally, check test cases' data again but this time against
                 # extracted data from info JSON file written during processing
-                info_json_fn = os.path.splitext(tc_filename)[0] + '.info.json'
+                info_json_fn = f'{os.path.splitext(tc_filename)[0]}.info.json'
                 self.assertTrue(
                     os.path.exists(info_json_fn),
-                    'Missing info file %s' % info_json_fn)
+                    f'Missing info file {info_json_fn}',
+                )
                 with open(info_json_fn, encoding='utf-8') as infof:
                     info_dict = json.load(infof)
                 expect_info_dict(self, info_dict, tc.get('info_dict', {}))
@@ -267,6 +270,7 @@ def generator(test_case, tname):
                 res_tcs = [{'info_dict': e} for e in res_dict['entries']]
                 try_rm_tcs_files(res_tcs)
             ydl.close()
+
     return test_template
 
 

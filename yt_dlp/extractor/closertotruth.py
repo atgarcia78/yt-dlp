@@ -53,10 +53,12 @@ class CloserToTruthIE(InfoExtractor):
 
         title = self._html_extract_title(webpage, 'video title')
 
-        select = self._search_regex(
+        if select := self._search_regex(
             r'(?s)<select[^>]+id="select-version"[^>]*>(.+?)</select>',
-            webpage, 'select version', default=None)
-        if select:
+            webpage,
+            'select version',
+            default=None,
+        ):
             entry_ids = set()
             entries = []
             for mobj in re.finditer(
@@ -66,12 +68,14 @@ class CloserToTruthIE(InfoExtractor):
                 if entry_id in entry_ids:
                     continue
                 entry_ids.add(entry_id)
-                entries.append({
-                    '_type': 'url_transparent',
-                    'url': 'kaltura:%s:%s' % (partner_id, entry_id),
-                    'ie_key': 'Kaltura',
-                    'title': mobj.group('title'),
-                })
+                entries.append(
+                    {
+                        '_type': 'url_transparent',
+                        'url': f'kaltura:{partner_id}:{entry_id}',
+                        'ie_key': 'Kaltura',
+                        'title': mobj.group('title'),
+                    }
+                )
             if entries:
                 return self.playlist_result(entries, display_id, title)
 
@@ -82,7 +86,7 @@ class CloserToTruthIE(InfoExtractor):
         return {
             '_type': 'url_transparent',
             'display_id': display_id,
-            'url': 'kaltura:%s:%s' % (partner_id, entry_id),
+            'url': f'kaltura:{partner_id}:{entry_id}',
             'ie_key': 'Kaltura',
-            'title': title
+            'title': title,
         }

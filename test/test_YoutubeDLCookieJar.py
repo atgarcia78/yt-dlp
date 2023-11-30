@@ -35,7 +35,10 @@ class TestYoutubeDLCookieJar(unittest.TestCase):
         cookiejar.load()
 
         def assert_cookie_has_value(key):
-            self.assertEqual(cookiejar._cookies['www.foobar.foobar']['/'][key].value, key + '_VALUE')
+            self.assertEqual(
+                cookiejar._cookies['www.foobar.foobar']['/'][key].value,
+                f'{key}_VALUE',
+            )
 
         assert_cookie_has_value('HTTPONLY_COOKIE')
         assert_cookie_has_value('JS_ACCESSIBLE_COOKIE')

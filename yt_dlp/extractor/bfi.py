@@ -26,10 +26,13 @@ class BFIPlayerIE(InfoExtractor):
         entries = []
         for player_el in re.findall(r'(?s)<[^>]+class="player"[^>]*>', webpage):
             player_attr = extract_attributes(player_el)
-            ooyala_id = player_attr.get('data-video-id')
-            if not ooyala_id:
-                continue
-            entries.append(self.url_result(
-                'ooyala:' + ooyala_id, 'Ooyala',
-                ooyala_id, player_attr.get('data-label')))
+            if ooyala_id := player_attr.get('data-video-id'):
+                entries.append(
+                    self.url_result(
+                        f'ooyala:{ooyala_id}',
+                        'Ooyala',
+                        ooyala_id,
+                        player_attr.get('data-label'),
+                    )
+                )
         return self.playlist_result(entries)

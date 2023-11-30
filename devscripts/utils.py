@@ -28,9 +28,7 @@ def get_filename_args(has_infile=False, default_outfile=None):
     parser.add_argument('outfile', **kwargs, help='Output file')
 
     opts = parser.parse_args()
-    if has_infile:
-        return opts.infile, opts.outfile
-    return opts.outfile
+    return (opts.infile, opts.outfile) if has_infile else opts.outfile
 
 
 def compose_functions(*functions):

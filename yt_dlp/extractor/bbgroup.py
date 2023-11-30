@@ -114,8 +114,8 @@ class BBGroupIE(SeleniumInfoExtractor):
 
                 if not username or not password:
                     self.raise_login_required(
-                        'A valid %s account is needed to access this media.'
-                        % self._NETRC_MACHINE)
+                        f'A valid {self._NETRC_MACHINE} account is needed to access this media.'
+                    )
 
                 if (self.wait_until(_driver, 60, waitforlogin(username, password, self.logger_debug)) != "OK"):
                     raise ExtractorError("couldnt log in")
@@ -188,19 +188,31 @@ class BBGroupIE(SeleniumInfoExtractor):
                 _key = try_get(match.groups(), lambda x: x[1]) or 'dummmy'
                 if (_key in repl_dict):
                     if _key not in ["'", "-"]:
-                        _txt = [_res[0] + ' ' if _res[0] not in [' ', ''] else _res[0],
-                                ' ' + _res[1] if _res[1] not in [' ', ''] else _res[1]]
+                        _txt = [
+                            f'{_res[0]} ' if _res[0] not in [' ', ''] else _res[0],
+                            f' {_res[1]}' if _res[1] not in [' ', ''] else _res[1],
+                        ]
                     elif _key in ["-"]:
-                        _txt = [_res[0],
-                                ' ' + _res[1] if _res[1] not in [' ', ''] and _res[0] not in [' ', ''] else _res[1]]
+                        _txt = [
+                            _res[0],
+                            f' {_res[1]}'
+                            if _res[1] not in [' ', '']
+                            and _res[0] not in [' ', '']
+                            else _res[1],
+                        ]
                         if _txt == [' ', ' ']:
                             _txt = [' ', '']
                     elif _key in ["'"]:
                         if _res[1] == 'S':
                             _txt = [_res[0], 'S']
                         else:
-                            _txt = [_res[0],
-                                    ' ' + _res[1] if _res[1] not in [' ', ''] and _res[0] not in [' ', ''] else _res[1]]
+                            _txt = [
+                                _res[0],
+                                f' {_res[1]}'
+                                if _res[1] not in [' ', '']
+                                and _res[0] not in [' ', '']
+                                else _res[1],
+                            ]
                         if _txt == [' ', ' ']:
                             _res = [' ', '']
 
@@ -354,22 +366,24 @@ class BBGroupIE(SeleniumInfoExtractor):
                 futures = {ex.submit(self._extract_list, i, allpages=True): i
                            for i in range(int(firstpage), _max + 1)}
 
-            for fut in futures:
+            for fut, value in futures.items():
                 try:
                     res = fut.result()
                     _entries += res
                 except Exception as e:
                     lines = traceback.format_exception(*sys.exc_info())
-                    self.report_warning(f'[all_pages][page_{futures[fut]}] {repr(e)} \n{"!!".join(lines)}')
+                    self.report_warning(
+                        f'[all_pages][page_{value}] {repr(e)} \n{"!!".join(lines)}'
+                    )
 
             if not _entries:
                 raise ExtractorError("[all_pages] no videos found")
-            _nentries = 0
-
             self.logger_debug(f'[all_pages] {_entries}')
-            for el in _entries:
-                if el.get('_type') == 'url' and not el.get('error'):
-                    _nentries += 1
+            _nentries = sum(
+                1
+                for el in _entries
+                if el.get('_type') == 'url' and not el.get('error')
+            )
             for el in _entries:
                 if el.get('_type') == 'url' and not el.get('error'):
                     el['url'] = f"{el['url']}&nent={_nentries}"
@@ -399,12 +413,18 @@ class BBGroupIE(SeleniumInfoExtractor):
 
             webpage = try_get(self._send_request(url_pl.replace('members', 'www')), lambda x: x.text.replace("\n", "").replace("\t", ""))
             assert webpage
-            url_list = try_get(re.findall(r'<a href="trailer\.php\?id=(\d+)"', webpage),
-                               lambda x: list(({f"{self._LOGIN_URL}/gallery.php?id=" + el: "" for el in x}).keys()))
+            url_list = try_get(
+                re.findall(r'<a href="trailer\.php\?id=(\d+)"', webpage),
+                lambda x: list(
+                    {
+                        f"{self._LOGIN_URL}/gallery.php?id={el}": "" for el in x
+                    }.keys()
+                ),
+            )
 
             assert isinstance(url_list, list)
             if nentr:
-                url_list = url_list[0:nentr]
+                url_list = url_list[:nentr]
             self.logger_debug(f'[page_{plid}] {len(url_list)} videos\n[{",".join(url_list)}]')
 
             if not url_list:
@@ -554,11 +574,11 @@ class SketchySexOnePagePlaylistIE(SketchySexBaseIE):
 
             if int(playlistid) > SketchySexOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid, nentr=int(nent))
-            if not entries:
-                raise ExtractorError("no video list")
-            return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
+            if entries := self._extract_list(playlistid, nentr=int(nent)):
+                return self.playlist_result(entries, f"sketchysex:page_{playlistid}", f"sketchysex:page_{playlistid}")
 
+            else:
+                raise ExtractorError("no video list")
         except ExtractorError:
             raise
         except Exception as e:
@@ -582,11 +602,11 @@ class SketchySexAllPagesPlaylistIE(SketchySexBaseIE):
 
         try:
             fpage, npages = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid') or "1", x.group('npages')))  # type: ignore
-            entries = self._extract_all_list(fpage, npages)
-            if not entries:
-                raise ExtractorError("no video list")
+            if entries := self._extract_all_list(fpage, npages):
+                return self.playlist_result(entries, "sketchysex:AllPages", "sketchysex:AllPages")
 
-            return self.playlist_result(entries, "sketchysex:AllPages", "sketchysex:AllPages")
+            else:
+                raise ExtractorError("no video list")
 
         except ExtractorError:
             raise
@@ -672,11 +692,11 @@ class BreederBrosOnePagePlaylistIE(BreederBrosBaseIE):
 
             if int(playlistid) > BreederBrosOnePagePlaylistIE._MAX_PAGE:
                 raise ExtractorError("episodes page not found 404")
-            entries = self._extract_list(playlistid)
-            if not entries:
-                raise ExtractorError("no video list")
-            return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
+            if entries := self._extract_list(playlistid):
+                return self.playlist_result(entries, f"breederbros:page_{playlistid}", f"breederbros:page_{playlistid}")
 
+            else:
+                raise ExtractorError("no video list")
         except ExtractorError:
             raise
         except Exception as e:
@@ -701,11 +721,11 @@ class BreederBrosAllPagesPlaylistIE(BreederBrosBaseIE):
         try:
 
             fpage, npages = try_get(re.search(self._VALID_URL, url), lambda x: (x.group('pid') or "1", x.group('npages')))  # type: ignore
-            entries = self._extract_all_list(fpage, npages)
-            if not entries:
-                raise ExtractorError("no video list")
+            if entries := self._extract_all_list(fpage, npages):
+                return self.playlist_result(entries, "breederbros:AllPages", "breederbros:AllPages")
 
-            return self.playlist_result(entries, "breederbros:AllPages", "breederbros:AllPages")
+            else:
+                raise ExtractorError("no video list")
 
         except ExtractorError:
             raise

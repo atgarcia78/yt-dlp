@@ -79,22 +79,22 @@ class ArcPublishingIE(InfoExtractor):
             org = powa.get('data-org')
             uuid = powa.get('data-uuid')
             if org and uuid:
-                entries.append('arcpublishing:%s:%s' % (org, uuid))
+                entries.append(f'arcpublishing:{org}:{uuid}')
         return entries
 
     def _real_extract(self, url):
         org, uuid = self._match_valid_url(url).groups()
-        for orgs, tmpl in self._POWA_DEFAULTS:
-            if org in orgs:
-                base_api_tmpl = tmpl
-                break
-        else:
-            base_api_tmpl = '%s-prod-cdn.video-api.arcpublishing.com/api'
+        base_api_tmpl = next(
+            (tmpl for orgs, tmpl in self._POWA_DEFAULTS if org in orgs),
+            '%s-prod-cdn.video-api.arcpublishing.com/api',
+        )
         if org == 'wapo':
             org = 'washpost'
         video = self._download_json(
-            'https://%s/v1/ansvideos/findByUuid' % (base_api_tmpl % org),
-            uuid, query={'uuid': uuid})[0]
+            f'https://{base_api_tmpl % org}/v1/ansvideos/findByUuid',
+            uuid,
+            query={'uuid': uuid},
+        )[0]
         title = video['headlines']['basic']
         is_live = video.get('status') == 'live'
 
@@ -122,15 +122,15 @@ class ArcPublishingIE(InfoExtractor):
             elif stream_type in ('ts', 'hls'):
                 m3u8_formats = self._extract_m3u8_formats(
                     s_url, uuid, 'mp4', live=is_live, m3u8_id='hls', fatal=False)
-                if all([f.get('acodec') == 'none' for f in m3u8_formats]):
+                if all(f.get('acodec') == 'none' for f in m3u8_formats):
                     continue
                 for f in m3u8_formats:
                     height = f.get('height')
                     if not height:
                         continue
-                    vbr = self._search_regex(
-                        r'[_x]%d[_-](\d+)' % height, f['url'], 'vbr', default=None)
-                    if vbr:
+                    if vbr := self._search_regex(
+                        r'[_x]%d[_-](\d+)' % height, f['url'], 'vbr', default=None
+                    ):
                         f['vbr'] = int(vbr)
                 formats.extend(m3u8_formats)
             else:
@@ -147,8 +147,7 @@ class ArcPublishingIE(InfoExtractor):
 
         subtitles = {}
         for subtitle in (try_get(video, lambda x: x['subtitles']['urls'], list) or []):
-            subtitle_url = subtitle.get('url')
-            if subtitle_url:
+            if subtitle_url := subtitle.get('url'):
                 subtitles.setdefault('en', []).append({'url': subtitle_url})
 
         return {

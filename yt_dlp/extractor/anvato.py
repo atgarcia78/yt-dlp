@@ -334,10 +334,12 @@ class AnvatoIE(InfoExtractor):
                     'ext': 'mp4',
                 })
             elif media_format == 'm3u8-variant' or ext == 'm3u8':
-                # For some videos the initial m3u8 URL returns JSON instead
-                manifest_json = self._download_json(
-                    video_url, video_id, note='Downloading manifest JSON', fatal=False)
-                if manifest_json:
+                if manifest_json := self._download_json(
+                    video_url,
+                    video_id,
+                    note='Downloading manifest JSON',
+                    fatal=False,
+                ):
                     video_url = manifest_json.get('master_m3u8')
                     if not video_url:
                         continue

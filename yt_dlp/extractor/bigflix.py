@@ -45,11 +45,7 @@ class BigflixIE(InfoExtractor):
         for height, encoded_url in re.findall(
                 r'ContentURL_(\d{3,4})[pP][^=]+=([^&]+)', webpage):
             video_url = decode_url(encoded_url)
-            f = {
-                'url': video_url,
-                'format_id': '%sp' % height,
-                'height': int(height),
-            }
+            f = {'url': video_url, 'format_id': f'{height}p', 'height': int(height)}
             if video_url.startswith('rtmp'):
                 f['ext'] = 'flv'
             formats.append(f)

@@ -118,8 +118,7 @@ class CiscoLiveSearchIE(CiscoLiveBaseIE):
             results = self._call_api(
                 'search', None, query, url,
                 'Downloading search JSON page %d' % page_num)
-            sl = try_get(results, lambda x: x['sectionList'][0], dict)
-            if sl:
+            if sl := try_get(results, lambda x: x['sectionList'][0], dict):
                 results = sl
             items = results.get('items')
             if not items or not isinstance(items, list):

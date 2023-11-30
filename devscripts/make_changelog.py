@@ -150,8 +150,7 @@ class Changelog:
                 first = False
                 yield '\n<details><summary><h3>Changelog</h3></summary>\n'
 
-            group = groups[item]
-            if group:
+            if group := groups[item]:
                 yield self.format_module(item.value, group)
 
         if self._collapsible:
@@ -205,13 +204,22 @@ class Changelog:
             else:
                 sorted_items.append(item)
 
-        for commit_infos in cleanup_misc_items.values():
-            sorted_items.append(CommitInfo(
-                'cleanup', ('Miscellaneous',), ', '.join(
+        sorted_items.extend(
+            CommitInfo(
+                'cleanup',
+                ('Miscellaneous',),
+                ', '.join(
                     self._format_message_link(None, info.commit.hash)
-                    for info in sorted(commit_infos, key=lambda item: item.commit.hash or '')),
-                [], Commit(None, '', commit_infos[0].commit.authors), []))
-
+                    for info in sorted(
+                        commit_infos, key=lambda item: item.commit.hash or ''
+                    )
+                ),
+                [],
+                Commit(None, '', commit_infos[0].commit.authors),
+                [],
+            )
+            for commit_infos in cleanup_misc_items.values()
+        )
         return sorted_items
 
     def format_single_change(self, info: CommitInfo):
@@ -303,33 +311,30 @@ class CommitRange:
 
             authors = [default_author] if default_author else []
             for line in iter(lambda: next(lines), self.COMMIT_SEPARATOR):
-                match = self.AUTHOR_INDICATOR_RE.match(line)
-                if match:
+                if match := self.AUTHOR_INDICATOR_RE.match(line):
                     authors = sorted(map(str.strip, line[match.end():].split(',')), key=str.casefold)
 
             commit = Commit(commit_hash, short, authors)
-            if skip and (self._start or not i):
-                logger.debug(f'Skipped commit: {commit}')
-                continue
-            elif skip:
-                logger.debug(f'Reached Release commit, breaking: {commit}')
-                break
+            if skip:
+                if self._start or not i:
+                    logger.debug(f'Skipped commit: {commit}')
+                    continue
+                else:
+                    logger.debug(f'Reached Release commit, breaking: {commit}')
+                    break
 
-            revert_match = self.REVERT_RE.fullmatch(commit.short)
-            if revert_match:
+            if revert_match := self.REVERT_RE.fullmatch(commit.short):
                 reverts[revert_match.group(1)] = commit
                 continue
 
-            fix_match = self.FIXES_RE.search(commit.short)
-            if fix_match:
+            if fix_match := self.FIXES_RE.search(commit.short):
                 commitish = fix_match.group(1)
                 fixes[commitish].append(commit)
 
             commits[commit.hash] = commit
 
         for commitish, revert_commit in reverts.items():
-            reverted = commits.pop(commitish, None)
-            if reverted:
+            if reverted := commits.pop(commitish, None):
                 logger.debug(f'{commitish} fully reverted {reverted}')
             else:
                 commits[revert_commit.hash] = revert_commit
@@ -370,13 +375,12 @@ class CommitRange:
                 logger.info(f'CHANGE {self._commits[commit.hash]} -> {commit}')
                 self._commits[commit.hash] = commit
 
-        self._commits = {key: value for key, value in reversed(self._commits.items())}
+        self._commits = dict(reversed(self._commits.items()))
 
     def groups(self):
         group_dict = defaultdict(list)
         for commit in self:
-            upstream_re = self.UPSTREAM_MERGE_RE.search(commit.short)
-            if upstream_re:
+            if upstream_re := self.UPSTREAM_MERGE_RE.search(commit.short):
                 commit.short = f'[upstream] Merged with youtube-dl {upstream_re.group(1)}'
 
             match = self.MESSAGE_RE.fullmatch(commit.short)
@@ -508,8 +512,9 @@ if __name__ == '__main__':
 
     logger.info(f'Loaded {len(commits)} commits')
 
-    new_contributors = get_new_contributors(args.contributors_path, commits)
-    if new_contributors:
+    if new_contributors := get_new_contributors(
+        args.contributors_path, commits
+    ):
         if args.contributors:
             write_file(args.contributors_path, '\n'.join(new_contributors) + '\n', mode='a')
         logger.info(f'New contributors: {", ".join(new_contributors)}')

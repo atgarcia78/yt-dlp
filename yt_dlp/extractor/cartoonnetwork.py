@@ -52,8 +52,10 @@ class CartoonNetworkIE(TurnerBaseIE):
         })
 
         for field in ('season', 'episode'):
-            field_name = field + 'Number'
-            info[field + '_number'] = int_or_none(find_field(
-                field_name, field + ' number', value_re=r'\d+') or self._html_search_meta(field_name, webpage))
+            field_name = f'{field}Number'
+            info[f'{field}_number'] = int_or_none(
+                find_field(field_name, f'{field} number', value_re=r'\d+')
+                or self._html_search_meta(field_name, webpage)
+            )
 
         return info

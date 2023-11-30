@@ -12,16 +12,18 @@ class BokeCCBaseIE(InfoExtractor):
         player_params = compat_parse_qs(player_params_str)
 
         info_xml = self._download_xml(
-            'http://p.bokecc.com/servlet/playinfo?uid=%s&vid=%s&m=1' % (
-                player_params['siteid'][0], player_params['vid'][0]), video_id)
+            f"http://p.bokecc.com/servlet/playinfo?uid={player_params['siteid'][0]}&vid={player_params['vid'][0]}&m=1",
+            video_id,
+        )
 
-        formats = [{
-            'format_id': format_id,
-            'url': quality.find('./copy').attrib['playurl'],
-            'quality': int(quality.attrib['value']),
-        } for quality in info_xml.findall('./video/quality')]
-
-        return formats
+        return [
+            {
+                'format_id': format_id,
+                'url': quality.find('./copy').attrib['playurl'],
+                'quality': int(quality.attrib['value']),
+            }
+            for quality in info_xml.findall('./video/quality')
+        ]
 
 
 class BokeCCIE(BokeCCBaseIE):
@@ -42,7 +44,7 @@ class BokeCCIE(BokeCCBaseIE):
         if not qs.get('vid') or not qs.get('uid'):
             raise ExtractorError('Invalid URL', expected=True)
 
-        video_id = '%s_%s' % (qs['uid'][0], qs['vid'][0])
+        video_id = f"{qs['uid'][0]}_{qs['vid'][0]}"
 
         webpage = self._download_webpage(url, video_id)
 
