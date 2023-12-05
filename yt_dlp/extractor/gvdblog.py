@@ -25,11 +25,10 @@ from .doodstream import DoodStreamIE
 from .streamsb import StreamSBIE
 from .voe import VoeIE
 from .xfileshare import XFileShareIE
-from ..utils import (
+from ..utils import (  # get_element_html_by_id,
     ExtractorError,
     get_domain,
     get_element_by_id,
-    get_element_html_by_id,
     get_element_text_and_html_by_tag,
     int_or_none,
     orderedSet,
@@ -293,18 +292,21 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
     def get_info(self, post: Union[str, dict]) -> Tuple:
 
         if isinstance(post, str):
-
+            _patt1 = r"(?:(class='related-tag' data-id='(?P<id1>\d+)')|(wp-json/wp/v2/posts/(?P<id2>\d+)))"
             postid = try_get(
-                re.search(r"(?:(class='related-tag' data-id='(?P<id1>\d+)')|(wp-json/wp/v2/posts/(?P<id2>\d+)))", post),
+                re.search(_patt1, post),
                 lambda x: traverse_obj(x.groupdict(), ('id1'), ('id2')))
 
             title = self._html_search_meta(
                 ('og:title', 'twitter:title'), post, default=None) or try_get(
                     self._html_extract_title(post), lambda x: x.replace(' – GVDBlog', ''))
 
-            _pattern = r"(?:(class='entry-time mi'><time class='published' datetime='[^']+'>(?P<date1>[^<]+)<)|(calendar[\"']></i> Date: (?P<date2>[^<]+)<))"
+            _patt2 = r'''(?x)
+                (?:
+                    (class='entry-time mi'><time class='published' datetime='[^']+'>(?P<date1>[^<]+)<)|
+                    (calendar[\"']></i> Date: (?P<date2>[^<]+)<))'''
             postdate = try_get(
-                re.search(_pattern, post),
+                re.search(_patt2, post),
                 lambda x: try_get(
                     traverse_obj(x.groupdict(), ('date1'), ('date2')),
                     lambda y: datetime.strptime(y, '%B %d, %Y') if y else None) if x else None)
@@ -334,20 +336,24 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     self._send_request(url),
                     lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)):
                 postdate, title, postid = self.get_info(post_content)
-                if self.keyapi == 'gvdblog.com':
-                    post_content = get_element_html_by_id('post-body', post_content)
+                # if self.keyapi == 'gvdblog.com':
+                #     post_content = get_element_html_by_id('post-body', post_content)
                 list_candidate_videos = self.get_urls(post_content, msg=url)
         elif isinstance(post, dict):
-            if self.keyapi == 'gvdblog.com':
-                url = try_get(
-                    traverse_obj(post, ('link', -1, 'href')),
-                    lambda x: unquote(x) if x is not None else None)
-                post_content = traverse_obj(post, ('content', '$t'))
-            else:
-                url = try_get(
-                    post.get('link'),
-                    lambda x: unquote(x) if x is not None else None)
-                post_content = traverse_obj(post, ('content', 'rendered'))
+            # if self.keyapi == 'gvdblog.com':
+            #     url = try_get(
+            #         traverse_obj(post, ('link', -1, 'href')),
+            #         lambda x: unquote(x) if x is not None else None)
+            #     post_content = traverse_obj(post, ('content', '$t'))
+            # else:
+            #     url = try_get(
+            #         post.get('link'),
+            #         lambda x: unquote(x) if x is not None else None)
+            #     post_content = traverse_obj(post, ('content', 'rendered'))
+            url = try_get(
+                post.get('link'),
+                lambda x: unquote(x) if x is not None else None)
+            post_content = traverse_obj(post, ('content', 'rendered'))
             premsg += f'[{self._get_url_print(url)}]'
             self.report_extraction(url)
             if post_content:
@@ -371,7 +377,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
             entries = []
 
-            if len(list_candidate_videos) > 1:
+            if list_candidate_videos:
                 with ThreadPoolExecutor(thread_name_prefix="gvdblog_pl") as exe:
                     if futures := {
                             exe.submit(partial(self.get_entry_video, msg=premsg), _el): _el
@@ -386,17 +392,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                             logger.debug(f'{premsg} entry [{futures[fut]}] no entry')
                     except Exception as e:
                         logger.debug(f'{premsg} entry [{futures[fut]}] {repr(e)}')
-
-            else:
-                try:
-                    if _entry := self.get_entry_video(
-                        list_candidate_videos[0], msg=premsg
-                    ):
-                        entries.append(_entry)
-                    else:
-                        logger.debug(f'{premsg} no entry')
-                except Exception as e:
-                    logger.debug(f'{premsg} {repr(e)}')
 
             if not entries:
                 raise_extractor_error(f"{premsg} no video entries")
@@ -507,9 +502,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))))
         (\?(?P<query>[^#]+))?'''
 
-    _BASE_API = {'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
-                 'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100",
-                 'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100"}
+    _BASE_API = {
+        'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
+        'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100",
+        'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100"}
 
     _MAP = {'actor': 'actors', 'category': 'categories', 'tag': 'tags'}
 
@@ -676,7 +672,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         def _get_entries_page(npage: int = 1):
             try:
                 _htmlpage = try_get(
-                    self._send_request(update_url_query(f"{baseurl}{npage}", query=self.conf_args_gvd['query'])),
+                    self._send_request(
+                        update_url_query(f"{baseurl}{npage}", query=self.conf_args_gvd['query'])),
                     lambda x: get_element_by_id('us_grid_1', unescape(x.text)) if x else None)
 
                 if not _htmlpage:
@@ -721,7 +718,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 with ThreadPoolExecutor(thread_name_prefix="gvdpl") as ex:
 
                     futures = {ex.submit(
-                        partial(self.get_entries_from_blog_post, progress_bar=progress_bar), _post_url): _post_url
+                        partial(
+                            self.get_entries_from_blog_post, progress_bar=progress_bar), _post_url): _post_url
                         for _post_url in final_items}
 
                     wait(futures)
@@ -769,9 +767,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             _upt_params(_typefx, namefx)
         self.conf_args_gvd = params
 
-        if namenet or namecc or namefx:
-            playlist_title = namenet or namecc or namefx
-            playlist_id = namenet or namecc or namefx
+        if (_name := namenet or namecc or namefx):
+            playlist_title = _name
+            playlist_id = _name
 
         else:
             playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')
