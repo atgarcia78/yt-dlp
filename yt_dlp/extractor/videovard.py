@@ -1,17 +1,19 @@
 import time
-from ..utils import ExtractorError, sanitize_filename, try_get
+
 from .commonwebdriver import (
-    raise_extractor_error,
-    HTTPStatusError,
+    By,
     ConnectError,
-    WebDriverException,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
     TimeoutException,
+    WebDriverException,
     dec_on_exception2,
     dec_on_exception3,
-    SeleniumInfoExtractor,
+    ec,
     limiter_1,
-    By,
-    ec)
+    raise_extractor_error,
+)
+from ..utils import ExtractorError, sanitize_filename, try_get
 
 
 class getvideourl:
@@ -86,16 +88,22 @@ class VideovardIE(SeleniumInfoExtractor):
     @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, **kwargs):
 
+        self.report_extraction(url)
+
+        if "error" in (_res := self._is_valid(
+            _wurl := (url.replace('/e/', '/v/').replace('videovard.to', 'videovard.sx')),
+            inc_error=True)
+        ):
+            raise_extractor_error(_res['error'])
+
         driver = self.get_driver(devtools=True)
         driver.set_page_load_timeout(10)
 
         try:
 
-            self.report_extraction(url)
-
             videoid = self._match_id(url)
 
-            self.send_multi_request(_wurl := (url.replace('/e/', '/v/').replace('videovard.to', 'videovard.sx')), driver=driver)
+            self.send_multi_request(_wurl, driver=driver)
 
             title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
 

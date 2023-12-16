@@ -1356,11 +1356,11 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                     except HTTPStatusError as e:
                         self.logger_debug(f"{_pre_str}:{e}")
                         if e.response.status_code >= 500:
-                            self.cache.store('is_valid', get_host(_url), {'valid': False, 'error': repr(e)})
-                        return {'error': repr(e)}
+                            self.cache.store('is_valid', get_host(_url), {'valid': False, 'error': str(e)})
+                        return {'error': str(e)}
                     except Exception as e:
                         self.logger_debug(f"{_pre_str}:{e}")
-                        return {'error': repr(e)}
+                        return {'error': str(e)}
 
             if (res := _throttle_isvalid(url, True)) and isinstance(res, Response):
 
