@@ -1141,7 +1141,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         opts.page_load_strategy = 'eager'  # type: ignore
 
-        _logs = {True: '/Users/antoniotorres/Projects/common/logs/geckodriver.log', False: '/dev/null'}
+        _logs = {
+            True: '/Users/antoniotorres/Projects/common/logs/geckodriver.log',
+            False: '/dev/null'}
 
         serv = Service(log_path=_logs[verbose])
 
@@ -1360,9 +1362,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         self.logger_debug(f"{_pre_str}:{e}")
                         return {'error': repr(e)}
 
-            res = _throttle_isvalid(url, True)
-
-            if res and isinstance(res, Response):
+            if (res := _throttle_isvalid(url, True)) and isinstance(res, Response):
 
                 if res.headers.get('content-type') == "video/mp4":
                     self.logger_debug(f'[valid][{_pre_str}:video/mp4:{okvalid}')
@@ -1379,10 +1379,10 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         return {'error': f'not path in reroute url {str(res.url)}'} | notvalid
 
                 else:
-                    webpage = try_get(
-                        _throttle_isvalid(url, False),
-                        lambda x: html.unescape(x.text) if x else None)
-                    if not webpage:
+                    if not (webpage := try_get(
+                            _throttle_isvalid(url, False),
+                            lambda x: html.unescape(x.text) if x else None)):
+
                         self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt download webpage')
                         return {'error': 'couldnt download webpage'} | notvalid if inc_error else notvalid
                     else:
@@ -1416,6 +1416,24 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
         return myIP.get_myip(key=key, timeout=timeout, ie=ie)
 
     def stream_http_request(self, url, **kwargs):
+        def _get_error_message(e, res):
+            result = repr(e)
+            if not res:
+                raise TimeoutError(result) from e
+            if isinstance(e, ConnectError):
+                if 'errno 61' in result.lower():
+                    raise
+                else:
+                    raise_extractor_error(result, _from=e)
+
+            if res.status_code == 404:
+                res.raise_for_status()
+            if res.status_code == 503:
+                raise StatusError503(repr(e)) from None
+            raise_extractor_error(result, _from=e)
+
+            return result
+
         premsg = f'[stream_http_request][{self._get_url_print(url)}]'
         if msg := kwargs.get('msg', None):
             premsg = f'{msg}{premsg}'
@@ -1461,28 +1479,9 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 return _res
 
         except Exception as e:
-            _msg_err = self._extracted_from_stream_http_request_48(e, res)
+            _msg_err = _get_error_message(e, res)
         finally:
             self.logger_debug(f"{premsg} {res}:{_msg_err}")
-
-    # TODO Rename this here and in `stream_http_request`
-    def _extracted_from_stream_http_request_48(self, e, res):
-        result = repr(e)
-        if not res:
-            raise TimeoutError(result) from e
-        if isinstance(e, ConnectError):
-            if 'errno 61' in result.lower():
-                raise
-            else:
-                raise_extractor_error(result, _from=e)
-
-        if res.status_code == 404:
-            res.raise_for_status()
-        if res.status_code == 503:
-            raise StatusError503(repr(e)) from None
-        raise_extractor_error(result, _from=e)
-
-        return result
 
     def send_http_request(self, url, **kwargs) -> Optional[Response]:
 
@@ -1491,36 +1490,25 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
 
     @classmethod
     def _send_http_request(cls, url, **kwargs) -> Optional[Response]:
-
-        _type = kwargs.get('_type', "GET")
-        fatal = kwargs.get('fatal', True)
-        _logger = kwargs.get('logger', cls.LOGGER.debug)
-        msg = kwargs.get('msg', None)
+        _type = kwargs.pop('_type', "GET")
+        fatal = kwargs.pop('fatal', True)
+        _logger = kwargs.pop('logger', cls.LOGGER.debug)
         premsg = f'[send_http_request][{cls._get_url_print(url)}][{_type}]'
-        if msg:
+        if msg := kwargs.pop('msg', None):
             premsg = f'{msg}{premsg}'
 
         _close_cl = False
-        client = kwargs.get('client')
-        if not client:
+        if not (client := kwargs.pop('client')):
             client = cls.TEMP_CLIENT
             _close_cl = True
-
-        _kwargs = kwargs.copy()
-        _kwargs.pop('_type', None)
-        _kwargs.pop('logger', None)
-        _kwargs.pop('msg', None)
-        _kwargs.pop('client', None)
-        _kwargs.pop('fatal', None)
 
         res = None
         req = None
         _msg_err = ""
 
         try:
-            req = client.build_request(_type, url, **_kwargs)
-            res = client.send(req)
-            if not res:
+            req = client.build_request(_type, url, **kwargs)
+            if not (res := client.send(req)):
                 return None
             if fatal:
                 res.raise_for_status()
@@ -1540,7 +1528,6 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                 raise StatusError503(_msg_err) from None
             else:
                 raise
-
         except Exception as e:
             _msg_err = f"{premsg} {str(e)}"
             _logger(f"[{cls.IE_NAME}] {_msg_err}")

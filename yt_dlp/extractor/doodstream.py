@@ -32,7 +32,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
     IE_NAME = 'doodstream'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?(?:ds2play|(d(oo)+d(?:s|stream)?))\.[^/]+/[ed]/(?P<id>[a-z0-9]+)'
-    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?d(oo)*d(?:stream)?\.[^/]+/[ed]/[a-z0-9]+)\1']
+    _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>https?://(?:www\.)?(?:ds2play|(d(oo)+d(?:s|stream)?))\.[^/]+/[ed]/(?P<id>[a-z0-9]+))\1']
 
     @on_exception_vinfo
     @limiter_0_1.ratelimit("doodstream", delay=True)

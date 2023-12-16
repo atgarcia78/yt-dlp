@@ -416,12 +416,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         try:
             if js_content := try_get(
-                cls._send_http_request(
+                cls._send_request(
                     try_get(
                         re.findall(
                             r'src="(/static/js/main[^"]+)',  # type: ignore
                             try_get(
-                                cls._send_http_request(cls._SITE_URL),  # type: ignore
+                                cls._send_request(cls._SITE_URL),  # type: ignore
                                 lambda z: html.unescape(z.text),
                             ),
                         ),
