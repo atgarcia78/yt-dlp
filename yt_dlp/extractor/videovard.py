@@ -20,7 +20,6 @@ class getvideourl:
     def __call__(self, driver):
         vpl = driver.find_element(By.ID, "vplayer")
         vid = driver.find_element(By.TAG_NAME, "video")
-
         try:
             vpl.click()
             time.sleep(3)
@@ -29,14 +28,15 @@ class getvideourl:
                 return _videourl
             else:
                 return False
-
         except Exception:
             pass
 
-        el_kal = driver.find_element(By.CSS_SELECTOR, "div.kalamana")
+        el_kal = driver.find_element(
+            By.CSS_SELECTOR, "div.kalamana")
         el_kal.click()
         time.sleep(1)
-        el_rul = driver.find_element(By.CSS_SELECTOR, "div.rulezco")
+        el_rul = driver.find_element(
+            By.CSS_SELECTOR, "div.rulezco")
         el_rul.click()
         time.sleep(1)
         return False
@@ -105,7 +105,10 @@ class VideovardIE(SeleniumInfoExtractor):
 
             self.send_multi_request(_wurl, driver=driver)
 
-            title = try_get(self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))), lambda x: x.text)
+            title = try_get(
+                self.wait_until(
+                    driver, 60, ec.presence_of_element_located((By.TAG_NAME, "h1"))),
+                lambda x: x.text)
 
             assert title
 
@@ -119,22 +122,30 @@ class VideovardIE(SeleniumInfoExtractor):
                 if not video_url.startswith('blob'):
 
                     if ".m3u8" not in video_url:
-                        _info_video = self.send_multi_request(video_url, _type="info_video", headers=_headers)
+                        _info_video = self.send_multi_request(
+                            video_url, _type="info_video", headers=_headers)
                         if not _info_video:
                             raise_extractor_error(f"[{url}] no info video")
                         assert isinstance(_info_video, dict)
-                        _formats = [{'format_id': 'http-mp4', 'url': _info_video['url'], 'filesize': _info_video['filesize'], 'ext': 'mp4'}]
+                        _formats = [{
+                            'format_id': 'http-mp4', 'url': _info_video['url'],
+                            'filesize': _info_video['filesize'], 'ext': 'mp4'}]
 
                     elif "master.m3u8" in video_url:
                         _formats = self._extract_m3u8_formats(
-                            video_url, video_id=videoid, ext="mp4", entry_protocol="m3u8_native", m3u8_id="hls", headers=_headers)
+                            video_url, video_id=videoid, ext="mp4",
+                            entry_protocol="m3u8_native",
+                            m3u8_id="hls", headers=_headers)
                 else:
                     m3u8_url = try_get(
-                        self.scan_for_request(r"master.m3u8", driver=driver), lambda x: x.get('url')  # type: ignore
+                        self.scan_for_request(r"master.m3u8", driver=driver),
+                        lambda x: x.get('url')  # type: ignore
                         if x else None)
                     if m3u8_url:
                         _formats = self._extract_m3u8_formats(
-                            m3u8_url, video_id=videoid, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls", headers=_headers)
+                            m3u8_url, video_id=videoid, ext="mp4",
+                            entry_protocol='m3u8_native',
+                            m3u8_id="hls", headers=_headers)
 
             if not _formats:
                 raise_extractor_error(f"[{url}] Couldnt find any video format")

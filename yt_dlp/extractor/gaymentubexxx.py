@@ -1,18 +1,15 @@
 
+import html
+import json
 import re
-from .common import InfoExtractor
-from ..utils import (
-    ExtractorError,
-    int_or_none,
-    sanitize_filename
-)
+import sys
+import time
+import traceback
 
 import httpx
-import html
-import time
-import json
-import traceback
-import sys
+
+from .common import InfoExtractor
+from ..utils import ExtractorError, int_or_none, sanitize_filename
 
 
 class GayMenTubexxxIE(InfoExtractor):
@@ -58,7 +55,7 @@ class GayMenTubexxxIE(InfoExtractor):
         try:
 
             _timeout = httpx.Timeout(15, connect=15)
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            _limits = httpx.Limits()
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=self.get_param('http_headers'), follow_redirects=True, verify=(not self.get_param('nocheckcertificate')))
 
             res = client.get(url)

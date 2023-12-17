@@ -1,15 +1,13 @@
 
+import html
 import re
+import time
 from tarfile import ExtractError
-from .common import InfoExtractor
-from ..utils import (
-    int_or_none,
-    sanitize_filename
-)
 
 import httpx
-import html
-import time
+
+from .common import InfoExtractor
+from ..utils import int_or_none, sanitize_filename
 
 
 class XVidsIE(InfoExtractor):
@@ -55,7 +53,7 @@ class XVidsIE(InfoExtractor):
         try:
 
             _timeout = httpx.Timeout(15, connect=15)
-            _limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+            _limits = httpx.Limits()
             client = httpx.Client(timeout=_timeout, limits=_limits, headers=self.get_param('http_headers'), follow_redirects=True, verify=(not self.get_param('nocheckcertificate')))
 
             res = client.get(url)

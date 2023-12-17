@@ -902,7 +902,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def TEMP_CLIENT_CONFIG(cls):
         return {
             'timeout': Timeout(20),
-            'limits': Limits(max_keepalive_connections=None, max_connections=None),
+            'limits': Limits(),
             'follow_redirects': True,
             'verify': False,
             'headers': {"User-Agent": random_user_agent()}
@@ -990,7 +990,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
             self._CLIENT_CONFIG = {
                 'timeout': Timeout(20),
-                'limits': Limits(max_keepalive_connections=None, max_connections=None),
+                'limits': Limits(),
                 'headers': self.get_param('http_headers', {}).copy(),
                 'follow_redirects': True,
                 'verify': False,
