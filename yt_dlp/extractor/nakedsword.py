@@ -273,20 +273,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     @dec_retry
-    def API_REFRESH(cls, msg=None):
+    def API_REFRESH(cls, msg=None, _logger=None):
         _pre = msg or ''
+        if not _logger:
+            _logger = logger.debug
         try:
             cls.API_GET_XIDENT()
             with cls.call_lock:
                 if cls._refresh_api():
-                    logger.debug(f"{_pre}[refresh_api] ok")
+                    _logger(f"{_pre}[refresh_api] ok")
                     return True
                 else:
                     raise_extractor_error(f"{_pre}[refresh_api] nok")
         except ExtractorError:
             raise
         except Exception as e:
-            logger.debug(f"{_pre}[refresh_api] {str(e)}")
+            _logger(f"{_pre}[refresh_api] {str(e)}")
             raise_extractor_error(f"{_pre}[refresh_api] error refresh {str(e)}", _from=e)
 
     @classmethod
@@ -333,7 +335,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def API_LOGOUT(cls, msg=None, _logger=None):
         _pre = msg or ''
         if not _logger:
-            _logger = logger.info
+            _logger = logger.debug
         with cls.call_lock:
             if not cls.headers_api:
                 _logger(f"{_pre}[API_LOGOUT] Already logged out")
@@ -784,8 +786,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     def wait_with_pb(self, timeout, premsg):
 
-        NakedSwordBaseIE.API_REFRESH(msg=premsg)
-        NakedSwordBaseIE.API_LOGOUT(msg=premsg)
+        NakedSwordBaseIE.API_REFRESH(msg=premsg, _logger=self.write_debug)
+        NakedSwordBaseIE.API_LOGOUT(msg=premsg, _logger=self.write_debug)
         # NakedSwordBaseIE._CLIENT.close()
         # super()._real_initialize()
         # NakedSwordBaseIE._CLIENT = self._CLIENT
@@ -1163,8 +1165,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         if NakedSwordMovieIE._MOVIES[_movie_url]['on_backoff']:
 
-            NakedSwordBaseIE.API_REFRESH(msg=premsg)
-            NakedSwordBaseIE.API_LOGOUT(msg=premsg)
+            NakedSwordBaseIE.API_REFRESH(msg=premsg, _logger=self.write_debug)
+            NakedSwordBaseIE.API_LOGOUT(msg=premsg, _logger=self.write_debug)
             _timeout = my_jitter(60)
 
             _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
