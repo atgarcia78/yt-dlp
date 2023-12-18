@@ -515,33 +515,19 @@ class myHAR:
             _mimetype_list = []
 
         return [
-            el
-            for el in _res
-            if all(
-                [
-                    traverse_obj(el, ('request', 'method')) == _method,
-                    int(traverse_obj(el, ('response', 'bodySize'), default='0'))
-                    >= 0,
-                    all(
-                        _
-                        not in traverse_obj(
-                            el, ('response', 'content', 'mimeType'), default=''
-                        )
-                        for _ in _non_mimetype_list
-                    )
-                    if _non_mimetype_list
-                    else True,
-                    any(
-                        _
-                        in traverse_obj(
-                            el, ('response', 'content', 'mimeType'), default=''
-                        )
-                        for _ in _mimetype_list
-                    )
-                    if _mimetype_list
-                    else True,
-                ]
-            )
+            el for el in _res
+            if all([
+                traverse_obj(el, ('request', 'method')) == _method,
+                int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,
+                all(
+                    _ not in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
+                    for _ in _non_mimetype_list
+                ) if _non_mimetype_list else True,
+                any(
+                    _ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
+                    for _ in _mimetype_list
+                ) if _mimetype_list else True,
+            ])
         ]
 
     @classmethod
