@@ -18,15 +18,7 @@ from .commonwebdriver import (
     raise_extractor_error,
     raise_reextract_info,
 )
-from ..utils import (
-    ExtractorError,
-    find_available_port,
-    sanitize_filename,
-    try_get,
-)
-
-# import functools
-
+from ..utils import ExtractorError, sanitize_filename, try_get
 
 logger = logging.getLogger('vgembed')
 
@@ -126,20 +118,16 @@ class VGEmbedIE(SeleniumInfoExtractor):
             title = cast(str, self._html_extract_title(_res['webpage']))
 
             videourl = None
-            _port = find_available_port() or 8080
+            _port = self.find_free_port() or 8080
             driver = self.get_driver(host='127.0.0.1', port=_port)
 
             try:
                 with self.get_har_logs('vgembed', videoid, msg=pre, port=_port) as harlogs:
-
                     _har_file = harlogs.har_file
                     self._send_request(url_dl.replace('/v/', '/e/'), driver=driver)
                     if (_vid := cast(str, self.wait_until(driver, 60, getvideourl()))) and 'blob:' not in _vid:
                         videourl = _vid
                         self.logger_info(f"{pre} videourl {videourl}")
-                    else:
-                        self.wait_until(driver, 1)
-
             except ReExtractInfo:
                 raise
             except Exception as e:

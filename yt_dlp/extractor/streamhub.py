@@ -15,13 +15,7 @@ from .commonwebdriver import (
     raise_extractor_error,
     raise_reextract_info,
 )
-from ..utils import (
-    ExtractorError,
-    find_available_port,
-    sanitize_filename,
-    try_call,
-    try_get,
-)
+from ..utils import ExtractorError, sanitize_filename, try_call, try_get
 
 logger = logging.getLogger('streamhub')
 
@@ -78,7 +72,7 @@ class StreamHubIE(SeleniumInfoExtractor):
             raise_extractor_error(_res['error'])
 
         try:
-            _port = find_available_port() or 8080
+            _port = self.find_free_port() or 8080
             driver = self.get_driver(host='127.0.0.1', port=_port)
             try:
                 with self.get_har_logs('streamhub', videoid, msg=pre, port=_port) as harlogs:

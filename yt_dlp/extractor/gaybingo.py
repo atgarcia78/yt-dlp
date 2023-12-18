@@ -1,7 +1,13 @@
 import html
 
+from .commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception3,
+    limiter_5,
+)
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError
 
 
 class GayBingoIE(SeleniumInfoExtractor):
@@ -11,7 +17,7 @@ class GayBingoIE(SeleniumInfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?gay.bingo/video/(?P<id>\d+)(?:\?|$)'
 
     @dec_on_exception3
-    @limiter_5.ratelimit("gaybingo2", delay=True)
+    @limiter_5.ratelimit("gaybingo", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()
@@ -30,8 +36,6 @@ class GayBingoIE(SeleniumInfoExtractor):
         self.report_extraction(url)
 
         webpage = try_get(self._send_request(url), lambda x: html.unescape(x.text))
-
-        assert self._downloader
 
         iehtml5 = self._downloader.get_info_extractor('HTML5MediaEmbed')
         gen = iehtml5.extract_from_webpage(self._downloader, url, webpage)

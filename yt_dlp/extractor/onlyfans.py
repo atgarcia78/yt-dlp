@@ -1,8 +1,10 @@
 import hashlib
+import http
+import json
 import logging
+import os
 import re
 import sys
-import os
 import threading
 import time
 import traceback
@@ -11,8 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any, Union, cast
-import json
-import http
+from urllib.parse import urlparse
 
 import httpx
 
@@ -25,15 +26,7 @@ from .commonwebdriver import (
     ec,
     limiter_0_1,
 )
-from ..utils import (
-    ExtractorError,
-    find_available_port,
-    int_or_none,
-    traverse_obj,
-    try_get,
-)
-
-from urllib.parse import urlparse
+from ..utils import ExtractorError, int_or_none, traverse_obj, try_get
 
 logger = logging.getLogger('onlyfans')
 
@@ -449,7 +442,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def _get_auth_config(self):
 
         _auth_config = {}
-        _port = find_available_port() or 8080
+        _port = self.find_free_port() or 8080
         driver = self.get_driver(host='127.0.0.1', port=_port)
         try:
             with self.get_har_logs('onlyfans', port=_port) as harlogs:

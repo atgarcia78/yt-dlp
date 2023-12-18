@@ -35,8 +35,8 @@ from ..utils import (
     unified_timestamp,
     unsmuggle_url,
     update_url_query,
-    urlhandle_detect_ext,
     url_or_none,
+    urlhandle_detect_ext,
     urljoin,
     variadic,
     xpath_attr,
@@ -2295,9 +2295,13 @@ class GenericIE(InfoExtractor):
         ]
 
     def _extract_kvs(self, url, webpage, video_id):
+        if 'flashvars' not in webpage:
+            _var = self._search_regex(r'=\s*kt_player\s*\([^*]+,\s([^\)]+)\)', webpage, 'var')
+        else:
+            _var = 'flashvars'
         flashvars = self._search_json(
-            r'(?s:<script\b[^>]*>.*?var\s+flashvars\s*=)',
-            webpage, 'flashvars', video_id, transform_source=js_to_json)
+            rf'(?s:<script\b[^>]*>.*?var\s+{_var}\s*=)',
+            webpage.replace('\t', ''), 'flashvars', video_id, transform_source=js_to_json)
 
         # extract the part after the last / as the display_id from the
         # canonical URL.

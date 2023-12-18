@@ -7,6 +7,7 @@ import logging
 import os
 import random
 import re
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -654,7 +655,7 @@ class myHAR:
 
         def __enter__(self):
             self.ps = subprocess.Popen(
-                self.cmd.split(' '),
+                shlex.split(self.cmd),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE)
             self.ps.poll()
@@ -690,7 +691,6 @@ class myHAR:
         def __exit__(self, *args):
             self.ps.terminate()
             self.ps.poll()
-
             if self.ps.stdout:
                 self.ps.stdout.close()
             if self.ps.stderr:
@@ -714,7 +714,6 @@ class myHAR:
 
             if not wait_for_file(self.har_file, 5):
                 raise ExtractorError("couldnt get har file")
-
             self.logger(f'{self.pre} har file ready in {self.har_file}')
 
     @classmethod
