@@ -644,7 +644,7 @@ from .lovehomeporn import LoveHomePornIE
 from .lrt import LRTVODIE, LRTStreamIE
 from .lumni import LumniIE
 from .lynda import LyndaCourseIE, LyndaIE
-from .machofactory import MachoFactoryIE
+from .maariv import MaarivIE
 from .magellantv import MagellanTVIE
 from .magentamusik360 import MagentaMusik360IE
 from .mailru import MailRuIE, MailRuMusicIE, MailRuMusicSearchIE
