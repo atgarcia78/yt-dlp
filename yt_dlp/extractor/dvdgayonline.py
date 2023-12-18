@@ -1,37 +1,37 @@
-import re
-import os
 import html
+import logging
+import os
+import re
+from threading import Semaphore
+
 from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    HTTPStatusError,
+    By,
     ConnectError,
+    HTTPStatusError,
     ReExtractInfo,
+    SeleniumInfoExtractor,
+    WebElement,
+    cast,
     dec_on_driver_timeout,
+    ec,
+    get_host,
     limiter_1,
     limiter_5,
     my_dec_on_exception,
-    By,
-    ec,
-    cast,
-    subnright,
-    get_host,
     raise_extractor_error,
     raise_reextract_info,
-    WebElement
+    subnright,
 )
 from ..utils import (
     ExtractorError,
-    sanitize_filename,
-    try_get,
-    try_call,
+    get_elements_by_class,
     get_first,
+    sanitize_filename,
     traverse_obj,
-    get_elements_by_class
+    try_call,
+    try_get,
 )
 
-from threading import Semaphore
-
-import logging
 logger = logging.getLogger('dvdgayonline')
 
 on_exception = my_dec_on_exception(
@@ -98,8 +98,9 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             'Referer': url,
             'Origin': 'https://dvdgayonline.com'}
 
-        return try_get(self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data),
-                       lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
+        return try_get(
+            self.send_http_request(self._POST_URL, _type="POST", headers=headers, data=data),
+            lambda x: traverse_obj(x.json(), 'embed_url') if x else None)
 
     @SeleniumInfoExtractor.syncsem()
     @on_retry_vinfo
@@ -260,15 +261,6 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 except OSError:
                     self.logger_debug(f"{pre}: Unable to remove the har file")
 
-    # class syncsem:
-    #     def __call__(self, func):
-    #         @functools.wraps(func)
-    #         def wrapper(*args, **kwargs):
-    #             with DVDGayOnlineIE._SEM:
-    #                 return func(*args, **kwargs)
-    #         return wrapper
-
-    # @syncsem()
     def _get_entry(self, url, **kwargs):
 
         pre = f'[get_entry][{self._get_url_print(url)}]'

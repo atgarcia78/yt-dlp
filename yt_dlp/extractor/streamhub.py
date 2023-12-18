@@ -1,31 +1,33 @@
+import logging
 import os
+
 from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    dec_on_exception2,
-    dec_on_driver_timeout,
-    HTTPStatusError,
-    ConnectError,
-    ReExtractInfo,
-    limiter_5,
     By,
+    ConnectError,
+    HTTPStatusError,
+    ReExtractInfo,
+    SeleniumInfoExtractor,
+    dec_on_driver_timeout,
+    dec_on_exception2,
     ec,
+    limiter_5,
+    my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info,
-    my_dec_on_exception
 )
 from ..utils import (
     ExtractorError,
+    find_available_port,
     sanitize_filename,
-    try_get,
     try_call,
-    find_available_port
+    try_get,
 )
 
-import logging
 logger = logging.getLogger('streamhub')
 
 on_exception = my_dec_on_exception(
-    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=1)
+    (TimeoutError, ExtractorError, ReExtractInfo), raise_on_giveup=False,
+    max_tries=3, jitter="my_jitter", interval=1)
 
 on_retry_vinfo = my_dec_on_exception(
     ReExtractInfo, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
@@ -72,20 +74,21 @@ class StreamHubIE(SeleniumInfoExtractor):
         _title = None
         _har_file = None
 
+        if "error" in (_res := self._is_valid(url_dl, inc_error=True)):
+            raise_extractor_error(_res['error'])
+
         try:
-            self.send_http_request(url_dl)
             _port = find_available_port() or 8080
             driver = self.get_driver(host='127.0.0.1', port=_port)
             try:
-
                 with self.get_har_logs('streamhub', videoid, msg=pre, port=_port) as harlogs:
-
                     _har_file = harlogs.har_file
                     self._send_request(url_dl, driver=driver)
                     self.wait_until(driver, 60, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                    _title = try_get(self.wait_until(driver, 5, ec.presence_of_element_located((By.TAG_NAME, "h4"))), lambda x: x.text)
-                    self.wait_until(driver, 10)
-
+                    _title = try_get(
+                        driver.find_element(by=By.TAG_NAME, value='h4'),
+                        lambda x: x.text)
+                    self.wait_until(driver, 1)
             except ReExtractInfo:
                 raise
             except Exception as e:
@@ -94,25 +97,29 @@ class StreamHubIE(SeleniumInfoExtractor):
             finally:
                 self.rm_driver(driver)
 
-            _headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5', 'Origin': "https://streamhub.to", 'Referer': "https://streamhub.to/"}
+            _headers = {
+                'Origin': "https://streamhub.to",
+                'Referer': "https://streamhub.to/"
+            }
 
             m3u8_url, m3u8_doc = try_get(
-                self.scan_for_request(r"master\.m3u8.*$", har=_har_file),  # type: ignore
+                self.scan_for_request(r"master\.m3u8.*$", har=_har_file),
                 lambda x: (x.get('url'), x.get('content')) if x else (None, None))
 
             if not m3u8_url or not m3u8_doc:
                 raise_reextract_info(f'{pre} no video info')
 
-            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
             if not _formats:
                 raise_extractor_error(f'{pre} Couldnt get video formats')
 
             for _format in _formats:
                 if (_head := _format.get('http_headers')):
-                    _head.update(_headers)
+                    _head |= _headers
                 else:
-                    _format.update({'http_headers': _headers})
+                    _format |= {'http_headers': _headers}
 
             if not _subtitles:
                 list_subt_urls = try_get(
@@ -144,9 +151,10 @@ class StreamHubIE(SeleniumInfoExtractor):
                 'webpage_url': url}
 
             try:
-                _entry.update({'duration': self._parse_m3u8_vod_duration(m3u8_doc, videoid)})
+                if _duration := self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0]['http_headers']):
+                    _entry['duration'] = _duration
             except Exception as e:
-                self.logger_info(f"{pre}: error trying to get vod {repr(e)}")
+                self.report_warning(f"{pre}: error trying to get vod {repr(e)}")
 
             return _entry
 

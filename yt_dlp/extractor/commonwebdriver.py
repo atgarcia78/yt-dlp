@@ -1338,7 +1338,8 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
             def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
                 if (_res := self.cache.load('is_valid', get_host(_url))):
                     _time_modif = datetime.fromtimestamp(
-                        os.stat(self.cache._get_cache_fn('is_valid', get_host(_url), 'json')).st_mtime)
+                        os.stat(self.cache._get_cache_fn(
+                            'is_valid', get_host(_url), 'json')).st_mtime)
                     if (datetime.now() - _time_modif) <= timedelta(hours=1):
                         return _res
                     with contextlib.suppress(OSError):
@@ -1352,11 +1353,13 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         if short:
                             _headers['Range'] = 'bytes=0-100'
                         return self.send_http_request(
-                            _url, _type="GET", timeout=timeout, headers=_headers, msg=f'[valid]{_pre_str}')
+                            _url, _type="GET", timeout=timeout,
+                            headers=_headers, msg=f'[valid]{_pre_str}')
                     except HTTPStatusError as e:
                         self.logger_debug(f"{_pre_str}:{e}")
                         if e.response.status_code >= 500:
-                            self.cache.store('is_valid', get_host(_url), {'valid': False, 'error': str(e)})
+                            self.cache.store(
+                                'is_valid', get_host(_url), {'valid': False, 'error': str(e)})
                         return {'error': str(e)}
                     except Exception as e:
                         self.logger_debug(f"{_pre_str}:{e}")
@@ -1396,7 +1399,7 @@ prefs.setIntPref("network.proxy.socks_port", "{port}");'''
                         if not _valid and inc_error:
                             return {'error': 'video not found or deleted 404'} | valid
                         else:
-                            return valid
+                            return {'webpage': webpage} | valid
 
             else:
                 self.logger_debug(
