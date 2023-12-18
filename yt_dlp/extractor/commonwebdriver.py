@@ -339,14 +339,20 @@ map_limiter = {
     15: limiter_15, 10: limiter_10, 5: limiter_5, 2: limiter_2, 1: limiter_1,
     0.5: limiter_0_5, 0.1: limiter_0_1, 0.01: limiter_0_01, 0: limiter_non}
 
+CONF_CONFIG_EXTR_LOCAL = "/Users/antoniotorres/Projects/yt-dlp/config_extractors.json"
+CONF_CONFIG_EXTR_GH = 'https://raw.githubusercontent.com/atgarcia78/yt-dlp/master/config_extractors.json'
+CONF_ADDON_HAR = '/Users/antoniotorres/Projects/async_downloader/share/har_dump.py'
+CONF_FF_BIN = r'/Applications/Firefox Nightly.app/Contents/MacOS/firefox'
+CONF_FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
+
 
 def load_config_extractors():
     try:
-        with open("/Users/antoniotorres/Projects/yt-dlp/config_extractors.json", "r") as file:
+        with open(CONF_CONFIG_EXTR_LOCAL, "r") as file:
             data = json.loads(file.read())
     except Exception:
         try:
-            data = httpx.get('https://raw.githubusercontent.com/atgarcia78/yt-dlp/master/config_extractors.json').json()
+            data = httpx.get(CONF_CONFIG_EXTR_GH).json()
         except Exception:
             print("ERROR LOADING CONFIG EXTRACTORS FILE")
             raise
@@ -644,7 +650,7 @@ class myHAR:
     class getNetworkHAR:
 
         def __init__(self, har_file, logger=None, msg=None, port=8080):
-            self._har_script = '/Users/antoniotorres/Projects/async_downloader/share/har_dump.py'
+            self._har_script = CONF_ADDON_HAR
             self.har_file = har_file
             self.port = port
             self.cmd = f"mitmdump -p {port} -s {self._har_script} --set hardump={self.har_file}"
@@ -845,7 +851,9 @@ class ProgressBar(MultilinePrinter):
     def __exit__(self, *args):
         try:
             if self._block:
-                try_get(self._logger.parent.handlers, lambda x: x[0].start())  # type: ignore
+                try_get(
+                    self._logger.parent.handlers,
+                    lambda x: x[0].start())  # type: ignore
         except Exception as e:
             self._logger.exception(repr(e))
         super().__exit__(*args)
@@ -858,7 +866,8 @@ class ProgressBar(MultilinePrinter):
     def print(self, message):
         with self._lock:
             self._timer.wait_haselapsed(ProgressBar._DELAY)
-            self.print_at_line(f'{self._pre} {message} {self._done}/{self._total}', 0)
+            self.print_at_line(
+                f'{self._pre} {message} {self._done}/{self._total}', 0)
             self._timer.reset()
 
 
@@ -872,8 +881,8 @@ def raise_reextract_info(msg, expected=True, _from=None):
 
 class SeleniumInfoExtractor(InfoExtractor):
 
-    _FF_BINARY = r'/Applications/Firefox Nightly.app/Contents/MacOS/firefox'
-    _FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
+    _FF_BINARY = CONF_FF_BIN
+    _FF_PROF = CONF_FF_PROF
     _MASTER_LOCK = Lock()
     _YTDL = None
     _CONFIG_REQ = load_config_extractors()
@@ -1034,7 +1043,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             ie_key = _args
             ie = self._downloader.get_info_extractor(ie_key)  # type: ignore
         try:
-            # ie._ready = False
             ie.initialize()
             return ie
         except Exception as e:
@@ -1186,19 +1194,38 @@ class SeleniumInfoExtractor(InfoExtractor):
             SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
             return driver
 
-    def set_driver_proxy_port(self, driver, port):
+    def set_driver_proxy_options(self, driver, **kwargs):
 
-        setupScript = f'''
-var prefs = Components.classes["@mozilla.org/preferences-service;1"]
-.getService(Components.interfaces.nsIPrefBranch);
-prefs.setIntPref("network.proxy.http_port", "{port}");
-prefs.setIntPref("network.proxy.https_port", "{port}");
-prefs.setIntPref("network.proxy.ssl_port", "{port}");
-prefs.setIntPref("network.proxy.socks_port", "{port}");'''
-        driver.get('about:preferences')
-        self.wait_until(driver, 1)
-        driver.execute_script(setupScript)
-        self.wait_until(driver, 1)
+        '''
+        proxy_type: int = 0 - manual, 1 - proxy
+        port: int =  port
+        host: str = IP
+        '''
+        proxy_type = kwargs.get("proxy_type", 1)
+        port = kwargs.get("port")
+        host = kwargs.get("host")
+        driver.timeouts.script = 60
+
+        _script = []
+        _script.append('var prefs = Components.classes["@mozilla.org/preferences-service;1"]\
+                       .getService(Components.interfaces.nsIPrefBranch);')
+        if proxy_type == 0:
+            _script.append('prefs.setIntPref("network.proxy.type", 0);')
+        else:
+            _script.append('prefs.setIntPref("network.proxy.type", 1);')
+            if host is not None:
+                _script.append(f'prefs.setCharPref("network.proxy.http", "{host}");')
+                _script.append(f'prefs.setCharPref("network.proxy.ssl", "{host}");')
+                _script.append(f'prefs.setCharPref("network.proxy.socks", "{host}");')
+            if port:
+                _script.append(f'prefs.setIntPref("network.proxy.http_port", {port});')
+                _script.append(f'prefs.setIntPref("network.proxy.ssl_port", {port});')
+                _script.append(f'prefs.setIntPref("network.proxy.socks_port", {port});')
+
+        if driver.current_url != 'about:preferences':
+            driver.get('about:preferences')
+        _js_script = "\n".join(_script)
+        driver.execute_script(_js_script)
 
     @classmethod
     def rm_driver(cls, driver):
