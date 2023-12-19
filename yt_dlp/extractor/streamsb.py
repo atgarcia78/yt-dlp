@@ -13,13 +13,13 @@ from .commonwebdriver import (
     ec,
     limiter_1,
     my_dec_on_exception,
+    raise_extractor_error,
     raise_reextract_info,
     subnright,
 )
 from ..utils import (
     ExtractorError,
     get_first,
-    raise_extractor_error,
     sanitize_filename,
     try_call,
     try_get,
@@ -98,9 +98,6 @@ class StreamSBIE(SeleniumInfoExtractor):
             finally:
                 self.rm_driver(driver)
 
-            m3u8_doc = None
-            m3u8_url = None
-
             info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
             self.logger_debug(info)
             if (_error := get_first(info, ('error'))):
@@ -110,9 +107,12 @@ class StreamSBIE(SeleniumInfoExtractor):
             if not _title:
                 raise ExtractorError('Couldnt get title')
 
-            _title = try_get(re.findall(r'(1080p|720p|480p)', _title), lambda x: _title.split(x[0])[0]) or _title
-            _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
-            _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.')
+            _title = try_get(
+                re.findall(r'(1080p|720p|480p)', _title),
+                lambda x: _title.split(x[0])[0]) or _title
+            _title = try_get(
+                re.sub(r'(\s*-\s*202)', ' 202', _title),
+                lambda x: x.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.'))
 
             _headers = {
                 'Origin': f"https://{dom}",
@@ -132,13 +132,11 @@ class StreamSBIE(SeleniumInfoExtractor):
             )) or '404 not found' in m3u8_doc.lower():
                 raise_reextract_info(f'{pre} Couldnt get video info')
 
-            _formats = []
-            _subtitles = {}
-
             self.logger_debug(m3u8_doc)
             if 'SDR,AUDIO="audio' in m3u8_doc:
                 m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
                 m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
+
             _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
                 m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
@@ -146,10 +144,8 @@ class StreamSBIE(SeleniumInfoExtractor):
                 raise_reextract_info(f'{pre} Couldnt get video formats')
 
             for _format in _formats:
-                if (_head := _format.get('http_headers')):
-                    _head.update(_headers)
-                else:
-                    _format.update({'http_headers': _headers})
+                if _format.setdefault('http_headers', _headers) != _headers:
+                    _format['http_headers'] |= _headers
 
             if not _subtitles:
                 list_subt_urls = try_get(

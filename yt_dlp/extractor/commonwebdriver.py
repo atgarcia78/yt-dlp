@@ -483,6 +483,21 @@ class ProgressTimer:
                 time.sleep(0.05)
 
 
+def close_pipe_proc(_stream):
+    _log = ''
+    try:
+        if _stream:
+            _log = '\n'.join(
+                [line.decode('utf-8').strip()
+                    for line in _stream])
+            _stream.close()
+    except Exception:
+        pass
+    finally:
+        _stream.close()
+        return _log
+
+
 class myHAR:
 
     @classmethod
@@ -636,14 +651,19 @@ class myHAR:
     class getNetworkHAR:
 
         def __init__(self, har_file, logger=None, msg=None, port=8080):
-            self._har_script = CONF_ADDON_HAR
             self.har_file = har_file
             self.port = port
-            self.cmd = f"mitmdump -p {port} -s {self._har_script} --set hardump={self.har_file}"
+            self.cmd = f"mitmdump -p {port} --set hardump={self.har_file}"
             self.logger = logger or logging.getLogger('getHAR').debug
             self.pre = '[getHAR]'
             if msg:
                 self.pre += msg
+
+        def _handle_close(self):
+            self.ps.wait()
+            return [
+                close_pipe_proc(_pipe)
+                for _pipe in [self.ps.stdout, self.ps.stderr]]
 
         def __enter__(self):
             self.ps = subprocess.Popen(
@@ -654,47 +674,15 @@ class myHAR:
             time.sleep(2)
             self.ps.poll()
             if self.ps.returncode is not None:
-                _logout = ''
-                _logerr = ''
-                if self.ps.stdout:
-                    _logout = '\n'.join(
-                        [line.decode('utf-8').strip()
-                         for line in self.ps.stdout])
-                    self.ps.stdout.close()
-                if self.ps.stderr:
-                    _logerr = '\n'.join(
-                        [line.decode('utf-8').strip()
-                         for line in self.ps.stderr])
-                    self.ps.stderr.close()
-                try:
-                    if self.ps.stdin:
-                        self.ps.stdin.close()
-                except Exception:
-                    pass
-                finally:
-                    self.ps.wait()
-
-                self.logger(
-                    f"{self.pre}error rcode[{self.ps.returncode}]\n{_logerr}\n{_logout}")
+                _logs = self._handle_close()
+                self.logger("".join([
+                    f"{self.pre}error rcode[{self.ps.returncode}]\n",
+                    f"LOGOUT{_logs[0]}\nLOGERR{_logs[1]}"]))
                 raise ExtractorError("couldnt launch mitmdump")
 
             return self
 
         def __exit__(self, *args):
-            self.ps.terminate()
-            self.ps.poll()
-            if self.ps.stdout:
-                self.ps.stdout.close()
-            if self.ps.stderr:
-                self.ps.stderr.close()
-            try:
-                if self.ps.stdin:
-                    self.ps.stdin.close()
-            except Exception:
-                pass
-            finally:
-                self.ps.wait()
-
             def wait_for_file(file, timeout):
                 start = time.monotonic()
                 while (time.monotonic() - start < timeout):
@@ -702,8 +690,10 @@ class myHAR:
                         time.sleep(0.2)
                     else:
                         return True
-                return False
 
+            self.ps.terminate()
+            self.ps.poll()
+            self._handle_close()
             if not wait_for_file(self.har_file, 5):
                 raise ExtractorError("couldnt get har file")
             self.logger(f'{self.pre} har file ready in {self.har_file}')
