@@ -1,28 +1,30 @@
-import re
+import logging
 import os
+import re
+
 from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    HTTPStatusError,
+    By,
     ConnectError,
+    HTTPStatusError,
     ReExtractInfo,
+    SeleniumInfoExtractor,
+    cast,
     dec_on_driver_timeout,
+    ec,
     limiter_1,
     my_dec_on_exception,
-    By,
-    ec,
-    cast,
+    raise_reextract_info,
     subnright,
-    raise_reextract_info
 )
 from ..utils import (
     ExtractorError,
+    get_first,
+    raise_extractor_error,
     sanitize_filename,
-    try_get,
     try_call,
-    get_first
+    try_get,
 )
 
-import logging
 logger = logging.getLogger('streamsb')
 
 on_exception = my_dec_on_exception(
@@ -69,24 +71,25 @@ class StreamSBIE(SeleniumInfoExtractor):
         if (msg := kwargs.get('msg', None)):
             pre = f'{msg}{pre}'
 
-        videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain'))  # type: ignore
+        videoid, dom = try_get(
+            re.search(self._VALID_URL, url),
+            lambda x: x.group('id', 'domain'))
         url_dl = f"https://{dom}/e/{videoid}.html"
 
         _har_file = None
 
+        if "error" in (_res := self._is_valid(url_dl, inc_error=True)):
+            raise_extractor_error(_res['error'])
+
         try:
             _port = self.find_free_port()
             driver = self.get_driver(host='127.0.0.1', port=_port)
-
             try:
-
                 with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
-
                     _har_file = harlogs.har_file
                     self._send_request(url_dl, driver=driver)
                     self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                    self.wait_until(driver, 2)
-
+                    self.wait_until(driver, 1)
             except ReExtractInfo:
                 raise
             except Exception as e:
@@ -111,37 +114,33 @@ class StreamSBIE(SeleniumInfoExtractor):
             _title = re.sub(r'(\s*-\s*202)', ' 202', _title)
             _title = _title.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.')
 
+            _headers = {
+                'Origin': f"https://{dom}",
+                'Referer': f"https://{dom}/"
+            }
+
             m3u8_url, m3u8_doc = try_get(
-                self.scan_for_request(r"master.m3u8.+$", har=_har_file),  # type: ignore
+                self.scan_for_request(r"master\.m3u8.+$", har=_har_file),  # type: ignore
                 lambda x: (x.get('url'), x.get('content')) if x else (None, None))
 
-            _headers = {
-                'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.5',
-                'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+            if not m3u8_url and not (m3u8_url := get_first(info, ('stream_data', 'file'))):
+                raise_reextract_info(f'{pre} Couldnt get video info')
 
-            if not m3u8_url:
-                if not (m3u8_url := cast(str, get_first(info, ('stream_data', 'file')))):
-                    raise_reextract_info(f'{pre} Couldnt get video info')
-
-            if not m3u8_doc:
-                if not (m3u8_doc := try_get(self._send_request(m3u8_url, headers=_headers), lambda x: x.text)):
-                    raise_reextract_info(f'{pre} Couldnt get video info')
-
-            m3u8_url, m3u8_doc = cast(str, m3u8_url), cast(str, m3u8_doc)
+            if (not m3u8_doc and not (m3u8_doc := try_get(
+                self._send_request(m3u8_url, headers=_headers),
+                lambda x: x.text)
+            )) or '404 not found' in m3u8_doc.lower():
+                raise_reextract_info(f'{pre} Couldnt get video info')
 
             _formats = []
             _subtitles = {}
 
-            if (m3u8_doc and '404 Not Found' in m3u8_doc):
-                m3u8_doc = None
-
-            if m3u8_doc and m3u8_url:
-                self.logger_debug(m3u8_doc)
-                if 'SDR,AUDIO="audio' in m3u8_doc:
-                    m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
-                    m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
-                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
-                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+            self.logger_debug(m3u8_doc)
+            if 'SDR,AUDIO="audio' in m3u8_doc:
+                m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
+                m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
+            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
             if not _formats:
                 raise_reextract_info(f'{pre} Couldnt get video formats')
@@ -161,15 +160,17 @@ class StreamSBIE(SeleniumInfoExtractor):
                         _cc_lang = {'spanish': 'es', 'english': 'en'}
                         if subturl:
                             ext = subturl.rsplit('.', 1)[-1]
-                            lang = _cc_lang.get(try_call(lambda: subturl.rsplit('.', 1)[0].rsplit('_', 1)[-1].lower()) or 'dummy')
-                            if lang:
+                            if (
+                                lang := _cc_lang.get(try_call(
+                                    lambda: subturl.rsplit('.', 1)[0].rsplit('_', 1)[-1].lower()) or 'dummy')
+                            ):
                                 return {'lang': lang, 'ext': ext}
 
                     for _url_subt in list_subt_urls:
-                        _subt = _get_info_subt(_url_subt)
-                        if not _subt:
-                            continue
-                        _subtitles.setdefault(_subt.get('lang'), []).append({'url': _url_subt, 'ext': _subt.get('ext')})
+                        if (_subt := _get_info_subt(_url_subt)):
+                            try_get(
+                                _subtitles.setdefault(_subt.get('lang'), []),
+                                lambda x: x.append({'url': _url_subt, 'ext': _subt.get('ext')}))
 
             _entry = {
                 'id': videoid,
@@ -182,8 +183,10 @@ class StreamSBIE(SeleniumInfoExtractor):
                 'webpage_url': url}
 
             try:
-                _duration = self._extract_m3u8_vod_duration(_formats[0]['url'], videoid, headers=_formats[0]['http_headers'])
-                if _duration:
+                if (
+                    _duration := self._extract_m3u8_vod_duration(
+                        _formats[0]['url'], videoid, headers=_formats[0]['http_headers'])
+                ):
                     _entry.update({'duration': _duration})
             except Exception as e:
                 self.logger_debug(f"{pre}: error trying to get vod {repr(e)}")
