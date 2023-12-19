@@ -1,22 +1,25 @@
-import re
-import json
+import contextlib
 import html
+import json
+import re
 from typing import cast
 
+from .commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception3,
+    limiter_2,
+)
 from ..utils import (
     ExtractorError,
+    decode_packed_codes,
+    determine_ext,
+    get_domain,
+    js_to_json,
     sanitize_filename,
     try_get,
-    js_to_json,
-    decode_packed_codes,
-    get_domain, determine_ext)
-
-from .commonwebdriver import (
-    dec_on_exception3,
-    SeleniumInfoExtractor,
-    limiter_2,
-    HTTPStatusError,
-    ConnectError)
+)
 
 
 class FilemoonIE(SeleniumInfoExtractor):
@@ -58,33 +61,48 @@ class FilemoonIE(SeleniumInfoExtractor):
         for ofcode in re.finditer(r'<script data-cfasync=[^>]+>(eval[^\n]+)\n', webpage, flags=re.MULTILINE):
             plaincode = decode_packed_codes(ofcode.group())
             if 'jwplayer' and 'setup' in plaincode:
-                info_video = try_get(try_get(re.search(r'setup\((?P<code>.*)\);var vvplay', plaincode), lambda x: x.group('code').replace('\\', '')), lambda y: json.loads(js_to_json(y)))
+                info_video = try_get(
+                    try_get(
+                        re.search(r'setup\((?P<code>.*)\);var vvplay', plaincode),
+                        lambda x: x.group('code').replace('\\', '')),
+                    lambda y: json.loads(js_to_json(y)))
                 break
 
         formats = []
         subtitles = {}
         duration = None
 
-        if info_video and (_entry := cast(dict, self._parse_jwplayer_data(info_video, videoid, False, m3u8_id='hls', mpd_id='dash'))):
+        if info_video and (_entry := cast(dict, self._parse_jwplayer_data(
+            info_video, videoid, False, m3u8_id='hls', mpd_id='dash'))
+        ):
             formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
 
         if not formats:
             raise ExtractorError(f"[{url}] Couldnt find any video format")
 
         dom = get_domain(_wurl)
-        _headers = {'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
+
+        _headers = {
+            'Origin': f"https://{dom}",
+            'Referer': f"https://{dom}/"
+        }
 
         for _format in formats:
-            _format.update({'http_headers': _headers})
-            if not duration and determine_ext(_format['url']):
-                try:
-                    duration = self._extract_m3u8_vod_duration(_format['url'], videoid, headers=_format.get('http_headers', {}))
-                except Exception as e:
-                    self.logger_info(f"error trying to get vod {repr(e)}")
+            if _format.setdefault('http_headers', _headers) != _headers:
+                _format['http_headers'] |= _headers
+            if (not duration or not subtitles) and determine_ext(_format['url']) == 'm3u8':
+                if not duration:
+                    with contextlib.suppress(Exception):
+                        duration = self._extract_m3u8_vod_duration(
+                            _format['url'], videoid, headers=_format.get('http_headers', {}))
+                if not subtitles:
+                    with contextlib.suppress(Exception):
+                        _, subtitles = self._extract_m3u8_formats_and_subtitles(
+                            _format['manifest_url'], videoid, headers=_headers)
 
         title = self._html_extract_title(webpage)
 
-        _entry = {
+        return {
             "id": videoid,
             "title": sanitize_filename(title, restricted=True),
             "formats": formats,
@@ -95,15 +113,10 @@ class FilemoonIE(SeleniumInfoExtractor):
             "extractor_key": "Filemoon",
             "duration": duration}
 
-        return _entry
-
     def _real_extract(self, url):
-
         self.report_extraction(url)
-
         try:
             return self._get_entry(url)
-
         except ExtractorError:
             raise
         except Exception as e:
