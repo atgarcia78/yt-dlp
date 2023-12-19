@@ -178,6 +178,7 @@ from .brightcove import BrightcoveLegacyIE, BrightcoveNewIE
 from .brilliantpala import BrilliantpalaClassesIE, BrilliantpalaElearnIE
 from .britfuckers import BritFuckersIE
 from .bundesliga import BundesligaIE
+from .bundestag import BundestagIE
 from .businessinsider import BusinessInsiderIE
 from .buzzfeed import BuzzFeedIE
 from .byutv import BYUtvIE
