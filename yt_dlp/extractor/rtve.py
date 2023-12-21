@@ -1,6 +1,6 @@
 import base64
-import re
 import json
+import re
 import subprocess
 
 from .common import InfoExtractor
@@ -8,11 +8,11 @@ from ..utils import (
     ExtractorError,
     determine_ext,
     float_or_none,
+    int_or_none,
     js_to_json,
     qualities,
-    int_or_none,
+    traverse_obj,
     try_get,
-    traverse_obj
 )
 
 
@@ -96,7 +96,6 @@ class RTVEPlayIE(InfoExtractor):
         formats = []
         info = self._decrypt_url(png)
         self.write_debug(info)
-        self.write_debug(q)
         for quality, video_url in zip(info['calidades'], info['sources']):
             ext = determine_ext(video_url)
             if ext == 'm3u8':
@@ -108,10 +107,10 @@ class RTVEPlayIE(InfoExtractor):
                 if urlh := self._request_webpage(video_url, video_id):
                     filesize = int_or_none(urlh.headers.get('Content-Length'))
                 formats.append({
-                    'format_id': 'http-mp4',
+                    'format_id': 'http-mp4' if not quality else quality,
                     'url': video_url,
                     'filesize': filesize
-                })
+                } | ({'quality': q(quality)} if quality else {}))
         return formats
 
     def _extract_drm_mpd_formats(self, video_id):
