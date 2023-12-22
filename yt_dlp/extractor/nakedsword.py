@@ -788,9 +788,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         NakedSwordBaseIE.API_REFRESH(msg=premsg, _logger=self.write_debug)
         NakedSwordBaseIE.API_LOGOUT(msg=premsg, _logger=self.write_debug)
-        # NakedSwordBaseIE._CLIENT.close()
-        # super()._real_initialize()
-        # NakedSwordBaseIE._CLIENT = self._CLIENT
         _simple_counter = self.get_param('_util_classes', {}).get('SimpleCountDown')
 
         self.logger_info(
