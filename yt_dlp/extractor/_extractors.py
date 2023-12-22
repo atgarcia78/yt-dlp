@@ -575,6 +575,7 @@ from .japandiet import (
 from .jeuxvideo import JeuxVideoIE
 from .jiosaavn import JioSaavnAlbumIE, JioSaavnSongIE
 from .joj import JojIE
+from .joqrag import JoqrAgIE
 from .jove import JoveIE
 from .jstream import JStreamIE
 from .jtbc import JTBCIE, JTBCProgramIE
