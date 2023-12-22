@@ -483,22 +483,7 @@ class ProgressTimer:
                 time.sleep(0.05)
 
 
-def close_pipe_proc(_stream):
-    _log = ''
-    try:
-        if _stream:
-            _log = '\n'.join(
-                [line.decode('utf-8').strip()
-                    for line in _stream])
-            _stream.close()
-    except Exception:
-        pass
-    finally:
-        _stream.close()
-        return _log
-
-
-class myHAR:
+class MyHAR:
 
     @classmethod
     @dec_retry_on_exception
@@ -506,6 +491,7 @@ class myHAR:
 
         _res = []
         if driver and not har:
+            # driver has ta have add on export trigger har
             _res = cast(list, try_get(
                 driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
                 lambda x: x.get('entries') if x else None))
@@ -582,7 +568,7 @@ class myHAR:
 
         while (time.monotonic() - _started) < timeout:
 
-            _newhar = myHAR.get_har(
+            _newhar = MyHAR.get_har(
                 driver=driver, har=har, _method=_method, _mimetype=_mimetype)
             _har = _newhar[len(_har_old):]
             _har_old = _newhar
@@ -636,7 +622,7 @@ class myHAR:
                 _info = json.loads(re.sub('[\t\n]', '', html.unescape(_content)))
             return (_info, x.get('headers')) if inclheaders else _info
 
-        _hints = myHAR.scan_har_for_request(
+        _hints = MyHAR.scan_har_for_request(
             _link, driver=driver, har=har, _method=_method, _mimetype="json", _all=_all,
             timeout=timeout, inclheaders=inclheaders, check_event=check_event)
 
@@ -647,6 +633,9 @@ class myHAR:
             return try_get(_hints, func_getter)
         else:
             return [_info for _info in list(map(func_getter, _hints)) if _info]
+
+    class MyHARError(Exception):
+        pass
 
     class getNetworkHAR:
 
@@ -659,10 +648,23 @@ class myHAR:
             if msg:
                 self.pre += msg
 
+        def _close_pipe_proc(self, stream):
+            _log = ''
+            try:
+                if stream:
+                    _log = '\n'.join(
+                        [line.decode('utf-8').strip()
+                            for line in stream])
+            except Exception:
+                pass
+            finally:
+                stream.close()
+                return _log
+
         def _handle_close(self):
             self.ps.wait()
             return [
-                close_pipe_proc(_pipe)
+                self._close_pipe_proc(_pipe)
                 for _pipe in [self.ps.stdout, self.ps.stderr]]
 
         def __enter__(self):
@@ -678,7 +680,7 @@ class myHAR:
                 self.logger("".join([
                     f"{self.pre}error rcode[{self.ps.returncode}]\n",
                     f"LOGOUT{_logs[0]}\nLOGERR{_logs[1]}"]))
-                raise ExtractorError("couldnt launch mitmdump")
+                raise MyHAR.MyHARError("couldnt launch mitmdump")
 
             return self
 
@@ -687,7 +689,7 @@ class myHAR:
                 start = time.monotonic()
                 while (time.monotonic() - start < timeout):
                     if not os.path.exists(file):
-                        time.sleep(0.2)
+                        time.sleep(0.5)
                     else:
                         return True
 
@@ -695,7 +697,7 @@ class myHAR:
             self.ps.poll()
             self._handle_close()
             if not wait_for_file(self.har_file, 5):
-                raise ExtractorError("couldnt get har file")
+                raise MyHAR.MyHARError("couldnt get har file")
             self.logger(f'{self.pre} har file ready in {self.har_file}')
 
     @classmethod
@@ -860,7 +862,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     _FF_BINARY = CONF_FF_BIN
     _FF_PROF = CONF_FF_PROF
     _MASTER_LOCK = Lock()
-    _YTDL = None
+    # _YTDL = None
     _CONFIG_REQ = load_config_extractors()
     _WEBDRIVERS = {}
     _REFS = {}
@@ -954,23 +956,32 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _real_initialize(self):
 
-        def _update():
-            self._downloader.params.setdefault('stop_dl', try_get(
-                self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), default={}) if x else {}))
-            self._downloader.params.setdefault('sem', try_get(
-                self._YTDL, lambda x: traverse_obj(x.params, ('sem'), default={}) if x else {}))
-            self._downloader.params.setdefault('lock', try_get(
-                self._YTDL, lambda x: traverse_obj(x.params, ('lock'), default=Lock()) if x else Lock()))
-            self._downloader.params.setdefault('stop', try_get(
-                self._YTDL, lambda x: traverse_obj(x.params, ('stop'), default=Event()) if x else Event()))
-            self._downloader.params.setdefault('routing_table', try_get(
-                self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
+        # def _update():
+        #     self._downloader.params.setdefault('stop_dl', try_get(
+        #         self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), default={}) if x else {}))
+        #     self._downloader.params.setdefault('sem', try_get(
+        #         self._YTDL, lambda x: traverse_obj(x.params, ('sem'), default={}) if x else {}))
+        #     self._downloader.params.setdefault('lock', try_get(
+        #         self._YTDL, lambda x: traverse_obj(x.params, ('lock'), default=Lock()) if x else Lock()))
+        #     self._downloader.params.setdefault('stop', try_get(
+        #         self._YTDL, lambda x: traverse_obj(x.params, ('stop'), default=Event()) if x else Event()))
+        #     self._downloader.params.setdefault('routing_table', try_get(
+        #         self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
 
-            SeleniumInfoExtractor._YTDL = self._downloader
+        #     SeleniumInfoExtractor._YTDL = self._downloader
+
+        def _update():
+            self._downloader.params.setdefault('stop_dl', {})
+            self._downloader.params.setdefault('sem', {})
+            self._downloader.params.setdefault('lock', Lock())
+            self._downloader.params.setdefault('stop', Event())
+            self._downloader.params.setdefault('routing_table', None)
 
         with SeleniumInfoExtractor._MASTER_LOCK:
-            if self._YTDL != self._downloader:
-                _update()
+            # if self._YTDL != self._downloader:
+            #     _update()
+
+            _update()
 
             self._CLIENT_CONFIG = {
                 'timeout': Timeout(20),
@@ -1228,14 +1239,14 @@ class SeleniumInfoExtractor(InfoExtractor):
         _time_str = f"{t0.strftime('%H%M%S_')}{t0.microsecond}"
         _videoid_str = f"{f'{videoid}_' if videoid else ''}"
         har_file = f"{folder}/dump_{_videoid_str}{_time_str}.har"
-        return myHAR.network_har_handler(
+        return MyHAR.network_har_handler(
             har_file, logger=self.logger_debug, msg=msg, port=port)
 
     def scan_for_request(
             self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None,
             _all=False, timeout=10, response=True, inclheaders=False):
 
-        return myHAR.scan_har_for_request(
+        return MyHAR.scan_har_for_request(
             _valid_url, driver=driver, har=har, _method=_method, _mimetype=_mimetype,
             _all=_all, timeout=timeout, response=response, inclheaders=inclheaders,
             check_event=self.check_stop)
@@ -1244,7 +1255,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             self, _valid_url, driver=None, har=None, _method="GET", _all=False,
             timeout=10, inclheaders=False):
 
-        return myHAR.scan_har_for_json(
+        return MyHAR.scan_har_for_json(
             _valid_url, driver=driver, har=har, _method=_method, _all=_all,
             timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop)
 
