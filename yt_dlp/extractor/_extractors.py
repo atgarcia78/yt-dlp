@@ -1082,6 +1082,7 @@ from .rtvcplay import RTVCKalturaIE, RTVCPlayEmbedIE, RTVCPlayIE
 from .rtve import RTVEInfantilIE, RTVELiveIE, RTVEPlayIE, RTVETelevisionIE
 from .rtvs import RTVSIE
 from .rtvslo import RTVSLOIE
+from .rudovideo import RudoVideoIE
 from .rule34video import Rule34VideoIE
 from .rumble import RumbleChannelIE, RumbleEmbedIE, RumbleIE
 from .rutube import (
