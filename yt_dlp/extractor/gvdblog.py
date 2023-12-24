@@ -660,7 +660,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             for i in itertools.count(1):
                 try:
                     if (webpage := try_get(
-                            self._send_request(f"{baseurl}{i}"),
+                            self._send_request(update_url_query(f"{baseurl}{i}", query=self.conf_args_gvd["query"])),
                             lambda x: unescape(x.text))):
                         if 'link rel="next"' not in webpage:
                             return i
