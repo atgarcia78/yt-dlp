@@ -7,8 +7,6 @@ from datetime import datetime
 from threading import Lock
 from urllib.parse import unquote, urljoin
 
-from httpx import Cookies
-
 from .commonwebdriver import (
     By,
     ConnectError,
@@ -46,7 +44,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     _NETRC_MACHINE = "myvidster"
 
     _LOCK = Lock()
-    _COOKIES: Cookies = Cookies()
+    _COOKIES = None
 
     _URLS_CHECKED = []
 

@@ -341,7 +341,6 @@ map_limiter = {
 
 CONF_CONFIG_EXTR_LOCAL = "/Users/antoniotorres/Projects/yt-dlp/config_extractors.json"
 CONF_CONFIG_EXTR_GH = 'https://raw.githubusercontent.com/atgarcia78/yt-dlp/master/config_extractors.json'
-CONF_ADDON_HAR = '/Users/antoniotorres/Projects/async_downloader/share/har_dump.py'
 CONF_FF_BIN = r'/Applications/Firefox Nightly.app/Contents/MacOS/firefox'
 CONF_FF_PROF = '/Users/antoniotorres/Library/Application Support/Firefox/Profiles/b33yk6rw.selenium'
 
@@ -862,7 +861,6 @@ class SeleniumInfoExtractor(InfoExtractor):
     _FF_BINARY = CONF_FF_BIN
     _FF_PROF = CONF_FF_PROF
     _MASTER_LOCK = Lock()
-    # _YTDL = None
     _CONFIG_REQ = load_config_extractors()
     _WEBDRIVERS = {}
     _REFS = {}
@@ -956,20 +954,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def _real_initialize(self):
 
-        # def _update():
-        #     self._downloader.params.setdefault('stop_dl', try_get(
-        #         self._YTDL, lambda x: traverse_obj(x.params, ('stop_dl'), default={}) if x else {}))
-        #     self._downloader.params.setdefault('sem', try_get(
-        #         self._YTDL, lambda x: traverse_obj(x.params, ('sem'), default={}) if x else {}))
-        #     self._downloader.params.setdefault('lock', try_get(
-        #         self._YTDL, lambda x: traverse_obj(x.params, ('lock'), default=Lock()) if x else Lock()))
-        #     self._downloader.params.setdefault('stop', try_get(
-        #         self._YTDL, lambda x: traverse_obj(x.params, ('stop'), default=Event()) if x else Event()))
-        #     self._downloader.params.setdefault('routing_table', try_get(
-        #         self._YTDL, lambda x: traverse_obj(x.params, ('routing_table'))))
-
-        #     SeleniumInfoExtractor._YTDL = self._downloader
-
         def _update():
             self._downloader.params.setdefault('stop_dl', {})
             self._downloader.params.setdefault('sem', {})
@@ -977,23 +961,20 @@ class SeleniumInfoExtractor(InfoExtractor):
             self._downloader.params.setdefault('stop', Event())
             self._downloader.params.setdefault('routing_table', None)
 
+        _update()
+
+        self._CLIENT_CONFIG = {
+            'timeout': Timeout(20),
+            'limits': Limits(),
+            'headers': self.get_param('http_headers', {}).copy(),
+            'follow_redirects': True,
+            'verify': False,
+            'proxies': {'http://': _proxy, 'https://': _proxy}
+            if (_proxy := self.get_param('proxy')) else None}
+
+        self._CLIENT = Client(**self._CLIENT_CONFIG)
+
         with SeleniumInfoExtractor._MASTER_LOCK:
-            # if self._YTDL != self._downloader:
-            #     _update()
-
-            _update()
-
-            self._CLIENT_CONFIG = {
-                'timeout': Timeout(20),
-                'limits': Limits(),
-                'headers': self.get_param('http_headers', {}).copy(),
-                'follow_redirects': True,
-                'verify': False,
-                'proxies': {'http://': _proxy, 'https://': _proxy}
-                if (_proxy := self.get_param('proxy')) else None}
-
-            self._CLIENT = Client(**self._CLIENT_CONFIG)
-
             SeleniumInfoExtractor._REFS[id(self)] = self
 
     def extract(self, url):
