@@ -298,8 +298,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 lambda x: traverse_obj(x.groupdict(), ('id1'), ('id2')))
 
             title = self._html_search_meta(
-                ('og:title', 'twitter:title'), post, default=None) or try_get(
-                    self._html_extract_title(post), lambda x: x.replace(' – GVDBlog', ''))
+                ('og:title', 'twitter:title'), post, default=None) or self._html_extract_title(post)
 
             _patt2 = r'''(?x)
                 (?:
@@ -323,6 +322,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             postdate = try_get(
                 post.get('date'), lambda x: datetime.fromisoformat(x.split('T')[0]))
 
+        if title:
+            title = sanitize_filename(
+                re.sub(r'\s*-*\s*GVDBlog[^\s]+', '', title, flags=re.IGNORECASE), restricted=True)
         return (postdate, title, postid)
 
     def _get_metadata(self, post, premsg) -> list:
@@ -413,6 +415,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 else:
                     _original_url = _url
                     _comment = _url
+                    if _el.pop('_try_title', None):
+                        _el['_legacy_title'] = _el['title']
+                        _el['title'] = title
 
                 _el |= (_entryupdate | {
                     '__gvd_playlist_index': i + 1,

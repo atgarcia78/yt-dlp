@@ -19,7 +19,13 @@ from .commonwebdriver import (
     raise_extractor_error,
     raise_reextract_info,
 )
-from ..utils import get_domain, js_to_json, sanitize_url, try_get
+from ..utils import (
+    get_domain,
+    js_to_json,
+    sanitize_filename,
+    sanitize_url,
+    try_get,
+)
 
 on_exception_vinfo = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=5, jitter="my_jitter", interval=1)
@@ -91,9 +97,10 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if mobj:
             title = title.split(mobj[0])[0]
         title = re.sub(r'(\s*-\s*202)', ' 202', title)
+        title = title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
 
         return {'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-                'title': title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')}
+                'title': sanitize_filename(title, restricted=True)}
 
     @on_retry_vinfo
     def _get_entry(self, url, **kwargs):
@@ -177,7 +184,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         _entry = {
             'id': str(int(sha256(video_id.encode('utf-8')).hexdigest(), 16) % 10**12) if len(video_id) > 12 else video_id,
-            'title': title,
+            'title': sanitize_filename(title, restricted=True),
             'formats': [_format],
             'subtitles': _subtitles,
             'thumbnail': thumbnail,
@@ -186,6 +193,9 @@ class DoodStreamIE(SeleniumInfoExtractor):
             'extractor': 'doodstream',
             'webpage_url': url
         }
+
+        if title[:8].isdecimal():
+            _entry['_try_title'] = True
 
         return _entry
 
