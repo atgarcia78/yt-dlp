@@ -363,7 +363,7 @@ from .elpais import ElPaisIE
 from .eltrecetv import ElTreceTVIE
 from .embedly import EmbedlyIE
 from .epicon import EpiconIE, EpiconSeriesIE
-from .eplayvid import EPlayVidIE
+from .epidemicsound import EpidemicSoundIE
 from .eplus import EplusIbIE
 from .epoch import EpochIE
 from .eporner import EpornerIE
