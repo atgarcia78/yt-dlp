@@ -111,6 +111,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
+        check = kwargs.get('check', True)
         webpage = cast(str, try_get(self._send_request(url), lambda x: html.unescape(x.text)))
         if not webpage:
             raise_extractor_error(f"{pre} error 404 no webpage")
@@ -148,18 +149,19 @@ class DoodStreamIE(SeleniumInfoExtractor):
             'ext': 'mp4'
         }
 
-        with self.get_ytdl_sem(get_domain(video_url)):
-            _videoinfo = cast(dict, self._get_video_info(video_url, msg=pre, headers=headers))
+        if check:
+            with self.get_ytdl_sem(get_domain(video_url)):
+                _videoinfo = cast(dict, self._get_video_info(video_url, msg=pre, headers=headers))
 
-        if not _videoinfo:
-            self._count += 1
-            raise_reextract_info(f"{pre} error 404: no video info")
+            if not _videoinfo:
+                self._count += 1
+                raise_reextract_info(f"{pre} error 404: no video info")
 
-        if _videoinfo['filesize'] >= 25000000 or self._count >= 9:
-            _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
-        else:
-            self._count += 1
-            raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 25MB")
+            if _videoinfo['filesize'] >= 25000000 or self._count >= 9:
+                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
+            else:
+                self._count += 1
+                raise_reextract_info(f"{pre} error filesize[{_videoinfo['filesize']}] < 25MB")
 
         _subtitles = {}
         list_subts = [subt for subt in [

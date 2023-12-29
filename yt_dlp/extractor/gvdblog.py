@@ -452,7 +452,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 logger.debug(f"{pre}: error - {repr(e)}")
                 raise_extractor_error(str(e), _from=e)
             except Exception as e:
-                logger.warning(f"{pre}: error - {repr(e)}")
+                logger.debug(f"{pre}: error - {repr(e)}")
                 raise
 
 
@@ -651,21 +651,12 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             upt_dict(_entries, playlist_url=url)
             return _entries
 
-    def get_entries(self, url: str, **kwargs):
-        partial_element_re = r'''(?x)
-        <(?P<tag>article)
-        (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
-        '''
-        baseurl = f"{update_url(url, query='')}/page/"
-        pre = f"[get_entries][{baseurl}]"
-
-        self.logger_debug(f'{pre} baseurl[{baseurl}] query[{self.conf_args_gvd["query"]}]')
-
-        def _get_last_page():
-            for i in itertools.count(1):
+    def _get_last_page(self, baseurl):
+        def _temp(start, step):
+            for i in itertools.count(start, step=step):
                 try:
                     if (webpage := try_get(
-                            self._send_request(update_url_query(f"{baseurl}{i}", query=self.conf_args_gvd["query"])),
+                            self._send_request(update_url_query(f"{baseurl}{i}", self.conf_args_gvd["query"])),
                             lambda x: unescape(x.text))):
                         if 'link rel="next"' not in webpage:
                             return i
@@ -673,44 +664,61 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                         return -1
                 except Exception:
                     return -1
+        if (_aux := _temp(1, 5)) > 0:
+            return _temp(_aux - 1, 1)
 
-        def _get_entries_page(npage: int = 1):
-            try:
-                _htmlpage = try_get(
-                    self._send_request(
-                        update_url_query(f"{baseurl}{npage}", query=self.conf_args_gvd['query'])),
-                    lambda x: get_element_by_id('us_grid_1', unescape(x.text)) if x else None)
+    def _get_entries_page(self, baseurl, npage: int = 1):
+        partial_element_re = r'''(?x)
+        <(?P<tag>article)
+        (?:\s(?:[^>"']|"[^"]*"|'[^']*')*)?
+        '''
+        try:
+            _htmlpage = try_get(
+                self._send_request(
+                    update_url_query(f"{baseurl}{npage}", query=self.conf_args_gvd['query'])),
+                lambda x: get_element_by_id('us_grid_1', unescape(x.text)) if x else None)
 
-                if not _htmlpage:
-                    raise ExtractorError("no webpage")
+            if not _htmlpage:
+                raise ExtractorError("no webpage")
 
-                _items = []
-                for m in re.finditer(partial_element_re, _htmlpage):
-                    content, _ = get_element_text_and_html_by_tag(
-                        m.group('tag'), _htmlpage[m.start():])
-                    _items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
-                return _items
-            except Exception as e:
-                self.logger_debug(f'{pre}[get_entries_page] {npage} no entries {repr(e)}')
+            _items = []
+            for m in re.finditer(partial_element_re, _htmlpage):
+                content, _ = get_element_text_and_html_by_tag(
+                    m.group('tag'), _htmlpage[m.start():])
+                _items.append(re.findall(r'a href=[\'"]([^\'"]+)[\'"]', content)[0])
+            return _items
+        except Exception as e:
+            self.logger_debug(f'[get_entries_page][{baseurl}] {npage} no entries {repr(e)}')
+
+    def get_entries(self, url: str, **kwargs):
+
+        baseurl = f"{update_url(url, query='')}/page/"
+        pre = f"[get_entries][{baseurl}]"
+
+        self.logger_debug(f'{pre} baseurl[{baseurl}] query[{self.conf_args_gvd["query"]}]')
 
         items = []
-        if (last_page := _get_last_page()) > 1:
+        _nentries = self.conf_args_gvd['entries']
+        _from = self.conf_args_gvd['from']
+        if (last_page := self._get_last_page(baseurl)) > 1:
+            if _from == 1 and _nentries:
+                last_page = _nentries // 60 or 1
             with ThreadPoolExecutor(thread_name_prefix="gvditems") as exe:
-                futures = [exe.submit(_get_entries_page, npage=pn) for pn in range(1, last_page + 1)]
+                futures = [exe.submit(self._get_entries_page, baseurl, npage=pn) for pn in range(1, last_page + 1)]
 
             for fut in futures:
                 if (_res := fut.result()):
                     items.extend(_res)
         elif last_page == 1:
-            items.extend(_get_entries_page(npage=1))
+            if _res := self._get_entries_page(baseurl, npage=1):
+                items.extend(_res)
 
         if not items:
             raise ExtractorError('no video links')
 
         items = orderedSet(items)
 
-        _nentries = self.conf_args_gvd['entries'] or len(items)
-        _from = self.conf_args_gvd['from']
+        _nentries = _nentries or len(items)
 
         final_items = items[_from - 1:_from - 1 + _nentries]
 
