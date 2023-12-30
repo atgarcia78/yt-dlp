@@ -1,10 +1,22 @@
 import html
 import re
 
-
-from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, get_element_text_and_html_by_tag
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError)
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+)
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    get_element_text_and_html_by_tag,
+    sanitize_filename,
+    try_get,
+)
 
 
 class JustTheGaysIE(SeleniumInfoExtractor):
@@ -70,7 +82,7 @@ class JustTheGaysIE(SeleniumInfoExtractor):
 
         for f in _entry['formats']:
 
-            f['http_headers'] = f.get('http_headers', {}) | {'Referer': 'https://justthegays.com/'}
+            f['http_headers'] = {**f.get('http_headers', {}), **{'Referer': 'https://justthegays.com/'}}
 
         _videoid = None
 

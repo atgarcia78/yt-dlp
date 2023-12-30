@@ -144,7 +144,7 @@ class StreamSBIE(SeleniumInfoExtractor):
 
             for _format in _formats:
                 if _format.setdefault('http_headers', _headers) != _headers:
-                    _format['http_headers'] |= _headers
+                    _format['http_headers'].update(**_headers)
 
             if not _subtitles:
                 list_subt_urls = try_get(

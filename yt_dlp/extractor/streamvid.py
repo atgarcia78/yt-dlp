@@ -119,7 +119,7 @@ class StreamVidIE(SeleniumInfoExtractor):
             m3u8_doc = None
             try:
                 m3u8_doc = try_get(
-                    self._send_request(m3u8_url, headers=base_headers | headers, timeout=60),
+                    self._send_request(m3u8_url, headers={**base_headers, **headers}, timeout=60),
                     lambda x: x.text if x else None)
             except ReExtractInfo as e:
                 raise_extractor_error(f"{pre} Error M3U8 doc {str(e)}", _from=e)

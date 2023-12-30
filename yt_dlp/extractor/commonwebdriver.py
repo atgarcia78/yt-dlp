@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import functools
 import html
@@ -14,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import typing
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -530,13 +533,13 @@ class MyHAR:
                 return None
             _hint = {'url': _url}
             if inclheaders:
-                _hint |= {'headers': cls.headers_from_entry(entry)}
+                _hint['headers'] = cls.headers_from_entry(entry)
             if response:
                 _resp_status = traverse_obj(entry, ('response', 'status'))
                 _resp_content = traverse_obj(entry, ('response', 'content', 'text'))
-                _hint |= {
+                _hint.update({
                     'content': _resp_content,
-                    'status': int_or_none(_resp_status)}
+                    'status': int_or_none(_resp_status)})
             return _hint
 
         _har_old = []
@@ -769,14 +772,18 @@ def ytdl_silent(ytdl: YoutubeDL):
         "no_warnings": True,
         "logger": SilentLogger(),
     }
-    return YoutubeDL(params=ytdl.params | opts, auto_init=True)
+    return YoutubeDL(params={**ytdl.params, **opts}, auto_init=True)
+
+
+if typing.TYPE_CHECKING:
+    RequestStream = TextIOWrapper | YoutubeDL | None
 
 
 class ProgressBar(MultilinePrinter):
     _DELAY = 0.1
 
     def __init__(
-            self, stream: TextIOWrapper | YoutubeDL | None, total: int | float,
+            self, stream: RequestStream, total: int | float,
             preserve_output: bool = True, block_logging: bool = True, msg: str | None = None):
         self._pre = ''
         if msg:
@@ -1244,7 +1251,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         info = {}
         _msg_err = ""
         try:
-            _kwargs = kwargs | {"_type": "HEAD", "timeout": 10}
+            _kwargs = {**kwargs, **{"_type": "HEAD", "timeout": 10}}
             _kwargs.setdefault('client', self._CLIENT)
             if not (res := SeleniumInfoExtractor._send_http_request(url, **_kwargs)):
                 raise ReExtractInfo('no response')
@@ -1299,7 +1306,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         try:
             if any(_ in url for _ in _not_valid_url):
                 self.logger_debug(f'{_pre_str}:False')
-                return {'error': 'in error list'} | notvalid if inc_error else notvalid
+                return {'error': 'in error list', **notvalid} if inc_error else notvalid
             elif any(_ in url for _ in ['gayforit.eu/video']):
                 self.logger_debug(f'{_pre_str}:True')
                 return okvalid
@@ -1354,7 +1361,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     if not inc_error:
                         return notvalid
                     else:
-                        return {'error': f'not path in reroute url {str(res.url)}'} | notvalid
+                        return {'error': f'not path in reroute url {str(res.url)}', **notvalid}
 
                 else:
                     if not (webpage := try_get(
@@ -1362,7 +1369,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                             lambda x: html.unescape(x.text) if x else None)):
 
                         self.logger_debug(f'[valid]{_pre_str}:{notvalid} couldnt download webpage')
-                        return {'error': 'couldnt download webpage'} | notvalid if inc_error else notvalid
+                        return {'error': 'couldnt download webpage', **notvalid} if inc_error else notvalid
                     else:
                         _valid = all(
                             _ not in str(res.url)
@@ -1372,9 +1379,9 @@ class SeleniumInfoExtractor(InfoExtractor):
                         valid = {"valid": _valid}
                         self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
                         if not _valid and inc_error:
-                            return {'error': 'video not found or deleted 404'} | valid
+                            return {'error': 'video not found or deleted 404', **valid}
                         else:
-                            return {'webpage': webpage} | valid
+                            return {'webpage': webpage, **valid}
 
             else:
                 self.logger_debug(
@@ -1382,12 +1389,12 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _error = 'error'
                 if isinstance(res, dict):
                     _error = res.get('error', 'error')
-                return {'error': _error} | notvalid if inc_error else notvalid
+                return {'error': _error, **notvalid} if inc_error else notvalid
 
         except Exception as e:
             self.logger_debug(f'[valid]{_pre_str} error {repr(e)}')
             _msgerror = 'timeout' if 'timeout' in repr(e).lower() else repr(e)
-            return {'error': _msgerror} | notvalid if inc_error else notvalid
+            return {'error': _msgerror, **notvalid} if inc_error else notvalid
 
     def get_ip_origin(self, key=None, timeout=1, own=True):
         ie = self if own else None

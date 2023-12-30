@@ -1,18 +1,17 @@
-import re
 import html
+import re
 
+from .commonwebdriver import SeleniumInfoExtractor
 from ..utils import (
     ExtractorError,
     decode_packed_codes,
     determine_ext,
     int_or_none,
     js_to_json,
-    urlencode_postdata,
     sanitize_filename,
-    try_get
+    try_get,
+    urlencode_postdata,
 )
-
-from .commonwebdriver import SeleniumInfoExtractor
 
 
 # based on openload_decode from 2bfeee69b976fe049761dd3012e30b637ee05a58
@@ -220,8 +219,9 @@ class XFileShareIE(SeleniumInfoExtractor):
             'http_headers': {'Referer': url},
             'extractor': 'xfileshare',
             'extractor_key': 'XFileShare',
-            'webpage_url': url
-        } | _extra
+            'webpage_url': url,
+            **_extra
+        }
 
         return _entry
 

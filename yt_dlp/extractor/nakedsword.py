@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import contextlib
 import html
@@ -253,7 +255,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 lambda x: (x[0], x[2]))
             _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
             _auth = base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
-            _headers_post |= {'x-ident': xident, 'Authorization': f'Basic {_auth}'}
+            _headers_post.update({'x-ident': xident, 'Authorization': f'Basic {_auth}'})
             if (token := try_get(
                     cls._send_request(cls._API_URLS['login'], _type="POST", headers=_headers_post),
                     lambda x: traverse_obj(x.json(), ('data', 'jwt')))):
@@ -395,8 +397,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     raise NakedSwordError('CLIENT is None')
                 upt_headers = {}
                 if (_headers := kwargs.get('headers', None)):
-                    upt_headers = (_headers() if callable(_headers) else _headers) | cls._UA
-                _kwargs = kwargs | {'client': _client, 'headers': upt_headers}
+                    upt_headers = {**(_headers() if callable(_headers) else _headers), **cls._UA}
+                _kwargs = {**kwargs, **{'client': _client, 'headers': upt_headers}}
                 # cls._INST_IE.to_screen(f"{pre}: KWARGS\n{_kwargs}")
                 return (cls._send_http_request(url, **_kwargs))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:

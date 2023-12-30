@@ -109,8 +109,8 @@ class RTVEPlayIE(InfoExtractor):
                 formats.append({
                     'format_id': 'http-mp4' if not quality else quality,
                     'url': video_url,
-                    'filesize': filesize
-                } | ({'quality': q(quality)} if quality else {}))
+                    'filesize': filesize,
+                    **({'quality': q(quality)} if quality else {})})
         return formats
 
     def _extract_drm_mpd_formats(self, video_id):

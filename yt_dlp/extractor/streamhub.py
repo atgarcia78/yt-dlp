@@ -111,9 +111,9 @@ class StreamHubIE(SeleniumInfoExtractor):
 
             for _format in _formats:
                 if (_head := _format.get('http_headers')):
-                    _head |= _headers
+                    _head.update(**_headers)
                 else:
-                    _format |= {'http_headers': _headers}
+                    _format.update({'http_headers': _headers})
 
             if not _subtitles:
                 list_subt_urls = try_get(

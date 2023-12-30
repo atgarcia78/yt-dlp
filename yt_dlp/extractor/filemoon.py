@@ -88,7 +88,7 @@ class FilemoonIE(SeleniumInfoExtractor):
 
         for _format in formats:
             if _format.setdefault('http_headers', _headers) != _headers:
-                _format['http_headers'] |= _headers
+                _format['http_headers'].update(**_headers)
             if (not duration or not subtitles) and determine_ext(_format['url']) == 'm3u8':
                 if not duration:
                     with contextlib.suppress(Exception):

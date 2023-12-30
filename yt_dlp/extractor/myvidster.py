@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import html
 import itertools
 import logging
@@ -268,11 +270,11 @@ class MyVidsterIE(MyVidsterBaseIE):
                     _info_video = self._get_infovideo(_info['url'], headers=_info['http_headers'])
                     if not _info_video:
                         return _return_error(_el, 'error 404: couldnt get info video details')
-                    _info |= _info_video
+                    _info.update(**_info_video)
                     for fmt in _info['formats']:
                         if fmt['format'] == _info['format']:
                             fmt['http_headers']['Referer'] = _info['http_headers']['Referer']
-                            fmt |= _info_video
+                            fmt.update(**_info_video)
                             break
 
             self.logger_debug(f"{pre} OK got entry video\n {_info}")
@@ -299,6 +301,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     else:
                         return _return_error(el, 'not entry video')
                 except Exception as e:
+                    logger.exception(repr(e))
                     return _return_error(
                         el, f'error entry video - {str(e).replace(bug_reports_message(), "")}')
 
@@ -306,6 +309,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 try:
                     return _extract_info(el)
                 except Exception as e:
+                    logger.exception(repr(e))
                     if isinstance(e, DownloadError) and 'error' in (
                             _check_valid := self._is_valid(el, inc_error=True)):
                         _msg_error = _check_valid.get('error')
@@ -315,6 +319,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     return _return_error(el, f'error entry video - {_msg_error}')
 
         except Exception as e:
+            logger.exception(repr(e))
             return _return_error(
                 el, f'error entry video - {str(e).replace(bug_reports_message(), "")}')
 
@@ -348,9 +353,9 @@ class MyVidsterIE(MyVidsterBaseIE):
             if postdate := try_get(
                     re.findall(r"<td><B>Bookmark Date:</B>([^<]+)</td>", webpage, flags=re.I),
                     lambda x: datetime.strptime(x[0].strip(), "%d %b, %Y")):
-                _release_info |= {
+                _release_info.update({
                     'release_date': postdate.strftime("%Y%m%d"),
-                    'release_timestamp': int(postdate.timestamp())}
+                    'release_timestamp': int(postdate.timestamp())})
 
             def _getter(orderlinks):
 
@@ -358,7 +363,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     if (_msg_error := info.pop('error', None)):
                         info['error'] = _msg_error
                     info['original_url'] = url
-                    info |= _release_info
+                    info.update(**_release_info)
                     if not (_extractor := info.get('extractor')):
                         _extractor = info['extractor'] = 'generic'
                         info['extractor_key'] = 'Generic'

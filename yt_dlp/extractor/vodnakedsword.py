@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import html
 import json
 import logging
@@ -113,14 +115,14 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
         check = try_get(
             VODNakedSwordBaseIE._send_request(
                 'https://vod.nakedsword.com/gay/play-check', _type="POST",
-                headers=VODNakedSwordBaseIE.headers_post | {'Referer': url.split('#')[0]}, data=params),
+                headers={**VODNakedSwordBaseIE.headers_post, **{'Referer': url.split('#')[0]}}, data=params),
             lambda x: x.json() if x else None)
 
         if check == "can play":
             return try_get(
                 VODNakedSwordBaseIE._send_request(
                     VODNakedSwordBaseIE._POST_URL, _type="POST",
-                    headers=VODNakedSwordBaseIE.headers_post | {'Referer': url.split('#')[0]}, data=data_upt()),
+                    headers={**VODNakedSwordBaseIE.headers_post, **{'Referer': url.split('#')[0]}}, data=data_upt()),
                 lambda x: x.json() if x else None)
 
     def _login(self):

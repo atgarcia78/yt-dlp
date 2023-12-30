@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import itertools
 import json
@@ -118,7 +120,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         _entries = int_or_none(params.pop('entries', None))
         _from = int(params.pop('from', '1'))
-        _query_upt |= {'from': _from, 'entries': _entries}
+        _query_upt.update({'from': _from, 'entries': _entries})
 
         if self.keyapi == 'gvdblog.net':
             _query_upt['fmt'] = _fmt
@@ -261,7 +263,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 if re.search(value, _url):
                     if _check[key]:
                         list_urls.append(None)
-                        _check |= {iename: False for iename in _ie_data[self.altkey] if iename != key}
+                        _check.update({iename: False for iename in _ie_data[self.altkey] if iename != key})
                     else:
                         _check[key] = True
                     list_urls.append(_url)
@@ -397,9 +399,9 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _entryupdate = {}
 
             if postdate:
-                _entryupdate |= {
+                _entryupdate.update({
                     'release_date': postdate.strftime('%Y%m%d'),
-                    'release_timestamp': int(postdate.timestamp())}
+                    'release_timestamp': int(postdate.timestamp())})
 
             _url = update_url_query(
                 url, self.query_upt) if self.keyapi == 'gvdblog.com' else url
@@ -415,10 +417,11 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                         _el['_legacy_title'] = _el['title']
                         _el['title'] = title
 
-                _el |= (_entryupdate | {
+                _el.update({**_entryupdate, **{
                     '__gvd_playlist_index': i + 1,
-                    '__gvd_playlist_count': len(entries)} | {
-                        'original_url': _original_url, 'meta_comment': _comment})
+                    '__gvd_playlist_count': len(entries),
+                    'original_url': _original_url,
+                    'meta_comment': _comment}})
 
             return (entries, title, postid)
 
@@ -485,7 +488,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
             raise ExtractorError("no videos")
 
         if len(entries) == 1:
-            return entries[0] | {'original_url': url}
+            return {**entries[0], **{'original_url': url}}
 
         return self.playlist_result(
             entries, playlist_title=sanitize_filename(title, restricted=True),
