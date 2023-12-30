@@ -925,7 +925,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
 class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'  # type: ignore
-    _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^?#&/]+)(?:/?\?(?P<by>by=movie))?"
+    _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^?#&/$]+)/?(?:\?(?P<by>by=movie)|$)"
     _MOVIES = {}
 
     @classmethod
