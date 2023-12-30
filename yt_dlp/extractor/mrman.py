@@ -9,16 +9,14 @@ from .commonwebdriver import (
     dec_on_exception2,
     dec_on_exception3,
     limiter_0_1,
-    cast
 )
-
 from ..utils import (
     ExtractorError,
-    traverse_obj,
-    sanitize_filename,
-    try_get,
     get_elements_by_class,
-    urlencode_postdata
+    sanitize_filename,
+    traverse_obj,
+    try_get,
+    urlencode_postdata,
 )
 
 logger = logging.getLogger('mrman')
@@ -127,18 +125,18 @@ class MrManBaseIE(SeleniumInfoExtractor):
                 MrManBaseIE._CLIENT = self._CLIENT
                 for cookie in self._FF_COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
                     MrManBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
-                if self._LOGIN_OK in cast(str, try_get(
+                if self._LOGIN_OK in try_get(
                         MrManBaseIE._send_request(self._SITE_URL),
-                        lambda x: x.text if x else '')):
+                        lambda x: x.text if x else ''):
                     self.logger_info("Already logged with cookies")
 
                 else:
                     if self._login():
                         for cookie in self.cookiejar.get_cookies_for_url(self._SITE_URL):
                             MrManBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
-                        if self._LOGIN_OK in cast(str, try_get(
+                        if self._LOGIN_OK in try_get(
                                 MrManBaseIE._send_request(self._SITE_URL),
-                                lambda x: x.text if x else '')):
+                                lambda x: x.text if x else ''):
                             self.logger_info("Logged OK with cookies after login")
 
 

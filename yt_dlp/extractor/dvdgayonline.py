@@ -10,8 +10,6 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
-    WebElement,
-    cast,
     dec_on_driver_timeout,
     ec,
     get_host,
@@ -122,7 +120,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                     self._send_request(url, driver=driver)
                     self.wait_until(driver, 1)
                     _players = self.wait_until(driver, 30, ec.presence_of_all_elements_located((By.CLASS_NAME, 'server')))
-                    if not _players or not (_player := cast(WebElement, traverse_obj(_players, nplayer - 1))) or 'realgalaxy' not in _player.text:
+                    if not _players or not (_player := traverse_obj(_players, nplayer - 1)) or 'realgalaxy' not in _player.text:
                         raise_extractor_error(f'{pre} cant find realgalaxy player')
                     else:
                         _player.click()
@@ -131,7 +129,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                     ifr = self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "iframe")))
                     driver.switch_to.frame(ifr)
                     self.wait_until(driver, 1)
-                    _res = cast(dict, self.wait_until(driver, 30, error_or_video()))
+                    _res = self.wait_until(driver, 30, error_or_video())
                     if _res and (_error := _res.get('error')):
                         raise_extractor_error(f'{pre} {_error}')
 
@@ -149,7 +147,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             m3u8_url = None
             urlembed = None
 
-            urlembed = cast(str, try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None))
+            urlembed = try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url') if x else None)
             if not urlembed or 'realgalaxy' not in urlembed:
                 raise_reextract_info(f"{pre} couldnt get urlembed")
 
@@ -162,7 +160,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             self.logger_debug(info)
             if (_error := get_first(info, ('error'))):
                 raise_reextract_info(f'{pre} {_error}')
-            _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
+            _title = get_first(info, ('stream_data', 'title'), ('title'))
             if not _title:
                 raise_reextract_info(f'{pre} Couldnt get title')
 
@@ -180,14 +178,12 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                         'Origin': f"https://{dom}", 'Referer': f"https://{dom}/"}
 
             if not m3u8_url:
-                if not (m3u8_url := cast(str, get_first(info, ('stream_data', 'file')))):
+                if not (m3u8_url := get_first(info, ('stream_data', 'file'))):
                     raise_reextract_info(f'{pre} Couldnt get video info')
 
             if not m3u8_doc:
                 if not (m3u8_doc := try_get(self._send_request(m3u8_url, headers=_headers), lambda x: x.text)):
                     raise_reextract_info(f'{pre} Couldnt get video info')
-
-            m3u8_url, m3u8_doc = cast(str, m3u8_url), cast(str, m3u8_doc)
 
             _formats = []
             _subtitles = {}
@@ -269,11 +265,11 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
 
         _check = kwargs.get('check', True)
 
-        webpage = cast(str, try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text))))
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 no webpage")
         postid = try_get(re.search(r'data-post=[\'"](?P<id>\d+)[\'"]', webpage), lambda x: x.group('id'))
-        players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], cast(list[str], get_elements_by_class('server', webpage))))}
+        players = {el: i + 1 for i, el in enumerate(map(lambda x: x.split('.')[0], get_elements_by_class('server', webpage)))}
         if not players:
             raise_extractor_error(f"{pre} couldnt find players")
 

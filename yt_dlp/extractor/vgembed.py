@@ -9,7 +9,6 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
-    cast,
     dec_on_driver_timeout,
     dec_on_exception2,
     get_host,
@@ -115,7 +114,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
             if "error" in (_res := self._is_valid(url_dl, inc_error=True)):
                 raise_extractor_error(_res['error'])
 
-            title = cast(str, self._html_extract_title(_res['webpage']))
+            title = self._html_extract_title(_res['webpage'])
 
             videourl = None
             _port = self.find_free_port() or 8080
@@ -125,7 +124,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
                 with self.get_har_logs('vgembed', videoid, msg=pre, port=_port) as harlogs:
                     _har_file = harlogs.har_file
                     self._send_request(url_dl.replace('/v/', '/e/'), driver=driver)
-                    if (_vid := cast(str, self.wait_until(driver, 60, getvideourl()))) and 'blob:' not in _vid:
+                    if (_vid := self.wait_until(driver, 60, getvideourl())) and 'blob:' not in _vid:
                         videourl = _vid
                         self.logger_info(f"{pre} videourl {videourl}")
             except ReExtractInfo:
@@ -153,12 +152,12 @@ class VGEmbedIE(SeleniumInfoExtractor):
                     'ext': 'mp4'
                 }
 
-                _host = cast(str, get_host(videourl, shorten="vgembed"))
+                _host = get_host(videourl, shorten="vgembed")
                 _sem = self.get_ytdl_sem(_host)
                 if check:
                     with _sem:
-                        _videoinfo = cast(dict, self._get_video_info(
-                            videourl, msg=pre, headers=_headers))
+                        _videoinfo = self._get_video_info(
+                            videourl, msg=pre, headers=_headers)
 
                     if not _videoinfo:
                         raise_reextract_info(f"{pre} no video info")

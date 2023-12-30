@@ -1,13 +1,7 @@
 from .common import InfoExtractor
-from ..compat import compat_str
-from ..utils import (
-    parse_duration,
-    urljoin,
-    ExtractorError,
-    try_get
-)
-from typing import cast
 from .commonwebdriver import raise_extractor_error
+from ..compat import compat_str
+from ..utils import ExtractorError, parse_duration, try_get, urljoin
 
 
 class YourPornIE(InfoExtractor):
@@ -38,11 +32,11 @@ class YourPornIE(InfoExtractor):
 
             webpage = self._download_webpage(url, video_id)
 
-            parts = cast(list, try_get(self._parse_json(
+            parts = try_get(self._parse_json(
                 self._search_regex(
                     r'data-vnfo=(["\'])(?P<data>{.+?})\1', webpage, 'data info',
                     group='data', default='{}'),
-                video_id), lambda x: x[video_id].split('/')))
+                video_id), lambda x: x[video_id].split('/'))
 
             if not parts:
                 raise_extractor_error("unable to extract data info")

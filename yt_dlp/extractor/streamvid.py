@@ -1,8 +1,7 @@
 import html
 import json
-import re
-from typing import cast
 import logging
+import re
 
 from .commonwebdriver import (
     ConnectError,
@@ -10,18 +9,18 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
+    dec_on_exception2,
     limiter_1,
     my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info,
-    dec_on_exception2
 )
 from ..utils import (
+    decode_packed_codes,
+    get_elements_html_by_attribute,
     js_to_json,
     sanitize_filename,
     try_get,
-    decode_packed_codes,
-    get_elements_html_by_attribute
 )
 
 on_exception = my_dec_on_exception(
@@ -84,20 +83,20 @@ class StreamVidIE(SeleniumInfoExtractor):
     def _get_entry(self, url, **kwargs):
 
         url = url.replace('embed-', '')
-        video_id = cast(str, self._match_id(url))
+        video_id = self._match_id(url)
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
 
         try:
-            webpage = cast(str, try_get(
-                self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text))))
+            webpage = try_get(
+                self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
 
             if not webpage or any(_ in webpage for _ in self.ERROR_WEB):
                 raise_extractor_error(f"{pre} error 404 no webpage")
 
             title = try_get(
-                cast(str, self._html_extract_title(webpage, default=None)),
+                self._html_extract_title(webpage, default=None),
                 lambda x: x.replace('Watch ', ''))
 
             m3u8_url, poster_url = self._get_m3u8url(webpage)

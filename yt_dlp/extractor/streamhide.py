@@ -1,26 +1,25 @@
 import html
-import re
 import json
-from typing import cast
+import re
 
 from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
+    ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
     limiter_2,
     my_dec_on_exception,
-    ReExtractInfo
 )
 from ..utils import (
     ExtractorError,
+    determine_ext,
+    get_domain,
     get_element_text_and_html_by_tag,
+    js_to_json,
     sanitize_filename,
     try_call,
     try_get,
-    js_to_json,
-    determine_ext,
-    get_domain,
 )
 
 on_exception_vinfo = my_dec_on_exception(
@@ -103,7 +102,7 @@ class StreamHideIE(SeleniumInfoExtractor):
             subtitles = {}
             duration = None
 
-            if jwplayer_data and (_entry := cast(dict, self._parse_jwplayer_data(jwplayer_data, videoid, False, m3u8_id='hls', mpd_id='dash'))):
+            if jwplayer_data and (_entry := self._parse_jwplayer_data(jwplayer_data, videoid, False, m3u8_id='hls', mpd_id='dash')):
                 formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
 
             if not formats:
@@ -123,7 +122,7 @@ class StreamHideIE(SeleniumInfoExtractor):
                     if not _videoinfo:
                         raise ReExtractInfo(f"{pre} error 404: no video info")
 
-                    _videoinfo = cast(dict, _videoinfo)
+                    _videoinfo = _videoinfo
                     if _videoinfo['filesize'] >= 1000000:
                         _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
                     else:

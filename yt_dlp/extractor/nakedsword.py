@@ -8,25 +8,21 @@ import os
 import re
 import subprocess
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import Lock
 
 from .commonwebdriver import (
     By,
-    Callable,
     ConnectError,
     HTTPStatusError,
-    Optional,
     ProgressTimer,
     ReExtractInfo,
     Response,
     SeleniumInfoExtractor,
     StatusStop,
-    Union,
-    WebElement,
     cached_classproperty,
-    cast,
     dec_on_driver_timeout,
     dec_retry,
     ec,
@@ -61,7 +57,7 @@ dec_on_exception = my_dec_on_exception(
     max_tries=3, jitter='my_jitter', raise_on_giveup=False, interval=1)
 
 
-def _wait_for_either(progress_bar, check: Callable, timeout: Union[float, int]):
+def _wait_for_either(progress_bar, check: Callable, timeout: float | int):
 
     start = time.monotonic()
     while (time.monotonic() - start < timeout):
@@ -356,14 +352,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _headers_del.update(
                 {'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
             if not (
-                resdel := cast(
-                    Response,
-                    cls._send_request(
-                        cls._API_URLS['logout'],
-                        _type="DELETE",
-                        headers=_headers_del,
-                    ),
-                )
+                resdel := cls._send_request(
+                    cls._API_URLS['logout'],
+                    _type="DELETE",
+                    headers=_headers_del),
             ):
                 return False
             if resdel.status_code != 204:
@@ -390,7 +382,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @dec_on_driver_timeout
     @dec_on_exception
     @limiter_0_1.ratelimit("nakedsword", delay=True)
-    def _send_request(cls, url, **kwargs) -> Union[None, Response]:
+    def _send_request(cls, url, **kwargs) -> None | Response:
 
         pre = f'[send_request][{cls._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
@@ -403,7 +395,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     raise NakedSwordError('CLIENT is None')
                 upt_headers = {}
                 if (_headers := kwargs.get('headers', None)):
-                    upt_headers = (_headers() if isinstance(_headers, Callable) else _headers) | cls._UA
+                    upt_headers = (_headers() if callable(_headers) else _headers) | cls._UA
                 _kwargs = kwargs | {'client': _client, 'headers': upt_headers}
                 # cls._INST_IE.to_screen(f"{pre}: KWARGS\n{_kwargs}")
                 return (cls._send_http_request(url, **_kwargs))
@@ -414,7 +406,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 raise
 
     @classmethod
-    def _get_app_data_passphrase(cls) -> Optional[str]:
+    def _get_app_data_passphrase(cls) -> str | None:
 
         try:
             if js_content := try_get(
@@ -552,7 +544,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _name = None
         _target_info = []
         if _info:
-            _info = cast(dict, _info)
             _target_info = traverse_obj(_info, ('data', label)) or []
             _name = traverse_obj(_info, ('data', 'name'))
         return _name, _target_info
@@ -565,7 +556,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _url = f'https://ns-api.nakedsword.com/frontend/movie_playlist/{playlistid}'
         return self._get_api_info_playlist(_url, "movies_in_playlist")
 
-    def _get_api_most_watched_scenes(self, query: str, limit: Union[None, int] = 60):
+    def _get_api_most_watched_scenes(self, query: str, limit: None | int = 60):
 
         _query = "" if query == 'most_watched' else f'{query}&'
         _limit = limit or 60
@@ -586,7 +577,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         return _scenes_info
 
-    def _get_api_most_watched_movies(self, query: str, limit: Union[None, int] = 60):
+    def _get_api_most_watched_movies(self, query: str, limit: None | int = 60):
 
         if query == 'top_movies':
             _query = ""
@@ -753,14 +744,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         driver, 60, ec.presence_of_element_located((By.PARTIAL_LINK_TEXT, 'LOGIN'))):
                     _login_menu.click()
                 _method_css = lambda x: ec.presence_of_element_located((By.CSS_SELECTOR, x))
-                if not (el_username := cast(WebElement, self.wait_until(
-                        driver, 60, _method_css("input.Input")))):
+                if not (el_username := self.wait_until(
+                        driver, 60, _method_css("input.Input"))):
                     raise ExtractorError("login nok")
-                if not (el_psswd := cast(WebElement, self.wait_until(
-                        driver, 60, _method_css("input.Input.Password")))):
+                if not (el_psswd := self.wait_until(
+                        driver, 60, _method_css("input.Input.Password"))):
                     raise ExtractorError("login nok")
-                if not (el_submit := cast(WebElement, self.wait_until(
-                        driver, 60, _method_css("button.SignInButton")))):
+                if not (el_submit := self.wait_until(
+                        driver, 60, _method_css("button.SignInButton"))):
                     raise ExtractorError("login nok")
 
                 el_username.send_keys(username)
@@ -1286,7 +1277,7 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
             premsg = f"{msg}{premsg}"
 
         try:
-            info_url = cast(dict, try_get(self._match_valid_url(url), lambda x: x.groupdict()))
+            info_url = try_get(self._match_valid_url(url), lambda x: x.groupdict())
 
             if (_plid := info_url.get('plid')):
                 playlist_id = _plid
@@ -1328,7 +1319,6 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
             if not _scenes:
                 raise ExtractorError('no scenes found')
 
-            _scenes = cast(list[dict], _scenes)
             _info_scenes = [
                 (_getter(sc['movie']['id'], sc['index']), int(sc['index']))
                 for sc in _scenes]
@@ -1440,8 +1430,6 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
 
             if not _movies:
                 raise ExtractorError('no movies found')
-
-            _movies = cast(list[dict], _movies)
 
             _url_movies = list(dict.fromkeys([try_get(
                 NakedSwordBaseIE._send_request(_url, _type="HEAD"),

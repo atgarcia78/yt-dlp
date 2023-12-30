@@ -9,11 +9,10 @@ from .commonwebdriver import (
     dec_on_exception,
     dec_on_exception2,
     dec_on_exception3,
+    get_host,
     limiter_1,
     my_dec_on_exception,
-    get_host,
-    cast,
-    raise_extractor_error
+    raise_extractor_error,
 )
 from ..utils import (
     ExtractorError,
@@ -138,7 +137,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
                 _format['quality'] = 1
 
             with self.get_ytdl_sem(get_host(_videourl)):
-                _videoinfo = cast(dict, self._get_video_info(_videourl, headers=_headers))
+                _videoinfo = self._get_video_info(_videourl, headers=_headers)
 
             if _videoinfo:
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})

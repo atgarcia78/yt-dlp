@@ -6,20 +6,17 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote, urlparse
 
-
 from .commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
+    dec_on_driver_timeout,
     dec_on_exception2,
     dec_on_exception3,
-    dec_on_driver_timeout,
     ec,
+    get_host,
     limiter_5,
-    cast,
-    WebElement,
-    get_host
 )
 from ..utils import (
     ExtractorError,
@@ -94,16 +91,16 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
             self.logger_debug("Login already")
             return
 
-        el_login = cast(WebElement, self.wait_until(
-            driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url"))))
+        el_login = self.wait_until(
+            driver, 30, ec.presence_of_element_located((By.CSS_SELECTOR, "a#login-url")))
         if el_login:
             el_login.click()
-        el_username = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input#login.form-control"))))
-        el_password = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input#password.form-control"))))
-        el_login = cast(WebElement, self.wait_until(driver, 30, ec.presence_of_element_located(
-            (By.CSS_SELECTOR, "input.btn.btn-submit"))))
+        el_username = self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input#login.form-control")))
+        el_password = self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input#password.form-control")))
+        el_login = self.wait_until(driver, 30, ec.presence_of_element_located(
+            (By.CSS_SELECTOR, "input.btn.btn-submit")))
         if el_username and el_password and el_login:
             el_username.send_keys(username)
             self.wait_until(driver, 2)
@@ -128,9 +125,9 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                 BoyFriendTVBaseIE._send_request(self._SITE_URL)
                 for cookie in self._FF_COOKIES_JAR.get_cookies_for_url(self._SITE_URL):
                     BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
-                if 'atgarcia' in cast(str, try_get(
+                if 'atgarcia' in try_get(
                         BoyFriendTVBaseIE._send_request(self._SITE_URL),
-                        lambda x: x.text if x else '')):
+                        lambda x: x.text if x else ''):
                     self.logger_debug("Already logged with cookies")
                     BoyFriendTVBaseIE._BFINIT = True
 
@@ -152,9 +149,9 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
                             BoyFriendTVBaseIE._COOKIES = driver.get_cookies()
                             for cookie in BoyFriendTVBaseIE._COOKIES:
                                 BoyFriendTVBaseIE._CLIENT.cookies.jar.set_cookie(cookie)
-                            if 'atgarcia' in cast(str, try_get(
+                            if 'atgarcia' in try_get(
                                     BoyFriendTVBaseIE._send_request(self._SITE_URL),
-                                    lambda x: x.text if x else '')):
+                                    lambda x: x.text if x else ''):
                                 self.logger_debug("Already logged with cookies")
                                 BoyFriendTVBaseIE._BFINIT = True
                         except Exception:
@@ -237,14 +234,12 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                         if check:
                             with _sem:
                                 _info_video = self._get_info_for_format(_url, headers=_headers)
-                            if _info_video:
-                                _info_video = cast(dict, _info_video)
 
                             if not _info_video or 'error' in _info_video:
                                 self.logger_debug(f"[{url}][{_format_id}] no video info")
                             else:
                                 _format.update(_info_video)
-                                self.get_ytdl_sem(get_host(cast(str, _info_video.get('url'))))
+                                self.get_ytdl_sem(get_host(_info_video.get('url')))
 
                     _formats.append(_format)
                 except Exception as e:

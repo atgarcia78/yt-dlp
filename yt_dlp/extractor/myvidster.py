@@ -12,8 +12,6 @@ from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
-    Union,
-    cast,
     dec_on_exception2,
     dec_on_exception3,
     ec,
@@ -267,7 +265,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 if not _info.get('requested_formats') and not _info.get('filesize') and _info.get('protocol') == 'https':
                     if all(_ not in _info['http_headers'] for _ in ['Referer', 'referer']):
                         _info['http_headers']['Referer'] = 'https://www.myvidster.com/'
-                    _info_video = cast(dict, self._get_infovideo(_info['url'], headers=_info['http_headers']))
+                    _info_video = self._get_infovideo(_info['url'], headers=_info['http_headers'])
                     if not _info_video:
                         return _return_error(_el, 'error 404: couldnt get info video details')
                     _info |= _info_video
@@ -332,9 +330,9 @@ class MyVidsterIE(MyVidsterBaseIE):
         url = url.replace("vsearch", "video")
 
         try:
-            _urlh, webpage = cast(list[str], try_get(
+            _urlh, webpage = try_get(
                 self._send_request(url),
-                lambda x: [str(x.url), re.sub('[\t\n]', '', html.unescape(x.text))]) or [None, None])
+                lambda x: [str(x.url), re.sub('[\t\n]', '', html.unescape(x.text))]) or [None, None]
             if not webpage:
                 raise_extractor_error("Couldnt download webpage")
             if not _urlh or any(
@@ -342,9 +340,9 @@ class MyVidsterIE(MyVidsterBaseIE):
                     for _ in ['status=not_found', 'status=broken', 'status=removed']):
                 raise_extractor_error("Error 404: Page not found")
 
-            title = cast(str, try_get(
+            title = try_get(
                 re.findall(r"<title>([^<]+)<", webpage),
-                lambda x: x[0]) or url.split("/")[-1])
+                lambda x: x[0]) or url.split("/")[-1]
 
             _release_info = {}
             if postdate := try_get(
@@ -449,7 +447,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
         get_video_url = lambda x: try_get(
             re.findall(r'<a href=\"(/video/[^\"]+)\" class', el), lambda y: f'{self._SITE_URL}{y[0]}')
 
-        def get_videos_channel(channelid: str, num_videos: int, date: Union[datetime, None] = None):
+        def get_videos_channel(channelid: str, num_videos: int, date: datetime | None = None):
 
             _headers_post = {
                 "Referer": url,
@@ -483,7 +481,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                     webpage = try_get(
                         self._send_request(self._POST_URL, _type="POST", data=info, headers=_headers_post),
                         lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-                    if webpage and (_videos := cast(list[str], get_elements_by_class("thumbnail", webpage))):
+                    if webpage and (_videos := get_elements_by_class("thumbnail", webpage)):
                         el_videos.extend(_videos)
                         if (posted_date := get_posted_date(el_videos[-1])) and posted_date < date:
                             break
@@ -493,20 +491,20 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
         try:
 
-            channelid = cast(str, self._match_id(url))
+            channelid = self._match_id(url)
 
-            webpage = cast(str, try_get(
+            webpage = try_get(
                 self._send_request(url),
-                lambda x: re.sub('[\t\n]', '', html.unescape(x.text))))
+                lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
             if not webpage:
                 raise_extractor_error("Couldnt download webpage")
 
-            title = cast(str, try_get(
+            title = try_get(
                 re.findall(r'<title>([\w\s]+)</title>', webpage),
-                lambda x: x[0])) or f"MyVidsterChannel_{channelid}"
-            num_videos = cast(int, try_get(
+                lambda x: x[0]) or f"MyVidsterChannel_{channelid}"
+            num_videos = try_get(
                 re.findall(r"display_channel\(.*,[\'\"](\d+)[\'\"]\)", webpage),
-                lambda x: int(x[0]))) or 100000
+                lambda x: int(x[0])) or 100000
 
             query = try_get(re.search(self._VALID_URL, url), lambda x: x.group('query'))
             _date = None
@@ -516,9 +514,9 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                 params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')}
             if params.get('check', 'yes') == 'no':
                 _check = False
-            _date = cast(datetime, try_get(
+            _date = try_get(
                 params.get('date'),
-                lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None))
+                lambda x: datetime.strptime(x, '%Y-%m-%d') if x else None)
 
             results = []
             el_videos = get_videos_channel(channelid, num_videos, _date)
@@ -563,7 +561,7 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
 
                 if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
 
-                    iemv = cast(MyVidsterIE, self._get_extractor("MyVidster"))
+                    iemv = self._get_extractor("MyVidster")
 
                     pre = f'[channel/{channelid}][Num_videos_pending]'
 
@@ -590,12 +588,12 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
                                     'playlist_url': url})
                                 entries.append(_res)
                         except Exception as e:
-                            _wurl = cast(str, futures[fut])
+                            _wurl = futures[fut]
                             self.logger_debug(
                                 f"[get_entries][{self._get_url_print(_wurl)}] error - {str(e)}")
-                            _id, _title = cast(list[str], try_get(
+                            _id, _title = try_get(
                                 MyVidsterIE._match_valid_url(_wurl),
-                                lambda x: x.group('id', 'title') if x else (None, None)))
+                                lambda x: x.group('id', 'title') if x else (None, None))
                             entries.append({
                                 'original_url': futures[fut],
                                 'playlist_url': url,

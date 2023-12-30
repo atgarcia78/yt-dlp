@@ -2,7 +2,6 @@ import contextlib
 import html
 import json
 import re
-from typing import cast
 
 from .commonwebdriver import (
     ConnectError,
@@ -72,8 +71,8 @@ class FilemoonIE(SeleniumInfoExtractor):
         subtitles = {}
         duration = None
 
-        if info_video and (_entry := cast(dict, self._parse_jwplayer_data(
-            info_video, videoid, False, m3u8_id='hls', mpd_id='dash'))
+        if info_video and (_entry := self._parse_jwplayer_data(
+            info_video, videoid, False, m3u8_id='hls', mpd_id='dash')
         ):
             formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
 

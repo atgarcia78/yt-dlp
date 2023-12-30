@@ -1,27 +1,27 @@
-import re
 import html
+import logging
+import re
+
 from .commonwebdriver import (
-    SeleniumInfoExtractor,
-    HTTPStatusError,
     ConnectError,
+    HTTPStatusError,
     ReExtractInfo,
+    SeleniumInfoExtractor,
     dec_on_driver_timeout,
     dec_on_exception2,
+    get_host,
     limiter_1,
     my_dec_on_exception,
     raise_reextract_info,
-    cast,
-    get_host
 )
 from ..utils import (
     ExtractorError,
+    int_or_none,
     sanitize_filename,
-    try_get,
     traverse_obj,
-    int_or_none
+    try_get,
 )
 
-import logging
 logger = logging.getLogger('cumlouder')
 
 on_exception = my_dec_on_exception(
@@ -85,11 +85,11 @@ class CumlouderIE(SeleniumInfoExtractor):
 
     def _real_extract(self, url):
 
-        webpage = cast(str, try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text))))
+        webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
         title = try_get(self._html_extract_title(webpage), lambda x: x.split(" | ")[0].replace(" ", "_").replace(",", ""))
         video_id = try_get(re.search(r"'id'\s*:\s*'cumlouder_(?P<video_id>\d+)'", webpage), lambda x: x.group('video_id'))
 
-        info = cast(dict, try_get(re.search(r'<source src="(?P<videourl>.*)" type="video/mp4" label="(?P<w>\d+)p" res="(?P<h>\d+)"', webpage), lambda x: x.groupdict()))
+        info = try_get(re.search(r'<source src="(?P<videourl>.*)" type="video/mp4" label="(?P<w>\d+)p" res="(?P<h>\d+)"', webpage), lambda x: x.groupdict())
 
         videourl = try_get(traverse_obj(info, "videourl"), lambda x: x.replace("&amp;", "&"))
         weight = try_get(traverse_obj(info, "w"), lambda x: int_or_none(x))
@@ -104,9 +104,9 @@ class CumlouderIE(SeleniumInfoExtractor):
             'height': height,
             'ext': 'mp4'}
 
-        _host = cast(str, get_host(videourl))
+        _host = get_host(videourl)
         with self.get_ytdl_sem(_host):
-            _videoinfo = cast(dict, self._get_video_info(videourl))
+            _videoinfo = self._get_video_info(videourl)
         if not _videoinfo:
             raise_reextract_info("no video info")
 

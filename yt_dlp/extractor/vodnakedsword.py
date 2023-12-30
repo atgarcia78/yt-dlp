@@ -1,29 +1,28 @@
+import html
 import json
 import logging
-from threading import Lock
 import re
-import html
+from threading import Lock
+
 from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     ReExtractInfo,
-    dec_on_exception3,
-    my_dec_on_exception,
-    dec_on_driver_timeout,
-    limiter_0_1,
-    SeleniumInfoExtractor,
-    Union,
     Response,
-    cast,
-    raise_extractor_error
+    SeleniumInfoExtractor,
+    dec_on_driver_timeout,
+    dec_on_exception3,
+    limiter_0_1,
+    my_dec_on_exception,
+    raise_extractor_error,
 )
-
 from ..utils import (
-    sanitize_filename,
-    try_get,
-    traverse_obj,
     get_element_html_by_id,
-    get_element_text_and_html_by_tag)
+    get_element_text_and_html_by_tag,
+    sanitize_filename,
+    traverse_obj,
+    try_get,
+)
 
 logger = logging.getLogger('vodnakedsword')
 
@@ -79,7 +78,7 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
     @dec_on_driver_timeout
     @dec_on_exception3
     @limiter_0_1.ratelimit("nakedsword", delay=True)
-    def _send_request(cls, url, **kwargs) -> Union[None, Response]:
+    def _send_request(cls, url, **kwargs) -> None | Response:
 
         pre = f'[send_request][{cls._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):
@@ -162,7 +161,7 @@ class VODNakedSwordSceneIE(VODNakedSwordBaseIE):
         _scene_str = try_get(re.search(r'(Scene\s+\d+)', get_element_html_by_id(f'scene-{sceneid}', webpage), flags=re.I), lambda x: x.group() if x else "scene")  # type: ignore
         _title = try_get(re.search(r'(?P<san_title>[^<]+)<?', traverse_obj(get_element_text_and_html_by_tag('h1', webpage), 0)),  # type: ignore
                          lambda x: try_get(x.group('san_title'), lambda y: y.strip()) if x else None)
-        _info_streaming = cast(dict, self._get_api_info(url, movieid, sceneid=sceneid))
+        _info_streaming = self._get_api_info(url, movieid, sceneid=sceneid)
         _headers = {'Referer': url.split('#')[0], 'Origin': 'https://vod.nakedsword.com'}
         _formats, _subtitles = self._extract_m3u8_formats_and_subtitles(_info_streaming['url'], sceneid, ext="mp4", entry_protocol="m3u8_native", headers=_headers)
 

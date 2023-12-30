@@ -10,8 +10,6 @@ from .commonwebdriver import (
     HTTPStatusError,
     Lock,
     SeleniumInfoExtractor,
-    Tuple,
-    cast,
     dec_on_exception2,
     dec_on_exception3,
     limiter_0_1,
@@ -129,7 +127,7 @@ class BaseloadIE(SeleniumInfoExtractor):
         else:
             raise ExtractorError("couldnt get res0")
 
-    def _getinfofromwebpage(self, _url, webpage, max_limit, pre) -> Tuple[str, str]:
+    def _getinfofromwebpage(self, _url, webpage, max_limit, pre) -> tuple[str, str]:
         _args = None
         _title = None
         if not webpage:
@@ -144,7 +142,6 @@ class BaseloadIE(SeleniumInfoExtractor):
         if not _title:
             raise ExtractorError("error no title")
         else:
-            _title = cast(str, _title)
             _args = self._get_args(webpage)
             if not _args:
                 raise ExtractorError("error extracting video args")

@@ -12,9 +12,6 @@ from threading import Lock
 from .commonwebdriver import (
     ReExtractInfo,
     SeleniumInfoExtractor,
-    Tuple,
-    Union,
-    cast,
     limiter_0_1,
     limiter_1,
     my_dec_on_exception,
@@ -51,7 +48,7 @@ on_exception_req = my_dec_on_exception(
 logger = logging.getLogger("gvdblog")
 
 
-def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
+def upt_dict(info_dict: dict | list, **kwargs) -> dict | list:
     info_dict_list = [info_dict] if isinstance(info_dict, dict) else info_dict
     for _el in info_dict_list:
         _el.update(**kwargs)
@@ -83,7 +80,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
     @keyapi.setter
     def keyapi(self, url):
-        self._keyapi = cast(str, get_domain(url))
+        self._keyapi = get_domain(url)
 
     @property
     def altkey(self):
@@ -288,7 +285,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             list1.append(_subvideo)
         return list1
 
-    def get_info(self, post: Union[str, dict]) -> Tuple:
+    def get_info(self, post: str | dict) -> tuple[datetime | None, str | None, str | None]:
 
         if isinstance(post, str):
             _patt1 = r"(?:(class='related-tag' data-id='(?P<id1>\d+)')|(wp-json/wp/v2/posts/(?P<id2>\d+)))"
@@ -585,7 +582,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if self.query_upt:
             urlquery.extend([f"{key}={value}" for key, value in self.query_upt.items()])
 
-        post_blog_entries_search = cast(list, self.send_api_search('&'.join(urlquery)))
+        post_blog_entries_search = self.send_api_search('&'.join(urlquery))
 
         _nentries = int_or_none(params.get('entries'))
         _from = int(params.get('from', 1))

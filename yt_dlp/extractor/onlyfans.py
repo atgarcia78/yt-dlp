@@ -12,7 +12,6 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Any, Union, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -92,7 +91,7 @@ class AccountBase:
             'x-bc': self.xbc
         }
 
-    def get(self, path, _headers=None) -> Any:
+    def get(self, path, _headers=None):
         headers = self.createHeaders(path)
         if _headers:
             headers.update(_headers)
@@ -126,12 +125,12 @@ class Account(AccountBase):
         return self.get('/api2/v2/users/me')
 
     @lru_cache
-    def getUserId(self, account) -> Union[int, None]:
+    def getUserId(self, account) -> int | None:
         if (data := self.get(f'/api2/v2/users/{account}')):
             return data.get('id')
 
     @lru_cache
-    def getUserName(self, userid) -> Union[str, None]:
+    def getUserName(self, userid) -> str | None:
         if (data := self.get(f'/api2/v2/users/list?a%5B%5D={userid}')):
             return data.get(str(userid), {}).get('username')
 
@@ -152,10 +151,9 @@ class Account(AccountBase):
 
         return subs
 
-    def getVideosCount(self, userid) -> Union[int, None]:
+    def getVideosCount(self, userid) -> int | None:
         if (data := self.get(f'/api2/v2/users/{userid}/posts/videos?limit=1&skip_users=all&format=infinite&counters=1')):
             if (_res := traverse_obj(data, ('counters', 'videosCount'), default=None)):
-                _res = cast(int, _res)
                 return int(_res)
 
     def getVideoPosts(self, userid, account, total, order="publish_date_desc", num=10, use_cache=False):
@@ -361,7 +359,7 @@ class scroll_chat:
             return True
 
 
-def upt_dict(info_dict: Union[dict, list], **kwargs) -> Union[dict, list]:
+def upt_dict(info_dict: dict | list, **kwargs) -> dict | list:
     if isinstance(info_dict, dict):
         info_dict_list = [info_dict]
     else:
@@ -549,7 +547,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     def validate_drm_lic(cls, licurl: str, challenge: bytes) -> bytes:
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
 
-        _path = cast(str, try_get(urlparse(licurl), lambda x: x.path + '?' + x.query))
+        _path = try_get(urlparse(licurl), lambda x: x.path + '?' + x.query)
         return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _content=challenge).content
 
     def _extract_from_json(self, data_post, user_profile=None):
@@ -575,7 +573,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     else:
                         account = OnlyFansBaseIE._CONF['subs'][str(userid)]
 
-            _datevideo = cast(str, traverse_obj(data_post, 'createdAt', 'postedAt', default=''))
+            _datevideo = traverse_obj(data_post, 'createdAt', 'postedAt', default='')
             if not _datevideo:
                 raise ExtractorError("no datevideo")
             date_timestamp = int(datetime.fromisoformat(_datevideo).timestamp())
@@ -591,7 +589,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
-                            _signature = cast(dict, traverse_obj(_drm, ('signature', 'dash'), default={}))
+                            _signature = traverse_obj(_drm, ('signature', 'dash'), default={})
                             for name, value in _signature.items():
                                 OnlyFansBaseIE.conn_api.session.cookies.jar.set_cookie(http.cookiejar.Cookie(
                                     version=0, name=name, value=value, port=None, port_specified=False,
@@ -814,9 +812,9 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
 
     def _real_extract(self, url):
 
-        info = cast(dict, try_get(
+        info = try_get(
             re.search(self._VALID_URL, url),  # type: ignore
-            lambda x: x.groupdict()))
+            lambda x: x.groupdict())
         self.to_screen(info)
         account, mode, query = info['account'], info.get('mode', 'latest'), info.get('query')
         if mode in ('new', 'newest'):
@@ -829,7 +827,7 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
         try:
             userid = OnlyFansBaseIE.conn_api.getUserId(account)
             if (entries := self._get_videos_from_subs(userid, account, mode=mode)):
-                entries_list = cast(list, upt_dict(list(entries.values()), original_url=url))
+                entries_list = upt_dict(list(entries.values()), original_url=url)
                 num_entries = len(entries_list)
                 last = int_or_none(params.get('last'))
                 first = int(params.get('first', 0))
@@ -935,7 +933,7 @@ class OnlyFansActSubslistIE(OnlyFansBaseIE):
 
                 for fut in futures:
                     try:
-                        _entries = cast(dict, fut.result())
+                        _entries = fut.result()
                         entries += upt_dict(list(_entries.values()), original_url=url)
                     except Exception as e:
                         self.to_screen(repr(e))

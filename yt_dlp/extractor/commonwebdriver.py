@@ -14,25 +14,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import cached_property
 from io import TextIOWrapper
 from ipaddress import ip_address
 from threading import Event, Lock, RLock, Semaphore
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
 from urllib.parse import unquote, urlparse
 
 import httpx
@@ -47,7 +35,7 @@ from httpx import (
     StreamError,
     Timeout,
 )
-from pyrate_limiter import Duration, LimitContextDecorator, Limiter, RequestRate
+from pyrate_limiter import Duration, Limiter, RequestRate
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
@@ -74,14 +62,7 @@ from ..YoutubeDL import YoutubeDL
 
 assert Keys  # for flake8
 
-assert Tuple
-assert Dict
-assert Iterable
-assert Type
-assert Optional
-assert Sequence
-assert TypeVar
-assert Any
+assert WebElement
 
 _NOT_FOUND = object()
 
@@ -246,7 +227,7 @@ class cached_classproperty(cached_property):
         return val
 
 
-def get_host(url: str, shorten=None) -> str:
+def get_host(url: str, shorten=None):
     _host = re.sub(r'^www\.', '', urlparse(url).netloc)
     if shorten == 'vgembed':
         _nhost = _host.split('.')
@@ -271,14 +252,14 @@ class StatusStop(Exception):
         self.exc_info = exc_info
 
 
-def my_limiter(seconds: Union[str, int, float]):
+def my_limiter(seconds: str | int | float):
     if seconds == "non":
         return Limiter(RequestRate(10000, 0))
     elif isinstance(seconds, (int, float)):
         return Limiter(RequestRate(1, seconds * Duration.SECOND))
 
 
-def my_jitter(value: float) -> float:
+def my_jitter(value: float):
     return int(random.uniform(value * 0.75, value * 1.25))
 
 
@@ -376,7 +357,7 @@ def getter_basic_config_extr(ie_name, config):
 
 
 def getter_config_extr(
-        ie_name, config) -> LimitContextDecorator:
+        ie_name, config):
 
     if (key_text := ie_name.split(':')[0]) != 'generic':
         if value := config.get(key_text):
@@ -420,7 +401,7 @@ class scroll:
                 lambda x: x[0])
 
         if self._el_footer:
-            self._el_footer = cast(WebElement, self._el_footer)
+            self._el_footer = self._el_footer
             driver.execute_script(
                 "window.scrollTo(arguments[0]['x'], arguments[0]['y']);",
                 self._el_footer.location)
@@ -462,10 +443,10 @@ class ProgressTimer:
     def reset(self):
         self._last_ts = self.TIMER_FUNC()
 
-    def elapsed_seconds(self) -> float:
+    def elapsed_seconds(self):
         return self.TIMER_FUNC() - self._last_ts
 
-    def has_elapsed(self, seconds: float) -> bool:
+    def has_elapsed(self, seconds: float):
         assert seconds > 0.0
         elapsed_seconds = self.elapsed_seconds()
         if elapsed_seconds < seconds:
@@ -491,18 +472,18 @@ class MyHAR:
         _res = []
         if driver and not har:
             # driver has ta have add on export trigger har
-            _res = cast(list, try_get(
+            _res = try_get(
                 driver.execute_async_script("HAR.triggerExport().then(arguments[0]);"),
-                lambda x: x.get('entries') if x else None))
+                lambda x: x.get('entries') if x else None)
 
         elif har:
             if isinstance(har, dict):
-                _res = cast(list, traverse_obj(har, ('log', 'entries')))
+                _res = traverse_obj(har, ('log', 'entries'))
             elif isinstance(har, list):
                 _res = har
             elif isinstance(har, str):
                 with open(har, 'r') as f:
-                    _res = cast(list, traverse_obj(json.load(f), ('log', 'entries')))
+                    _res = traverse_obj(json.load(f), ('log', 'entries'))
 
         if not _res:
             raise ExtractorError('no HAR entries')
@@ -544,7 +525,7 @@ class MyHAR:
             inclheaders=False, check_event=None):
 
         def _get_hint(entry):
-            _url = cast(str, traverse_obj(entry, ('request', 'url')))
+            _url = traverse_obj(entry, ('request', 'url'))
             if not _url or not re.search(_valid_url, _url):
                 return None
             _hint = {'url': _url}
@@ -579,7 +560,7 @@ class MyHAR:
                 else:
                     _list_hints.append(_hint)
                 if check_event:
-                    if isinstance(check_event, Callable):
+                    if callable(check_event):
                         check_event()
                     elif isinstance(check_event, Event):
                         if check_event.is_set():
@@ -795,8 +776,8 @@ class ProgressBar(MultilinePrinter):
     _DELAY = 0.1
 
     def __init__(
-            self, stream: Union[TextIOWrapper, YoutubeDL, None], total: Union[int, float],
-            preserve_output: bool = True, block_logging: bool = True, msg: Union[str, None] = None):
+            self, stream: TextIOWrapper | YoutubeDL | None, total: int | float,
+            preserve_output: bool = True, block_logging: bool = True, msg: str | None = None):
         self._pre = ''
         if msg:
             self._pre = msg
@@ -990,8 +971,8 @@ class SeleniumInfoExtractor(InfoExtractor):
         return super().extract(url)
 
     def create_progress_bar(
-            self, total: Union[int, float], block_logging: bool = True,
-            msg: Union[str, None] = None) -> ProgressBar:
+            self, total: int | float, block_logging: bool = True,
+            msg: str | None = None):
         return ProgressBar(self._downloader, total, block_logging=block_logging, msg=msg)
 
     def _get_extractor(self, _args):
@@ -1033,7 +1014,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         extractor = self._get_extractor(url)
         return extractor.ie_key()
 
-    def get_ytdl_sem(self, _host) -> Lock:
+    def get_ytdl_sem(self, _host):
         with self._downloader.params.setdefault('lock', Lock()):
             return self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
 
@@ -1067,7 +1048,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     @dec_retry
     def _get_driver(
         cls, noheadless=False, devtools=False,
-            host=None, port=None, verbose=False) -> Optional[tuple[Firefox, FirefoxOptions]]:
+            host=None, port=None, verbose=False):
 
         tempdir = tempfile.mkdtemp(prefix='asyncall-')
         shutil.rmtree(tempdir, ignore_errors=True)
@@ -1122,7 +1103,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         serv = Service(log_path=_logs[verbose])
 
-        def return_driver() -> Optional[Firefox]:
+        def return_driver():
             _driver = None
             try:
                 with SeleniumInfoExtractor._MASTER_LOCK:
@@ -1144,7 +1125,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def get_driver(
             self, noheadless=False, devtools=False, host=None,
-            port=None, verbose=False) -> Optional[Firefox]:
+            port=None, verbose=False):
 
         _proxy = traverse_obj(self._CLIENT_CONFIG, ('proxies', 'http://'))
         if not host and _proxy and isinstance(_proxy, str):
@@ -1208,9 +1189,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             if tempdir:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-    def find_free_port(self) -> int:
+    def find_free_port(self):
         with SeleniumInfoExtractor._MASTER_LOCK:
-            return cast(int, find_available_port())
+            return find_available_port()
 
     def get_har_logs(self, key, videoid=None, msg=None, port=8080):
         folder = f"/Users/antoniotorres/.cache/yt-dlp/{key}"
@@ -1241,8 +1222,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop)
 
     def wait_until(
-            self, driver: Firefox, timeout: float = 60, method: Union[None, Callable] = None,
-            poll_freq: float = 0.5) -> Union[None, list[WebElement], WebElement]:
+            self, driver: Firefox, timeout: float = 60, method: None | Callable = None,
+            poll_freq: float = 0.5):
 
         _poll_freq = poll_freq
         if not method:
@@ -1257,7 +1238,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         except Exception:
             return
 
-    def get_info_for_format(self, url, **kwargs) -> dict:
+    def get_info_for_format(self, url, **kwargs):
 
         res = None
         info = {}
@@ -1289,7 +1270,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             self.logger_debug(
                 f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
 
-    def _is_valid(self, url, timeout=45, msg=None, inc_error=False) -> dict:
+    def _is_valid(self, url, timeout=45, msg=None, inc_error=False):
 
         _not_valid_url = [
             'rawassaddiction.blogspot', 'twitter.com', 'sxyprn.net', 'gaypornmix.com',
@@ -1329,7 +1310,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             _decor = getter_config_extr(
                 _extr_name, SeleniumInfoExtractor._CONFIG_REQ)
 
-            def _throttle_isvalid(_url, short) -> Union[None, Response, dict]:
+            def _throttle_isvalid(_url, short):
                 if (_res := self.cache.load('is_valid', get_host(_url))):
                     _time_modif = datetime.fromtimestamp(
                         os.stat(self.cache._get_cache_fn(
@@ -1480,13 +1461,13 @@ class SeleniumInfoExtractor(InfoExtractor):
         finally:
             self.logger_debug(f"{premsg} {res}:{_msg_err}")
 
-    def send_http_request(self, url, **kwargs) -> Optional[Response]:
+    def send_http_request(self, url, **kwargs):
 
         kwargs.setdefault('client', self._CLIENT)
         return SeleniumInfoExtractor._send_http_request(url, **kwargs)
 
     @classmethod
-    def _send_http_request(cls, url, **kwargs) -> Optional[Response]:
+    def _send_http_request(cls, url, **kwargs):
         _type = kwargs.pop('_type', "GET")
         fatal = kwargs.pop('fatal', True)
         _logger = kwargs.pop('logger', cls.LOGGER.debug)

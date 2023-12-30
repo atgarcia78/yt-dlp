@@ -1,7 +1,6 @@
 import html
 import json
 import re
-from typing import cast
 
 from .commonwebdriver import (
     ConnectError,
@@ -12,15 +11,15 @@ from .commonwebdriver import (
     dec_on_exception3,
     limiter_1,
     my_dec_on_exception,
-    raise_extractor_error
+    raise_extractor_error,
 )
 from ..utils import (
+    decode_packed_codes,
     get_domain,
     js_to_json,
     sanitize_filename,
+    sanitize_url,
     try_get,
-    decode_packed_codes,
-    sanitize_url
 )
 
 on_exception_vinfo = my_dec_on_exception(
@@ -78,7 +77,7 @@ class MixDropIE(SeleniumInfoExtractor):
     @on_retry_vinfo
     def _get_entry(self, url, check=False, msg=None):
 
-        video_id = cast(str, self._match_id(url))
+        video_id = self._match_id(url)
         url = f'https://mixdrop.to/e/{video_id}'
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if msg:
@@ -86,7 +85,6 @@ class MixDropIE(SeleniumInfoExtractor):
         webpage = try_get(self._send_request(url), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
         if not webpage or any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 no webpage")
-        webpage = cast(str, webpage)
         ofuscated_code = try_get(re.search(r'<script>(MD.*)</script><video', webpage), lambda x: x.group())
         info_video = json.loads('{' + js_to_json(decode_packed_codes(ofuscated_code)).replace(';', ',').replace('"=', '":').strip(',') + '}')
 
@@ -95,7 +93,7 @@ class MixDropIE(SeleniumInfoExtractor):
         if not _webpagef or any([_ in _webpagef for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 no webpage")
         title = self._og_search_title(_webpagef, default=None) or self._html_extract_title(_webpagef, default=None)
-        title = re.sub(r'(\s+-+\s+)?mixdrop(\s+-+\s+watch\s+)?|\.mp4', '', cast(str, title), flags=re.IGNORECASE)
+        title = re.sub(r'(\s+-+\s+)?mixdrop(\s+-+\s+watch\s+)?|\.mp4', '', title, flags=re.IGNORECASE)
 
         headers = {'Referer': self._SITE_URL + '/', 'Origin': self._SITE_URL}
 
@@ -119,7 +117,7 @@ class MixDropIE(SeleniumInfoExtractor):
             if not _videoinfo:
                 raise ReExtractInfo(f"{pre} error 404: no video info")
 
-            _videoinfo = cast(dict, _videoinfo)
+            _videoinfo = _videoinfo
             if _videoinfo['filesize'] >= 1000000:
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
             else:

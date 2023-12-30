@@ -8,7 +8,6 @@ from .commonwebdriver import (
     HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
-    cast,
     dec_on_driver_timeout,
     ec,
     limiter_1,
@@ -103,7 +102,7 @@ class StreamSBIE(SeleniumInfoExtractor):
             if (_error := get_first(info, ('error'))):
                 raise_reextract_info(f'{pre} {_error}')
 
-            _title = cast(str, get_first(info, ('stream_data', 'title'), ('title')))
+            _title = get_first(info, ('stream_data', 'title'), ('title'))
             if not _title:
                 raise ExtractorError('Couldnt get title')
 

@@ -1,6 +1,5 @@
-from typing import cast
-
 from .commonwebdriver import (
+    By,
     ConnectError,
     ExtractorError,
     HTTPStatusError,
@@ -10,13 +9,8 @@ from .commonwebdriver import (
     limiter_1,
     my_dec_on_exception,
     raise_extractor_error,
-    By
 )
-from ..utils import (
-    get_domain,
-    sanitize_filename,
-)
-
+from ..utils import get_domain, sanitize_filename
 
 on_exception = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
@@ -89,7 +83,7 @@ class DFlixIE(SeleniumInfoExtractor):
     @SeleniumInfoExtractor.syncsem()
     def _get_entry(self, url, check=False, msg=None):
 
-        video_id = cast(str, self._match_id(url))
+        video_id = self._match_id(url)
         url = f'https://dflix.top/e/{video_id}'
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if msg:
@@ -125,7 +119,6 @@ class DFlixIE(SeleniumInfoExtractor):
                 if not _videoinfo:
                     raise ReExtractInfo(f"{pre} error 404: no video info")
 
-                _videoinfo = cast(dict, _videoinfo)
                 if _videoinfo['filesize'] >= 1000000:
                     _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
                 else:
