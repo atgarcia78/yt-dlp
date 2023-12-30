@@ -35,7 +35,6 @@ from ..utils import (  # get_element_html_by_id,
     sanitize_filename,
     traverse_obj,
     try_get,
-    unsmuggle_url,
     update_url,
     update_url_query,
 )
@@ -332,7 +331,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         if isinstance(post, str) and post.startswith('http'):
             url = unquote(post)
-            premsg += f'[{self._get_url_print(update_url(url, query_update=self.query_upt))}]'
+            premsg += f'[{url}]'
             self.report_extraction(url)
             if (post_content := try_get(
                     self._send_request(url),
@@ -415,7 +414,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 else:
                     _original_url = _url
                     _comment = _url
-                    if _el.pop('_try_title', None):
+                    if _el.pop('_try_title', None) or title.split(_el['title'])[0]:
                         _el['_legacy_title'] = _el['title']
                         _el['title'] = title
 
@@ -460,26 +459,25 @@ class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
         https?://(www\.)?(?:
-            (fxggxt\.com/[^/_\?]+/?)|
+            (fxggxt\.com/[^/_\?]+)|
             (gvdblog\.(?:
                 (com/\d{4}/\d+/.+\.html)|
-                (cc/video/.+)|(net/[^/_\?]+/?))))
-        (\?(?P<query>[^#]+))?$'''
+                (cc/video/[^\?/]+)|(net/[^/\?]+))))
+        /?(\?(?P<query>[^#]+))?'''
 
     def _real_initialize(self):
         super()._real_initialize()
 
     def _real_extract(self, url):
-        url, _ = unsmuggle_url(url)
-
+        self.report_extraction(url)
         self.keyapi = url
 
         params = {}
         query = try_get(
             re.search(self._VALID_URL, url), lambda x: x.group('query'))
         if query:
-            params = {el.split('=')[0]: el.split('=')[1]
-                      for el in query.split('&') if el.count('=') == 1}
+            params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
+                      if el.count('=') == 1}
 
         self.conf_args_gvd = params
 

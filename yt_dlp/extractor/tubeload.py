@@ -1,30 +1,24 @@
 import html
-import re
-from urllib.parse import unquote
-import subprocess
 import logging
+import re
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import unquote
 
 from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     Lock,
     SeleniumInfoExtractor,
+    Tuple,
+    cast,
     dec_on_exception2,
     dec_on_exception3,
     limiter_0_1,
     limiter_non,
     my_dec_on_exception,
-    Tuple,
-    cast
 )
-from ..utils import (
-    ExtractorError,
-    get_domain,
-    sanitize_filename,
-    try_get,
-)
-
+from ..utils import ExtractorError, get_domain, sanitize_filename, try_get
 
 on_exception_vinfo = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=2, interval=0.1)
@@ -157,16 +151,16 @@ class BaseloadIE(SeleniumInfoExtractor):
             cmd1 = f"node {self._JS_SCRIPT['deofus']} " + " ".join([str(el) for el in _args])
             return (subprocess.run(cmd1.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n'), _title)
 
-    def _get_metadata(self, url):
-        videoid = self._match_id(url)
-        _url = f"{self._SITE_URL}/e/{videoid}"
-        webpage = try_get(self._send_request(_url), lambda x: html.unescape(x.text))
-        if not webpage or '<title>404' in webpage:
-            raise ExtractorError("error 404 no webpage")
-        title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
-        if not title:
-            raise ExtractorError("error no title")
-        return {'id': videoid, 'title': sanitize_filename(title, restricted=True)}
+    # def _get_metadata(self, url):
+    #     videoid = self._match_id(url)
+    #     _url = f"{self._SITE_URL}/e/{videoid}"
+    #     webpage = try_get(self._send_request(_url), lambda x: html.unescape(x.text))
+    #     if not webpage or '<title>404' in webpage:
+    #         raise ExtractorError("error 404 no webpage")
+    #     title = self._html_search_meta(('og:title', 'twitter:title'), webpage, default=None)
+    #     if not title:
+    #         raise ExtractorError("error no title")
+    #     return {'id': videoid, 'title': sanitize_filename(title, restricted=True)}
 
     def _get_entry(self, url, **kwargs):
 
