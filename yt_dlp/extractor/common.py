@@ -3871,7 +3871,7 @@ class SearchInfoExtractor(InfoExtractor):
 
     def _search_results(self, query):
         """Returns an iterator of search results"""
-        raise NotImplementedError('This method must be implemented by subclasses')
+        raise NotImplementedError('This method must be  implemented by subclasses')
 
     @classproperty
     def SEARCH_KEY(cls):
