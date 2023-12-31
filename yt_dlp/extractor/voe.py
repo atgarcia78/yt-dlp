@@ -1,13 +1,23 @@
+import html
+import json
 import re
 from urllib.parse import unquote
 
-from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, get_domain
 from .commonwebdriver import (
-    dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor,
-    limiter_1, HTTPStatusError, ConnectError)
-
-import html
-import json
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+)
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    js_to_json,
+    sanitize_filename,
+    try_get,
+)
 
 
 class VoeIE(SeleniumInfoExtractor):
@@ -94,17 +104,27 @@ class VoeIE(SeleniumInfoExtractor):
                 else:
                     _formats.append(_format)
 
+            _duration = None
             if 'hls' in sources:
                 m3u8_url = unquote(sources.get('hls'))
                 fmts = self._extract_m3u8_formats(m3u8_url, videoid, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls", headers=_headers)
 
                 if fmts:
                     _formats.extend(fmts)
+                    try:
+                        _duration = self._extract_m3u8_vod_duration(fmts[0]['url'], videoid, headers=_headers)
+
+                    except Exception as e:
+                        self.report_warning(f"{pre}: error trying to get vod {repr(e)}")
 
             if not _formats:
                 raise ExtractorError(f"{pre} No formats found")
 
-            # self._sort_formats(_formats)
+            for _format in _formats:
+                if (_head := _format.get('http_headers')):
+                    _head.update(**_headers)
+                else:
+                    _format.update({'http_headers': _headers})
 
             _title = try_get(self._html_extract_title(webpage), lambda x: x.replace('Watch OFS -', '').replace('Watch ', '').replace(' - VOE | Content Delivery Network (CDN) & Video Cloud', '').replace('.mp4', '').replace('.mkv', '').replace('.', '_').strip('_. \n-'))
 
@@ -115,7 +135,8 @@ class VoeIE(SeleniumInfoExtractor):
                 'extractor_key': 'Voe',
                 'extractor': 'voe',
                 'ext': 'mp4',
-                'webpage_url': url
+                'webpage_url': url,
+                **({'duration': _duration} if _duration else {})
             }
 
             return entry_video
