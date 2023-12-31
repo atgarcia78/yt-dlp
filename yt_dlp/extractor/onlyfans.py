@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
-import http
 import json
 import logging
 import os
@@ -46,7 +46,6 @@ class AccountBase:
             raise Exception('error when init account')
 
         self.session = httpx.Client(**ie._CLIENT_CONFIG)
-        self.asession = httpx.AsyncClient(**ie._CLIENT_CONFIG)
 
         self.cache = ie.cache
 
@@ -75,8 +74,17 @@ class AccountBase:
             name, value = cookie.strip().split('=')
             if name == 'auth_id':
                 self.authID = value
-            self.session.cookies.set(name=name, value=value, domain='onlyfans.com')
-            self.asession.cookies.set(name=name, value=value, domain='onlyfans.com')
+            self.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
+
+    def load_cookies(self, cookies):
+        _cookies = []
+        for cookie in cookies:
+            name, value = cookie.name, cookie.value
+            _cookies.append(f'{name}={value}')
+            if name == 'auth_id':
+                self.authID = value
+            self.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
+        self.cookies = '; '.join(_cookies)
 
     def createHeaders(self, path):
         timestamp = str(int(time.time() * 1000))
@@ -424,11 +432,17 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         try:
             if (_auth_config := (self.cache.load('onlyfans', 'auth_config'))):
                 OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
+                if not OnlyFansBaseIE.conn_api.authID:
+                    cookies = self._FF_COOKIES_JAR.get_cookies_for_url('https://onlyfans.com')
+                    OnlyFansBaseIE.conn_api.load_cookies(cookies)
                 if OnlyFansBaseIE.conn_api.getMe():
                     return True
 
             if (_auth_config := self._get_auth_config()):
                 OnlyFansBaseIE.conn_api = Account(self, **_auth_config)
+                if not OnlyFansBaseIE.conn_api.authID:
+                    cookies = self._FF_COOKIES_JAR.get_cookies_for_url('https://onlyfans.com')
+                    OnlyFansBaseIE.conn_api.load_cookies(cookies)
                 if OnlyFansBaseIE.conn_api .getMe():
                     return True
 
@@ -444,28 +458,30 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         _auth_config = {}
         _port = self.find_free_port() or 8080
         driver = self.get_driver(host='127.0.0.1', port=_port)
+        _har_file = None
         try:
             with self.get_har_logs('onlyfans', port=_port) as harlogs:
                 _har_file = harlogs.har_file
                 self._login(driver)
 
-            req = try_get(
+            if (req := try_get(
                 self.scan_for_request(
                     r'api2/v2/.+', har=_har_file, inclheaders=True,
                     response=True, _all=True),
-                lambda x: x[-1])
-            if req:
+                lambda x: x[-1]
+            )) and 'headers' in req:
+
                 for _header_name in ('cookie', 'x-bc', 'user-agent'):
-                    _auth_config.update({_header_name: req['headers'].get(_header_name)})
-                self.cache.store('onlyfans', 'auth_config', _auth_config)
-                try:
-                    if os.path.exists(_har_file):
-                        os.remove(_har_file)
-                except OSError:
-                    return self.logger_info("Unable to remove the har file")
-            return _auth_config
+                    _auth_config.update({_header_name: req['headers'].get(_header_name, "")})
+                if _auth_config['x-bc'] and _auth_config['user-agent']:
+                    self.cache.store('onlyfans', 'auth_config', _auth_config)
+                    return _auth_config
         finally:
             self.rm_driver(driver)
+            if _har_file:
+                with contextlib.suppress(OSError):
+                    if os.path.exists(_har_file):
+                        os.remove(_har_file)
 
     def _login(self, driver):
 
@@ -480,13 +496,14 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
         try:
 
-            self.send_driver_request(driver, self._SITE_URL)
+            self.send_driver_request(driver, 'https://onlyfans.com/u4090129')
 
             el_init = self.wait_until(driver, 60, alreadylogin_or_reqtw())
             if not el_init:
                 raise ExtractorError("Error in login")
             if el_init[0] == "loginok":
                 self.to_screen("Login OK")
+
                 return
             else:
 
@@ -592,16 +609,21 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
                             _signature = traverse_obj(_drm, ('signature', 'dash'), default={})
+                            _cookies_drm = []
                             for name, value in _signature.items():
-                                OnlyFansBaseIE.conn_api.session.cookies.jar.set_cookie(http.cookiejar.Cookie(
-                                    version=0, name=name, value=value, port=None, port_specified=False,
-                                    domain='onlyfans.com', domain_specified=True, domain_initial_dot=True, path='/',
-                                    path_specified=True, secure=False, expires=None, discard=False, comment=None,
-                                    comment_url=None, rest={}))
-                            _cookie_str = OnlyFansBaseIE.conn_api.cookies
-                            self.logger_debug(f"[extract_from_json] cookies {_cookie_str}")
+                                _cookies_drm.append(f'{name}={value}')
+                                OnlyFansBaseIE.conn_api.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
+                            _cookies_drm_str = '; '.join(_cookies_drm)
+                            # OnlyFansBaseIE.conn_api.session.cookies.jar.set_cookie(http.cookiejar.Cookie(
+                            #     version=0, name=name, value=value, port=None, port_specified=False,
+                            #     domain='onlyfans.com', domain_specified=True, domain_initial_dot=True, path='/',
+                            #     path_specified=True, secure=False, expires=None, discard=False, comment=None,
+                            #     comment_url=None, rest={}))
+                            _cookie_str = OnlyFansBaseIE.conn_api.cookies + '; ' + _cookies_drm_str
+                            self.logger_info(f"[extract_from_json] cookies {_cookie_str}")
                             for cookie in OnlyFansBaseIE.conn_api.session.cookies.jar:
                                 self._downloader.cookiejar.set_cookie(cookie)
+                            self.logger_info(f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL)}")
                             _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
                             mpd_xml = self._download_xml(_mpd_url, video_id=videoid, headers=_headers)
                             _pssh_list = list(set(list(map(
@@ -617,6 +639,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                     _head.update(_headers)
                                 else:
                                     _fmt.update({'http_headers': _headers})
+
                             _formats.extend(_formats_dash)
                     else:
                         _pssh_list = None

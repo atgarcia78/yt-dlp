@@ -94,13 +94,15 @@ class DoodStreamIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
         check = kwargs.get('check', True)
         _kwargs = {'limiter': limiter_0_1 if check else limiter_0_5}
-        webpage = try_get(self._send_request(url, **_kwargs), lambda x: html.unescape(x.text) if x else None)
+        _urlh, webpage = try_get(self._send_request(url, **_kwargs), lambda x: (x.url, html.unescape(x.text)) if x else (None, None))
         if not webpage:
             raise_extractor_error(f"{pre} error 404 no webpage")
         if any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 webpage")
 
         token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
+
+        domain = _urlh.host
 
         headers = {'Referer': f'https://{domain}/'}
 
@@ -114,6 +116,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         video_url = try_get(
             self._send_request(f'https://{domain}{pass_md5}', headers=headers, **_kwargs), lambda x: _getter(x) if x else None)
+
         if not video_url:
             raise_extractor_error(f"{pre} couldnt get videourl")
 
@@ -177,7 +180,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
             'ext': 'mp4',
             'extractor_key': 'DoodStream',
             'extractor': 'doodstream',
-            'webpage_url': url
+            'webpage_url': str(_urlh)
         }
 
         if title[:6].replace('-', '').isdecimal():
@@ -190,8 +193,6 @@ class DoodStreamIE(SeleniumInfoExtractor):
         self._count = 0
 
     def _real_extract(self, url):
-
-        self.report_extraction(url)
 
         try:
             _check = traverse_obj(parse_qs(url), ("check", 0, {lambda x: x.lower() == 'yes'}), default=True)

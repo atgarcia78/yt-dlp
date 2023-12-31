@@ -516,10 +516,15 @@ class MyHAR:
 
     @classmethod
     def headers_from_entry(cls, entry):
-        return {
-            header['name']: header['value']
-            for header in traverse_obj(entry, ('request', 'headers'))  # type: ignore
-            if header['name'] != 'Host'}
+        _headers_dict = {'_cookies': []}
+        for header in traverse_obj(entry, ('request', 'headers')):
+            if header['name'] == 'cookie':
+                _headers_dict['_cookies'].append(header['value'])
+            elif header['name'] != 'Host':
+                _headers_dict[header['name']] = header['value']
+        if _headers_dict['_cookies']:
+            _headers_dict['cookie'] = '; '.join(_headers_dict['_cookies'])
+        return _headers_dict
 
     @classmethod
     def scan_har_for_request(
