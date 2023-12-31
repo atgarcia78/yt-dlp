@@ -12,6 +12,8 @@ from html import unescape
 from threading import Lock
 
 from .commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
     ReExtractInfo,
     SeleniumInfoExtractor,
     limiter_0_1,
@@ -450,6 +452,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             except ReExtractInfo as e:
                 logger.debug(f"{pre}: error - {repr(e)}")
                 raise_extractor_error(str(e), _from=e)
+            except (HTTPStatusError, ConnectError) as e:
+                logger.debug(f"{pre}: error - {repr(e)}")
             except Exception as e:
                 logger.debug(f"{pre}: error - {repr(e)}")
                 raise
@@ -650,8 +654,11 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             return _entries
 
     def _get_last_page(self, baseurl):
+        self._pointer = 1
+
         def _temp(start, step):
             for i in itertools.count(start, step=step):
+                self._pointer = i
                 try:
                     if (webpage := try_get(
                             self._send_request(update_url_query(f"{baseurl}{i}", self.conf_args_gvd["query"])),
@@ -663,7 +670,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                 except Exception:
                     return -1
         if (_aux := _temp(1, 5)) > 0:
-            return _temp(_aux - 1, 1)
+            return _aux
+        else:
+            return _temp(self._pointer - 5 + 1, 1)
 
     def _get_entries_page(self, baseurl, npage: int = 1):
         partial_element_re = r'''(?x)

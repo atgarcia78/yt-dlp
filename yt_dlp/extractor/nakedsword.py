@@ -822,8 +822,12 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
     def get_entry(self, url, **kwargs):
 
-        with NakedSwordBaseIE._SEM[NakedSwordBaseIE._STATUS]:
-            return self._get_entry(url, **kwargs)
+        try:
+            with NakedSwordBaseIE._SEM[NakedSwordBaseIE._STATUS]:
+                return self._get_entry(url, **kwargs)
+        except Exception as e:
+            logger.exception(repr(e))
+            raise
 
     @dec_on_reextract_1
     def _get_entry(self, url, **kwargs):
@@ -927,7 +931,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
 class NakedSwordMovieIE(NakedSwordBaseIE):
     IE_NAME = 'nakedsword:movie:playlist'  # type: ignore
-    _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^?#&/$]+)/?(?:\?(?P<by>by=movie)|$)"
+    _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<id>[\d]+)/(?P<title>[^/$#?]+)/?(?:$|\?|#)"
     _MOVIES = {}
 
     @classmethod
