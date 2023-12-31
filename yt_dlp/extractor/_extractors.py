@@ -67,12 +67,7 @@ from .applepodcasts import ApplePodcastsIE
 from .appletrailers import AppleTrailersIE, AppleTrailersSectionIE
 from .archiveorg import ArchiveOrgIE, YoutubeWebArchiveIE
 from .arcpublishing import ArcPublishingIE
-from .ard import (
-    ARDIE,
-    ARDBetaMediathekIE,
-    ARDMediathekCollectionIE,
-    ARDMediathekIE,
-)
+from .ard import ARDIE, ARDBetaMediathekIE, ARDMediathekCollectionIE
 from .arkena import ArkenaIE
 from .arnes import ArnesIE
 from .arte import ArteTVCategoryIE, ArteTVEmbedIE, ArteTVIE, ArteTVPlaylistIE
