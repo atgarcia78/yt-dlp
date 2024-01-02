@@ -46,7 +46,7 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
     _LOCK = Lock()
     _COOKIES = None
 
-    _URLS_CHECKED = []
+    _URLS_CHECKED = set()
 
     @dec_on_exception3
     @dec_on_exception2
@@ -296,8 +296,14 @@ class MyVidsterIE(MyVidsterBaseIE):
             if hasattr(ie, '_get_entry'):
                 try:
                     if (_ent := ie._get_entry(el, check=_check, msg=pre)):
-                        self.logger_debug(f"{pre} OK got entry video\n {_ent}")
-                        return _ent
+                        if 'error' in _ent:
+                            if _urls := _ent.get('_all_urls'):
+                                MyVidsterBaseIE._URLS_CHECKED.update(set(_urls))
+                            return _return_error(
+                                el, f'error entry video - {str(_ent["error"]).replace(bug_reports_message(), "")}')
+                        else:
+                            self.logger_debug(f"{pre} OK got entry video\n {_ent}")
+                            return _ent
                     else:
                         return _return_error(el, 'not entry video')
                 except Exception as e:
@@ -324,7 +330,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 el, f'error entry video - {str(e).replace(bug_reports_message(), "")}')
 
         finally:
-            MyVidsterBaseIE._URLS_CHECKED.append(el)
+            MyVidsterBaseIE._URLS_CHECKED.add(el)
 
     def _get_entry(self, url, **kwargs):
 

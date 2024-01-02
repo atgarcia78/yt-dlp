@@ -9,7 +9,7 @@ from .commonwebdriver import (
     SeleniumInfoExtractor,
     dec_on_exception2,
     dec_on_exception3,
-    limiter_1,
+    limiter_0_1,
 )
 from ..utils import (
     ExtractorError,
@@ -27,7 +27,7 @@ class VoeIE(SeleniumInfoExtractor):
 
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_1.ratelimit("voe", delay=True)
+    @limiter_0_1.ratelimit("voe", delay=True)
     def _get_video_info(self, url, **kwargs):
 
         try:
@@ -46,7 +46,7 @@ class VoeIE(SeleniumInfoExtractor):
 
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_1.ratelimit("voe2", delay=True)
+    @limiter_0_1.ratelimit("voe2", delay=True)
     def _send_request(self, url, **kwargs):
 
         try:
@@ -57,6 +57,7 @@ class VoeIE(SeleniumInfoExtractor):
 
     def _get_entry(self, url, **kwargs):
 
+        videoid = self._match_id(url)
         try:
             check = kwargs.get('check', False)
             msg = kwargs.get('msg', None)
@@ -75,8 +76,6 @@ class VoeIE(SeleniumInfoExtractor):
             _headers = {'Referer': self._SITE_URL}
 
             res = sources.get('video_height', '')
-
-            videoid = self._match_id(url)
 
             if 'mp4' in sources:
                 video_url = unquote(sources.get('mp4'))
@@ -143,7 +142,7 @@ class VoeIE(SeleniumInfoExtractor):
 
         except Exception as e:
             self.to_screen(e)
-            raise
+            return {'error': e, '_all_urls': [f'{self._SITE_URL}{videoid}', f'{self._SITE_URL}e/{videoid}']}
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -156,7 +155,8 @@ class VoeIE(SeleniumInfoExtractor):
 
             _check = True
 
-            return self._get_entry(url, check=_check)
+            if 'error' in (_info := self._get_entry(url, check=_check)):
+                raise _info['error']
 
         except ExtractorError:
             raise
