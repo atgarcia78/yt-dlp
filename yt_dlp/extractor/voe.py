@@ -10,6 +10,7 @@ from .commonwebdriver import (
     dec_on_exception2,
     dec_on_exception3,
     limiter_0_1,
+    limiter_0_01,
 )
 from ..utils import (
     ExtractorError,
@@ -46,7 +47,7 @@ class VoeIE(SeleniumInfoExtractor):
 
     @dec_on_exception2
     @dec_on_exception3
-    @limiter_0_1.ratelimit("voe2", delay=True)
+    @limiter_0_01.ratelimit("voe2", delay=True)
     def _send_request(self, url, **kwargs):
 
         try:
@@ -157,6 +158,8 @@ class VoeIE(SeleniumInfoExtractor):
 
             if 'error' in (_info := self._get_entry(url, check=_check)):
                 raise _info['error']
+            else:
+                return _info
 
         except ExtractorError:
             raise

@@ -204,19 +204,20 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
 
         super()._real_initialize()
 
-        if not MyVidsterBaseIE._COOKIES:
+        with MyVidsterBaseIE._LOCK:
+            if not MyVidsterBaseIE._COOKIES:
 
-            try:
-                self._login()
-                MyVidsterBaseIE._COOKIES = self._CLIENT.cookies
+                try:
+                    self._login()
+                    MyVidsterBaseIE._COOKIES = self._CLIENT.cookies
 
-            except Exception as e:
-                self.to_screen(repr(e))
-                raise
-        else:
-            for cookie in MyVidsterBaseIE._COOKIES.jar:
-                if cookie.value:
-                    self._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
+                except Exception as e:
+                    self.to_screen(repr(e))
+                    raise
+            else:
+                for cookie in MyVidsterBaseIE._COOKIES.jar:
+                    if cookie.value:
+                        self._CLIENT.cookies.set(name=cookie.name, value=cookie.value, domain=cookie.domain)
 
 
 class MyVidsterIE(MyVidsterBaseIE):
@@ -427,10 +428,6 @@ class MyVidsterIE(MyVidsterBaseIE):
                         _progress_bar.update()
                         _progress_bar.print("Entry OK")
 
-    def _real_initialize(self):
-        with MyVidsterBaseIE._LOCK:
-            super()._real_initialize()
-
     def _real_extract(self, url):
 
         self.report_extraction(url)
@@ -636,11 +633,6 @@ class MyVidsterChannelPlaylistIE(MyVidsterBaseIE):
             self.report_warning(str(e))
             raise_extractor_error(str(e), _from=e)
 
-    def _real_initialize(self):
-
-        with MyVidsterBaseIE._LOCK:
-            super()._real_initialize()
-
     def _real_extract(self, url):
 
         self.report_extraction(url)
@@ -734,10 +726,6 @@ class MyVidsterSearchPlaylistIE(MyVidsterBaseIE):
         except Exception as e:
             self.to_screen(repr(e))
             raise_extractor_error(repr(e), _from=e)
-
-    def _real_initialize(self):
-        with MyVidsterBaseIE._LOCK:
-            super()._real_initialize()
 
     def _real_extract(self, url):
         self.report_extraction(url)
@@ -975,9 +963,8 @@ class MyVidsterRSSPlaylistIE(MyVidsterBaseIE):
 
     def _real_initialize(self):
 
+        super()._real_initialize()
         with MyVidsterBaseIE._LOCK:
-
-            super()._real_initialize()
 
             if not MyVidsterRSSPlaylistIE._RSS:
                 if not (_rss := self.cache.load(self.ie_key(), 'rss')):
