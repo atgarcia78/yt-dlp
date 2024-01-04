@@ -769,7 +769,7 @@ class SilentLogger:
         pass
 
 
-def ytdl_silent(ytdl: YoutubeDL):
+def ytdl_silent(ytdl):
     opts = {
         "quiet": True,
         "verbose": False,
