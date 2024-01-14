@@ -1319,7 +1319,6 @@ from .tunein import (
     TuneInShortenerIE,
     TuneInStationIE,
 )
-from .turbo import TurboIE
 from .tv2 import TV2IE, KatsomoIE, MTVUutisetArticleIE, TV2ArticleIE
 from .tv2dk import TV2DKIE, TV2DKBornholmPlayIE
 from .tv2hu import TV2HuIE, TV2HuSeriesIE
@@ -1431,6 +1430,7 @@ from .vimeo import (
 )
 from .vimm import VimmIE, VimmRecordingIE
 from .vine import VineIE, VineUserIE
+from .viously import ViouslyIE
 from .viqeo import ViqeoIE
 from .viu import ViuIE, ViuOTTIE, ViuOTTIndonesiaIE, ViuPlaylistIE
 from .vk import VKIE, VKPlayIE, VKPlayLiveIE, VKUserVideosIE, VKWallPostIE
