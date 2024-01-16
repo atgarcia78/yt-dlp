@@ -52,7 +52,7 @@ on_exception_req = my_dec_on_exception(
 logger = logging.getLogger("gvdblog")
 
 
-def upt_dict(info_dict: dict | list, **kwargs) -> dict | list:
+def upt_dict(info_dict: dict | list, **kwargs) -> None:
     info_dict_list = [info_dict] if isinstance(info_dict, dict) else info_dict
     for _el in info_dict_list:
         _el.update(**kwargs)
@@ -79,12 +79,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 break
 
     @property
-    def keyapi(self):
+    def keyapi(self) -> str:
         return self._keyapi
 
     @keyapi.setter
-    def keyapi(self, url):
-        self._keyapi = get_domain(url)
+    def keyapi(self, url: str):
+        if _res := get_domain(url):
+            self._keyapi = _res
 
     @property
     def altkey(self):
@@ -190,19 +191,22 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 _videos.append(urldict[key]['url'])
 
-        def _process_entry(x):
+        def _process_entry(x) -> dict:
             with contextlib.suppress(Exception):
-                return self._downloader.sanitize_info(
-                    self._downloader.process_ie_result(x, download=False))
+                if self._downloader:
+                    return self._downloader.sanitize_info(
+                        self._downloader.process_ie_result(x, download=False))
+            return {}
 
-        if fmt == 'best' and _entries:
+        if fmt == 'best' and _entries and self._downloader:
             if len(_entries) == 2:
                 entalt, entleg = _process_entry(_entries[0]), _process_entry(_entries[1])
                 entaltfilesize = entalt.get('filesize_approx') or (
                     entalt.get('tbr', 0) * entalt.get('duration', 0) * 1024 / 8)
                 entlegfilesize = entleg.get('filesize')
-                if all([entlegfilesize, entaltfilesize, entaltfilesize >= 2 * entlegfilesize,
-                        (entaltfilesize > 786432000 or entlegfilesize < 157286400)]):
+                if entlegfilesize and entaltfilesize and all(
+                        [entaltfilesize >= 2 * entlegfilesize,
+                         (entaltfilesize > 786432000 or entlegfilesize < 157286400)]):
                     return _entries[0]
                 else:
                     return _entries[1]
@@ -322,12 +326,14 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             postdate = try_get(
                 post.get('date'), lambda x: datetime.fromisoformat(x.split('T')[0]))
 
-        if title:
+        if isinstance(title, str):
             title = sanitize_filename(
                 re.sub(r'\s*-*\s*GVDBlog[^\s]+', '', title, flags=re.IGNORECASE), restricted=True)
+        else:
+            title = None
         return (postdate, title, postid)
 
-    def _get_metadata(self, post, premsg) -> list:
+    def _get_metadata(self, post, premsg) -> tuple:
         url = postdate = title = postid = list_candidate_videos = None
 
         if isinstance(post, str) and post.startswith('http'):
@@ -338,20 +344,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     self._send_request(url),
                     lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)):
                 postdate, title, postid = self.get_info(post_content)
-                # if self.keyapi == 'gvdblog.com':
-                #     post_content = get_element_html_by_id('post-body', post_content)
                 list_candidate_videos = self.get_urls(post_content, msg=url)
         elif isinstance(post, dict):
-            # if self.keyapi == 'gvdblog.com':
-            #     url = try_get(
-            #         traverse_obj(post, ('link', -1, 'href')),
-            #         lambda x: unquote(x) if x is not None else None)
-            #     post_content = traverse_obj(post, ('content', '$t'))
-            # else:
-            #     url = try_get(
-            #         post.get('link'),
-            #         lambda x: unquote(x) if x is not None else None)
-            #     post_content = traverse_obj(post, ('content', 'rendered'))
             url = try_get(
                 post.get('link'),
                 lambda x: unquote(x) if x is not None else None)
@@ -517,14 +511,14 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     _MAP = {'actor': 'actors', 'category': 'categories', 'tag': 'tags'}
 
     def get_id(self, label, name):
-        webpage = try_get(
-            self._send_request(f"https://{self.keyapi}/{label}/{name}"),
-            lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)
-        attribute = self._MAP[label]
-        if (_id := try_get(
-                re.findall(rf'{attribute}/(\d+)', webpage),
-                lambda x: x[0])):
-            return (attribute, _id)
+        if webpage := try_get(
+                self._send_request(f"https://{self.keyapi}/{label}/{name}"),
+                lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None):
+            attribute = self._MAP[label]
+            if (_id := try_get(
+                    re.findall(rf'{attribute}/(\d+)', webpage),
+                    lambda x: x[0])):
+                return (attribute, _id)
 
     def send_api_search(self, query):
 
@@ -589,14 +583,16 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         if self.query_upt:
             urlquery.extend([f"{key}={value}" for key, value in self.query_upt.items()])
 
-        post_blog_entries_search = self.send_api_search('&'.join(urlquery))
+        if post_blog_entries_search := self.send_api_search('&'.join(urlquery)):
 
-        _nentries = int_or_none(params.get('entries'))
-        _from = int(params.get('from', 1))
-        return (
-            post_blog_entries_search[_from - 1: _from - 1 + _nentries]
-            if _nentries is not None and _nentries >= 0
-            else post_blog_entries_search[_from - 1:])
+            _nentries = int_or_none(params.get('entries'))
+            _from = int(params.get('from', 1))
+            return (
+                post_blog_entries_search[_from - 1: _from - 1 + _nentries]
+                if _nentries is not None and _nentries >= 0
+                else post_blog_entries_search[_from - 1:])
+        else:
+            return []
 
     # TODO Rename this here and in `get_entries_search`
     def get_entries_search(self, url):
@@ -656,10 +652,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     def _get_last_page(self, baseurl):
         self._pointer = 1
 
-        def _temp(start, step):
-            for i in itertools.count(start, step=step):
-                self._pointer = i
-                try:
+        def _temp(start: int, step: int):
+            try:
+                for i in itertools.count(start, step=step):
+                    self._pointer = i
                     if (webpage := try_get(
                             self._send_request(update_url_query(f"{baseurl}{i}", self.conf_args_gvd["query"])),
                             lambda x: unescape(x.text))):
@@ -667,9 +663,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
                             return i
                     else:
                         return -1
-                except Exception:
-                    return -1
-        if (_aux := _temp(1, 5)) > 0:
+            except Exception:
+                return -1
+
+        if (_aux := _temp(1, 5)) and _aux > 0:
             return _aux
         else:
             return _temp(self._pointer - 5 + 1, 1)
@@ -707,7 +704,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         items = []
         _nentries = self.conf_args_gvd['entries']
         _from = self.conf_args_gvd['from']
-        if (last_page := self._get_last_page(baseurl)) > 1:
+        if (last_page := self._get_last_page(baseurl)) and last_page > 1:
             if _from == 1 and _nentries:
                 last_page = _nentries // 60 or 1
             with ThreadPoolExecutor(thread_name_prefix="gvditems") as exe:
@@ -724,6 +721,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             raise ExtractorError('no video links')
 
         items = orderedSet(items)
+
+        if not isinstance(items, list):
+            raise ExtractorError('no video links')
 
         _nentries = _nentries or len(items)
 
@@ -763,7 +763,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     def _real_initialize(self):
         super()._real_initialize()
 
-    def _real_extract(self, url):
+    def _real_extract(self, url: str):
 
         self.report_extraction(url)
         self.keyapi = url
@@ -771,15 +771,15 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         params = {}
         query, _typenet, _typefx, namenet, namecc, namefx = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3'))
+            lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3') if x else None) or [None] * 6
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
 
         def _upt_params(arg0, arg1):
-            _name_api, _id, = self.get_id(arg0, arg1)
-            params['name'] = _id
-            params['type'] = _name_api
+            if _res := self.get_id(arg0, arg1):
+                params['name'] = _res[1]
+                params['type'] = _res[0]
 
         if namenet and _typenet:
             _upt_params(_typenet, namenet)
