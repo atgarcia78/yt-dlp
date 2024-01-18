@@ -23,6 +23,7 @@ from .commonwebdriver import (
     unquote,
 )
 from .doodstream import DoodStreamIE
+from .filemoon import FilemoonIE
 from .streamsb import StreamSBIE
 from .voe import VoeIE
 from .xfileshare import XFileShareIE
@@ -42,9 +43,9 @@ from ..utils import (  # get_element_html_by_id,
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
-               for _ie in (DoodStreamIE, VoeIE, StreamSBIE, XFileShareIE)},
+               for _ie in (DoodStreamIE, FilemoonIE, VoeIE, StreamSBIE, XFileShareIE)},
     'alt': {_ie.IE_NAME: _ie._VALID_URL
-            for _ie in (VoeIE, StreamSBIE, XFileShareIE, DoodStreamIE)}
+            for _ie in (VoeIE, StreamSBIE, XFileShareIE, FilemoonIE, DoodStreamIE)}
 }
 
 on_exception_req = my_dec_on_exception(
@@ -129,7 +130,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             _query_upt['fmt'] = _fmt
         else:
             _fmt = None
-        self.altkey = 'legacy' if _fmt in ('http', None) else 'alt'
+        self.altkey = 'legacy' if _fmt == 'http' else 'alt'
         _type = params.pop('type', None)
         name = params.pop('name', None)
 
@@ -143,6 +144,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             'type': _type, 'name': name, 'query': params}
 
     def get_entry_video(self, x, **kwargs):
+
+        def _process_entry(x) -> dict:
+            with contextlib.suppress(Exception):
+                if self._downloader:
+                    return self._downloader.sanitize_info(
+                        self._downloader.process_ie_result(x, download=False))
+            return {}
 
         premsg = '[get_entry_video]'
         if (msg := kwargs.get('msg', None)):
@@ -173,7 +181,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                             "".join([
                                 f"{premsg}[{self._get_url_print(urldict[key]['url'])}] ",
                                 f"OK got entry video\n{_entry}"]))
-                        if fmt != 'best':
+                        if fmt != 'best' and _entry.get('subtitles') and not _entries:
                             return _entry
                         _entries.append(_entry)
                         continue
@@ -191,15 +199,19 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
                 _videos.append(urldict[key]['url'])
 
-        def _process_entry(x) -> dict:
-            with contextlib.suppress(Exception):
-                if self._downloader:
-                    return self._downloader.sanitize_info(
-                        self._downloader.process_ie_result(x, download=False))
-            return {}
-
-        if fmt == 'best' and _entries and self._downloader:
+        if _entries:
             if len(_entries) == 2:
+                _subtitles_0 = _entries[0].get('subtitles')
+                _subtitles_1 = _entries[1].get('subtitles')
+                if not _subtitles_0 and _subtitles_1:
+                    _entries[0]['subtitles'] = _subtitles_1
+                if not _subtitles_1 and _subtitles_0:
+                    _entries[1]['subtitles'] = _subtitles_0
+
+            if fmt != 'best' or len(_entries) == 1:
+                return _entries[0]
+
+            if self._downloader:
                 entalt, entleg = _process_entry(_entries[0]), _process_entry(_entries[1])
                 entaltfilesize = entalt.get('filesize_approx') or (
                     entalt.get('tbr', 0) * entalt.get('duration', 0) * 1024 / 8)
