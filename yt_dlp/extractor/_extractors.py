@@ -648,7 +648,7 @@ from .lumni import LumniIE
 from .lynda import LyndaCourseIE, LyndaIE
 from .maariv import MaarivIE
 from .magellantv import MagellanTVIE
-from .magentamusik360 import MagentaMusik360IE
+from .magentamusik import MagentaMusikIE
 from .mailru import MailRuIE, MailRuMusicIE, MailRuMusicSearchIE
 from .mainstreaming import MainStreamingIE
 from .malltv import MallTVIE
