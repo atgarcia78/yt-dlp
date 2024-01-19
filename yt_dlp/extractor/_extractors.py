@@ -230,6 +230,7 @@ from .charlierose import CharlieRoseIE
 from .chaturbate import ChaturbateIE
 from .chilloutzone import ChilloutzoneIE
 from .chingari import ChingariIE, ChingariUserIE
+from .chzzk import CHZZKLiveIE, CHZZKVideoIE
 from .cinemax import CinemaxIE
 from .cinetecamilano import CinetecaMilanoIE
 from .cineverse import CineverseDetailsIE, CineverseIE
@@ -358,6 +359,7 @@ from .egghead import EggheadCourseIE, EggheadLessonIE
 from .eighttracks import EightTracksIE
 from .einthusan import EinthusanIE
 from .eitb import EitbIE
+from .elementorembed import ElementorEmbedIE
 from .elonet import ElonetIE
 from .elpais import ElPaisIE
 from .eltrecetv import ElTreceTVIE
@@ -536,6 +538,7 @@ from .ichinanalive import IchinanaLiveClipIE, IchinanaLiveIE
 from .idolplus import IdolPlusIE
 from .ign import IGNIE, IGNArticleIE, IGNVideoIE
 from .iheart import IHeartRadioIE, IHeartRadioPodcastIE
+from .ilpost import IlPostIE
 from .iltalehti import IltalehtiIE
 from .imdb import ImdbIE, ImdbListIE
 from .imgur import ImgurAlbumIE, ImgurGalleryIE, ImgurIE
