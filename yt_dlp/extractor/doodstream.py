@@ -13,6 +13,7 @@ from .commonwebdriver import (
     ReExtractInfo,
     SeleniumInfoExtractor,
     limiter_0_1,
+    limiter_0_05,
     limiter_0_5,
     my_dec_on_exception,
     raise_extractor_error,
@@ -48,7 +49,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     @on_exception_vinfo
     def _get_video_info(self, url, **kwargs) -> dict:
 
-        with kwargs.get('limiter', limiter_0_5).ratelimit("doodstream", delay=True):
+        with kwargs.get('limiter', limiter_0_1).ratelimit("doodstream", delay=True):
             msg = kwargs.get('msg')
             pre = f'[get_video_info][{self._get_url_print(url)}]'
             if msg:
@@ -76,7 +77,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         pre = f'[send_req][{self._get_url_print(url)}]'
         if (msg := _kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
-        with _kwargs.pop('limiter', limiter_0_5).ratelimit("doodstream2", delay=True):
+        with _kwargs.pop('limiter', limiter_0_1).ratelimit("doodstream2", delay=True):
             try:
                 return self.send_http_request(url, **_kwargs)
             except (HTTPStatusError, ConnectError) as e:
@@ -93,7 +94,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if (msg := kwargs.get('msg')):
             pre = f'{msg}{pre}'
         check = kwargs.get('check', True)
-        _kwargs = {'limiter': limiter_0_1 if check else limiter_0_5}
+        _kwargs = {'limiter': limiter_0_05 if check else limiter_0_1}
         _urlh, webpage = try_get(self._send_request(url, **_kwargs), lambda x: (x.url, html.unescape(x.text)) if x else (None, None))
         if not webpage:
             raise_extractor_error(f"{pre} error 404 no webpage")
