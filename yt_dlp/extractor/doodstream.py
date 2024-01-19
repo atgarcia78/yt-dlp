@@ -14,7 +14,6 @@ from .commonwebdriver import (
     SeleniumInfoExtractor,
     limiter_0_1,
     limiter_0_05,
-    limiter_0_5,
     my_dec_on_exception,
     raise_extractor_error,
     raise_reextract_info,
@@ -47,7 +46,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     _EMBED_REGEX = [r'<iframe[^>]+?src=([\"\'])(?P<url>%s)\1' % _VALID_URL]
 
     @on_exception_vinfo
-    def _get_video_info(self, url, **kwargs) -> dict:
+    def _get_video_info(self, url, **kwargs):
 
         with kwargs.get('limiter', limiter_0_1).ratelimit("doodstream", delay=True):
             msg = kwargs.get('msg')
@@ -95,15 +94,18 @@ class DoodStreamIE(SeleniumInfoExtractor):
             pre = f'{msg}{pre}'
         check = kwargs.get('check', True)
         _kwargs = {'limiter': limiter_0_05 if check else limiter_0_1}
-        _urlh, webpage = try_get(self._send_request(url, **_kwargs), lambda x: (x.url, html.unescape(x.text)) if x else (None, None))
+        _urlh, webpage = try_get(
+            self._send_request(url, **_kwargs),
+            lambda x: (x.url, html.unescape(x.text))) or (None, None)
         if not webpage:
             raise_extractor_error(f"{pre} error 404 no webpage")
-        if any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
+        elif any([_ in webpage for _ in ('<title>Server maintenance', '<title>Video not found')]):
             raise_extractor_error(f"{pre} error 404 webpage")
 
         token = self._html_search_regex(r"[?&]token=([a-z0-9]+)[&']", webpage, 'token')
 
-        domain = _urlh.host
+        if _urlh:
+            domain = _urlh.host
 
         headers = {'Referer': f'https://{domain}/'}
 
@@ -136,7 +138,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
                 self._count += 1
                 raise_reextract_info(f"{pre} error 404: no video info")
 
-            if _videoinfo['filesize'] >= 25000000 or self._count >= 9:
+            elif _videoinfo['filesize'] >= 25000000 or self._count >= 9:
                 _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
             else:
                 self._count += 1
@@ -144,7 +146,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
 
         _subtitles = {}
         list_subts = [subt for subt in [
-            json.loads(js_to_json(el)) for el in re.findall(r'addRemoteTextTrack\((\{[^\}]+\})', webpage)]
+            json.loads(js_to_json(el)) for el in re.findall(r'addRemoteTextTrack\((\{[^\}]+\})', webpage)]  # type: ignore
             if subt.get('label', '').lower() in ('spanish', 'english')]
 
         if list_subts:
@@ -166,8 +168,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
         if not (title := self._og_search_title(webpage, default=None) or self._html_extract_title(webpage, default=None)):
             raise_extractor_error(f"{pre} error with title")
 
-        title = try_get(re.findall(r'(1080p|720p|480p)', title), lambda x: title.split(x[0])[0] if x else title)
-        title = re.sub(r'(\s*-\s*202)', ' 202', title)
+        title = try_get(re.findall(r'(1080p|720p|480p)', title), lambda x: title.split(x[0])[0] if x else title)  # type: ignore
+        title = re.sub(r'(\s*-\s*202)', ' 202', title)  # type: ignore
         title = title.replace(' - DoodStream', '').replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_')
 
         thumbnail = self._og_search_thumbnail(webpage, default=None)
@@ -196,7 +198,7 @@ class DoodStreamIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
 
         try:
-            _check = traverse_obj(parse_qs(url), ("check", 0, {lambda x: x.lower() == 'yes'}), default=True)
+            _check = traverse_obj(parse_qs(url), ("check", 0, {lambda x: x.lower() == 'yes'}), default=True)  # type: ignore
             return self._get_entry(update_url(url, query=''), check=_check)
 
         except ExtractorError:
