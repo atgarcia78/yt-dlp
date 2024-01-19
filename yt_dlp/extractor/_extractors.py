@@ -2547,10 +2547,6 @@ from .nakedsword import (
     NakedSwordScenesPlaylistIE,
     NakedSwordMoviesPlaylistIE,
     NakedSwordJustAddedMoviesPlaylistIE,
-    #NakedSwordMostWatchedIE,
-    #NakedSwordStarsStudiosIE,
-    #NakedSwordPlaylistIE,
-    #NakedSwordSearchIE
 )
 from .monstercockinfo import MonsterCockInfoIE
 from .onlyfans import (
