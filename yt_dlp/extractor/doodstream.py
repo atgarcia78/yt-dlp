@@ -87,7 +87,8 @@ class DoodStreamIE(SeleniumInfoExtractor):
     def _get_entry(self, url, **kwargs):
 
         video_id = self._match_id(url)
-        domain = get_domain(url)
+        # domain = get_domain(url)
+        domain = 'dood.to'
         url = f'https://{domain}/e/{video_id}'
         pre = f'[get_entry][{self._get_url_print(url)}]'
         if (msg := kwargs.get('msg')):

@@ -208,7 +208,7 @@ class VGEmbedIE(SeleniumInfoExtractor):
 
             return _entry
 
-        except ReExtractInfo as e:
+        except (ReExtractInfo, ExtractorError) as e:
             logger.error(f"{pre} {repr(e)}")
             raise
         except Exception as e:

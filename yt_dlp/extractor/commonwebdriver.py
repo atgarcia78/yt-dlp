@@ -230,13 +230,14 @@ class cached_classproperty(cached_property):
         return val
 
 
-def get_host(url: str, shorten=None):
-    _host = re.sub(r'^www\.', '', urlparse(url).netloc)
-    if shorten == 'vgembed':
-        _nhost = _host.split('.')
-        if _host.count('.') >= 3:
-            _host = '.'.join(_nhost[-3:])
-    return _host
+def get_host(url: str | None, shorten=None):
+    if url:
+        _host = re.sub(r'^www\.', '', urlparse(url).netloc)
+        if shorten == 'vgembed':
+            _nhost = _host.split('.')
+            if _host.count('.') >= 3:
+                _host = '.'.join(_nhost[-3:])
+        return _host
 
 
 class StatusError503(Exception):
@@ -490,29 +491,30 @@ class MyHAR:
 
         if not _res:
             raise ExtractorError('no HAR entries')
-
-        if _mimetype:
-            _mimetype_list = list(variadic(_mimetype))
-            _non_mimetype_list = []
         else:
-            _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
-            _mimetype_list = []
 
-        return [
-            el for el in _res
-            if all([
-                traverse_obj(el, ('request', 'method')) == _method,
-                int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,
-                all(
-                    _ not in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
-                    for _ in _non_mimetype_list
-                ) if _non_mimetype_list else True,
-                any(
-                    _ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
-                    for _ in _mimetype_list
-                ) if _mimetype_list else True,
-            ])
-        ]
+            if _mimetype:
+                _mimetype_list = list(variadic(_mimetype))
+                _non_mimetype_list = []
+            else:
+                _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
+                _mimetype_list = []
+
+            return [
+                el for el in _res
+                if all([
+                    traverse_obj(el, ('request', 'method')) == _method,
+                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,
+                    all(
+                        _ not in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
+                        for _ in _non_mimetype_list
+                    ) if _non_mimetype_list else True,
+                    any(
+                        _ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
+                        for _ in _mimetype_list
+                    ) if _mimetype_list else True,
+                ])
+            ]
 
     @classmethod
     def headers_from_entry(cls, entry):
@@ -885,8 +887,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             'headers': {"User-Agent": random_user_agent()}
         }
 
-    @classproperty
-    def TEMP_CLIENT(cls):
+    @classmethod
+    def get_temp_client(cls):
         config = SeleniumInfoExtractor.TEMP_CLIENT_CONFIG
         return Client(**config)
 
@@ -910,7 +912,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     @cached_classproperty
     def _FF_COOKIES_JAR(cls):
         with SeleniumInfoExtractor._MASTER_LOCK:
-            cls.LOGGER.info(f"[{cls.IE_NAME}] Loading cookies from Firefox")
+            cls.LOGGER.debug(f"[{cls.IE_NAME}] Loading cookies from Firefox")
             return FirefoxBrowserCookies().load()
 
     def logger_info(self, msg):
@@ -1234,17 +1236,17 @@ class SeleniumInfoExtractor(InfoExtractor):
             timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop)
 
     def wait_until(
-            self, driver: Firefox, timeout: float = 60, method: None | Callable = None,
-            poll_freq: float = 0.5):
+        self, driver: Firefox, timeout: float = 60, method: None | Callable = None,
+        poll_freq: float = 0.5
+    ):
 
         _poll_freq = poll_freq
         if not method:
             method = ec.title_is("DUMMYFORWAIT")
             _poll_freq = 0.01
         try:
-            return WebDriverWait(
-                driver, timeout, poll_frequency=_poll_freq).until(
-                    ec.any_of(checkStop(self.check_stop), method))
+            return WebDriverWait(driver, timeout, poll_frequency=_poll_freq).until(
+                ec.any_of(checkStop(self.check_stop), method))
         except StatusStop:
             raise
         except Exception:
@@ -1489,7 +1491,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         _close_cl = False
         if not (client := kwargs.pop('client')):
-            client = cls.TEMP_CLIENT
+            client = cls.get_temp_client()
             _close_cl = True
 
         res = None

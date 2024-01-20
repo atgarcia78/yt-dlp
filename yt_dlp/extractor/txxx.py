@@ -2,6 +2,7 @@ import base64
 import re
 
 from .common import InfoExtractor
+from .commonwebdriver import limiter_1
 from ..utils import (
     ExtractorError,
     int_or_none,
@@ -344,6 +345,7 @@ class TxxxIE(InfoExtractor):
         }
     }]
 
+    @limiter_1.ratelimit('txxx', delay=True)
     def _call_api(self, url, video_id, fatal=False, **kwargs):
         content = self._download_json(url, video_id, fatal=fatal, **kwargs)
         if traverse_obj(content, 'error'):

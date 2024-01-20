@@ -232,7 +232,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed',
         'xtube.com', 'xtapes.to', '####gayforit######.eu/playvideo.php',
         '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
-        'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4']
+        'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4', 'gaypornhdfree', 'gaypornhot']
 
     _URL_NO_PLAYLIST = ['thisvid.com/playlist']
 
@@ -311,7 +311,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                     else:
                         return _return_error(el, 'not entry video')
                 except Exception as e:
-                    logger.exception(repr(e))
+                    logger.error(f'{pre} {repr(e)}')
                     return _return_error(
                         el, f'error entry video - {str(e).replace(bug_reports_message(), "")}')
 
@@ -319,7 +319,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 try:
                     return _extract_info(el)
                 except Exception as e:
-                    logger.exception(repr(e))
+                    logger.error(f'{pre} {repr(e)}')
                     if isinstance(e, DownloadError) and 'error' in (
                             _check_valid := self._is_valid(el, inc_error=True)):
                         _msg_error = _check_valid.get('error')
