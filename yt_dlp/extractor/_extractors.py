@@ -688,6 +688,10 @@ from .genius import (
     GeniusIE,
     GeniusLyricsIE,
 )
+from .getcourseru import (
+    GetCourseRuPlayerIE,
+    GetCourseRuIE
+)
 from .gettr import (
     GettrIE,
     GettrStreamingIE,
