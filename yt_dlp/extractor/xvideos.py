@@ -1,14 +1,14 @@
 import re
+import urllib.parse
 
 from .common import InfoExtractor
-from ..compat import compat_urllib_parse_unquote
 from ..utils import (
+    ExtractorError,
     clean_html,
     determine_ext,
-    ExtractorError,
     int_or_none,
     parse_duration,
-    sanitize_filename
+    sanitize_filename,
 )
 
 
@@ -96,10 +96,13 @@ class XVideosIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
         webpage = self._download_webpage(url, video_id)
-
-        mobj = re.search(r'<h1 class="inlineError">(.+?)</h1>', webpage)
-        if mobj:
-            raise ExtractorError('%s said: %s' % (self.IE_NAME, clean_html(mobj.group(1))), expected=True)
+        if webpage:
+            if mobj := re.search(r'<h1 class="inlineError">(.+?)</h1>', webpage):
+                raise ExtractorError('%s said: %s' % (self.IE_NAME, clean_html(mobj.group(1))), expected=True)
+            elif "<h3>this video has been deleted</h3>" in webpage.lower():
+                raise ExtractorError('404 not found webpage')
+        else:
+            raise ExtractorError('404 not found webpage')
 
         title = self._html_search_regex(
             (r'<title>(?P<title>.+?)\s+-\s+XVID',
@@ -122,11 +125,11 @@ class XVideosIE(InfoExtractor):
             'duration', webpage, default=None)) or parse_duration(
             self._search_regex(
                 r'<span[^>]+class=["\']duration["\'][^>]*>.*?(\d[^<]+)',
-                webpage, 'duration', fatal=False))
+                webpage, 'duration', default=None))
 
         formats = []
 
-        video_url = compat_urllib_parse_unquote(
+        video_url = urllib.parse.unquote(
             self._search_regex(r'flv_url=(.+?)&', webpage, 'video URL', default=''))  # type: ignore
 
         if video_url:
@@ -143,6 +146,12 @@ class XVideosIE(InfoExtractor):
                     format_url, video_id, 'mp4',
                     entry_protocol='m3u8_native', m3u8_id='hls', fatal=False)
                 self._check_formats(hls_formats, video_id)
+                if not duration:
+                    duration = self._extract_m3u8_vod_duration(
+                        hls_formats[0]['url'],
+                        video_id,
+                        headers=hls_formats[0].get('http_headers', {})
+                    )
                 formats.extend(hls_formats)
             elif format_id in ('urllow', 'urlhigh'):
                 formats.append({
