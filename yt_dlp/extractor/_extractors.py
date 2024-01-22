@@ -589,6 +589,7 @@ from .facebook import (
     FacebookPluginsVideoIE,
     FacebookRedirectURLIE,
     FacebookReelIE,
+    FacebookAdsIE,
 )
 from .fancode import (
     FancodeVodIE,
@@ -1112,6 +1113,7 @@ from .motherless import (
     MotherlessIE,
     MotherlessGroupIE,
     MotherlessGalleryIE,
+    MotherlessUploaderIE,
 )
 from .motorsport import MotorsportIE
 from .moviepilot import MoviepilotIE
@@ -1137,6 +1139,11 @@ from .musicdex import (
     MusicdexAlbumIE,
     MusicdexArtistIE,
     MusicdexPlaylistIE,
+)
+from .mx3 import (
+    Mx3IE,
+    Mx3NeoIE,
+    Mx3VolksmusikIE,
 )
 from .mxplayer import (
     MxplayerIE,
@@ -1594,6 +1601,7 @@ from .redbulltv import (
     RedBullIE,
 )
 from .reddit import RedditIE
+from .redge import RedCDNLivxIE
 from .redgifs import (
     RedGifsIE,
     RedGifsSearchIE,
@@ -1727,6 +1735,7 @@ from .scte import (
 )
 from .scrolller import ScrolllerIE
 from .seeker import SeekerIE
+from .sejmpl import SejmIE
 from .senalcolombia import SenalColombiaLiveIE
 from .senategov import SenateISVPIE, SenateGovIE
 from .sendtonews import SendtoNewsIE
