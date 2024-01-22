@@ -632,7 +632,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _res = []
         for sc in details.get('scenes'):
             _url = f"{_pre1}{movie_id}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
-            _url += f"{sc['endTimeSeconds']-sc['startTimeSeconds']}&format={_type}"
+            _url += f"{sc['endTimeSeconds'] - sc['startTimeSeconds']}&format={_type}"
             _res.append(_url)
 
         return _res

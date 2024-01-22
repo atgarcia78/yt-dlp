@@ -3,16 +3,15 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
-
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 
-from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5
+from .commonwebdriver import SeleniumInfoExtractor, dec_on_exception, limiter_5
 from .eplayvid import video_or_error_eplayvid
 from .evoload import video_or_error_evoload
 from .streamtape import video_or_error_streamtape
 from .userload import video_or_error_userload
+from ..utils import ExtractorError, sanitize_filename, try_get
 
 
 class Hulu123IE(SeleniumInfoExtractor):
@@ -137,7 +136,7 @@ class Hulu123IE(SeleniumInfoExtractor):
             if vip_url == [] and userload_url == "" and evoload_url == "" and streamtape_url == "":
                 raise ExtractorError("no UserLoad & EverLoad & Streamtape servers available")
 
-            video_urls = [(_url, f'vip{i+1}') for i, _url in enumerate(vip_url) if _url and _url != "error"] + [(_url, _id) for (_url, _id) in [(userload_url, "userload"), (evoload_url, "evoload"), (streamtape_url, "streamtape")] if _url and _url != "error"]
+            video_urls = [(_url, f'vip{i + 1}') for i, _url in enumerate(vip_url) if _url and _url != "error"] + [(_url, _id) for (_url, _id) in [(userload_url, "userload"), (evoload_url, "evoload"), (streamtape_url, "streamtape")] if _url and _url != "error"]
 
             if not video_urls:
                 raise ExtractorError("404 UserLoad & EverLoad $ StreamTape servers available but no video found in any")

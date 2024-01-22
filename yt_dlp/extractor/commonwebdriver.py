@@ -1301,7 +1301,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         _transform_url = {'pornhub': lambda x: x.replace(get_host(x), 'pornhub.com')}
 
         _get_all_urls = {'xhamster': ['https://%s/xembed.php?video=%s', 'https://%s/movies/%s'],
-                         'xhamsterembed': ['https://%s/xembed.php?video=%s', 'https://%s/movies/%s'], 
+                         'xhamsterembed': ['https://%s/xembed.php?video=%s', 'https://%s/movies/%s'],
                          'pornhub': ['https://%s/view_video.php?viewkey=%s', 'https://%s/embed/%s'],
                          'xvideos': ['https://%s/embedframe/%s', 'https://%s/video%s'],
                          'generic': ['%s%s']}

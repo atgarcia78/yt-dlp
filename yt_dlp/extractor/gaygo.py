@@ -2,10 +2,17 @@ import html
 import re
 from datetime import datetime
 
-
-from ..utils import ExtractorError, sanitize_filename, try_get
 from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, limiter_5, HTTPStatusError, ConnectError)
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+    limiter_5,
+)
+from ..utils import ExtractorError, sanitize_filename, try_get
 
 
 class GaygoIE(SeleniumInfoExtractor):
@@ -73,7 +80,7 @@ class GaygoIE(SeleniumInfoExtractor):
         if not videourl:
             raise ExtractorError("no videourl")
 
-        videourl += f'?rnd={int(datetime.timestamp(datetime.now())*1000)}'
+        videourl += f'?rnd={int(datetime.timestamp(datetime.now()) * 1000)}'
 
         headers = {'Referer': self._SITE_URL}
 

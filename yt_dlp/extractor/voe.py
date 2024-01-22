@@ -126,9 +126,19 @@ class VoeIE(SeleniumInfoExtractor):
                 else:
                     _format.update({'http_headers': _headers})
 
-            _title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - VOE | Content Delivery Network (CDN) & Video Cloud', '').replace('.mp4', '').replace('.mkv', '').replace('.', '_').strip('_. \n-'))
+            def myreplace(my_str, changes):
+                for old, new in changes:
+                    my_str = my_str.replace(old, new)
+                return my_str
 
-            _title = re.sub(f'(Watch [^-]+-)', '', _title).strip()
+            changes = [(' - VOE | Content Delivery Network (CDN) & Video Cloud', ''), ('.mp4', ''), ('.mkv', ''), ('.', '_')]
+
+            _title = try_get(
+                self._html_extract_title(webpage),
+                lambda x: myreplace(x, changes).strip('_. \n-'))
+
+            if isinstance(_title, str):
+                _title = re.sub(r'(Watch [^-]+-)', '', _title).strip()
 
             entry_video = {
                 'id': videoid,
