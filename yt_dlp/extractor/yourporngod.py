@@ -106,7 +106,7 @@ class BaseKVSIE(SeleniumInfoExtractor):
             _title = self._html_search_regex((r'<h1>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
             assert isinstance(_title, str)
             title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME),
-                        '', _title).strip('[,-_ ').lower()
+                           '', _title).strip('[,-_ ').lower()
 
             if not videoid:
                 videoid = flashvars.get('video_id')

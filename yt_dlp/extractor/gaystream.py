@@ -1,7 +1,5 @@
 import html
 import re
-import sys
-import traceback
 
 from .commonwebdriver import (
     ConnectError,
@@ -12,10 +10,18 @@ from .commonwebdriver import (
     dec_on_exception3,
     limiter_1,
 )
-from ..utils import ExtractorError, int_or_none, sanitize_filename, try_get
+from ..utils import (
+    ExtractorError,
+    int_or_none,
+    sanitize_filename,
+    try_call,
+    try_get,
+)
 
 
 class GayStreamBase(SeleniumInfoExtractor):
+
+    _SITE_URL: str
 
     @dec_on_exception
     @dec_on_exception2
@@ -40,9 +46,8 @@ class GayStreamBase(SeleniumInfoExtractor):
     def _get_video_info(self, url, **kwargs):
 
         self.logger_debug(f"[get_video_info] {url}")
-        _headers = {'Range': 'bytes=0-', 'Referer': self._SITE_URL,
-                    'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
-                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+        _headers = {'Range': 'bytes=0-', 'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Site': 'cross-site',
+                    'Pragma': 'no-cache', 'Cache-Control': 'no-cache', **kwargs}
         try:
             return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
@@ -54,33 +59,7 @@ class GayStreamBase(SeleniumInfoExtractor):
 
 class GayStreamPWIE(GayStreamBase):
 
-    _SITE_URL = 'https://gaystream.pw/'
     _VALID_URL = r'https?://(?:www\.)?gaystream.pw/video/(?P<id>\d+)/?([^$]+)?$'
-
-    def _get_entry(self, url, **kwargs):
-
-        try:
-
-            webpage = try_get(self._send_multi_request(url), lambda x: html.unescape(x.text) if x else None)
-            if not webpage:
-                raise ExtractorError("no video webpage")
-            _url_embed = try_get(re.search(r'onclick=[\'\"]document\.getElementById\([\"\']ifr[\"\']\)\.src=[\"\'](?P<eurl>[^\"\']+)[\"\']', webpage), lambda x: x.group('eurl'))
-            if not _url_embed:
-                raise ExtractorError("no embed url")
-            ie_embed = self._get_extractor('GayStreamEmbed')
-            _entry_video = ie_embed._get_entry(_url_embed)
-            if not _entry_video:
-                raise ExtractorError("no entry video")
-            return _entry_video
-
-        except ExtractorError:
-            raise
-        except Exception as e:
-            raise ExtractorError(repr(e))
-
-    def _real_initialize(self):
-
-        super()._real_initialize()
 
     def _real_extract(self, url):
 
@@ -88,7 +67,29 @@ class GayStreamPWIE(GayStreamBase):
 
         try:
             _url = url.replace('//www.', '//')
-            return self._get_entry(_url)
+            if not (webpage := try_get(self._send_multi_request(_url), lambda x: html.unescape(x.text))):
+                raise ExtractorError("404 no video webpage")
+            else:
+                _urls_embed = re.findall(r'onclick=[\'\"]document\.getElementById\([\"\']ifr[\"\']\)\.src=[\"\'](?P<eurl>[^\"\']+)[\"\']', webpage, flags=re.I)
+                if not _urls_embed:
+                    raise ExtractorError("no embed urls")
+                else:
+                    _title = try_call(lambda: self._html_extract_title(webpage).replace('on Gaystream.pw', '').strip())
+                    _entry = None
+                    for _url in _urls_embed:
+                        try:
+                            ie = self._get_extractor(_url)
+                            if ie.IE_NAME in ('filemoon', 'voe'):
+                                if (_entry := ie._get_entry(_url)):
+                                    break
+                        except Exception as e:
+                            self.logger_debug(repr(e))
+
+                    if not _entry:
+                        raise ExtractorError("no video entry")
+
+                    else:
+                        return _entry | {'title': sanitize_filename(_title, restricted=True), 'original_url': _url}
 
         except ExtractorError:
             raise
@@ -98,9 +99,9 @@ class GayStreamPWIE(GayStreamBase):
 
 class GayStreamEmbedIE(GayStreamBase):
 
-    _INSTANCES_RE = r'(?:watchgayporn.online|streamxxx.online|feurl.com)'
+    _INSTANCES_RE = r'(?:gaystream.online|gaystream.cloud|watchgayporn.online|streamxxx.online|feurl.com)'
 
-    _VALID_URL = r'https?://(www\.)?(?P<host>%s)/(?:v|api/source)/(?P<id>.+)' % _INSTANCES_RE
+    _VALID_URL = r'https?://(www\.)?(?P<host>%s)/(?:v|e|api/source)/(?P<id>.+)' % _INSTANCES_RE
 
     def _get_entry(self, url, **kwargs):
 
@@ -128,7 +129,7 @@ class GayStreamEmbedIE(GayStreamBase):
             if info:
                 for vid in info.get('data'):
                     _url = vid.get('file')
-                    _info_video = self._get_video_info(_url)
+                    _info_video = self._get_video_info(_url, headers={'Referer': self._SITE_URL})
                     if not isinstance(_info_video, dict):
                         self.report_warning(f"[{_url}] no video info")
                     else:
@@ -167,10 +168,6 @@ class GayStreamEmbedIE(GayStreamBase):
             return {'error': e, '_all_urls': [
                 f'https://{_host}/v/{_videoid}', f'https://www.{_host}/v/{_videoid}',
                 f'https://{_host}/api/source/{_videoid}', f'https://www.{_host}/api/source/{_videoid}']}
-
-    def _real_initialize(self):
-
-        super()._real_initialize()
 
     def _real_extract(self, url):
 

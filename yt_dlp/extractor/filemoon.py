@@ -51,10 +51,10 @@ class FilemoonIE(SeleniumInfoExtractor):
         videoid = self._match_id(url)
 
         _wurl = f"{self._SITE_URL}/d/{videoid}"
-        webpage = try_get(self._send_request(_wurl), lambda x: html.unescape(x.text))
-
-        if not webpage:
-            raise ExtractorError("no webpage")
+        if not (webpage := try_get(self._send_request(_wurl), lambda x: html.unescape(x.text))) or 'error e404' in webpage:
+            _wurl = f"{self._SITE_URL}/e/{videoid}"
+            if not (webpage := try_get(self._send_request(_wurl), lambda x: html.unescape(x.text))) or 'error e404' in webpage:
+                raise ExtractorError("no webpage")
 
         info_video = {}
         for ofcode in re.finditer(r'<script data-cfasync=[^>]+>(eval[^\n]+)\n', webpage, flags=re.MULTILINE):
@@ -103,7 +103,7 @@ class FilemoonIE(SeleniumInfoExtractor):
 
         return {
             "id": videoid,
-            "title": sanitize_filename(title, restricted=True),
+            "title": sanitize_filename(title, restricted=True) if title else 'NA',
             "formats": formats,
             "subtitles": subtitles,
             "webpage_url": _wurl,

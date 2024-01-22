@@ -65,9 +65,9 @@ class VoeIE(SeleniumInfoExtractor):
             pre = f'[get_entry][{self._get_url_print(url)}]'
             if msg:
                 pre = f'{msg}{pre}'
-            webpage = try_get(self._send_request(url.replace('/e/', '/')), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))
-            if not webpage:
-                raise ExtractorError("no video webpage")
+            if not (webpage := try_get(self._send_request(url.replace('/e/', '/')), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))) or 'title>404' in webpage:
+                if not (webpage := try_get(self._send_request(url), lambda x: re.sub('[\t\n]', '', html.unescape(x.text)))) or 'title>404' in webpage:
+                    raise ExtractorError("no video webpage")
             sources = try_get(re.findall(r'sources\s+=\s+(\{[^\}]+\})', webpage), lambda x: json.loads(js_to_json(x[0])))
 
             if not sources:
@@ -126,7 +126,9 @@ class VoeIE(SeleniumInfoExtractor):
                 else:
                     _format.update({'http_headers': _headers})
 
-            _title = try_get(self._html_extract_title(webpage), lambda x: x.replace('Watch OFS -', '').replace('Watch ', '').replace(' - VOE | Content Delivery Network (CDN) & Video Cloud', '').replace('.mp4', '').replace('.mkv', '').replace('.', '_').strip('_. \n-'))
+            _title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - VOE | Content Delivery Network (CDN) & Video Cloud', '').replace('.mp4', '').replace('.mkv', '').replace('.', '_').strip('_. \n-'))
+
+            _title = re.sub(f'(Watch [^-]+-)', '', _title).strip()
 
             entry_video = {
                 'id': videoid,
