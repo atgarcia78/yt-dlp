@@ -74,7 +74,8 @@ class GayStreamPWIE(GayStreamBase):
                 if not _urls_embed:
                     raise ExtractorError("no embed urls")
                 else:
-                    _title = try_call(lambda: self._html_extract_title(webpage).replace('on Gaystream.pw', '').strip())
+                    _title = try_call(lambda: self._html_extract_title(webpage).replace('on Gaystream.pw', '').replace('Watch ', '').strip())
+                    print('title gs:', _title)
                     _entry = None
                     for _url in _urls_embed:
                         try:
@@ -99,7 +100,7 @@ class GayStreamPWIE(GayStreamBase):
 
 class GayStreamEmbedIE(GayStreamBase):
 
-    _INSTANCES_RE = r'(?:gaystream.online|gaystream.cloud|watchgayporn.online|streamxxx.online|feurl.com)'
+    _INSTANCES_RE = r'(?:gaystream.online|watchgayporn.online|streamxxx.online|feurl.com)'
 
     _VALID_URL = r'https?://(www\.)?(?P<host>%s)/(?:v|e|api/source)/(?P<id>.+)' % _INSTANCES_RE
 

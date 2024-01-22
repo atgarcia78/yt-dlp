@@ -99,7 +99,7 @@ class FilemoonIE(SeleniumInfoExtractor):
                         _, subtitles = self._extract_m3u8_formats_and_subtitles(
                             _format['manifest_url'], videoid, headers=_headers)
 
-        title = self._html_extract_title(webpage)
+        title = self._html_extract_title(webpage, default=None)
 
         return {
             "id": videoid,
