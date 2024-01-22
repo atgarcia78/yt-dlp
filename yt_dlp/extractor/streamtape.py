@@ -1,14 +1,24 @@
+import html
+import logging
 import re
+import subprocess
 import sys
 import time
 import traceback
-import html
 
+from .commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_0_1,
+    limiter_1,
+    raise_extractor_error,
+)
+from ..utils import ExtractorError, get_domain, sanitize_filename, try_get
 from ..utils.networking import normalize_url as escape_url
-from ..utils import ExtractorError, sanitize_filename, try_get, get_domain
-from .commonwebdriver import raise_extractor_error, dec_on_exception2, dec_on_exception3, HTTPStatusError, ConnectError, SeleniumInfoExtractor, limiter_0_1, limiter_1, By
-import logging
-import subprocess
 
 logger = logging.getLogger("streamtape")
 
@@ -162,17 +172,7 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
         except Exception as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
-            # _entry_video = {
-            #     'id': videoid,
-            #     'title': videoid,
-            #     'formats': [],
-            #     'extractor_key': 'Streamtape',
-            #     'extractor': 'streamtape',
-            #     'webpage_url': escape_url(url),
-            #     'error': str(e)
-            # }
-            # return _entry_video
-            raise
+            return {'error': e, '_all_urls': [f'https://{get_domain(url)}/v/{videoid}', f'https://{get_domain(url)}/e/{videoid}']}
 
     def _real_initialize(self):
 
@@ -189,7 +189,10 @@ class StreamtapeIE(SeleniumInfoExtractor):
 
             _check = True
 
-            return self._get_entry(url, check=_check)
+            if 'error' in (_info := self._get_entry(url, check=_check)):
+                raise _info['error']
+            else:
+                return _info
 
         except ExtractorError:
             raise

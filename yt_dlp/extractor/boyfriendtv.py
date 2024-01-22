@@ -17,7 +17,7 @@ from .commonwebdriver import (
     dec_on_exception3,
     ec,
     get_host,
-    limiter_5,
+    limiter_1,
 )
 from ..utils import (
     ExtractorError,
@@ -42,7 +42,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
 
     @dec_on_exception3
     @dec_on_exception2
-    @limiter_5.ratelimit("boyfriendtv", delay=True)
+    @limiter_1.ratelimit("boyfriendtv", delay=True)
     def _get_info_for_format(self, url, **kwargs) -> dict:
 
         _headers = kwargs.get('headers', {})
@@ -63,7 +63,7 @@ class BoyFriendTVBaseIE(SeleniumInfoExtractor):
     @dec_on_exception3
     @dec_on_exception2
     @dec_on_driver_timeout
-    @limiter_5.ratelimit("boyfriendtv2", delay=True)
+    @limiter_1.ratelimit("boyfriendtv2", delay=True)
     def _send_request(cls, url, driver=None, **kwargs):
 
         if driver:
@@ -266,12 +266,9 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
                 'extractor_key': self.ie_key(),
                 'extractor': self.IE_NAME})
 
-        except ExtractorError as e:
-            self.logger_debug(f"[{url}] error {repr(e)}")
-            raise
         except Exception as e:
             self.logger_debug(f"[{url}] error {repr(e)}")
-            raise ExtractorError(repr(e))
+            return {'error': e, '_all_urls': [f'https://{get_host(url)}/videos/{videoid}', f'https://{get_host(url)}/embed/{videoid}']}
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -280,7 +277,10 @@ class BoyFriendTVIE(BoyFriendTVBaseIE):
 
         self.report_extraction(url)
         try:
-            return self._get_entry(url)
+            if 'error' in (_info := self._get_entry(url)):
+                raise _info['error']
+            else:
+                return _info
         except ExtractorError:
             raise
         except Exception as e:
@@ -346,7 +346,7 @@ class BoyFriendTVPLBaseIE(BoyFriendTVBaseIE):
                         futures = {ex.submit(ie_bf._get_entry, _url): _url for _url in urls}
                     for fut in futures:
                         try:
-                            if (_ent := fut.result()):
+                            if (_ent := fut.result()) and "error" not in _ent:
                                 _ent.update({'original_url': orig_url})
                                 entries.append(_ent)
                             else:

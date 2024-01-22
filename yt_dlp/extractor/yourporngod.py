@@ -9,13 +9,13 @@ from .commonwebdriver import (
     dec_on_exception,
     dec_on_exception2,
     dec_on_exception3,
-    get_host,
     limiter_1,
     my_dec_on_exception,
     raise_extractor_error,
 )
 from ..utils import (
     ExtractorError,
+    get_domain,
     js_to_json,
     parse_resolution,
     sanitize_filename,
@@ -78,91 +78,99 @@ class BaseKVSIE(SeleniumInfoExtractor):
         if self.IE_NAME == "homoxxx":
             url = url.replace('/embed/', '/videos/')
 
-        _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), html.unescape(x.text)) if x else (None, None)) or (None, None)
+        try:
 
-        if not webpage or _urlh and "/404.php" in _urlh or any(_ in webpage.lower() for _ in ("this video is a private video", "404 / page not found")):
-            raise_extractor_error(f"{pre} 404 webpage not found")
+            _urlh, webpage = try_get(self._send_request(url), lambda x: (str(x.url), html.unescape(x.text)) if x else (None, None)) or (None, None)
 
-        display_id = self._search_regex(
-            r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
-            r'|<link rel="canonical" href="https?://.+/(.+?)/?"\s*>)',
-            webpage, 'display_id', fatal=False
-        )
+            if not webpage or _urlh and "/404.php" in _urlh or any(_ in webpage.lower() for _ in ("this video is a private video", "404 / page not found")):
+                raise_extractor_error(f"{pre} 404 webpage not found")
 
-        webpage = re.sub(r'[\t\n]', '', webpage)
+            display_id = self._search_regex(
+                r'(?:<link href="https?://.+/(.+?)/?" rel="canonical"\s*/?>'
+                r'|<link rel="canonical" href="https?://.+/(.+?)/?"\s*>)',
+                webpage, 'display_id', fatal=False
+            )
 
-        flashvars = self._parse_json(
-            self._search_regex(
-                r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'),  # type: ignore
-            videoid, transform_source=js_to_json)
+            webpage = re.sub(r'[\t\n]', '', webpage)
 
-        self.logger_debug(f"{pre} flashvars:\n{flashvars}")
+            flashvars = self._parse_json(
+                self._search_regex(
+                    r'var\s+flashvars\s*=\s*({.+?});', webpage, 'flashvars', default='{}'),  # type: ignore
+                videoid, transform_source=js_to_json)
 
-        if not flashvars:
-            raise_extractor_error(f"{pre} 404 video not found")
+            self.logger_debug(f"{pre} flashvars:\n{flashvars}")
 
-        _title = self._html_search_regex((r'<h1>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
-        assert isinstance(_title, str)
-        title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME),
-                       '', _title).strip('[,-_ ').lower()
+            if not flashvars:
+                raise_extractor_error(f"{pre} 404 video not found")
 
-        if not videoid:
-            videoid = flashvars.get('video_id')
+            _title = self._html_search_regex((r'<h1>([^<]+)</h1>', r'(?s)<title\b[^>]*>([^<]+)</title>'), webpage, 'title', fatal=False)
+            assert isinstance(_title, str)
+            title = re.sub(r'(?i)(^(hd video|sd video|video))\s*:?\s*|((?:\s*-\s*|\s*at\s*)%s(\..+)?$)|(.mp4$)|(\s*[/|]\s*embed player)' % (self.IE_NAME),
+                        '', _title).strip('[,-_ ').lower()
 
-        thumbnail = flashvars.get('preview_url')
-        if thumbnail and thumbnail.startswith('//'):
-            protocol, _, _ = url.partition('/')
-            thumbnail = protocol + thumbnail
+            if not videoid:
+                videoid = flashvars.get('video_id')
 
-        url_keys = list(filter(re.compile(r'video_url|video_alt_url\d*').fullmatch, flashvars.keys()))
+            thumbnail = flashvars.get('preview_url')
+            if thumbnail and thumbnail.startswith('//'):
+                protocol, _, _ = url.partition('/')
+                thumbnail = protocol + thumbnail
 
-        iegen = self._get_extractor('Generic')
+            url_keys = list(filter(re.compile(r'video_url|video_alt_url\d*').fullmatch, flashvars.keys()))
 
-        _headers = {'Referer': url}
+            iegen = self._get_extractor('Generic')
 
-        formats = []
-        for key in url_keys:
-            if '/get_file/' not in flashvars[key]:
-                continue
-            format_id = flashvars.get(f'{key}_text', key)
-            _format = {
-                'url': (_videourl := iegen._kvs_get_real_url(flashvars[key], flashvars['license_code'])),
-                'format_id': format_id,
-                'http_headers': _headers,
+            _headers = {'Referer': url}
+
+            formats = []
+            for key in url_keys:
+                if '/get_file/' not in flashvars[key]:
+                    continue
+                format_id = flashvars.get(f'{key}_text', key)
+                _format = {
+                    'url': (_videourl := iegen._kvs_get_real_url(flashvars[key], flashvars['license_code'])),
+                    'format_id': format_id,
+                    'http_headers': _headers,
+                    'ext': 'mp4',
+                    **(parse_resolution(format_id) or parse_resolution(flashvars[key]))
+                }
+
+                if not _format.get('height'):
+                    _format['quality'] = 1
+
+                with self.get_ytdl_sem(get_domain(_videourl)):
+                    _videoinfo = self._get_video_info(_videourl, headers=_headers)
+
+                if _videoinfo:
+                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
+                    self.get_ytdl_sem(get_domain(_videoinfo['url']))
+
+                formats.append(_format)
+
+            if not formats:
+                raise_extractor_error(f"{pre} no formats")
+
+            entry = {
+                'id': videoid,
+                'title': sanitize_filename(title, restricted=True),
+                'formats': formats,
                 'ext': 'mp4',
-                **(parse_resolution(format_id) or parse_resolution(flashvars[key]))
-            }
+                'extractor': self.IE_NAME,
+                'extractor_key': self.ie_key(),
+                'webpage_url': url}
 
-            if not _format.get('height'):
-                _format['quality'] = 1
+            if display_id:
+                entry['display_id'] = display_id
+            if thumbnail:
+                entry['thumbnail'] = thumbnail
 
-            with self.get_ytdl_sem(get_host(_videourl)):
-                _videoinfo = self._get_video_info(_videourl, headers=_headers)
-
-            if _videoinfo:
-                _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize']})
-                self.get_ytdl_sem(get_host(_videoinfo['url']))
-
-            formats.append(_format)
-
-        if not formats:
-            raise_extractor_error(f"{pre} no formats")
-
-        entry = {
-            'id': videoid,
-            'title': sanitize_filename(title, restricted=True),
-            'formats': formats,
-            'ext': 'mp4',
-            'extractor': self.IE_NAME,
-            'extractor_key': self.ie_key(),
-            'webpage_url': url}
-
-        if display_id:
-            entry['display_id'] = display_id
-        if thumbnail:
-            entry['thumbnail'] = thumbnail
-
-        return entry
+            return entry
+        except Exception as e:
+            if videoid:
+                _all_urls = [f'https://{get_domain(url)}/videos/{videoid}', f'https://{get_domain(url)}/embed/{videoid}']
+            else:
+                _all_urls = [url.split('/')[-1]]
+            return {'error': e, '_all_urls': _all_urls}
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -172,7 +180,10 @@ class BaseKVSIE(SeleniumInfoExtractor):
         self.report_extraction(url)
 
         try:
-            return self._get_entry(url)
+            if 'error' in (_info := self._get_entry(url)):
+                raise _info['error']
+            else:
+                return _info
         except ExtractorError:
             raise
         except Exception as e:

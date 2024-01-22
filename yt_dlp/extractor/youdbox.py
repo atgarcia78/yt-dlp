@@ -1,9 +1,14 @@
 import sys
 import traceback
 
-
+from .commonwebdriver import (
+    By,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    limiter_15,
+    raise_extractor_error,
+)
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By
 
 
 class getvideourl:
@@ -49,6 +54,9 @@ class YoudBoxIE(SeleniumInfoExtractor):
     def _real_extract(self, url):
 
         self.report_extraction(url)
+
+        if "error" in (_res := self._is_valid(url, inc_error=True)):
+            raise_extractor_error(_res['error'])
 
         driver = self.get_driver()
 

@@ -56,6 +56,7 @@ from ..utils import (
     find_available_port,
     int_or_none,
     traverse_obj,
+    try_call,
     try_get,
     unsmuggle_url,
     variadic,
@@ -230,9 +231,11 @@ class cached_classproperty(cached_property):
         return val
 
 
-def get_host(url: str | None, shorten=None):
+def get_host(url: str | None, restricted=True, shorten=None):
     if url:
-        _host = re.sub(r'^www\.', '', urlparse(url).netloc)
+        _host = urlparse(url).netloc
+        if restricted:
+            _host = re.sub(r'^www\.', '', urlparse(url).netloc)
         if shorten == 'vgembed':
             _nhost = _host.split('.')
             if _host.count('.') >= 3:
@@ -1118,19 +1121,22 @@ class SeleniumInfoExtractor(InfoExtractor):
         serv = Service(log_path=_logs[verbose])
 
         def return_driver():
-            _driver = None
-            try:
-                with SeleniumInfoExtractor._MASTER_LOCK:
-                    _driver = Firefox(service=serv, options=opts)
-                time.sleep(1)
-                _driver.set_script_timeout(20)
-                _driver.set_page_load_timeout(25)
-                return _driver
-            except Exception as e:
-                cls.LOGGER.exception(
-                    f"[{cls.IE_NAME}] Firefox fails starting - {str(e)}")
-                if _driver:
-                    cls.rm_driver(_driver)
+            count = 0
+            while count < 3:
+                _driver = None
+                try:
+                    with SeleniumInfoExtractor._MASTER_LOCK:
+                        _driver = Firefox(service=serv, options=opts)
+                    time.sleep(1)
+                    _driver.set_script_timeout(20)
+                    _driver.set_page_load_timeout(25)
+                    return _driver
+                except Exception as e:
+                    cls.LOGGER.error(
+                        f"[{cls.IE_NAME}] Firefox fails starting - {str(e)}")
+                    if _driver:
+                        cls.rm_driver(_driver)
+                    count += 1
 
         if not (driver := return_driver()):
             raise ExtractorError("firefox failed init")
@@ -1292,6 +1298,14 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         _valid_url = ['xhamster', 'xhamsterembed']
 
+        _transform_url = {'pornhub': lambda x: x.replace(get_host(x), 'pornhub.com')}
+
+        _get_all_urls = {'xhamster': ['https://%s/xembed.php?video=%s', 'https://%s/movies/%s'],
+                         'xhamsterembed': ['https://%s/xembed.php?video=%s', 'https://%s/movies/%s'], 
+                         'pornhub': ['https://%s/view_video.php?viewkey=%s', 'https://%s/embed/%s'],
+                         'xvideos': ['https://%s/embedframe/%s', 'https://%s/video%s'],
+                         'generic': ['%s%s']}
+
         _errors_page = [
             'has been deleted', 'has been removed', 'was deleted', 'was removed',
             'video unavailable', 'video is unavailable', 'video disabled',
@@ -1304,8 +1318,11 @@ class SeleniumInfoExtractor(InfoExtractor):
             _pre_str = f'[{msg}]{_pre_str}'
         self.logger_debug(f'{_pre_str} start checking')
 
-        notvalid = {"valid": False}
-        okvalid = {"valid": True}
+        notvalid = {}
+        okvalid = {}
+        notvalid["valid"] = False
+        okvalid["valid"] = True
+        _res_valid = {True: okvalid, False: notvalid}
 
         if not url:
             return notvalid
@@ -1318,8 +1335,25 @@ class SeleniumInfoExtractor(InfoExtractor):
                 self.logger_debug(f'{_pre_str}:True')
                 return okvalid
             else:
-                if (_extr_name := self._get_ie_name(url).lower()) in _valid_url:
+                _extr_name = self._get_ie_name(url).lower()
+                if _extr_name in _get_all_urls:
+                    if _extr_name != 'generic':
+                        ie = self._get_extractor(url)
+                        _id = ie._match_id(url)
+                        _host = get_host(url, restricted=False)
+                    else:
+                        _id = (
+                            try_call(lambda: re.search(r'\?v=(?P<id>[\da-zA-Z]+)', url).groupdict()['id'])
+                            or try_call(lambda: re.search(r'embed/(?P<id>[\da-zA-Z]+$)', url).groupdict()['id']))
+                        _host = ''
+                    if _id:
+                        _all_urls = [_url % (_host, _id) for _url in _get_all_urls[_extr_name]]
+                        okvalid['_all_urls'] = _all_urls
+                        notvalid['_all_urls'] = _all_urls
+                if _extr_name in _valid_url:
                     return okvalid
+                if _extr_name in _transform_url:
+                    url = _transform_url[_extr_name](url)
 
             _decor = getter_config_extr(
                 _extr_name, SeleniumInfoExtractor._CONFIG_REQ)
@@ -1383,12 +1417,11 @@ class SeleniumInfoExtractor(InfoExtractor):
                             for _ in ['status=not_found', 'status=broken'])
                         _valid = _valid and all(_ not in webpage.lower() for _ in _errors_page)
 
-                        valid = {"valid": _valid}
-                        self.logger_debug(f'[valid]{_pre_str}:{valid} check with webpage content')
-                        if not _valid and inc_error:
-                            return {'error': 'video not found or deleted 404', **valid}
+                        self.logger_debug(f'[valid]{_pre_str}:{_valid} check with webpage content')
+                        if inc_error:
+                            return {'error': 'video not found or deleted 404', 'webpage': webpage, **_res_valid[_valid]}
                         else:
-                            return {'webpage': webpage, **valid}
+                            return {'webpage': webpage, **_res_valid[_valid]}
 
             else:
                 self.logger_debug(

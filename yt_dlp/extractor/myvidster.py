@@ -23,17 +23,16 @@ from .commonwebdriver import (
     ytdl_silent,
 )
 from ..utils import (
-    DownloadError,
     ExtractorError,
     bug_reports_message,
     determine_ext,
     get_domain,
     get_elements_by_class,
     sanitize_filename,
-    sanitize_url,
     smuggle_url,
     try_call,
     try_get,
+    update_url,
 )
 
 logger = logging.getLogger('myvidster')
@@ -250,7 +249,7 @@ class MyVidsterIE(MyVidsterBaseIE):
 
             if not self._downloader:
                 self.logger_debug(f"{pre} is none")
-                _return_error(_el, f"{pre} ytdl is none")
+                return _return_error(_el, f"{pre} ytdl is none")
 
             with ytdl_silent(self._downloader) as _ytdl:
                 _info = _ytdl.sanitize_info(_ytdl.extract_info(_el, download=False))
@@ -285,11 +284,12 @@ class MyVidsterIE(MyVidsterBaseIE):
             self.logger_debug(f"{pre} OK got entry video\n {_info}")
             return _info
 
-        if el in MyVidsterBaseIE._URLS_CHECKED:
-            self.logger_debug(f"{pre} already analysed")
-            return
+        if any(_ in el for _ in MyVidsterBaseIE._URLS_CHECKED):
+            logger.error(f"{pre} already analysed")
+            return _return_error(el, 'already analysed')
 
         if any(_ in el for _ in self._URL_NOT_VALID):
+            logger.error(f'{pre} url not valid')
             return _return_error(el, 'url not valid')
 
         if any(_ in el for _ in self._URL_NO_PLAYLIST):
@@ -301,6 +301,7 @@ class MyVidsterIE(MyVidsterBaseIE):
                 try:
                     if (_ent := ie._get_entry(el, check=_check, msg=pre)):
                         if 'error' in _ent:
+                            logger.error(f'{pre} {str(_ent["error"])}')
                             if _urls := _ent.get('_all_urls'):
                                 MyVidsterBaseIE._URLS_CHECKED.update(set(_urls))
                             return _return_error(
@@ -311,28 +312,29 @@ class MyVidsterIE(MyVidsterBaseIE):
                     else:
                         return _return_error(el, 'not entry video')
                 except Exception as e:
-                    logger.error(f'{pre} {repr(e)}')
+                    _msg_error = str(e).replace(bug_reports_message(), '')
+                    logger.error(f'{pre} {str(e)}')
                     return _return_error(
-                        el, f'error entry video - {str(e).replace(bug_reports_message(), "")}')
+                        el, f'error entry video - {_msg_error}')
 
             else:
                 try:
                     return _extract_info(el)
                 except Exception as e:
-                    logger.error(f'{pre} {repr(e)}')
-                    if isinstance(e, DownloadError) and 'error' in (
-                            _check_valid := self._is_valid(el, inc_error=True)):
+                    _check_valid = self._is_valid(el, inc_error=True)
+                    if 'error' in _check_valid:
                         _msg_error = _check_valid.get('error')
                     else:
                         _msg_error = str(e).replace(bug_reports_message(), '')
-
+                    logger.error(f'{pre} {str(e)}')
+                    if _urls := _check_valid.get('_all_urls'):
+                        MyVidsterBaseIE._URLS_CHECKED.update(set(_urls))
                     return _return_error(el, f'error entry video - {_msg_error}')
 
         except Exception as e:
             logger.exception(repr(e))
             return _return_error(
                 el, f'error entry video - {str(e).replace(bug_reports_message(), "")}')
-
         finally:
             MyVidsterBaseIE._URLS_CHECKED.add(el)
 
@@ -369,10 +371,12 @@ class MyVidsterIE(MyVidsterBaseIE):
 
             def _getter(orderlinks):
 
-                def _prepare_entry(info):
+                def _prepare_entry(info, source=False):
                     if (_msg_error := info.pop('error', None)):
                         info['error'] = _msg_error
                     info['original_url'] = url
+                    if source:
+                        info['webpage_url'] = url
                     info.update(**_release_info)
                     if not (_extractor := info.get('extractor')):
                         _extractor = info['extractor'] = 'generic'
@@ -396,19 +400,23 @@ class MyVidsterIE(MyVidsterBaseIE):
 
                 if (source_url_res := try_get(
                         re.findall(self._conf['source_url'], webpage),
-                        lambda x: self.getvid(sanitize_url(unquote(x[0]), scheme='https'), msg='source_url') if x else None)):
+                        lambda x: self.getvid(update_url(unquote(x[0]), scheme='https'), msg='source_url') if x else None)):
 
                     if isinstance(source_url_res, dict):
                         if "error" not in source_url_res:
-                            return _prepare_entry(source_url_res)
+                            return _prepare_entry(source_url_res, source=True)
                         raise_extractor_error("Error 404: no valid video urls found")
+
+                _links = [_res for _link in orderlinks if (_res := try_call(lambda: re.findall(self._conf[_link], webpage)[0]))]
+                if any('gayforit.eu' in _el for _el in _links):
+                    orderlinks.reverse()
 
                 for _link in orderlinks:
 
                     link_res = try_get(
                         re.findall(self._conf[_link], webpage),
                         lambda x: self.getvid(
-                            sanitize_url(unquote(x[0]), scheme='https'), check=_check, msg=_link)
+                            update_url(unquote(x[0]), scheme='https'), check=_check, msg=_link)
                         if x else None)
 
                     if isinstance(link_res, dict) and "error" not in link_res:

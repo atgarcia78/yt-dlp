@@ -1,11 +1,18 @@
+import html
+import re
 import sys
 import traceback
-import re
-import html
 
-
-from ..utils import ExtractorError, sanitize_filename, try_get, int_or_none
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError
+from .commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+)
+from ..utils import ExtractorError, int_or_none, sanitize_filename, try_get
 
 
 class GayStreamBase(SeleniumInfoExtractor):
@@ -23,11 +30,9 @@ class GayStreamBase(SeleniumInfoExtractor):
             driver.get(url)
         else:
             try:
-
                 return self.send_http_request(url, **kwargs)
-
             except (HTTPStatusError, ConnectError) as e:
-                self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+                self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
     @dec_on_exception3
     @dec_on_exception2
@@ -41,7 +46,7 @@ class GayStreamBase(SeleniumInfoExtractor):
         try:
             return self.get_info_for_format(url, headers=_headers)
         except (HTTPStatusError, ConnectError) as e:
-            self.report_warning(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+            self.logger_debug(f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -67,10 +72,10 @@ class GayStreamPWIE(GayStreamBase):
             if not _entry_video:
                 raise ExtractorError("no entry video")
             return _entry_video
+
         except ExtractorError:
             raise
         except Exception as e:
-
             raise ExtractorError(repr(e))
 
     def _real_initialize(self):
@@ -88,8 +93,6 @@ class GayStreamPWIE(GayStreamBase):
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
 
 
@@ -97,14 +100,14 @@ class GayStreamEmbedIE(GayStreamBase):
 
     _INSTANCES_RE = r'(?:watchgayporn.online|streamxxx.online|feurl.com)'
 
-    _VALID_URL = r'https?://(www\.)?(?P<host>%s)/v/(?P<id>.+)' % _INSTANCES_RE
+    _VALID_URL = r'https?://(www\.)?(?P<host>%s)/(?:v|api/source)/(?P<id>.+)' % _INSTANCES_RE
 
     def _get_entry(self, url, **kwargs):
 
+        _host = try_get(re.search(self._VALID_URL, url), lambda x: x.group('host'))
+        _videoid = self._match_id(url)
+        self._SITE_URL = f"https://{_host}/"
         try:
-
-            _host = try_get(re.search(self._VALID_URL, url), lambda x: x.group('host'))
-            self._SITE_URL = f"https://{_host}/"
 
             _headers_post = {
                 'Referer': url,
@@ -118,8 +121,6 @@ class GayStreamEmbedIE(GayStreamBase):
                 'd': _host
             }
 
-            _videoid = self._match_id(url)
-
             _post_url = f"{self._SITE_URL}api/source/{_videoid}"
 
             info = try_get(self._send_multi_request(_post_url, _type="POST", headers=_headers_post, data=_data), lambda x: x.json() if x else None)
@@ -128,7 +129,7 @@ class GayStreamEmbedIE(GayStreamBase):
                 for vid in info.get('data'):
                     _url = vid.get('file')
                     _info_video = self._get_video_info(_url)
-                    if not _info_video:
+                    if not isinstance(_info_video, dict):
                         self.report_warning(f"[{_url}] no video info")
                     else:
                         _formats.append({
@@ -161,11 +162,11 @@ class GayStreamEmbedIE(GayStreamBase):
             else:
                 raise ExtractorError("couldn find video formats")
 
-        except ExtractorError:
-            raise
         except Exception as e:
-
-            raise ExtractorError(repr(e))
+            self.logger_debug(f"[{url}] error {repr(e)}")
+            return {'error': e, '_all_urls': [
+                f'https://{_host}/v/{_videoid}', f'https://www.{_host}/v/{_videoid}',
+                f'https://{_host}/api/source/{_videoid}', f'https://www.{_host}/api/source/{_videoid}']}
 
     def _real_initialize(self):
 
@@ -177,11 +178,12 @@ class GayStreamEmbedIE(GayStreamBase):
 
         try:
             _url = url.replace('//www.', '//')
-            return self._get_entry(_url)
+            if 'error' in (_info := self._get_entry(_url)):
+                raise _info['error']
+            else:
+                return _info
 
         except ExtractorError:
             raise
         except Exception as e:
-            lines = traceback.format_exception(*sys.exc_info())
-            self.to_screen(f"{repr(e)}\n{'!!'.join(lines)}")
             raise ExtractorError(repr(e))
