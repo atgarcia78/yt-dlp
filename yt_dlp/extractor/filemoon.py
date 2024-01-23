@@ -71,8 +71,10 @@ class FilemoonIE(SeleniumInfoExtractor):
         subtitles = {}
         duration = None
 
-        if info_video and (_entry := self._parse_jwplayer_data(
-            info_video, videoid, False, m3u8_id='hls', mpd_id='dash')
+        if (
+            info_video and (_entry := self._parse_jwplayer_data(
+                info_video, videoid, False, m3u8_id='hls', mpd_id='dash'))
+            and isinstance(_entry, dict)
         ):
             formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
 

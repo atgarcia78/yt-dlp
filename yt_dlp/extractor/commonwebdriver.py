@@ -56,7 +56,6 @@ from ..utils import (
     find_available_port,
     int_or_none,
     traverse_obj,
-    try_call,
     try_get,
     unsmuggle_url,
     variadic,
@@ -263,7 +262,7 @@ def my_limiter(seconds: str | int | float):
     if seconds == "non":
         return Limiter(RequestRate(10000, 0))
     elif isinstance(seconds, (int, float)):
-        return Limiter(RequestRate(1, seconds * Duration.SECOND))
+        return Limiter(RequestRate(1, seconds * Duration.SECOND))  # type: ignore
 
 
 def my_jitter(value: float):
@@ -485,14 +484,14 @@ class MyHAR:
 
         elif har:
             if isinstance(har, dict):
-                _res = traverse_obj(har, ('log', 'entries'))
+                _res = traverse_obj(har, ('log', 'entries')) or []
             elif isinstance(har, list):
                 _res = har
             elif isinstance(har, str):
                 with open(har, 'r') as f:
-                    _res = traverse_obj(json.load(f), ('log', 'entries'))
+                    _res = traverse_obj(json.load(f), ('log', 'entries')) or []
 
-        if not _res:
+        if not _res or not isinstance(_res, list):
             raise ExtractorError('no HAR entries')
         else:
 
@@ -507,13 +506,13 @@ class MyHAR:
                 el for el in _res
                 if all([
                     traverse_obj(el, ('request', 'method')) == _method,
-                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,
+                    int(traverse_obj(el, ('response', 'bodySize'), default='0')) >= 0,  # type: ignore
                     all(
-                        _ not in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
+                        _ not in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
                         for _ in _non_mimetype_list
                     ) if _non_mimetype_list else True,
                     any(
-                        _ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')
+                        _ in traverse_obj(el, ('response', 'content', 'mimeType'), default='')  # type: ignore
                         for _ in _mimetype_list
                     ) if _mimetype_list else True,
                 ])
@@ -522,13 +521,13 @@ class MyHAR:
     @classmethod
     def headers_from_entry(cls, entry):
         _headers_dict = {'_cookies': []}
-        for header in traverse_obj(entry, ('request', 'headers')):
+        for header in traverse_obj(entry, ('request', 'headers'), default=[]):  # type: ignore
             if header['name'] == 'cookie':
                 _headers_dict['_cookies'].append(header['value'])
             elif header['name'] != 'Host':
                 _headers_dict[header['name']] = header['value']
         if _headers_dict['_cookies']:
-            _headers_dict['cookie'] = '; '.join(_headers_dict['_cookies'])
+            _headers_dict['cookie'] = '; '.join(_headers_dict['_cookies'])  # type: ignore
         return _headers_dict
 
     @classmethod
@@ -539,7 +538,7 @@ class MyHAR:
 
         def _get_hint(entry):
             _url = traverse_obj(entry, ('request', 'url'))
-            if not _url or not re.search(_valid_url, _url):
+            if not _url or not re.search(_valid_url, _url):  # type: ignore
                 return None
             _hint = {'url': _url}
             if inclheaders:
@@ -727,7 +726,7 @@ class myIP:
                 httpx.get(
                     _urlapi,
                     timeout=httpx.Timeout(timeout=timeout),
-                    proxies=_proxies,
+                    proxies=_proxies,  # type: ignore
                     follow_redirects=True,
                 ),  # type: ignore
                 lambda x: x.json().get(_keyapi),
@@ -827,8 +826,8 @@ class ProgressBar(MultilinePrinter):
         try:
             if self._block:
                 try_get(
-                    self._logger.parent.handlers,
-                    lambda x: x[0].start())  # type: ignore
+                    self._logger.parent,
+                    lambda x: x.handlers[0].start())  # type: ignore
         except Exception as e:
             self._logger.exception(repr(e))
         super().__exit__(*args)
@@ -953,18 +952,19 @@ class SeleniumInfoExtractor(InfoExtractor):
     def _real_initialize(self):
 
         def _update():
-            self._downloader.params.setdefault('stop_dl', {})
-            self._downloader.params.setdefault('sem', {})
-            self._downloader.params.setdefault('lock', Lock())
-            self._downloader.params.setdefault('stop', Event())
-            self._downloader.params.setdefault('routing_table', None)
+            if self._downloader:
+                self._downloader.params.setdefault('stop_dl', {})
+                self._downloader.params.setdefault('sem', {})
+                self._downloader.params.setdefault('lock', Lock())
+                self._downloader.params.setdefault('stop', Event())
+                self._downloader.params.setdefault('routing_table', None)
 
         _update()
 
         self._CLIENT_CONFIG = {
             'timeout': Timeout(20),
             'limits': Limits(),
-            'headers': self.get_param('http_headers', {}).copy(),
+            'headers': self.get_param('http_headers', default={}),
             'follow_redirects': True,
             'verify': False,
             'proxies': {'http://': _proxy, 'https://': _proxy}
@@ -976,14 +976,14 @@ class SeleniumInfoExtractor(InfoExtractor):
             SeleniumInfoExtractor._REFS[id(self)] = self
 
     def extract(self, url):
-        url, data = unsmuggle_url(url)
+        url, data = unsmuggle_url(url, {})
 
         self.indexdl = traverse_obj(data, 'indexdl')
-        _args = traverse_obj(data, 'args')
+        _args = traverse_obj(data, 'args', default={})  # type: ignore
         if getattr(self, 'args_ie', None) is None:
             self.args_ie = _args
         elif _args:
-            self.args_ie.update(_args)
+            self.args_ie.update(_args)  # type: ignore
 
         return super().extract(url)
 
@@ -1032,8 +1032,9 @@ class SeleniumInfoExtractor(InfoExtractor):
         return extractor.ie_key()
 
     def get_ytdl_sem(self, _host):
-        with self._downloader.params.setdefault('lock', Lock()):
-            return self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
+        if self._downloader:
+            with self._downloader.params.setdefault('lock', Lock()):
+                return self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
 
     def raise_from_res(self, res, msg):
         if res and (isinstance(res, str) or not res.get('error_res')):
@@ -1132,7 +1133,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                     _driver.set_page_load_timeout(25)
                     return _driver
                 except Exception as e:
-                    cls.LOGGER.error(
+                    cls.LOGGER.error(  # type: ignore
                         f"[{cls.IE_NAME}] Firefox fails starting - {str(e)}")
                     if _driver:
                         cls.rm_driver(_driver)
@@ -1343,15 +1344,17 @@ class SeleniumInfoExtractor(InfoExtractor):
                         _host = get_host(url, restricted=False)
                     else:
                         _id = (
-                            try_call(lambda: re.search(r'\?v=(?P<id>[\da-zA-Z]+)', url).groupdict()['id'])
-                            or try_call(lambda: re.search(r'embed/(?P<id>[\da-zA-Z]+$)', url).groupdict()['id']))
+                            try_get(re.search(r'\?v=(?P<id>[\da-zA-Z]+)', url), lambda x: x.groupdict()['id'])
+                            or try_get(re.search(r'embed/(?P<id>[\da-zA-Z]+$)', url), lambda x: x.groupdict()['id']))
                         _host = ''
                     if _id:
                         _all_urls = [_url % (_host, _id) for _url in _get_all_urls[_extr_name]]
                         okvalid['_all_urls'] = _all_urls
                         notvalid['_all_urls'] = _all_urls
+
                 if _extr_name in _valid_url:
                     return okvalid
+
                 if _extr_name in _transform_url:
                     url = _transform_url[_extr_name](url)
 
@@ -1380,7 +1383,7 @@ class SeleniumInfoExtractor(InfoExtractor):
                             headers=_headers, msg=f'[valid]{_pre_str}')
                     except HTTPStatusError as e:
                         self.logger_debug(f"{_pre_str}:{e}")
-                        if e.response.status_code >= 500:
+                        if e.response.status_code >= 400:
                             self.cache.store(
                                 'is_valid', get_host(_url), {'valid': False, 'error': str(e)})
                         return {'error': str(e)}
@@ -1415,13 +1418,15 @@ class SeleniumInfoExtractor(InfoExtractor):
                         _valid = all(
                             _ not in str(res.url)
                             for _ in ['status=not_found', 'status=broken'])
-                        _valid = _valid and all(_ not in webpage.lower() for _ in _errors_page)
+                        if _valid:
+                            _valid = all(_ not in webpage.lower() for _ in _errors_page)
 
                         self.logger_debug(f'[valid]{_pre_str}:{_valid} check with webpage content')
-                        if inc_error:
-                            return {'error': 'video not found or deleted 404', 'webpage': webpage, **_res_valid[_valid]}
+                        _final_res = {'webpage': webpage, **_res_valid[_valid]}
+                        if not inc_error:
+                            return _final_res
                         else:
-                            return {'webpage': webpage, **_res_valid[_valid]}
+                            return {'error': 'video not found or deleted 404', **_final_res}
 
             else:
                 self.logger_debug(
@@ -1517,7 +1522,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def _send_http_request(cls, url, **kwargs):
         _type = kwargs.pop('_type', "GET")
         fatal = kwargs.pop('fatal', True)
-        _logger = kwargs.pop('logger', cls.LOGGER.debug)
+        _logger = kwargs.pop('logger', cls.LOGGER.debug)  # type: ignore
         premsg = f'[send_http_request][{cls._get_url_print(url)}][{_type}]'
         if msg := kwargs.pop('msg', None):
             premsg = f'{msg}{premsg}'
@@ -1561,6 +1566,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise_extractor_error(_msg_err)
         finally:
-            _logger(f"[{cls.IE_NAME}] {_msg_err} {req}:{req.headers}:{res}")
+            _logger(f"[{cls.IE_NAME}] {_msg_err} {req}:{req.headers if req else None}:{res}")
             if _close_cl:
                 client.close()
