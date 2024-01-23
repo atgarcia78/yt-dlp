@@ -19,6 +19,13 @@ from ..utils import (
 )
 
 
+def _sanitize(my_str, changes):
+    if my_str:
+        for old, new in changes:
+            my_str = my_str.replace(old, new)
+        return my_str.strip()
+
+
 class GayStreamBase(SeleniumInfoExtractor):
 
     _SITE_URL: str
@@ -74,8 +81,7 @@ class GayStreamPWIE(GayStreamBase):
                 if not _urls_embed:
                     raise ExtractorError("no embed urls")
                 else:
-                    _title = try_call(lambda: self._html_extract_title(webpage).replace('on Gaystream.pw', '').replace('Watch ', '').strip())
-                    print('title gs:', _title)
+                    _title = try_call(lambda: _sanitize(self._html_extract_title(webpage), [('on Gaystream.pw', ''), ('Watch ', '')]))
                     _entry = None
                     for _url in _urls_embed:
                         try:
@@ -148,11 +154,11 @@ class GayStreamEmbedIE(GayStreamBase):
                 self._sort_formats(_formats)
 
                 webpage = try_get(self._send_multi_request(url), lambda x: x.text if x else None)
-                _title = try_get(self._html_extract_title(webpage), lambda x: x.replace('Video ', '').replace('.mp4', '').replace('.', '_').replace(' ', '_'))
+                _title = try_get(self._html_extract_title(webpage), lambda x: _sanitize(x, [('Video ', ''), ('.mp4', ''), ('.', '_'), (' ', '_')]))
 
                 _entry_video = {
                     'id': _videoid,
-                    'title': sanitize_filename(_title, restricted=True).replace('___', '_').replace('__', '_'),
+                    'title': _sanitize(sanitize_filename(_title, restricted=True), [('___', '_'), ('__', '_')]),
                     'formats': _formats,
                     'extractor': self.IE_NAME,
                     'extractor_key': self.ie_key(),

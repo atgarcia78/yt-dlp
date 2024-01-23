@@ -254,7 +254,7 @@ class StatusError503(Exception):
 class StatusStop(Exception):
     """Error during info extraction."""
 
-    def __init__(self, msg, exc_info=None):
+    def __init__(self, msg='stopevent', exc_info=None):
         super().__init__(msg)
         self.exc_info = exc_info
 
