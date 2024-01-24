@@ -53,6 +53,7 @@ class TxxxIE(InfoExtractor):
         'hotmovs.com',
         'hotmovs.tube',
         'inporn.com',
+        'pornhits.com',
         'privatehomeclips.com',
         'tubepornclassic.com',
         'videotxxx.com',

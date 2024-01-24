@@ -2630,7 +2630,6 @@ from .streamplay import StreamplayIE
 from .xhamster import XHamsterPornStarIE
 from .gaymovies import GayMoviesIE
 from .filemoon import FilemoonIE
-from .pornhits import PornhitsIE
 from .upstream import (
     UpstreamIE,
     VideobinIE
