@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import contextlib
 import html
 import json
 import logging
@@ -30,7 +29,6 @@ from .commonwebdriver import (
     dec_retry,
     ec,
     limiter_0_1,
-    limiter_0_01,
     my_dec_on_exception,
     my_jitter,
     raise_extractor_error,
@@ -43,6 +41,7 @@ from ..utils import (
     int_or_none,
     js_to_json,
     sanitize_filename,
+    str_or_none,
     traverse_obj,
     try_get,
 )
@@ -54,8 +53,13 @@ logger = logging.getLogger('nakedsword')
 @dataclass
 class info_scene:
     index: int
+    sceneid: str | None
+    title: str
     url: str
     m3u8_url: str
+    movieurl: str
+    movieid: str
+    nentries: int
 
 
 dec_on_reextract = my_dec_on_exception(
@@ -132,13 +136,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     headers_api = {}
     timer = ProgressTimer()
     call_lock = Lock()
-    _STATUS = 'NORMAL'
-    _LIMITERS = {
-        '403': lambda x: limiter_0_1.ratelimit(x, delay=True),
-        'NORMAL': lambda x: limiter_0_01.ratelimit(x, delay=True)}
-    _SEM = {
-        '403': Lock(),
-        'NORMAL': contextlib.nullcontext()}
     _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
     _HEADERS = {
         "POST": {
@@ -199,7 +196,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             'Sec-Fetch-Mode': 'cors',
             'Sec-Fetch-Site': 'cross-site',
             'TE': 'trailers',
-            'User-Agent': None}}
+            'User-Agent': None},
+        "HTTP_HEADERS": {
+            'Origin': 'https://www.nakedsword.com',
+            'Referer': 'https://www.nakedsword.com/'}}
 
     def close(self):
         try:
@@ -211,7 +211,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @cached_classproperty
     def _APP_DATA_PASSPHRASE(cls):
-        logger.info("get app_data['PASSPHRASE']")
+        logger.debug("get app_data['PASSPHRASE']")
         return cls._get_app_data_passphrase()
 
     @classmethod
@@ -251,14 +251,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             logger.debug('[get_api_auth] skipping getting new auth')
             return True
 
-        # username, pwd = try_get(
-        #     netrc.netrc(os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
-        #     lambda x: (x[0], x[2]))
-
-        # _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
-        # _headers_post['Authorization'] = "Basic " + base64.urlsafe_b64encode(
-        #     f"{username}:{pwd}".encode()).decode('utf-8')
-
         if (xident := cls._get_api_xident()):
             username, pwd = try_get(
                 netrc.netrc(os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
@@ -286,13 +278,16 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         if not _logger:
             _logger = logger.debug
         try:
-            cls.API_GET_XIDENT()
             with cls.call_lock:
-                if cls._refresh_api():
-                    _logger(f"{_pre}[refresh_api] ok")
-                    return True
+                if cls.headers_api:
+                    cls.API_GET_XIDENT()
+                    if cls._refresh_api():
+                        _logger(f"{_pre}[refresh_api] ok")
+                        return True
+                    else:
+                        raise_extractor_error(f"{_pre}[refresh_api] nok")
                 else:
-                    raise_extractor_error(f"{_pre}[refresh_api] nok")
+                    _logger(f"{_pre}[refresh api] is not logged torefresh")
         except ExtractorError:
             raise
         except Exception as e:
@@ -301,7 +296,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     def _refresh_api(cls):
-
         if (data := try_get(
                 cls._send_request(cls._API_URLS['refresh'], headers=cls.headers_api),
                 lambda x: x.json())):
@@ -310,7 +304,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 cls._USERTOKEN = token
                 cls.headers_api.update({'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
                 return True
-
         return False
 
     @classmethod
@@ -357,10 +350,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     def _logout_api(cls):
-
         _headers_del = cls._HEADERS["DELETE"]["LOGOUT"].copy()
-        cls.API_GET_XIDENT()
         if (_headers := cls.headers_api):
+            cls.API_GET_XIDENT()
             _headers_del.update(
                 {'x-ident': _headers['x-ident'], 'Authorization': _headers['Authorization']})
             if not (
@@ -397,10 +389,10 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @limiter_0_1.ratelimit("nakedsword", delay=True)
     def _send_request(cls, url, **kwargs) -> None | Response:
 
-        pre = f'[send_request][{cls._get_url_print(url)}]'
-        if (msg := kwargs.get('msg')):
+        pre = '[send_request]'
+        if (msg := kwargs.pop('msg', None)):
             pre = f'{msg}{pre}'
-        if (driver := kwargs.get('driver', None)):
+        if (driver := kwargs.pop('driver', None)):
             driver.get(url)
         else:
             try:
@@ -410,19 +402,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 if (_headers := kwargs.get('headers', None)):
                     upt_headers = {**(_headers() if callable(_headers) else _headers), **cls._UA}
                 _kwargs = {**kwargs, **{'client': _client, 'headers': upt_headers}}
-                # cls._INST_IE.to_screen(f"{pre}: KWARGS\n{_kwargs}")
                 return (cls._send_http_request(url, **_kwargs))
             except (HTTPStatusError, ConnectError, TimeoutError) as e:
                 if cls._INST_IE:
-                    cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
+                    cls._INST_IE.report_warning(f"{pre}: error - {str(e)}")
             except Exception as e:
                 if cls._INST_IE:
-                    cls._INST_IE.report_warning(f"{pre}: error - {repr(e)}")
+                    cls._INST_IE.report_warning(f"{pre}: error - {str(e)}")
                 raise
 
     @classmethod
     def _get_app_data_passphrase(cls) -> str | None:
-
         try:
             if js_content := try_get(
                 cls._send_request(
@@ -431,13 +421,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                             r'src="(/static/js/main[^"]+)',  # type: ignore
                             try_get(
                                 cls._send_request(cls._SITE_URL),  # type: ignore
-                                lambda z: html.unescape(z.text),
-                            ),
-                        ),
-                        lambda x: f"https://www.nakedsword.com{x[0]}",
-                    )
-                ),
-                lambda y: html.unescape(y.text),
+                                lambda z: html.unescape(z.text))),
+                        lambda x: f"https://www.nakedsword.com{x[0]}")),
+                lambda y: html.unescape(y.text)
             ):
                 if data_js := re.findall(r'REACT_APP_([A-Z_]+:"[^"]+")', js_content):
                     if data := json.loads(js_to_json("{" + f"{','.join(data_js)}" + "}")):
@@ -446,17 +432,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             logger.exception(str(e))
 
     def get_formats(self, _types, _info: info_scene):
-
-        # with NakedSwordBaseIE._LIMITERS[NakedSwordBaseIE._STATUS]("nswscene"):
-
         self.logger_debug(f"[get_formats] {_info}")
 
         m3u8_url = _info.m3u8_url
-
         formats = []
-
         for _type in _types:
-
             self.check_stop()
             try:
                 if _type == "dash":
@@ -479,14 +459,16 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
                 elif _type == "hls":
                     if not (m3u8_doc := try_get(
-                        NakedSwordBaseIE._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
+                        NakedSwordBaseIE._send_request(m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"], msg=f'[{_info.sceneid}][get_formats]'),
                         lambda x: (x.content).decode('utf-8', 'replace')
                     )):
-                        raise ReExtractInfo("couldnt get m3u8 doc")
+                        raise_reextract_info("couldnt get m3u8 doc")
 
                     formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
                         m3u8_doc, m3u8_url, ext='mp4', entry_protocol='m3u8_native', m3u8_id='hls')
                     if formats_m3u8:
+                        for fmt in formats_m3u8:
+                            fmt['http_headers'] = NakedSwordBaseIE._HEADERS["HTTP_HEADERS"]
                         formats.extend(formats_m3u8)
 
                 elif _type == "ism":
@@ -514,12 +496,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     def _get_api_details(cls, movieid):
-
         return try_get(
             cls._send_request(
                 f"{cls._API_URLS['movies']}/{movieid}/details",
                 headers=cls.API_GET_HTTP_HEADERS),
-            lambda x: x.json().get('data') if x else None)
+            lambda x: x.json().get('data'))
 
     def _get_api_newest_movies(self, pages=2):
         _pre = f"{NakedSwordBaseIE._API_URLS['movies']}/feed?subset_sort_by=newest&subset_limit=480&page="
@@ -625,7 +606,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @staticmethod
     def _get_api_scene_urls(details, _type="HLS"):
-
         movie_id = details.get('id')
         _pre1 = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
         _pre2 = "?max_bitrate=50000&scenes_id="
@@ -634,7 +614,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _url = f"{_pre1}{movie_id}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
             _url += f"{sc['endTimeSeconds'] - sc['startTimeSeconds']}&format={_type}"
             _res.append(_url)
-
         return _res
 
     def _get_api_scene_info(self, urlsc):
@@ -646,7 +625,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             lambda x: x.json().get('data') if x else None,
         )
 
-    def get_streaming_info(self, _url_movie, **kwargs) -> tuple[list[info_scene] | info_scene, dict] | None:
+    def get_streaming_info(self, _url_movie, **kwargs) -> list[info_scene] | info_scene | None:
 
         premsg = f"[get_streaming_info][{_url_movie}]"
         index_scene = int_or_none(kwargs.get('index'))
@@ -661,8 +640,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             raise_extractor_error("no details info")
         else:
             NakedSwordMovieIE._MOVIES[_id_movie]['details'] = details
-
-            num_scenes = len(details.get('scenes'))  # type: ignore
+            NakedSwordMovieIE._MOVIES[_id_movie]['nentries'] = num_scenes = len(details.get('scenes'))  # type: ignore
 
             if index_scene:
                 if index_scene > num_scenes:
@@ -699,8 +677,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     logger.error(f"{_text}{len(_urls_sc)}\n{_urls_sc}\n\n{m3u8urls_scenes}")
                     raise ReExtractInfo(f"{_text}{len(_urls_sc)}")
 
+                NakedSwordMovieIE._MOVIES[_id_movie]['title'] = _movietitle = f"{sanitize_filename(details.get('title'), restricted=True)}"
+
                 if index_scene:
-                    return (info_scene(index_scene, _urls_sc[0], m3u8urls_scenes[0]), details)
+                    _scene_id = str_or_none(traverse_obj(details, ('scenes', index_scene - 1, 'id')))
+                    _scene_title = f"{_movietitle}_scene_{index_scene}"
+                    return info_scene(index_scene, _scene_id, _scene_title, _urls_sc[0], m3u8urls_scenes[0], _url_movie, _id_movie, num_scenes)
 
                 else:
                     info_scenes_list = []
@@ -709,11 +691,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         if not m3u8_url:
                             raise ReExtractInfo(f"{premsg}[{_url}] couldnt find m3u8 url")
 
-                        info_scenes_list.append(info_scene(i + 1, _url, m3u8_url))
+                        _scene_id = str_or_none(traverse_obj(details, ('scenes', i, 'id')))
+                        _scene_title = f"{_movietitle}_scene_{i + 1}"
+                        info_scenes_list.append(info_scene(i + 1, _scene_id, _scene_title, _url, m3u8_url, _url_movie, _id_movie, num_scenes))
 
-                    return (info_scenes_list, details)
+                    return info_scenes_list
             else:
                 raise_extractor_error("no urls api videos")
+
+    def get_movie_url(self, movie_id):
+        return try_get(
+            NakedSwordBaseIE._send_request(
+                f"https://www.nakedsword.com/movies/{movie_id}/_", _type="HEAD"),
+            lambda x: str(x.url))
 
     def _is_logged(self, driver):
 
@@ -800,45 +790,55 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self._logout(driver)
             raise
 
-    def wait_with_pb(self, timeout, premsg):
+    def wait_with_pb(self, timeout, msg):
 
-        NakedSwordBaseIE.API_REFRESH(msg=premsg, _logger=self.write_debug)
-        NakedSwordBaseIE.API_LOGOUT(msg=premsg, _logger=self.write_debug)
+        premsg = f'{msg}[wait]'
+
         _simple_counter = None
         if isinstance(_klasses := self.get_param('_util_classes'), dict):
             _simple_counter = _klasses.get('SimpleCountDown')
 
-        self.logger_info(
-            f'{premsg}[wait] start[{timeout}] indexdl[{getattr(self, "indexdl", None)}]')
+        _index = getattr(self, "indexdl", None)
 
-        with self.create_progress_bar(
-            timeout, block_logging=False, msg=f'[{premsg}][wait]'
-        ) as progress_bar:
+        NakedSwordBaseIE.API_REFRESH(msg=premsg, _logger=self.logger_debug)
+        NakedSwordBaseIE.API_LOGOUT(msg=premsg, _logger=self.logger_debug)
 
+        self.logger_debug(f'{premsg} start[{timeout}] indexdl[{_index}]')
+
+        with self.create_progress_bar(timeout, block_logging=False, msg=f'{premsg}') as pb:
             if _simple_counter:
-                _counter = _simple_counter(
-                    progress_bar, None, self.check_stop,
-                    timeout=timeout, indexdl=getattr(self, 'indexdl', None))
-                _reswait = _counter()
+                _reswait = _simple_counter(
+                    pb, check=self.check_stop, timeout=timeout, indexdl=_index)()
             else:
-                _reswait = _wait_for_either(progress_bar, self.check_stop, timeout=timeout)
+                _reswait = _wait_for_either(pb, self.check_stop, timeout=timeout)
 
-        self.logger_info(f'{premsg}[wait][{_reswait}] end')
+        self.logger_debug(f'{premsg} end[{_reswait}] indexdl[{_index}]')
+
+    def build_entry(self, info: info_scene):
+        return {
+            "id": info.sceneid,
+            "_id_movie": info.movieid,
+            "title": info.title,
+            "formats": [],
+            "ext": "mp4",
+            "webpage_url": info.url,
+            "original_url": info.movieurl,
+            "_index_scene": info.index,
+            "_n_entries": info.nentries,
+            "extractor_key": 'NakedSwordScene',
+            "extractor": 'nakedswordscene'
+        }
 
     def _real_initialize(self):
-
         try:
             super()._real_initialize()
             with NakedSwordBaseIE._LOCK:
                 if not NakedSwordBaseIE._CLASSCLIENT:
                     NakedSwordBaseIE._INST_IE = self
                     NakedSwordBaseIE._CLASSCLIENT = self._CLIENT
-                    _ua = None
-                    if (_headers := self.get_param('http_headers')):
-                        _ua = _headers.get('User-Agent')
-                    if not _ua:
-                        _ua = random_user_agent()
-                    NakedSwordBaseIE._UA = {'User-Agent': _ua}
+                    NakedSwordBaseIE._UA = {'User-Agent': try_get(
+                        self.get_param('http_headers'),
+                        lambda x: x.get('User-Agent')) or random_user_agent()}
                     NakedSwordBaseIE.API_LOGIN(_logger=self.logger_info)
         except Exception as e:
             logger.error(repr(e))
@@ -849,89 +849,49 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
     _VALID_URL = r"https?://(?:www\.)?nakedsword.com/movies/(?P<movieid>[\d]+)/(?P<title>[^\/]+)/scene/(?P<id>[\d]+)"
     _SCENES = {}
 
-    def get_entry(self, url, **kwargs):
-
-        try:
-            with NakedSwordBaseIE._SEM[NakedSwordBaseIE._STATUS]:
-                return self._get_entry(url, **kwargs)
-        except Exception as e:
-            logger.exception(repr(e))
-            raise
-
     @dec_on_reextract_1
-    def _get_entry(self, url, **kwargs):
-
+    def get_entry(self, url, **kwargs):
         _type = kwargs.get('_type', 'all')
         _types = ['hls', 'dash', 'ism'] if _type == 'all' else [_type]
-        msg = kwargs.get('msg')
-        index_scene = try_get(
-            kwargs.get('index') or try_get(
-                self._match_valid_url(url),
-                lambda y: y.groupdict().get('id')),
-            lambda x: int(x)) or 1
-
+        index_scene = kwargs.get('index') or int_or_none(self._match_id(url)) or 1
         premsg = "[get_entry]"
-        if msg:
+        if msg := kwargs.get('msg'):
             premsg = f"{msg}{premsg}"
 
         _id_movie = str(NakedSwordMovieIE._match_id(url.split('/scene/')[0]))
 
         if _id_movie not in NakedSwordMovieIE._MOVIES:
             NakedSwordMovieIE._MOVIES.update(
-                {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'final': True}})
+                {_id_movie: {'title': None, 'nok': {}, 'ok': [], 'entries': {}, 'nentries': None, 'final': True}})
 
         if not (
-            _url_movie := (
-                NakedSwordMovieIE._MOVIES[_id_movie].get('url_movie')
-                or try_get(NakedSwordBaseIE._send_request(url.split('/scene/')[0], _type="HEAD"), lambda x: str(x.url))
-            )
+            _url_movie := NakedSwordMovieIE._MOVIES[_id_movie].setdefault(
+                'url_movie', self.get_movie_url(_id_movie))
         ):
             NakedSwordMovieIE._MOVIES.pop(_id_movie, None)
             raise_extractor_error(f"{premsg}[{url}] error 404 - movie doesnt exist")
         else:
-            NakedSwordMovieIE._MOVIES[_id_movie]['url_movie'] = _url_movie
-
             premsg += f"[{_url_movie.split('movies/')[1]}]"
             if url not in NakedSwordSceneIE._SCENES:
                 NakedSwordSceneIE._SCENES.update(
                     {url: {'url_movie': _url_movie, 'final': True}})
 
             if not NakedSwordSceneIE._SCENES[url]['final']:
-                _timeout = my_jitter(60)
-                self.wait_with_pb(_timeout, premsg)
+                self.wait_with_pb(my_jitter(60), premsg)
 
             try:
-
-                _info, details = self.get_streaming_info(_url_movie, index=index_scene) or (None, None)
-                if isinstance(_info, info_scene) and details:
-                    _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{index_scene}"
-                    scene_id = traverse_obj(details, ('scenes', int(index_scene) - 1, 'id'))
-                    _n_entries = len(details.get('scenes', []))
-
-                    _entry = {
-                        "id": str(scene_id),
-                        "_id_movie": _id_movie,
-                        "title": _title,
-                        "formats": [],
-                        "ext": "mp4",
-                        "webpage_url": url,
-                        "_index_scene": int(index_scene),
-                        "_n_entries": _n_entries,
-                        "extractor_key": 'NakedSwordScene',
-                        "extractor": 'nakedswordscene'
-                    }
-
+                _info = self.get_streaming_info(_url_movie, index=index_scene)
+                if isinstance(_info, info_scene):
+                    _entry = self.build_entry(_info)
                     if not (formats := self.get_formats(_types, _info)):
-                        raise ReExtractInfo(f'{premsg}: error - no formats')
+                        raise_reextract_info(f'{premsg}: error - no formats')
                     _entry['formats'] = formats
                     self.logger_info(f"{premsg}: OK got entr")
+                    NakedSwordSceneIE._SCENES[url]['final'] = True
                     try:
                         _entry['duration'] = self._extract_m3u8_vod_duration(
-                            formats[0]['url'],
-                            str(scene_id),
-                            headers=NakedSwordBaseIE._HEADERS["MPD"],
-                        )
-                        NakedSwordSceneIE._SCENES[url]['final'] = True
+                            formats[0]['url'], _info.sceneid,
+                            headers=NakedSwordBaseIE._HEADERS["MPD"])
                     except Exception as e:
                         self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
                     return _entry
@@ -941,9 +901,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                 self.logger_debug(f"{premsg}: error format, will retry again")
                 NakedSwordSceneIE._SCENES[url]['final'] = False
                 raise
-            except StatusStop:
-                raise
-            except ExtractorError:
+            except (StatusStop, ExtractorError):
                 raise
             except Exception as e:
                 self.logger_debug(f"{premsg} {repr(e)}")
@@ -957,12 +915,9 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             self.report_extraction(url)
             nscene = int(self._match_id(url))
             return self.get_entry(url, index=nscene, _type="hls")
-
         except (ExtractorError, StatusStop):
             raise
-        except ReExtractInfo as e:
-            raise_extractor_error(str(e), _from=e)
-        except Exception as e:
+        except (ReExtractInfo, Exception) as e:
             raise_extractor_error(str(e), _from=e)
 
 
@@ -975,7 +930,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
     def save_images(cls, _id_movie, download_path, include_scenes=True):
         if _id_movie not in NakedSwordMovieIE._MOVIES:
             NakedSwordMovieIE._MOVIES.update(
-                {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'final': True}})
+                {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'nentries': None, 'final': True}})
         if not (
             (details := (
                 traverse_obj(NakedSwordMovieIE._MOVIES, (_id_movie, 'details'))
@@ -1014,113 +969,71 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         _force_list = kwargs.get('force', False)
 
-        _id_movie = str(self._match_id(url))
+        _id_movie = self._match_id(url)
 
         if _id_movie not in NakedSwordMovieIE._MOVIES:
             NakedSwordMovieIE._MOVIES.update(
-                {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'final': True}})
+                {_id_movie: {'title': None, 'nok': {}, 'ok': [], 'entries': {}, 'nentries': None, 'final': True}})
+
         if not (
-            _url_movie := (
-                NakedSwordMovieIE._MOVIES[_id_movie].get('url_movie')
-                or try_get(NakedSwordBaseIE._send_request(url, _type="HEAD"), lambda x: str(x.url))
-            )
+            _url_movie := NakedSwordMovieIE._MOVIES[_id_movie].setdefault(
+                'url_movie', self.get_movie_url(_id_movie))
         ):
             NakedSwordMovieIE._MOVIES.pop(_id_movie, None)
             raise_extractor_error(f"{premsg}[{url}] error 404 - movie doesnt exist")
         else:
-            NakedSwordMovieIE._MOVIES[_id_movie]['url_movie'] = _url_movie
-
             premsg += f'[{_url_movie.split("movies/")[1]}]'
 
             if not NakedSwordMovieIE._MOVIES[_id_movie]['final']:
-
-                _timeout = my_jitter(60)
-
-                self.wait_with_pb(_timeout, premsg)
+                self.wait_with_pb(my_jitter(60), premsg)
 
             if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
-
                 try:
-
                     sublist = []
                     if getattr(self, 'args_ie', None):
                         sublist = traverse_obj(self.args_ie, (_id_movie, 'listreset')) or []
-
                         self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
-
                     for _ in range(2):
-                        info_streaming_scenes, details = self.get_streaming_info(_url_movie) or (None, None)
-                        if details and isinstance(info_streaming_scenes, list):
-                            _n_entries = len(details.get('scenes', []))
+                        info_streaming_scenes = self.get_streaming_info(_url_movie)
+                        if isinstance(info_streaming_scenes, list):
+
                             _raise_reextract = []
 
                             for _info in info_streaming_scenes:
-
                                 self.check_stop()
                                 i = _info.index
                                 self.logger_debug(f"{premsg}[{i}]:\n{_info}")
-
-                                _title = f"{sanitize_filename(details.get('title'), restricted=True)}_scene_{i}"
-                                scene_id = try_get(traverse_obj(details, ('scenes', i - 1, 'id')), lambda x: str(x))
-
-                                _entry = {
-                                    "id": scene_id,
-                                    "_id_movie": _id_movie,
-                                    "title": _title,
-                                    "formats": [],
-                                    "ext": "mp4",
-                                    "webpage_url": _info.url,
-                                    "original_url": _url_movie,
-                                    "_index_scene": i,
-                                    "_n_entries": _n_entries,
-                                    "extractor_key": 'NakedSwordScene',
-                                    "extractor": 'nakedswordscene'
-                                }
-
+                                _entry = NakedSwordMovieIE._MOVIES[_id_movie]['entries'].setdefault(
+                                    i, self.build_entry(_info))
                                 if not sublist or isinstance(sublist, list) and i in sublist:
 
                                     if i in NakedSwordMovieIE._MOVIES[_id_movie]['ok']:
                                         self.logger_debug(f"{premsg}[{i}]: already got entry")
-
                                     else:
-                                        NakedSwordMovieIE._MOVIES[_id_movie]['entries'][i] = _entry
                                         try:
                                             if (formats := self.get_formats(_types, _info)):
                                                 _entry['formats'] = formats
                                                 self.logger_debug(f"{premsg}[{i}]: OK got entry")
                                                 NakedSwordMovieIE._MOVIES[_id_movie]['ok'].append(i)
-                                                NakedSwordMovieIE._MOVIES[_id_movie]['entries'][i] = _entry
-                                                if i in NakedSwordMovieIE._MOVIES[_id_movie]['nok']:
-                                                    del NakedSwordMovieIE._MOVIES[_id_movie]['nok'][i]
+                                                NakedSwordMovieIE._MOVIES[_id_movie]['nok'].pop(i, None)
                                                 try:
-                                                    _entry[
-                                                        'duration'
-                                                    ] = self._extract_m3u8_vod_duration(
-                                                        formats[0]['url'],
-                                                        str(scene_id),
-                                                        headers=NakedSwordBaseIE._HEADERS[
-                                                            "MPD"
-                                                        ],
-                                                    )
+                                                    _entry['duration'] = self._extract_m3u8_vod_duration(
+                                                        formats[0]['url'], _info.sceneid,
+                                                        headers=NakedSwordBaseIE._HEADERS["MPD"])
                                                 except Exception as e:
                                                     self.logger_info(f"{premsg}: error trying to get vod {str(e)}")
 
                                         except ReExtractInfo:
-                                            self.logger_info(f"{premsg}[{i}]: NOK, will try again")
+                                            self.logger_debug(f"{premsg}[{i}]: NOK, will try again")
                                             _raise_reextract.append(i)
-                                            # if i not in NakedSwordMovieIE._MOVIES[_id_movie]['nok']:
-                                            #     NakedSwordMovieIE._MOVIES[_id_movie]['nok'].append(i)
                                             NakedSwordMovieIE._MOVIES[_id_movie]['nok'][i] = _info.m3u8_url
                                             NakedSwordMovieIE._MOVIES[_id_movie]['final'] = False
-
-                                else:
-                                    NakedSwordMovieIE._MOVIES[_id_movie]['entries'][i] = _entry
 
                             if _raise_reextract:
                                 _msg = "".join(
                                     [
                                         f"{premsg} ERROR in {_raise_reextract} ",
-                                        f"from sublist {sublist} out of #{_n_entries} ",
+                                        f"from sublist {sublist} out of #{NakedSwordMovieIE._MOVIES[_id_movie]['nentries']} ",
                                         f"[final]:{NakedSwordMovieIE._MOVIES[_id_movie]['final']} ",
                                         f"[ok]:{NakedSwordMovieIE._MOVIES[_id_movie]['ok']} ",
                                         f"[nok]:{list(NakedSwordMovieIE._MOVIES[_id_movie]['nok'].keys())}"
@@ -1131,7 +1044,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                             self.logger_info(
                                 "".join(
                                     [
-                                        f"{premsg} OK format for sublist {sublist} out of #{_n_entries} ",
+                                        f"{premsg} OK format for sublist {sublist} out of #{NakedSwordMovieIE._MOVIES[_id_movie]['nentries']} ",
                                         f"[final]:{NakedSwordMovieIE._MOVIES[_id_movie]['final']} ",
                                         f"[ok]:{NakedSwordMovieIE._MOVIES[_id_movie]['ok']} ",
                                         f"[nok]:{list(NakedSwordMovieIE._MOVIES[_id_movie]['nok'].keys())}"
@@ -1148,8 +1061,8 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                                     'nok': {}, 'ok': [], 'entries': {}, 'final': True})
                                 if _force_list:
                                     return _entries
-                                playlist_id = str(details.get('id'))
-                                pl_title = sanitize_filename(details.get('title'), restricted=True)
+                                playlist_id = _id_movie
+                                pl_title = NakedSwordMovieIE._MOVIES[_id_movie]['title']
                                 return self.playlist_result(
                                     _entries,
                                     playlist_id=playlist_id,
@@ -1200,41 +1113,14 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         premsg = f"[get_entries_from_full_movie][{movie_id}]"
 
-        _movie_url = try_get(
-            NakedSwordBaseIE._send_request(f"https://www.nakedsword.com/movies/{movie_id}/_", _type="HEAD"),
-            lambda x: str(x.url))
+        if not (_movie_url := self.get_movie_url(movie_id)):
+            raise_extractor_error(f"{premsg}[{movie_id}] error 404 - movie doesnt exist")
 
-        if _movie_url not in NakedSwordMovieIE._MOVIES:
-            NakedSwordMovieIE._MOVIES.update({_movie_url: {'on_backoff': False}})
+        if movie_id not in NakedSwordMovieIE._MOVIES:
+            NakedSwordMovieIE._MOVIES.update({movie_id: {'url_movie': _movie_url, 'on_backoff': False}})
 
-        if NakedSwordMovieIE._MOVIES[_movie_url]['on_backoff']:
-
-            NakedSwordBaseIE.API_REFRESH(msg=premsg, _logger=self.write_debug)
-            NakedSwordBaseIE.API_LOGOUT(msg=premsg, _logger=self.write_debug)
-            _timeout = my_jitter(60)
-
-            _simple_counter = None
-            if isinstance(_klasses := self.get_param('_util_classes'), dict):
-                _simple_counter = _klasses.get('SimpleCountDown')
-
-            self.logger_info(
-                "".join([
-                    f'{premsg}[wait] start[{_timeout}] ',
-                    f'counter[{try_get(_simple_counter, lambda x: x.__name__)}] ',
-                    f'indexdl[{getattr(self, "indexdl", None)}]']))
-
-            with self.create_progress_bar(_timeout, msg=f'[{movie_id}][wait]') as progress_bar:
-
-                if _simple_counter:
-                    _counter = _simple_counter(
-                        progress_bar, None, self.check_stop,
-                        timeout=_timeout, indexdl=getattr(self, 'indexdl', None))
-                    _reswait = _counter()
-                else:
-                    _reswait = _wait_for_either(
-                        progress_bar, self.check_stop, timeout=_timeout)
-
-            self.logger_info(f'{premsg}[wait][{_reswait}] end')
+        if NakedSwordMovieIE._MOVIES[movie_id]['on_backoff']:
+            self.wait_with_pb(my_jitter(60), premsg)
 
         details = NakedSwordBaseIE._get_api_details(movie_id)
         if not details:
@@ -1244,7 +1130,6 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         _formats_m3u8 = {}
         try:
-
             if (
                 (m3u8_url := try_get(
                     NakedSwordBaseIE._send_request(_api_movie_url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS),
@@ -1263,11 +1148,11 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         except ReExtractInfo as e:
             logger.info(f"{premsg} reextractinfo {str(e)}")
-            NakedSwordMovieIE._MOVIES[_movie_url]['on_backoff'] = True
+            NakedSwordMovieIE._MOVIES[movie_id]['on_backoff'] = True
             raise
         except Exception as e:
             logger.error(f"{premsg} {repr(e)}")
-            NakedSwordMovieIE._MOVIES[_movie_url]['on_backoff'] = True
+            NakedSwordMovieIE._MOVIES[movie_id]['on_backoff'] = True
             raise_reextract_info(str(e), _from=e)
 
         _entries = []
@@ -1330,9 +1215,8 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
     def get_entries_from_scenes_list(self, url, **kwargs):
 
         _type = kwargs.get('_type', 'hls')
-        msg = kwargs.get('msg')
         premsg = "[get_entries]"
-        if msg:
+        if msg := kwargs.get('msg'):
             premsg = f"{msg}{premsg}"
 
         try:
@@ -1370,10 +1254,7 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
                     playlist_title = "Search"
 
                 def _getter(movie_id, index):
-                    _movie_url = try_get(
-                        NakedSwordBaseIE._send_request(f"https://www.nakedsword.com/movies/{movie_id}/_", _type="HEAD"),
-                        lambda x: str(x.url))
-                    return f'{_movie_url}/scene/{index}'
+                    return f'{self.get_movie_url(movie_id)}/scene/{index}'
 
                 if not _scenes:
                     raise ExtractorError('no scenes found')
@@ -1491,12 +1372,8 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
             if not _movies or not playlist_id or not playlist_title:
                 raise ExtractorError('no movies found')
             else:
-                _url_movies = list(dict.fromkeys([try_get(
-                    NakedSwordBaseIE._send_request(_url, _type="HEAD"),
-                    lambda x: str(x.url))
-                    for _url in [
-                        f'https://www.nakedsword.com/movies/{x["id"]}/_'
-                        for x in _movies]]))
+                _url_movies = list(dict.fromkeys([
+                    self.get_movie_url(x['id']) for x in _movies]))
 
                 self.logger_debug(f"{premsg} url movies [{len(_url_movies)}]\n{_url_movies}")
 
@@ -1587,9 +1464,8 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
                 _mov for _mov in _movies
                 if _from <= datetime.fromisoformat(extract_timezone(_mov.get('publish_start'))[1]) <= _to]
 
-            _url_movies = list(dict.fromkeys([try_get(
-                NakedSwordBaseIE._send_request(_url, _type="HEAD"), lambda x: str(x.url))
-                for _url in [f'https://www.nakedsword.com/movies/{x["id"]}/_' for x in _movies_filtered]]))
+            _url_movies = list(dict.fromkeys([
+                self.get_movie_url(x['id']) for x in _movies_filtered]))
 
             self.logger_debug(f"{premsg} url movies [{len(_url_movies)}]\n{_url_movies}")
 

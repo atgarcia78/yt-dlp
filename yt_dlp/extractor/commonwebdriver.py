@@ -188,7 +188,8 @@ def subnright(pattern, repl, text, n):
 class classproperty(property):
 
     def __get__(self, owner_self, owner_cls):
-        return self.fget(owner_cls)
+        if self.fget:
+            return self.fget(owner_cls)
 
 
 class cached_classproperty(cached_property):
@@ -1550,7 +1551,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             else:
                 raise_extractor_error(_msg_err)
         except HTTPStatusError as e:
-            e.args = (e.args[0].split('\nFor more')[0],)
+            e.args = (e.args[0].split(' for url')[0],)
             _msg_err = f"{premsg} {str(e)}"
             if e.response.status_code == 403:
                 raise_reextract_info(_msg_err)
