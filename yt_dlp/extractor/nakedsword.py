@@ -498,17 +498,17 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             return formats
 
     @classmethod
-    def _get_api_details(cls, movieid):
+    def _get_api_details(cls, _id_movie):
         if (
             details := try_get(
                 cls._send_request(
-                    f"{cls._API_URLS['movies']}/{movieid}/details",
+                    f"{cls._API_URLS['movies']}/{_id_movie}/details",
                     headers=cls.API_GET_HTTP_HEADERS),
                 lambda x: x.json().get('data'))
         ):
-            NakedSwordBaseIE._MOVIES[movieid]['nentries'] = len(details.get('scenes'))  # type: ignore
-            NakedSwordBaseIE._MOVIES[movieid]['title'] = f"{sanitize_filename(details.get('title'), restricted=True)}"
-            NakedSwordBaseIE._MOVIES[movieid]['urls_api'] = cls._get_api_scene_urls(details)
+            NakedSwordBaseIE._MOVIES[_id_movie]['nentries'] = len(details.get('scenes'))  # type: ignore
+            NakedSwordBaseIE._MOVIES[_id_movie]['title'] = f"{sanitize_filename(details.get('title'), restricted=True)}"
+            NakedSwordBaseIE._MOVIES[_id_movie]['urls_api'] = cls._get_api_scene_urls(details)
             return details
 
     def _get_api_newest_movies(self, pages=2):
@@ -615,12 +615,12 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @staticmethod
     def _get_api_scene_urls(details, _type="HLS"):
-        movie_id = details.get('id')
+        _id_movie = details.get('id')
         _pre1 = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
         _pre2 = "?max_bitrate=50000&scenes_id="
         _res = []
         for sc in details.get('scenes'):
-            _url = f"{_pre1}{movie_id}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
+            _url = f"{_pre1}{_id_movie}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
             _url += f"{sc['endTimeSeconds'] - sc['startTimeSeconds']}&format={_type}"
             _res.append(_url)
         return _res
@@ -638,6 +638,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         premsg = f"[get_streaming_info][{_id_movie}]"
         index_scene = int_or_none(kwargs.get('index'))
+        scenes = kwargs.get('scenes')
 
         details = NakedSwordBaseIE._MOVIES[_id_movie]['details']
         num_scenes = NakedSwordBaseIE._MOVIES[_id_movie]['nentries']
@@ -646,46 +647,32 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         _urls_api = NakedSwordBaseIE._MOVIES[_id_movie]['urls_api']
 
         if index_scene:
-            _start_ind = index_scene
-            _end_ind = _start_ind + 1
-        else:
-            _start_ind = 1
-            _end_ind = num_scenes + 1
-
-        _urls_sc = []
-        m3u8urls_scenes = []
-        for ind in range(_start_ind, _end_ind):
-            _urls_sc.append(f"{_url_movie}/scene/{ind}")
-            if (_info_scene := self._get_api_scene_info(_urls_api[ind - 1])):  # type: ignore
-                m3u8urls_scenes.append(_info_scene)
-            else:
-                logger.error(f"{premsg}[{ind}] couldnt get m3u8url")
-                raise ReExtractInfo(f"{premsg}[{ind}] couldnt get m3u8url")
-
-        if len(m3u8urls_scenes) != len(_urls_sc):
-            _text = f"{premsg} # info scenes {len(m3u8urls_scenes)} doesnt match with # urls sc "
-            logger.error(f"{_text}{len(_urls_sc)}\n{_urls_sc}\n\n{m3u8urls_scenes}")
-            raise ReExtractInfo(f"{_text}{len(_urls_sc)}")
+            # _start_ind = index_scene
+            # _end_ind = _start_ind + 1
+            scenes = [index_scene]
+        elif not scenes:
+            scenes = [n for n in range(1, num_scenes + 1)]
 
         info_scenes_list = []
-        for i, (m3u8_url, _url) in enumerate(zip(m3u8urls_scenes, _urls_sc)):
-
-            if not m3u8_url:
-                raise ReExtractInfo(f"{premsg}[{_url}] couldnt find m3u8 url")
-
-            _scene_id = str_or_none(traverse_obj(details, ('scenes', i, 'id')))
-            _scene_title = f"{_movietitle}_scene_{i + 1}"
-            info_scenes_list.append(info_scene(i + 1, _scene_id, _scene_title, _url, m3u8_url, _url_movie, _id_movie, num_scenes))
-
+        for ind in range(1, num_scenes + 1):
+            _scene_id = str_or_none(traverse_obj(details, ('scenes', ind - 1, 'id')))
+            _scene_title = f"{_movietitle}_scene_{ind}"
+            _scene_url = f"{_url_movie}/scene/{ind}"
+            _m3u8_url = ""
+            if ind in scenes:
+                if not (_m3u8_url := self._get_api_scene_info(_urls_api[ind - 1])):  # type: ignore
+                    logger.error(f"{premsg}[{ind}] couldnt get m3u8url")
+                    raise ReExtractInfo(f"{premsg}[{ind}] couldnt get m3u8url")
+            info_scenes_list.append(info_scene(ind, _scene_id, _scene_title, _scene_url, _m3u8_url, _url_movie, _id_movie, num_scenes))
         if index_scene:
             return info_scenes_list[0]
         else:
             return info_scenes_list
 
-    def get_movie_url(self, movie_id):
+    def get_movie_url(self, _id_movie):
         return try_get(
             NakedSwordBaseIE._send_request(
-                f"https://www.nakedsword.com/movies/{movie_id}/_", _type="HEAD"),
+                f"https://www.nakedsword.com/movies/{_id_movie}/_", _type="HEAD"),
             lambda x: str(x.url))
 
     def _is_logged(self, driver):
@@ -848,58 +835,61 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             NakedSwordBaseIE._MOVIES.update(
                 {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'final': True}})
 
-        if not (
-            _url_movie := NakedSwordBaseIE._MOVIES[_id_movie].setdefault(
-                'url_movie', self.get_movie_url(_id_movie))
-        ):
+        _THIS_MOVIE = NakedSwordBaseIE._MOVIES[_id_movie]
+
+        if 'url_movie' not in _THIS_MOVIE:
+            _THIS_MOVIE['url_movie'] = self.get_movie_url(_id_movie)
+
+        if not (_url_movie := _THIS_MOVIE.get('url_movie')):
             NakedSwordBaseIE._MOVIES.pop(_id_movie, None)
             raise_extractor_error(f"{premsg}[{url}] error 404 - movie doesnt exist")
-        else:
-            premsg += f"[{_url_movie.split('movies/')[1]}]"
-            _scenes = NakedSwordBaseIE._MOVIES[_id_movie].setdefault('scenes', {})
 
-            if index_scene not in _scenes:
-                _scenes[index_scene] = {'final': True}
+        premsg += f"[{_url_movie.split('movies/')[1]}]"
+        _scenes = _THIS_MOVIE.setdefault('scenes', {})
 
-            if not _scenes[index_scene]['final']:
-                self.wait_with_pb(my_jitter(60), premsg)
+        if index_scene not in _scenes:
+            _scenes[index_scene] = {'final': True}
 
-            if not NakedSwordBaseIE._MOVIES[_id_movie].setdefault(
-                'details', self._get_api_details(_id_movie)
-            ):
+        if not _scenes[index_scene]['final']:
+            self.wait_with_pb(my_jitter(60), premsg)
+
+        try:
+            if 'details' not in _THIS_MOVIE:
+                _THIS_MOVIE['details'] = self._get_api_details(_id_movie)
+
+            if not _THIS_MOVIE['details']:
                 raise_extractor_error(f"{premsg} no details info")
 
-            if index_scene > (num_scenes := NakedSwordBaseIE._MOVIES[_id_movie]['nentries']):
-                NakedSwordBaseIE._MOVIES[_id_movie]['scenes'].pop(index_scene, None)
+            if index_scene > (num_scenes := _THIS_MOVIE['nentries']):
+                _THIS_MOVIE['scenes'].pop(index_scene, None)
                 raise_extractor_error(f"{premsg} movie has #{num_scenes} scenes, index scene[{index_scene}] not valid")
 
-            try:
-                _info = self.get_streaming_info(_id_movie, index=index_scene)
-                if isinstance(_info, info_scene):
-                    _entry = self.build_entry(_info)
-                    if not (formats := self.get_formats(_types, _info)):
-                        raise_reextract_info(f'{premsg}: error - no formats')
-                    _entry['formats'] = formats
-                    self.logger_info(f"{premsg}: OK got entr")
-                    _scenes[index_scene]['final'] = True
-                    try:
-                        _entry['duration'] = self._extract_m3u8_vod_duration(
-                            formats[0]['url'], _info.sceneid,
-                            headers=NakedSwordBaseIE._HEADERS["MPD"])
-                    except Exception as e:
-                        self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
-                    return _entry
-                else:
-                    raise_reextract_info(f'{premsg}: error in get streaming info')
-            except ReExtractInfo:
-                self.logger_debug(f"{premsg}: error format, will retry again")
-                _scenes[index_scene]['final'] = False
-                raise
-            except (StatusStop, ExtractorError):
-                raise
-            except Exception as e:
-                self.logger_debug(f"{premsg} {repr(e)}")
-                raise_extractor_error(f'{premsg}: error - {str(e)}', _from=e)
+            _info = self.get_streaming_info(_id_movie, index=index_scene)
+            if isinstance(_info, info_scene):
+                _entry = self.build_entry(_info)
+                if not (formats := self.get_formats(_types, _info)):
+                    raise_reextract_info(f'{premsg}: error - no formats')
+                _entry['formats'] = formats
+                self.logger_info(f"{premsg}: OK got entr")
+                _scenes[index_scene]['final'] = True
+                try:
+                    _entry['duration'] = self._extract_m3u8_vod_duration(
+                        formats[0]['url'], _info.sceneid,
+                        headers=NakedSwordBaseIE._HEADERS["MPD"])
+                except Exception as e:
+                    self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
+                return _entry
+            else:
+                raise_reextract_info(f'{premsg}: error in get streaming info')
+        except ReExtractInfo:
+            self.logger_debug(f"{premsg}: error format, will retry again")
+            _scenes[index_scene]['final'] = False
+            raise
+        except (StatusStop, ExtractorError):
+            raise
+        except Exception as e:
+            self.logger_debug(f"{premsg} {repr(e)}")
+            raise_extractor_error(f'{premsg}: error - {str(e)}', _from=e)
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -968,117 +958,95 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             NakedSwordBaseIE._MOVIES.update(
                 {_id_movie: {'nok': {}, 'ok': [], 'entries': {}, 'final': True}})
 
-        if not (
-            _url_movie := NakedSwordBaseIE._MOVIES[_id_movie].setdefault(
-                'url_movie', self.get_movie_url(_id_movie))
-        ):
+        if 'url_movie' not in NakedSwordBaseIE._MOVIES[_id_movie]:
+            NakedSwordBaseIE._MOVIES[_id_movie]['url_movie'] = self.get_movie_url(_id_movie)
+
+        if not (_url_movie := NakedSwordBaseIE._MOVIES[_id_movie].get('url_movie')):
             NakedSwordBaseIE._MOVIES.pop(_id_movie, None)
             raise_extractor_error(f"{premsg}[{url}] error 404 - movie doesnt exist")
+
         else:
             premsg += f'[{_url_movie.split("movies/")[1]}]'
 
             if not NakedSwordBaseIE._MOVIES[_id_movie]['final']:
                 self.wait_with_pb(my_jitter(60), premsg)
 
-            if not NakedSwordBaseIE._MOVIES[_id_movie].setdefault(
-                'details', self._get_api_details(_id_movie)
-            ):
-                raise_extractor_error("no details info")
+        _THIS_MOVIE = NakedSwordBaseIE._MOVIES[_id_movie]
+
+        try:
+
+            if 'details' not in _THIS_MOVIE:
+                _THIS_MOVIE['details'] = self._get_api_details(_id_movie)
+
+            if not _THIS_MOVIE['details']:
+                raise_extractor_error(f"{premsg} no details info")
 
             if self.get_param('embed') or (self.get_param('extract_flat', '') != 'in_playlist'):
-                try:
-                    sublist = []
-                    if getattr(self, 'args_ie', None):
-                        sublist = traverse_obj(self.args_ie, (_id_movie, 'listreset')) or []
-                        self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
-                    for _ in range(2):
-                        info_streaming_scenes = self.get_streaming_info(_id_movie)
-                        if isinstance(info_streaming_scenes, list):
-                            _raise_reextract = []
-
-                            for _info in info_streaming_scenes:
-                                self.check_stop()
-                                i = _info.index
-                                self.logger_debug(f"{premsg}[{i}]:\n{_info}")
-                                _entry = NakedSwordBaseIE._MOVIES[_id_movie]['entries'].setdefault(
-                                    i, self.build_entry(_info))
-                                if not sublist or isinstance(sublist, list) and i in sublist:
-
-                                    if i in NakedSwordBaseIE._MOVIES[_id_movie]['ok']:
-                                        self.logger_debug(f"{premsg}[{i}]: already got entry")
-                                    else:
+                sublist = []
+                if getattr(self, 'args_ie', None):
+                    sublist = traverse_obj(self.args_ie, (_id_movie, 'listreset'))
+                    self.logger_debug(f"{premsg} sublist of movie scenes: {sublist}")
+                    if not sublist:
+                        sublist = [n for n in range(1, _THIS_MOVIE['nentries'] + 1)]
+                for _ in range(2):
+                    _raise_reextract = []
+                    _final = list(set(sublist) - set(_THIS_MOVIE['ok']))  # type: ignore
+                    if _final:
+                        info_streaming_scenes = self.get_streaming_info(_id_movie, scenes=_final)
+                        _entries = _THIS_MOVIE['entries']
+                        for _info in info_streaming_scenes:
+                            self.check_stop()
+                            i = _info.index
+                            _entries.setdefault(i, self.build_entry(_info))
+                            # self.logger_info(f"{premsg}[{i}]:m3u8_url[{_info.m3u8_url.split('/')[3] if _info.m3u8_url else ''}]formats[{len(_entries[i]['formats'])}]")
+                            if _info.m3u8_url and i not in _THIS_MOVIE['ok']:
+                                try:
+                                    if (formats := self.get_formats(_types, _info)):
+                                        _entries[i]['formats'] = formats
+                                        self.logger_debug(f"{premsg}[{i}]: OK got entry")
+                                        _THIS_MOVIE['ok'].append(i)
+                                        _THIS_MOVIE['nok'].pop(i, None)
                                         try:
-                                            if (formats := self.get_formats(_types, _info)):
-                                                _entry['formats'] = formats
-                                                self.logger_debug(f"{premsg}[{i}]: OK got entry")
-                                                NakedSwordBaseIE._MOVIES[_id_movie]['ok'].append(i)
-                                                NakedSwordBaseIE._MOVIES[_id_movie]['nok'].pop(i, None)
-                                                try:
-                                                    _entry['duration'] = self._extract_m3u8_vod_duration(
-                                                        formats[0]['url'], _info.sceneid,
-                                                        headers=NakedSwordBaseIE._HEADERS["MPD"])
-                                                except Exception as e:
-                                                    self.logger_info(f"{premsg}: error trying to get vod {str(e)}")
+                                            _entries[i]['duration'] = self._extract_m3u8_vod_duration(
+                                                formats[0]['url'], _info.sceneid,
+                                                headers=NakedSwordBaseIE._HEADERS["MPD"])
+                                            self.logger_info(f"{premsg}[{i}]: ok got entry - formats[{len(_entries[i]['formats'])}]")
+                                        except Exception as e:
+                                            self.logger_info(f"{premsg}: error trying to get vod {str(e)}")
 
-                                        except ReExtractInfo:
-                                            self.logger_debug(f"{premsg}[{i}]: NOK, will try again")
-                                            _raise_reextract.append(i)
-                                            NakedSwordBaseIE._MOVIES[_id_movie]['nok'][i] = _info.m3u8_url
-                                            NakedSwordBaseIE._MOVIES[_id_movie]['final'] = False
+                                except ReExtractInfo:
+                                    self.logger_debug(f"{premsg}[{i}]: NOK, will try again")
+                                    _raise_reextract.append(i)
+                                    _THIS_MOVIE['nok'][i] = _info.m3u8_url
+                                    _THIS_MOVIE['final'] = False
 
-                            if _raise_reextract:
-                                _msg = "".join(
-                                    [
-                                        f"{premsg} ERROR in {_raise_reextract} ",
-                                        f"from sublist {sublist} out of #{NakedSwordBaseIE._MOVIES[_id_movie]['nentries']} ",
-                                        f"[final]:{NakedSwordBaseIE._MOVIES[_id_movie]['final']} ",
-                                        f"[ok]:{NakedSwordBaseIE._MOVIES[_id_movie]['ok']} ",
-                                        f"[nok]:{list(NakedSwordBaseIE._MOVIES[_id_movie]['nok'].keys())}"
-                                    ])
-                                self.logger_info(_msg)
-                                raise ReExtractInfo("error in scenes of movie")
+                    if _raise_reextract:
+                        _msg = (
+                            f"{premsg} ERROR in {_raise_reextract} from sublist {sublist} out of #{_THIS_MOVIE['nentries']} "
+                            + f"[final]:{_THIS_MOVIE['final']} [ok]:{_THIS_MOVIE['ok']} [nok]:{list(_THIS_MOVIE['nok'].keys())}")
+                        self.logger_info(_msg)
+                        raise ReExtractInfo("error in scenes of movie")
+                    self.logger_info(
+                        f"{premsg} OK format for sublist {sublist} out of #{_THIS_MOVIE['nentries']} "
+                        + f"[final]:{_THIS_MOVIE['final']} [ok]:{_THIS_MOVIE['ok']} [nok]:{list(_THIS_MOVIE['nok'].keys())}")
 
-                            self.logger_info(
-                                "".join(
-                                    [
-                                        f"{premsg} OK format for sublist {sublist} out of #{NakedSwordBaseIE._MOVIES[_id_movie]['nentries']} ",
-                                        f"[final]:{NakedSwordBaseIE._MOVIES[_id_movie]['final']} ",
-                                        f"[ok]:{NakedSwordBaseIE._MOVIES[_id_movie]['ok']} ",
-                                        f"[nok]:{list(NakedSwordBaseIE._MOVIES[_id_movie]['nok'].keys())}"
-                                    ])
-                            )
-                            if not NakedSwordBaseIE._MOVIES[_id_movie]['final']:
-                                NakedSwordBaseIE._MOVIES[_id_movie].update({
-                                    'nok': {}, 'ok': [], 'entries': {}, 'final': True})
-                            else:
-                                _entries = list(map(
-                                    lambda x: x[1],
-                                    sorted(NakedSwordBaseIE._MOVIES[_id_movie]['entries'].items())))
-                                NakedSwordBaseIE._MOVIES[_id_movie].update({
-                                    'nok': {}, 'ok': [], 'entries': {}, 'final': True})
-                                if _force_list:
-                                    return _entries
-                                return self.playlist_result(
-                                    _entries,
-                                    playlist_id=_id_movie,
-                                    playlist_title=NakedSwordBaseIE._MOVIES[_id_movie]['title'],
-                                    webpage_url=NakedSwordBaseIE._MOVIES[_id_movie]['url_movie'],
-                                    original_url=NakedSwordBaseIE._MOVIES[_id_movie]['url_movie'])
-
-                        else:
-                            raise_reextract_info(f'{premsg}: error in get streaming info')
-                except ReExtractInfo:
-                    NakedSwordBaseIE._MOVIES[_id_movie]['final'] = False
-                    raise
-                except StatusStop:
-                    raise
-                except Exception as e:
-                    logger.exception(f"{premsg} info streaming error - {repr(e)}")
-                    raise
+                    if not _THIS_MOVIE['final']:
+                        _THIS_MOVIE.update({'nok': {}, 'ok': [], 'entries': {}, 'final': True})
+                    else:
+                        _entries = list(map(lambda x: x[1], sorted(_THIS_MOVIE['entries'].items())))
+                        _THIS_MOVIE.update({'nok': {}, 'ok': [], 'entries': {}, 'final': True})
+                        if _force_list:
+                            return _entries
+                        return self.playlist_result(
+                            _entries,
+                            playlist_id=_id_movie,
+                            playlist_title=_THIS_MOVIE['title'],
+                            webpage_url=_THIS_MOVIE['url_movie'],
+                            original_url=_THIS_MOVIE['url_movie'])
 
             else:
-                details = NakedSwordBaseIE._MOVIES[_id_movie]['details']
-                pl_title = NakedSwordBaseIE._MOVIES[_id_movie]['title']
+                details = _THIS_MOVIE['details']
+                pl_title = _THIS_MOVIE['title']
 
                 if _force_list:
                     return [
@@ -1095,25 +1063,34 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                     webpage_url=_url_movie,
                     original_url=_url_movie)
 
+        except ReExtractInfo:
+            _THIS_MOVIE['final'] = False
+            raise
+        except StatusStop:
+            raise
+        except Exception as e:
+            logger.exception(f"{premsg} info streaming error - {repr(e)}")
+            raise
+
     @dec_on_reextract_1
-    def get_entries_from_full_movie(self, movie_id, **kwargs):
+    def get_entries_from_full_movie(self, _id_movie, **kwargs):
 
-        premsg = f"[get_entries_from_full_movie][{movie_id}]"
+        premsg = f"[get_entries_from_full_movie][{_id_movie}]"
 
-        if not (_movie_url := self.get_movie_url(movie_id)):
-            raise_extractor_error(f"{premsg}[{movie_id}] error 404 - movie doesnt exist")
+        if not (_movie_url := self.get_movie_url(_id_movie)):
+            raise_extractor_error(f"{premsg}[{_id_movie}] error 404 - movie doesnt exist")
 
-        if movie_id not in NakedSwordBaseIE._MOVIES:
-            NakedSwordBaseIE._MOVIES.update({movie_id: {'url_movie': _movie_url, 'on_backoff': False}})
+        if _id_movie not in NakedSwordBaseIE._MOVIES:
+            NakedSwordBaseIE._MOVIES.update({_id_movie: {'url_movie': _movie_url, 'on_backoff': False}})
 
-        if NakedSwordBaseIE._MOVIES[movie_id]['on_backoff']:
+        if NakedSwordBaseIE._MOVIES[_id_movie]['on_backoff']:
             self.wait_with_pb(my_jitter(60), premsg)
 
-        details = NakedSwordBaseIE._get_api_details(movie_id)
+        details = NakedSwordBaseIE._get_api_details(_id_movie)
         if not details:
             raise ReExtractInfo(f"{premsg} no details info")
         _pre = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
-        _api_movie_url = f"{_pre}{movie_id}?max_bitrate=50000&format=HLS"
+        _api_movie_url = f"{_pre}{_id_movie}?max_bitrate=50000&format=HLS"
 
         _formats_m3u8 = {}
         try:
@@ -1135,18 +1112,18 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
         except ReExtractInfo as e:
             logger.info(f"{premsg} reextractinfo {str(e)}")
-            NakedSwordBaseIE._MOVIES[movie_id]['on_backoff'] = True
+            NakedSwordBaseIE._MOVIES[_id_movie]['on_backoff'] = True
             raise
         except Exception as e:
             logger.error(f"{premsg} {repr(e)}")
-            NakedSwordBaseIE._MOVIES[movie_id]['on_backoff'] = True
+            NakedSwordBaseIE._MOVIES[_id_movie]['on_backoff'] = True
             raise_reextract_info(str(e), _from=e)
 
         _entries = []
         for sc in details.get('scenes'):
             _entry = {
                 "id": str(sc['id']) + "bm",
-                "_id_movie": movie_id,
+                "_id_movie": _id_movie,
                 "title": f"{sanitize_filename(details.get('title'), restricted=True)}_bm_scene_{sc.get('index')}",
                 "formats": _formats_m3u8,
                 "ext": "mp4",
@@ -1161,7 +1138,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
             }
             _entries.append(_entry)
 
-        playlist_id = movie_id
+        playlist_id = _id_movie
         pl_title = sanitize_filename(details.get('title'), restricted=True) + '_bm'
         return self.playlist_result(
             _entries,
@@ -1240,8 +1217,8 @@ class NakedSwordScenesPlaylistIE(NakedSwordBaseIE):
                     playlist_id = query
                     playlist_title = "Search"
 
-                def _getter(movie_id, index):
-                    return f'{self.get_movie_url(movie_id)}/scene/{index}'
+                def _getter(_id_movie, index):
+                    return f'{self.get_movie_url(_id_movie)}/scene/{index}'
 
                 if not _scenes:
                     raise ExtractorError('no scenes found')
