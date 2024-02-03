@@ -1,3 +1,5 @@
+import contextlib
+
 from .commonwebdriver import (
     By,
     ConnectError,
@@ -10,7 +12,7 @@ from .commonwebdriver import (
     my_dec_on_exception,
     raise_extractor_error,
 )
-from ..utils import get_domain, sanitize_filename
+from ..utils import get_domain, sanitize_filename, try_get
 
 on_exception = my_dec_on_exception(
     (TimeoutError, ExtractorError), raise_on_giveup=False, max_tries=3, jitter="my_jitter", interval=5)
@@ -32,7 +34,7 @@ class DFlixIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://dflix.top"
 
-    IE_NAME = 'dflix'
+    IE_NAME = 'dflix'  # type: ignore
     _VALID_URL = r'https?://(?:www\.)?dflix\.top/(?:e|f|v)/(?P<id>[^\/$]+)(?:\/|$)'
 
     @on_exception
@@ -89,52 +91,93 @@ class DFlixIE(SeleniumInfoExtractor):
         if msg:
             pre = f'{msg}{pre}'
 
-        driver = self.get_driver()
+        _port = self.find_free_port()
+        driver = self.get_driver(host='127.0.0.1', port=_port)
 
         try:
 
-            self._send_request(url, driver=driver)
-            video_url = self.wait_until(driver, 30, get_videourl())
-            if not video_url:
-                raise ExtractorError("coundt get videourl")
-
-            title = (driver.title).replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.')
+            with self.get_har_logs('dflix', videoid=video_id, msg=pre, port=_port) as hlog:   # type: ignore
+                _har_file = hlog.har_file
+                self._send_request(url, driver=driver)
+                video_url = self.wait_until(driver, 30, get_videourl())  # type: ignore
+                title = (driver.title).replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.')  # type: ignore
 
             headers = {'Referer': self._SITE_URL + '/', 'Origin': self._SITE_URL}
+            if not isinstance(video_url, str):
+                raise ExtractorError("coundt get videourl")
 
-            _format = {
-                'format_id': 'http-mp4',
-                'url': video_url,
-                'http_headers': headers,
-                'ext': 'mp4'
-            }
+            elif not video_url.startswith('blob'):
 
-            if check:
-                _host = get_domain(video_url)
-                _sem = self.get_ytdl_sem(_host)
+                _format = {
+                    'format_id': 'http-mp4',
+                    'url': video_url,
+                    'http_headers': headers,
+                    'ext': 'mp4'
+                }
 
-                with _sem:
-                    _videoinfo = self._get_video_info(video_url, msg=pre, headers=headers)
+                if check:
+                    _host = get_domain(video_url)
+                    _sem = self.get_ytdl_sem(_host) or contextlib.nullcontext()
 
-                if not _videoinfo:
-                    raise ReExtractInfo(f"{pre} error 404: no video info")
+                    with _sem:
+                        _videoinfo = self._get_video_info(video_url, msg=pre, headers=headers)
 
-                if _videoinfo['filesize'] >= 1000000:
-                    _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
-                else:
-                    raise ReExtractInfo(f"{pre} error filesize[{_videoinfo['filesize']}] < 1MB")
+                    if not isinstance(_videoinfo, dict):
+                        raise ReExtractInfo(f"{pre} error 404: no video info")
 
-            _entry = {
-                'id': video_id,
-                'title': sanitize_filename(title, restricted=True),
-                'formats': [_format],
-                'ext': 'mp4',
-                'extractor_key': 'MixDrop',
-                'extractor': 'doodstream',
-                'webpage_url': url
-            }
+                    if _videoinfo['filesize'] >= 1000000:
+                        _format.update({'url': _videoinfo['url'], 'filesize': _videoinfo['filesize'], 'accept_ranges': _videoinfo['accept_ranges']})
+                    else:
+                        raise ReExtractInfo(f"{pre} error filesize[{_videoinfo['filesize']}] < 1MB")
 
-            return _entry
+                _entry = {
+                    'id': video_id,
+                    'title': sanitize_filename(title, restricted=True),
+                    'formats': [_format],
+                    'ext': 'mp4',
+                    'extractor_key': 'DFlix',
+                    'extractor': 'dflix',
+                    'webpage_url': url
+                }
+
+            else:
+                m3u8_url, m3u8_doc = try_get(
+                    self.scan_for_request(r"master\.m3u8.+$", har=_har_file),  # type: ignore
+                    lambda x: (x.get('url'), x.get('content')) if x else (None, None))
+                if not m3u8_doc or not m3u8_url:
+                    raise_extractor_error(f'{pre} Couldnt get video info')
+
+                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+
+                if not _formats:
+                    raise_extractor_error(f'{pre} Couldnt get video formats')
+
+                for _format in _formats:
+                    if _format.setdefault('http_headers', headers) != headers:
+                        _format['http_headers'].update(**headers)
+
+                _entry = {
+                    'id': video_id,
+                    'title': sanitize_filename(title, restricted=True),
+                    'formats': _formats,
+                    'subtitles': _subtitles,
+                    'ext': 'mp4',
+                    'extractor_key': 'DFlix',
+                    'extractor': 'dflix',
+                    'webpage_url': url
+                }
+
+                try:
+                    if (
+                        _duration := self._extract_m3u8_vod_duration(
+                            _formats[0]['url'], video_id, headers=_formats[0]['http_headers'])
+                    ):
+                        _entry.update({'duration': _duration})
+                except Exception as e:
+                    self.logger_debug(f"{pre}: error trying to get vod {repr(e)}")
+
+                return _entry
 
         finally:
             self.rm_driver(driver)

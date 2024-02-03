@@ -18,7 +18,7 @@ import tempfile
 import time
 import typing
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import cached_property
 from io import TextIOWrapper
@@ -68,6 +68,32 @@ assert Keys  # for flake8
 assert WebElement
 
 _NOT_FOUND = object()
+
+
+class run_operation_in_executor:
+    """
+    decorator to run a sync function from sync context
+    The func with this decorator returns without blocking
+    a mysynasyncevent to stop the execution of the func, and a future
+    that wrappes the function submitted with a thread executor
+    """
+
+    def __init__(self, name: str) -> None:
+        self.name = name  # for thread prefix loggin and stop event name
+
+    def __call__(self, func):
+        name = self.name
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> tuple[Event, Future]:
+            stop_event = Event()
+            exe = ThreadPoolExecutor(thread_name_prefix=name)
+            _kwargs = {"stop_event": stop_event}
+            _kwargs.update(kwargs)
+            fut = exe.submit(lambda: func(*args, **_kwargs))
+            return (stop_event, fut)
+
+        return wrapper
 
 
 class BrowserCookieError(Exception):
@@ -610,10 +636,10 @@ class MyHAR:
             timeout=10, inclheaders=False, check_event=None):
 
         def func_getter(x):
-            _info = ""
             if _content := x.get('content'):
                 _info = json.loads(re.sub('[\t\n]', '', html.unescape(_content)))
-            return (_info, x.get('headers')) if inclheaders else _info
+                x |= {'json': _info}
+            return x
 
         _hints = MyHAR.scan_har_for_request(
             _link, driver=driver, har=har, _method=_method, _mimetype="json", _all=_all,
@@ -1201,7 +1227,11 @@ class SeleniumInfoExtractor(InfoExtractor):
     @classmethod
     def rm_driver(cls, driver):
 
-        tempdir = driver.caps.get('moz:profile')
+        tempdir = None
+        try:
+            tempdir = driver.caps.get('moz:profile')
+        except Exception:
+            pass
         try:
             driver.quit()
         except Exception:
@@ -1259,6 +1289,30 @@ class SeleniumInfoExtractor(InfoExtractor):
             raise
         except Exception:
             return
+
+    def clear_firefox_cache(self, driver: Firefox, timeout: float = 10):
+        dialog_selector = 'vbox.dialogOverlay:nth-child(1) > vbox:nth-child(1) > browser:nth-child(2)'
+        accept_dialog_script = '''
+const browser = document.querySelector("%s");
+browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.click()
+''' % dialog_selector
+
+        def get_clear_site_data_button(driver):
+            return driver.find_element(by=By.CSS_SELECTOR, value='#clearSiteDataButton')
+
+        def get_clear_site_data_dialog(driver):
+            return driver.find_element(by=By.CSS_SELECTOR, value=dialog_selector)
+
+        driver.get('about:preferences#privacy')
+        wait = WebDriverWait(driver, timeout)
+
+        # Click the "Clear Data..." button under "Cookies and Site Data".
+        wait.until(get_clear_site_data_button)
+        get_clear_site_data_button(driver).click()
+
+        # Accept the "Clear Data" dialog by clicking on the "Clear" button.
+        wait.until(get_clear_site_data_dialog)
+        driver.execute_script(accept_dialog_script)
 
     def get_info_for_format(self, url, **kwargs):
 

@@ -72,7 +72,7 @@ class StreamSBIE(SeleniumInfoExtractor):
 
         videoid, dom = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('id', 'domain'))
+            lambda x: x.group('id', 'domain'))  # type: ignore
         url_dl = f"https://{dom}/e/{videoid}.html"
 
         _har_file = None
@@ -84,11 +84,11 @@ class StreamSBIE(SeleniumInfoExtractor):
             _port = self.find_free_port()
             driver = self.get_driver(host='127.0.0.1', port=_port)
             try:
-                with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:
+                with self.get_har_logs('streamsb', videoid, msg=pre, port=_port) as harlogs:  # type: ignore
                     _har_file = harlogs.har_file
                     self._send_request(url_dl, driver=driver)
-                    self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))
-                    self.wait_until(driver, 1)
+                    self.wait_until(driver, 30, ec.presence_of_element_located((By.TAG_NAME, "video")))  # type: ignore
+                    self.wait_until(driver, 1)  # type: ignore
             except ReExtractInfo:
                 raise
             except Exception as e:
@@ -97,21 +97,24 @@ class StreamSBIE(SeleniumInfoExtractor):
             finally:
                 self.rm_driver(driver)
 
-            info = self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True)
+            info = [_el['json'] for _el in self.scan_for_json(StreamSBIE._DOMAINS, har=_har_file, _all=True) or []]
             self.logger_debug(info)
             if (_error := get_first(info, ('error'))):
                 raise_reextract_info(f'{pre} {_error}')
 
             _title = get_first(info, ('stream_data', 'title'), ('title'))
-            if not _title:
+            if not isinstance(_title, str):
                 raise ExtractorError('Couldnt get title')
+            else:
+                if _res := try_get(
+                    re.findall(r'(1080p|720p|480p)', _title),  # type: ignore
+                    lambda x: x[0]
+                ):
+                    _title = _title.split(_res)[0]
 
-            _title = try_get(
-                re.findall(r'(1080p|720p|480p)', _title),
-                lambda x: _title.split(x[0])[0]) or _title
-            _title = try_get(
-                re.sub(r'(\s*-\s*202)', ' 202', _title),
-                lambda x: x.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.'))
+                _title = try_get(
+                    re.sub(r'(\s*-\s*202)', ' 202', _title),
+                    lambda x: x.replace('mp4', '').replace('mkv', '').strip(' \t\n\r\f\v-_.'))
 
             _headers = {
                 'Origin': f"https://{dom}",
@@ -132,61 +135,63 @@ class StreamSBIE(SeleniumInfoExtractor):
                 raise_reextract_info(f'{pre} Couldnt get video info')
 
             self.logger_debug(m3u8_doc)
-            if 'SDR,AUDIO="audio' in m3u8_doc:
-                m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
-                m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
+            if isinstance(m3u8_doc, str):
+                if 'SDR,AUDIO="audio' in m3u8_doc:
+                    m3u8_doc = m3u8_doc.replace('SDR,AUDIO="audio0"', 'SDR').replace('SDR,AUDIO="audio1"', 'SDR')
+                    m3u8_doc = subnright('index-v1-a1', 'index-v1-a2', m3u8_doc, 3)
 
-            _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
-                m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
+                _formats, _subtitles = self._parse_m3u8_formats_and_subtitles(
+                    m3u8_doc, m3u8_url, ext="mp4", entry_protocol='m3u8_native', m3u8_id="hls")
 
-            if not _formats:
-                raise_reextract_info(f'{pre} Couldnt get video formats')
+                if not _formats:
+                    raise_reextract_info(f'{pre} Couldnt get video formats')
 
-            for _format in _formats:
-                if _format.setdefault('http_headers', _headers) != _headers:
-                    _format['http_headers'].update(**_headers)
+                for _format in _formats:
+                    if _format.setdefault('http_headers', _headers) != _headers:
+                        _format['http_headers'].update(**_headers)
 
-            if not _subtitles:
-                list_subt_urls = try_get(
-                    self.scan_for_request(r"\.(?:srt|vtt)$", har=_har_file, _all=True),  # type: ignore
-                    lambda x: [el.get('url') for el in x] if x else [])
-                if list_subt_urls:
-                    def _get_info_subt(subturl):
-                        _cc_lang = {'spanish': 'es', 'english': 'en'}
-                        if subturl:
-                            ext = subturl.rsplit('.', 1)[-1]
-                            if (
-                                lang := _cc_lang.get(try_call(
-                                    lambda: subturl.rsplit('.', 1)[0].rsplit('_', 1)[-1].lower()) or 'dummy')
-                            ):
-                                return {'lang': lang, 'ext': ext}
+                if not _subtitles:
+                    list_subt_urls = try_get(
+                        self.scan_for_request(r"\.(?:srt|vtt)$", har=_har_file, _all=True),  # type: ignore
+                        lambda x: [el.get('url') for el in x] if x else [])
+                    if list_subt_urls:
+                        def _get_info_subt(subturl):
+                            _cc_lang = {'spanish': 'es', 'english': 'en'}
+                            if subturl:
+                                ext = subturl.rsplit('.', 1)[-1]
+                                if (
+                                    lang := _cc_lang.get(try_call(
+                                        lambda: subturl.rsplit('.', 1)[0].rsplit('_', 1)[-1].lower()) or 'dummy')
+                                ):
+                                    return {'lang': lang, 'ext': ext}
 
-                    for _url_subt in list_subt_urls:
-                        if (_subt := _get_info_subt(_url_subt)):
-                            try_get(
-                                _subtitles.setdefault(_subt.get('lang'), []),
-                                lambda x: x.append({'url': _url_subt, 'ext': _subt.get('ext')}))
+                        for _url_subt in list_subt_urls:
+                            if (_subt := _get_info_subt(_url_subt)):
+                                if _lang := _subt.get('lang'):
+                                    if _lang not in _subtitles:
+                                        _subtitles[_lang] = []
+                                    _subtitles[_lang].append({'url': _url_subt, 'ext': _subt.get('ext')})
 
-            _entry = {
-                'id': videoid,
-                'title': sanitize_filename(_title, restricted=True),
-                'formats': _formats,
-                'subtitles': _subtitles,
-                'ext': 'mp4',
-                'extractor_key': 'StreamSB',
-                'extractor': 'streamsb',
-                'webpage_url': url}
+                _entry = {
+                    'id': videoid,
+                    'title': sanitize_filename(_title, restricted=True),
+                    'formats': _formats,
+                    'subtitles': _subtitles,
+                    'ext': 'mp4',
+                    'extractor_key': 'StreamSB',
+                    'extractor': 'streamsb',
+                    'webpage_url': url}
 
-            try:
-                if (
-                    _duration := self._extract_m3u8_vod_duration(
-                        _formats[0]['url'], videoid, headers=_formats[0]['http_headers'])
-                ):
-                    _entry.update({'duration': _duration})
-            except Exception as e:
-                self.logger_debug(f"{pre}: error trying to get vod {repr(e)}")
+                try:
+                    if (
+                        _duration := self._extract_m3u8_vod_duration(
+                            _formats[0]['url'], videoid, headers=_formats[0]['http_headers'])
+                    ):
+                        _entry.update({'duration': _duration})
+                except Exception as e:
+                    self.logger_debug(f"{pre}: error trying to get vod {repr(e)}")
 
-            return _entry
+                return _entry
 
         except ReExtractInfo:
             raise

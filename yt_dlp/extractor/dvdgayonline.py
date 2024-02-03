@@ -150,7 +150,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
             urlembed = None
 
             if not (
-                (urlembed := try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: x.get('embed_url')))
+                (urlembed := try_get(self.scan_for_json(r'admin-ajax.php$', har=_har_file, _method="POST"), lambda x: traverse_obj(x, ('json', 'embed_url'))))
                 and isinstance(urlembed, str)
             ) or 'realgalaxy' not in urlembed:
                 raise_reextract_info(f"{pre} couldnt get urlembed")
@@ -162,7 +162,7 @@ class DVDGayOnlineIE(SeleniumInfoExtractor):
                 if not videoid:
                     raise_reextract_info(f'{pre} Couldnt get videoid')
 
-                info = self.scan_for_json(r'%s/' % dom, har=_har_file, _all=True)
+                info = [_el['json'] for _el in self.scan_for_json(r'%s/' % dom, har=_har_file, _all=True) or []]
                 self.logger_debug(info)
                 if (_error := get_first(info, ('error'))):
                     raise_reextract_info(f'{pre} {_error}')
