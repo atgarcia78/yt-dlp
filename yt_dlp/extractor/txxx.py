@@ -11,6 +11,7 @@ from ..utils import (
     parse_duration,
     traverse_obj,
     try_call,
+    url_or_none,
     urljoin,
     variadic,
 )
@@ -88,6 +89,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.txxx.tube/contents/videos_sources/16574000/16574965/screenshots/1.jpg',
         }
     }, {
         'url': 'https://txxx.tube/videos/16574965/digital-desire-malena-morgan/',
@@ -103,6 +105,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.txxx.tube/contents/videos_sources/16574000/16574965/screenshots/1.jpg',
         }
     }, {
         'url': 'https://vxxx.com/video-68925/',
@@ -118,6 +121,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.vxxx.com/contents/videos_sources/68000/68925/screenshots/1.jpg',
         }
     }, {
         'url': 'https://hclips.com/videos/6291073/malena-morgan-masturbates-her-sweet/',
@@ -133,6 +137,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://hctn.nv7s.com/contents/videos_sources/6291000/6291073/screenshots/1.jpg',
         }
     }, {
         'url': 'https://hdzog.com/videos/67063/gorgeous-malena-morgan-will-seduce-you-at-the-first-glance/',
@@ -148,6 +153,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.hdzog.com/contents/videos_sources/67000/67063/screenshots/1.jpg',
         }
     }, {
         'url': 'https://hdzog.tube/videos/67063/gorgeous-malena-morgan-will-seduce-you-at-the-first-glance/',
@@ -163,6 +169,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.hdzog.com/contents/videos_sources/67000/67063/screenshots/1.jpg',
         }
     }, {
         'url': 'https://hotmovs.com/videos/8789287/unbelievable-malena-morgan-performing-in-incredible-masturantion/',
@@ -178,6 +185,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.hotmovs.com/contents/videos_sources/8789000/8789287/screenshots/10.jpg',
         }
     }, {
         'url': 'https://hotmovs.tube/videos/8789287/unbelievable-malena-morgan-performing-in-incredible-masturantion/',
@@ -193,6 +201,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.hotmovs.com/contents/videos_sources/8789000/8789287/screenshots/10.jpg',
         }
     }, {
         'url': 'https://inporn.com/video/517897/malena-morgan-solo/',
@@ -208,6 +217,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://iptn.m3pd.com/media/tn/sources/517897_1.jpg',
         }
     }, {
         'url': 'https://privatehomeclips.com/videos/3630599/malena-morgan-cam-show/',
@@ -223,6 +233,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://hctn.nv7s.com/contents/videos_sources/3630000/3630599/screenshots/15.jpg',
         }
     }, {
         'url': 'https://tubepornclassic.com/videos/1015455/mimi-rogers-full-body-massage-nude-compilation/',
@@ -238,6 +249,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.tubepornclassic.com/contents/videos_sources/1015000/1015455/screenshots/6.jpg',
         }
     }, {
         'url': 'https://upornia.com/videos/1498858/twistys-malena-morgan-starring-at-dr-morgan-baller/',
@@ -253,6 +265,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.upornia.com/contents/videos_sources/1498000/1498858/screenshots/1.jpg',
         }
     }, {
         'url': 'https://upornia.tube/videos/1498858/twistys-malena-morgan-starring-at-dr-morgan-baller/',
@@ -268,6 +281,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.upornia.com/contents/videos_sources/1498000/1498858/screenshots/1.jpg',
         }
     }, {
         'url': 'https://vjav.com/videos/11761/yui-hatano-in-if-yui-was-my-girlfriend2/',
@@ -283,6 +297,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.vjav.com/contents/videos_sources/11000/11761/screenshots/23.jpg',
         }
     }, {
         'url': 'https://vjav.tube/videos/11761/yui-hatano-in-if-yui-was-my-girlfriend2/',
@@ -298,6 +313,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.vjav.com/contents/videos_sources/11000/11761/screenshots/23.jpg',
         }
     }, {
         'url': 'https://voyeurhit.com/videos/332875/charlotte-stokely-elle-alexandra-malena-morgan-lingerie/',
@@ -313,6 +329,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.voyeurhit.com/contents/videos_sources/332000/332875/screenshots/1.jpg',
         }
     }, {
         'url': 'https://voyeurhit.tube/videos/332875/charlotte-stokely-elle-alexandra-malena-morgan-lingerie/',
@@ -328,6 +345,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://tn.voyeurhit.com/contents/videos_sources/332000/332875/screenshots/1.jpg',
         }
     }]
     _WEBPAGE_TESTS = [{
@@ -343,6 +361,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int,
             'dislike_count': int,
             'age_limit': 18,
+            'thumbnail': 'https://hctn.nv7s.com/contents/videos_sources/5119000/5119660/screenshots/1.jpg',
         }
     }]
 
@@ -377,6 +396,7 @@ class TxxxIE(InfoExtractor):
             'like_count': int_or_none(traverse_obj(video_info, ('video', 'statistics', 'likes'))),
             'dislike_count': int_or_none(traverse_obj(video_info, ('video', 'statistics', 'dislikes'))),
             'age_limit': 18,
+            'thumbnail': traverse_obj(video_info, ('video', 'thumbsrc', {url_or_none})),
             'formats': get_formats(host, video_file),
         }
 

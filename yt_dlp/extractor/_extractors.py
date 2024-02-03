@@ -139,6 +139,10 @@ from .ard import (
     ARDMediathekCollectionIE,
     ARDIE,
 )
+from .art19 import (
+    Art19IE,
+    Art19ShowIE,
+)
 from .arte import (
     ArteTVIE,
     ArteTVEmbedIE,
@@ -370,6 +374,7 @@ from .clippit import ClippitIE
 from .cliprs import ClipRsIE
 from .closertotruth import CloserToTruthIE
 from .cloudflarestream import CloudflareStreamIE
+from .cloudycdn import CloudyCDNIE
 from .clubic import ClubicIE
 from .clyp import ClypIE
 from .cmt import CMTIE
@@ -565,6 +570,7 @@ from .eroprofile import (
     EroProfileIE,
     EroProfileAlbumIE,
 )
+from .err import ERRJupiterIE
 from .ertgr import (
     ERTFlixCodenameIE,
     ERTFlixIE,
@@ -1002,6 +1008,11 @@ from .lrt import (
     LRTVODIE,
     LRTStreamIE
 )
+from .lsm import (
+    LSMLREmbedIE,
+    LSMLTVEmbedIE,
+    LSMReplayIE
+)
 from .lumni import (
     LumniIE
 )
@@ -1237,7 +1248,10 @@ from .nexx import (
     NexxIE,
     NexxEmbedIE,
 )
-from .nfb import NFBIE
+from .nfb import (
+    NFBIE,
+    NFBSeriesIE,
+)
 from .nfhsnetwork import NFHSNetworkIE
 from .nfl import (
     NFLIE,
@@ -1274,6 +1288,7 @@ from .niconico import (
     NicovideoTagURLIE,
     NiconicoLiveIE,
 )
+from .ninaprotocol import NinaProtocolIE
 from .ninecninemedia import (
     NineCNineMediaIE,
     CPTwentyFourIE,
@@ -1380,6 +1395,7 @@ from .ora import OraTVIE
 from .orf import (
     ORFTVthekIE,
     ORFFM4StoryIE,
+    ORFONIE,
     ORFRadioIE,
     ORFPodcastIE,
     ORFIPTVIE,
@@ -1504,7 +1520,7 @@ from .puhutv import (
     PuhuTVSerieIE,
 )
 from .pr0gramm import Pr0grammIE
-from .prankcast import PrankCastIE
+from .prankcast import PrankCastIE, PrankCastPostIE
 from .premiershiprugby import PremiershipRugbyIE
 from .presstv import PressTVIE
 from .projectveritas import ProjectVeritasIE
@@ -2481,6 +2497,7 @@ from .zee5 import (
     Zee5SeriesIE,
 )
 from .zeenews import ZeeNewsIE
+from .zetland import ZetlandDKArticleIE
 from .zhihu import ZhihuIE
 from .zingmp3 import (
     ZingMp3IE,
