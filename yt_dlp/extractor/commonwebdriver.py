@@ -1436,12 +1436,9 @@ browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.
                         os.remove(self.cache._get_cache_fn('is_valid', get_host(_url), 'json'))
                 with _decor:
                     try:
-                        _headers = {
-                            'Sec-Fetch-Dest': 'video', 'Sec-Fetch-Mode': 'cors',
-                            'Sec-Fetch-Site': 'cross-site', 'Pragma': 'no-cache',
-                            'Cache-Control': 'no-cache'}
+                        _headers = {}
                         if short:
-                            _headers['Range'] = 'bytes=0-100'
+                            _headers['range'] = 'bytes=0-100'
                         return self.send_http_request(
                             _url, _type="GET", timeout=timeout,
                             headers=_headers, msg=f'[valid]{_pre_str}')
@@ -1487,7 +1484,7 @@ browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.
 
                         self.logger_debug(f'[valid]{_pre_str}:{_valid} check with webpage content')
                         _final_res = {'webpage': webpage, **_res_valid[_valid]}
-                        if not inc_error:
+                        if _valid or not inc_error:
                             return _final_res
                         else:
                             return {'error': 'video not found or deleted 404', **_final_res}
@@ -1592,7 +1589,7 @@ browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.
             premsg = f'{msg}{premsg}'
 
         _close_cl = False
-        if not (client := kwargs.pop('client')):
+        if not (client := kwargs.pop('client', )):
             client = cls.get_temp_client()
             _close_cl = True
 
