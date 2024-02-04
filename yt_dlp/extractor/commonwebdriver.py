@@ -658,11 +658,11 @@ class MyHAR:
 
     class getNetworkHAR:
 
-        def __init__(self, har_file, logger=None, msg=None, port=8080):
+        def __init__(self, har_file, msg=None, port=8080):
             self.har_file = har_file
             self.port = port
             self.cmd = f"mitmdump -p {port} --set hardump={self.har_file}"
-            self.logger = logger or logging.getLogger('getHAR').debug
+            self.logger = logging.getLogger('getHAR')
             self.pre = '[getHAR]'
             if msg:
                 self.pre += msg
@@ -681,7 +681,6 @@ class MyHAR:
                 return _log
 
         def _handle_close(self):
-            self.ps.wait()
             return [
                 self._close_pipe_proc(_pipe)
                 for _pipe in [self.ps.stdout, self.ps.stderr]]
@@ -696,11 +695,10 @@ class MyHAR:
             self.ps.poll()
             if self.ps.returncode is not None:
                 _logs = self._handle_close()
-                self.logger("".join([
+                self.logger.error("".join([
                     f"{self.pre}error rcode[{self.ps.returncode}]\n",
                     f"LOGOUT{_logs[0]}\nLOGERR{_logs[1]}"]))
                 raise MyHAR.MyHARError("couldnt launch mitmdump")
-
             return self
 
         def __exit__(self, *args):
@@ -712,16 +710,27 @@ class MyHAR:
                     else:
                         return True
 
-            self.ps.terminate()
-            self.ps.poll()
-            self._handle_close()
+            _logs = [None, None]
+            try:
+                self.ps.terminate()
+                self.ps.poll()
+                time.sleep(2)
+                self.ps.poll()
+                self.ps.wait()
+                _logs = self._handle_close()
+                if self.ps.returncode:
+                    raise MyHAR.MyHARError("error closing")
+            except Exception as e:
+                self.logger.error(
+                    f"{self.pre} error closing {repr(e)} - rcode[{self.ps.returncode}]\n"
+                    + f"LOGOUT{_logs[0]}\nLOGERR{_logs[1]}")
             if not wait_for_file(self.har_file, 5):
                 raise MyHAR.MyHARError("couldnt get har file")
-            self.logger(f'{self.pre} har file ready in {self.har_file}')
+            self.logger.debug(f'{self.pre} har file ready in {self.har_file}')
 
     @classmethod
-    def network_har_handler(cls, har_file, logger=None, msg=None, port=8080):
-        return cls.getNetworkHAR(har_file, logger=logger, msg=msg, port=port)
+    def network_har_handler(cls, har_file, msg=None, port=8080):
+        return cls.getNetworkHAR(har_file, msg=msg, port=port)
 
 
 class myIP:
@@ -1254,7 +1263,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         _videoid_str = f"{f'{videoid}_' if videoid else ''}"
         har_file = f"{folder}/dump_{_videoid_str}{_time_str}.har"
         return MyHAR.network_har_handler(
-            har_file, logger=self.logger_debug, msg=msg, port=port)
+            har_file, msg=msg, port=port)
 
     def scan_for_request(
             self, _valid_url, driver=None, har=None, _method="GET", _mimetype=None,
