@@ -1169,7 +1169,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                 raise_reextract_info("couldnt get m3u8 doc")
 
         except ReExtractInfo as e:
-            logger.info(f"{premsg} reextractinfo {str(e)}")
+            self.logger_debug(f"{premsg} reextractinfo {str(e)}")
             NakedSwordBaseIE._MOVIES[_id_movie]['on_backoff'] = True
             raise
         except Exception as e:
