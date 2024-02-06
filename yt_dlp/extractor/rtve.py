@@ -17,7 +17,7 @@ from ..utils import (
 
 
 class RTVEPlayIE(InfoExtractor):
-    IE_NAME = 'rtve.es:play'
+    IE_NAME = 'rtve.es:play'  # type: ignore
     IE_DESC = 'RTVE Play'
     _VALID_URL = r'https?://(?:www\.)?rtve\.es/(?P<kind>(?:playz?|(?:m/)?alacarta)/(?:audios|videos)|filmoteca)/[^/]+/[^/]+/(?P<id>\d+)'
 
@@ -77,10 +77,11 @@ class RTVEPlayIE(InfoExtractor):
     }]
 
     def _real_initialize(self):
-        user_agent_b64 = base64.b64encode(self.get_param('http_headers')['User-agent'].encode('utf-8')).decode('utf-8')
-        self._manager = self._download_json(
-            'http://www.rtve.es/odin/loki/' + user_agent_b64,
-            None, 'Fetching manager info')['manager']
+        if _ua := try_get(self.get_param('http_headers'), lambda x: x['User-agent'].encode('utf-8')):
+            user_agent_b64 = base64.b64encode(_ua).decode('utf-8')
+            self._manager = self._download_json(
+                'http://www.rtve.es/odin/loki/' + user_agent_b64,
+                None, 'Fetching manager info')['manager']  # type: ignore
 
     @staticmethod
     def _decrypt_url(png):
@@ -116,30 +117,25 @@ class RTVEPlayIE(InfoExtractor):
     def _extract_drm_mpd_formats(self, video_id):
         _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
 
-        if (_mpd_fmts := self._extract_mpd_formats(
-                f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, 'dash', headers=_headers, fatal=False)):
+        if (
+            _mpd_fmts := self._extract_mpd_formats(
+                f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, 'dash', headers=_headers, fatal=False)
+        ):
+            _lic_drm = traverse_obj(self._download_json(
+                f"https://api.rtve.es/api/token/{video_id}", video_id, headers=_headers), "widevineURL")
 
-            _list_pssh = []
-            _lic_drm = None
-            if (_mpd_doc := self._download_xml(f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, headers=_headers)):
-                if (_list_pssh := list(set(list(map(
-                        lambda x: x.text, list(_mpd_doc.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))):
-                    _list_pssh.sort(key=len)
-                    _lic_drm = traverse_obj(self._download_json(
-                        f"https://api.rtve.es/api/token/{video_id}", video_id, headers=_headers), "widevineURL")
-
-            return (_mpd_fmts, {"licurl": _lic_drm, "pssh": _list_pssh})
+            return (_mpd_fmts, {"licurl": _lic_drm})
 
     def _real_extract(self, url):
-        groups = re.match(self._VALID_URL, url).groupdict()
-        is_audio = groups.get('kind') == 'play/audios'
-        return self._real_extract_from_id(groups['id'], is_audio)
+        if groups := try_get(re.match(self._VALID_URL, url), lambda x: x.groupdict()):
+            is_audio = groups.get('kind') == 'play/audios'
+            return self._real_extract_from_id(groups['id'], is_audio)
 
     def _real_extract_from_id(self, video_id, is_audio=False):
         kind = 'audios' if is_audio else 'videos'
         info = self._download_json(
             'http://www.rtve.es/api/%s/%s.json' % (kind, video_id),
-            video_id)['page']['items'][0]
+            video_id)['page']['items'][0]  # type: ignore
         if (info.get('pubState') or {}).get('code') == 'DESPU':
             raise ExtractorError('The video is no longer available', expected=True)
         title = info['title'].strip()
@@ -153,7 +149,7 @@ class RTVEPlayIE(InfoExtractor):
 
         _mpd_fmts, _info_drm = try_get(
             self._extract_drm_mpd_formats(video_id),
-            lambda x: x if x else (None, None))
+            lambda x: x if x else (None, None))  # type: ignore
 
         if _mpd_fmts:
             formats.extend(_mpd_fmts)
@@ -173,12 +169,15 @@ class RTVEPlayIE(InfoExtractor):
         }
 
     def _get_subtitles(self, video_id, sub_file):
-        subs = self._download_json(
+        subs = traverse_obj(self._download_json(
             sub_file + '.json', video_id,
-            'Downloading subtitles info')['page']['items']
-        return dict(
-            (s['lang'], [{'ext': 'vtt', 'url': s['src']}])
-            for s in subs)
+            'Downloading subtitles info'), ('page', 'items'))
+        if not isinstance(subs, list):
+            return {}
+        else:
+            return dict(
+                (s['lang'], [{'ext': 'vtt', 'url': s['src']}])
+                for s in subs)
 
 
 class RTVEInfantilIE(RTVEPlayIE):
@@ -250,7 +249,7 @@ class RTVELiveIE(RTVEPlayIE):
 
 
 class RTVETelevisionIE(InfoExtractor):
-    IE_NAME = 'rtve.es:television'
+    IE_NAME = 'rtve.es:television'  # type: ignore
     # https://www.rtve.es/SECTION/YYYYMMDD/CONTENT_SLUG/CONTENT_ID.shtml
     _VALID_URL = r'https?://(?:www\.)?rtve\.es/[^/]+/\d{8}/[^/]+/(?P<id>\d+)\.shtml'
 
@@ -310,7 +309,7 @@ class RTVETelevisionIE(InfoExtractor):
 
         alacarta_url = self._search_regex(
             r'data-location="alacarta_videos"[^<]+url&quot;:&quot;(https?://www\.rtve\.es/play.+?)&',
-            webpage, 'alacarta url', default=None)
+            webpage, 'alacarta url', default=None)  # type: ignore
         if alacarta_url is None:
             raise ExtractorError(
                 'The webpage doesn\'t contain any video', expected=True)
