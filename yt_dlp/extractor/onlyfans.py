@@ -625,7 +625,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     _formats = []
 
                     _licurl = None
-                    _pssh_list = None
 
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
@@ -641,14 +640,12 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                 for cookie in OnlyFansBaseIE.conn_api.session.cookies.jar:
                                     if self._downloader:
                                         self._downloader.cookiejar.set_cookie(cookie)
-                                self.logger_info(f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL)}")
+                                self.logger_info(
+                                    f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL)}")
                                 _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
-                                if mpd_xml := self._download_xml(_mpd_url, video_id=videoid, headers=_headers):
-                                    _pssh_list = list(set(list(map(
-                                        lambda x: x.text, list(mpd_xml.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))
                                 _base_api_media = "https://onlyfans.com/api2/v2/users/media"
                                 _licurl = f"{_base_api_media}/{videoid}/drm/post/{data_post['id']}?type=widevine"
-                                self.logger_debug(f"[extract_from_json] drm: licurl [{_licurl}] pssh {_pssh_list}")
+                                self.logger_debug(f"[extract_from_json] drm: licurl [{_licurl}]")
 
                                 _formats_dash, _ = self._extract_mpd_formats_and_subtitles(
                                     _mpd_url, videoid, mpd_id='dash', headers=_headers)
@@ -718,7 +715,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             "formats": _formats,
                             "duration": _media.get('info', {}).get('source', {}).get('duration', 0),
                             "ext": "mp4",
-                            "_drm": {'licurl': _licurl, 'pssh': _pssh_list},
+                            "_drm": {'licurl': _licurl},
                             "extractor": self.IE_NAME,
                             "extractor_key": self.ie_key()}
 
