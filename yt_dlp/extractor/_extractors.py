@@ -2652,7 +2652,6 @@ from .upstream import (
     UpstreamIE,
     VideobinIE
 )
-from .xvidgay import XvidgayIE
 from .pornone import PornoneIE
 from .realpython import RealPythonIE
 from .thisvidgay import (

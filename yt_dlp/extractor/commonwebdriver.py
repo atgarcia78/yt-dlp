@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import cached_property
@@ -56,6 +56,7 @@ from ..utils import (
     find_available_port,
     int_or_none,
     traverse_obj,
+    try_call,
     try_get,
     unsmuggle_url,
     variadic,
@@ -1283,34 +1284,48 @@ class SeleniumInfoExtractor(InfoExtractor):
             timeout=timeout, inclheaders=inclheaders, check_event=self.check_stop)
 
     def wait_until(
-        self, driver: Firefox, timeout: float = 60, method: None | Callable = None,
-        poll_freq: float = 0.5
+        self, driver: Firefox, timeout: int | float = 60, method: None | Iterable | Callable = None,
+        poll_freq: float = 0.5, get_all=False, fatal=True
     ):
 
         _poll_freq = poll_freq
         if not method:
-            method = ec.title_is("DUMMYFORWAIT")
+            method = [ec.title_is("DUMMYFORWAIT")]
             _poll_freq = 0.01
-        try:
-            return WebDriverWait(driver, timeout, poll_frequency=_poll_freq).until(
-                ec.any_of(checkStop(self.check_stop), method))
-        except StatusStop:
-            raise
-        except Exception:
-            return
+        elif callable(method):
+            method = [method]
+
+        res = []
+        for _method in method:
+
+            try:
+                _res = WebDriverWait(driver, timeout, poll_frequency=_poll_freq).until(
+                    ec.any_of(checkStop(self.check_stop), _method))
+                res.append(_res)
+            except StatusStop:
+                raise
+            except Exception as e:
+                if fatal:
+                    return
+                else:
+                    res.append({'error': repr(e)})
+
+        return res if get_all else try_call(lambda: res[-1])
 
     def clear_firefox_cache(self, driver: Firefox, timeout: float = 10):
         dialog_selector = 'vbox.dialogOverlay:nth-child(1) > vbox:nth-child(1) > browser:nth-child(2)'
         accept_dialog_script = '''
-const browser = document.querySelector("%s");
-browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.click()
-''' % dialog_selector
+            const browser = document.querySelector("%s");
+            browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.click()''' % dialog_selector
 
         def get_clear_site_data_button(driver):
             return driver.find_element(by=By.CSS_SELECTOR, value='#clearSiteDataButton')
 
         def get_clear_site_data_dialog(driver):
             return driver.find_element(by=By.CSS_SELECTOR, value=dialog_selector)
+
+        orig_window = driver.current_window_handle
+        driver.switch_to.new_window('tab')
 
         driver.get('about:preferences#privacy')
         wait = WebDriverWait(driver, timeout)
@@ -1322,6 +1337,9 @@ browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.
         # Accept the "Clear Data" dialog by clicking on the "Clear" button.
         wait.until(get_clear_site_data_dialog)
         driver.execute_script(accept_dialog_script)
+
+        driver.close()
+        driver.switch_to.window(orig_window)
 
     def get_info_for_format(self, url, **kwargs):
 
@@ -1589,19 +1607,17 @@ browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.
             premsg = f'{msg}{premsg}'
 
         _close_cl = False
-        if not (client := kwargs.pop('client', )):
+        if not (client := kwargs.pop('client', None)):
             client = cls.get_temp_client()
             _close_cl = True
 
-        res = None
-        req = None
-        _msg_err = ""
+        req = res = _msg_err = None
 
         try:
             req = client.build_request(_type, url, **kwargs)
             if not (res := client.send(req)):
                 return None
-            if fatal:
+            elif fatal:
                 res.raise_for_status()
             return res
         except ConnectError as e:
@@ -1609,24 +1625,27 @@ browser.contentDocument.documentElement.querySelector("dialog")._buttons.accept.
             if 'errno 61' in _msg_err.lower():
                 raise
             else:
-                raise_extractor_error(_msg_err)
+                raise_extractor_error(_msg_err, _from=e)
         except HTTPStatusError as e:
             e.args = (e.args[0].split(' for url')[0],)
             _msg_err = f"{premsg} {str(e)}"
             if e.response.status_code == 403:
                 raise_reextract_info(_msg_err)
-            elif e.response.status_code == 503:
+            elif e.response.status_code in (502, 503):
                 raise StatusError503(_msg_err) from None
             else:
                 raise
         except Exception as e:
-            _msg_err = f"{premsg} {str(e)}"
-            _logger(f"[{cls.IE_NAME}] {_msg_err}")
+            _msg_err = f"{premsg} {repr(e)}"
             if not res:
-                raise TimeoutError(_msg_err) from None
+                raise TimeoutError(_msg_err) from e
             else:
-                raise_extractor_error(_msg_err)
+                raise_extractor_error(_msg_err, _from=e)
         finally:
-            _logger(f"[{cls.IE_NAME}] {_msg_err} {req}:{req.headers if req else None}:{res}")
+            _error = f"Error: {_msg_err}\n" if _msg_err else ''
+            _resp = f"{res}\n" if res else "<Response ''>\n"
+            _req = f"{req}:{req.headers}" if req else "<Requests ''>"
+            _logger(
+                f"[{cls.IE_NAME}] {_error}{_resp}{_req}")
             if _close_cl:
                 client.close()

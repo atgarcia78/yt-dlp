@@ -74,7 +74,8 @@ class AccountBase:
             name, value = cookie.strip().split('=')
             if name == 'auth_id':
                 self.authID = value
-            self.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
+            self.session.cookies.set(
+                name=name, value=value, domain='.onlyfans.com')
 
     def load_cookies(self, cookies):
         _cookies = []
@@ -83,7 +84,8 @@ class AccountBase:
             _cookies.append(f'{name}={value}')
             if name == 'auth_id':
                 self.authID = value
-            self.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
+            self.session.cookies.set(
+                name=name, value=value, domain='.onlyfans.com')
         self.cookies = '; '.join(_cookies)
 
     def createHeaders(self, path):
@@ -112,22 +114,25 @@ class AccountBase:
         if response.status_code == 200:
             return response.json()
         else:
-            self.logger.error(f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
+            self.logger.error(
+                f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
             return {}
 
-    def post(self, path, _headers=None, _content=None):
+    def post(self, path, _headers=None, _content=None) -> httpx.Response | None:
         headers = self.createHeaders(path)
         if _headers:
             headers.update(_headers)
-        response = self.session.post(f'https://onlyfans.com{path}', headers=headers, content=_content)
+        response = self.session.post(
+            f'https://onlyfans.com{path}', headers=headers, content=_content)
 
-        self.logger.debug(f'[get] {response.request.url} {response.request.headers} {response.request.content}')
+        self.logger.debug(
+            f'[get] {response.request.url} {response.request.headers} {response.request.content}')
 
         if response.status_code == 200:
             return response
         else:
-            self.logger.error(f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
-            return {}
+            self.logger.error(
+                f'Path: {path}, Error: {response.status_code}, response text: {response.text}')
 
 
 class Account(AccountBase):
@@ -162,26 +167,33 @@ class Account(AccountBase):
         return subs
 
     def getVideosCount(self, userid) -> int | None:
-        if (data := self.get(f'/api2/v2/users/{userid}/posts/videos?limit=1&skip_users=all&format=infinite&counters=1')):
-            if (_res := traverse_obj(data, ('counters', 'videosCount'), default=None)):
-                return int(_res)
+        if (
+            data := self.get(
+                f'/api2/v2/users/{userid}/posts/videos?limit=1&skip_users=all&format=infinite&counters=1')
+        ):
+            if _res := traverse_obj(data, ('counters', 'videosCount', {lambda x: int(x)})):
+                return _res  # type: ignore
 
     def getVideoPosts(self, userid, account, total, order="publish_date_desc", num=10, use_cache=False):
         count = 0
         posts = []
 
+        _key_cache = f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}'
         if use_cache:
-            if (_res := self.cache.load('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}')):
-                if (datetime.now() - datetime.fromtimestamp(os.stat(self.cache._get_cache_fn('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}', 'json')).st_mtime)) < timedelta(days=1):
+            if (_res := self.cache.load('onlyfans', _key_cache)):
+                _file_cache = self.cache._get_cache_fn('onlyfans', _key_cache, 'json')
+                _mod_time = datetime.fromtimestamp(os.stat(_file_cache).st_mtime)
+                if (datetime.now() - _mod_time) < timedelta(days=1):
                     return _res
 
         limit = self._POST_LIMIT
         if num < self._POST_LIMIT:
             limit = num
-        _base_url = f'/api2/v2/users/{userid}/posts/videos?limit=%s&order={order}&skip_users=all&format=infinite&%s'
+        _base_url = f'/api2/v2/users/{userid}/posts/videos'
+        _query = f'?limit=%s&order={order}&skip_users=all&format=infinite&%s'
         _tail = 'counters=0'
         while True:
-            _url = _base_url % (limit, _tail)
+            _url = _base_url + _query % (limit, _tail)
             self.logger.info(f'[getvideoposts][{account}] {_url}')
             data = self.get(_url)
             if not data:
@@ -190,7 +202,9 @@ class Account(AccountBase):
             count += (_count := len(data['list']))
             with AccountBase._LOCK:
                 self.count[userid] += _count
-                self.logger.info(f'[getvideoposts][{account}] Videos: {num} Count: {count} totalVideos: {total} totalCount: {self.count[userid]}')
+                self.logger.info(
+                    f'[getvideoposts][{account}] Videos: {num} Count: {count} '
+                    + f'totalVideos: {total} totalCount: {self.count[userid]}')
 
             if (num == total):
                 if (not (_res := data['hasMore']) or _res == 'false'):
@@ -211,16 +225,17 @@ class Account(AccountBase):
                 _tail = f"counters=0&afterPublishTime={data['tailMarker']}"
 
         if use_cache:
-            self.cache.store('onlyfans', f'{account}_{order}_num_{num}_limit_{self._POST_LIMIT}', posts)
+            self.cache.store('onlyfans', _key_cache, posts)
 
         return posts
 
     def getMessagesChat(self, userid):
         messages = []
-        _base_url = f'/api2/v2/chats/{userid}/messages?limit=200&order=desc&skip_users=all%s'
+        _base_url = f'/api2/v2/chats/{userid}/messages'
+        _query = '?limit=200&order=desc&skip_users=all%s'
         _tail = ''
         while True:
-            _url = _base_url % _tail
+            _url = _base_url + _query % _tail
             self.logger.info(f'[getmsgschat] {_url}')
             data = self.get(_url)
             if not data:
@@ -240,9 +255,10 @@ class Account(AccountBase):
         limit = self._POST_LIMIT
         offset = 0
         videos = []
-        _base_url = f'/api2/v2/posts/paid?limit={limit}&skip_users=all&format=infinite&sort=all&offset=%s'
+        _base_url = '/api2/v2/posts/paid'
+        _query = f'?limit={limit}&skip_users=all&format=infinite&sort=all&offset=%s'
         while True:
-            _url = _base_url % offset
+            _url = _base_url + _query % offset
             self.logger.debug(f'[getpurchased] {_url}')
             data = self.get(_url)
             if not data:
@@ -303,10 +319,12 @@ class succ_or_twlogin:
         if el:
             return ("loginok", el[0])
         else:
-
-            el_username = driver.find_elements(by=By.CSS_SELECTOR, value="input#username_or_email.text")
-            el_password = driver.find_elements(by=By.CSS_SELECTOR, value="input#password.text")
-            el_login = driver.find_elements(by=By.CSS_SELECTOR, value="input#allow.submit.button.selected")
+            el_username = driver.find_elements(
+                by=By.CSS_SELECTOR, value="input#username_or_email.text")
+            el_password = driver.find_elements(
+                by=By.CSS_SELECTOR, value="input#password.text")
+            el_login = driver.find_elements(
+                by=By.CSS_SELECTOR, value="input#allow.submit.button.selected")
 
             if el_username and el_password and el_login:
                 return ("twlogin", el_username[0], el_password[0], el_login[0])
@@ -321,11 +339,11 @@ class succ_or_twrelogin:
         if el:
             return ("loginok", el[0])
         else:
+            _find_el = lambda x: driver.find_elements(by=By.PARTIAL_LINK_TEXT, value=x)
 
-            el_username = driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="usuario") or driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="user")
-            el_password = driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Contra") or driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Pass")
-
-            el_login = driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Iniciar") or driver.find_elements(by=By.PARTIAL_LINK_TEXT, value="Start")
+            el_username = _find_el("usuario") or _find_el("user")
+            el_password = _find_el("Contra") or _find_el("Pass")
+            el_login = _find_el("Iniciar") or _find_el("Start")
 
             if el_username and el_password and el_login:
                 return ("twrelogin", el_username[0], el_password[0], el_login[0])
@@ -563,14 +581,14 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             self.wait_until(driver, 1)
 
     @classmethod
-    def validate_drm_lic(cls, licurl: str, challenge: bytes) -> bytes:
+    def validate_drm_lic(cls, licurl: str, challenge: bytes) -> None | bytes:
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
 
         _path = try_get(urlparse(licurl), lambda x: x.path + '?' + x.query)
-        return OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _content=challenge).content
+        if _res := OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _content=challenge):
+            return _res.content
 
     def _extract_from_json(self, data_post, user_profile=None):
-
         def save_config():
             try:
                 with open("/Users/antoniotorres/.config/yt-dlp/onlyfans_conf.json", "w") as f:
@@ -582,7 +600,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
             account = user_profile
             if not account:
                 userid = traverse_obj(data_post, ('fromUser', 'id'), ('author', 'id'))
-                if not userid:
+                if not isinstance(userid, str):
                     raise ExtractorError('no userid')
                 else:
                     if str(userid) not in OnlyFansBaseIE._CONF['subs']:
@@ -592,8 +610,8 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     else:
                         account = OnlyFansBaseIE._CONF['subs'][str(userid)]
 
-            _datevideo = traverse_obj(data_post, 'createdAt', 'postedAt', default='')
-            if not _datevideo:
+            _datevideo = traverse_obj(data_post, 'createdAt', 'postedAt', default='')  # type: ignore
+            if not isinstance(_datevideo, str):
                 raise ExtractorError("no datevideo")
             date_timestamp = int(datetime.fromisoformat(_datevideo).timestamp())
 
@@ -606,44 +624,42 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     videoid = str(_media['id'])
                     _formats = []
 
+                    _licurl = None
+                    _pssh_list = None
+
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
-                            _signature = traverse_obj(_drm, ('signature', 'dash'), default={})
-                            _cookies_drm = []
-                            for name, value in _signature.items():
-                                _cookies_drm.append(f'{name}={value}')
-                                OnlyFansBaseIE.conn_api.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
-                            _cookies_drm_str = '; '.join(_cookies_drm)
-                            # OnlyFansBaseIE.conn_api.session.cookies.jar.set_cookie(http.cookiejar.Cookie(
-                            #     version=0, name=name, value=value, port=None, port_specified=False,
-                            #     domain='onlyfans.com', domain_specified=True, domain_initial_dot=True, path='/',
-                            #     path_specified=True, secure=False, expires=None, discard=False, comment=None,
-                            #     comment_url=None, rest={}))
-                            _cookie_str = OnlyFansBaseIE.conn_api.cookies + '; ' + _cookies_drm_str
-                            self.logger_info(f"[extract_from_json] cookies {_cookie_str}")
-                            for cookie in OnlyFansBaseIE.conn_api.session.cookies.jar:
-                                self._downloader.cookiejar.set_cookie(cookie)
-                            self.logger_info(f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL)}")
-                            _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
-                            mpd_xml = self._download_xml(_mpd_url, video_id=videoid, headers=_headers)
-                            _pssh_list = list(set(list(map(
-                                lambda x: x.text, list(mpd_xml.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))
-                            _base_api_media = "https://onlyfans.com/api2/v2/users/media"
-                            _licurl = f"{_base_api_media}/{videoid}/drm/post/{data_post['id']}?type=widevine"
-                            self.logger_debug(f"[extract_from_json] drm: licurl [{_licurl}] pssh {_pssh_list}")
+                            _signature = traverse_obj(_drm, ('signature', 'dash'), default={})  # type: ignore
+                            if isinstance(_signature, dict):
+                                _cookies_drm = []
+                                for name, value in _signature.items():
+                                    _cookies_drm.append(f'{name}={value}')
+                                    OnlyFansBaseIE.conn_api.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
+                                _cookies_drm_str = '; '.join(_cookies_drm)
+                                _cookie_str = OnlyFansBaseIE.conn_api.cookies + '; ' + _cookies_drm_str
+                                self.logger_info(f"[extract_from_json] cookies {_cookie_str}")
+                                for cookie in OnlyFansBaseIE.conn_api.session.cookies.jar:
+                                    if self._downloader:
+                                        self._downloader.cookiejar.set_cookie(cookie)
+                                self.logger_info(f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL)}")
+                                _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
+                                if mpd_xml := self._download_xml(_mpd_url, video_id=videoid, headers=_headers):
+                                    _pssh_list = list(set(list(map(
+                                        lambda x: x.text, list(mpd_xml.iterfind('.//{urn:mpeg:cenc:2013}pssh'))))))
+                                _base_api_media = "https://onlyfans.com/api2/v2/users/media"
+                                _licurl = f"{_base_api_media}/{videoid}/drm/post/{data_post['id']}?type=widevine"
+                                self.logger_debug(f"[extract_from_json] drm: licurl [{_licurl}] pssh {_pssh_list}")
 
-                            _formats_dash, _ = self._extract_mpd_formats_and_subtitles(
-                                _mpd_url, videoid, mpd_id='dash', headers=_headers)
-                            for _fmt in _formats_dash:
-                                if (_head := _fmt.get('http_headers')):
-                                    _head.update(_headers)
-                                else:
-                                    _fmt.update({'http_headers': _headers})
+                                _formats_dash, _ = self._extract_mpd_formats_and_subtitles(
+                                    _mpd_url, videoid, mpd_id='dash', headers=_headers)
+                                for _fmt in _formats_dash:
+                                    if (_head := _fmt.get('http_headers')):
+                                        _head.update(_headers)
+                                    else:
+                                        _fmt.update({'http_headers': _headers})
 
-                            _formats.extend(_formats_dash)
+                                _formats.extend(_formats_dash)
                     else:
-                        _pssh_list = None
-                        _licurl = None
                         orig_width = orig_height = None
                         if (_url := traverse_obj(_media, ('source', 'source'))):
 
@@ -652,13 +668,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                 'width': (orig_width := _media.get('info', {}).get('source', {}).get('width')),
                                 'height': (orig_height := _media.get('info', {}).get('source', {}).get('height')),
                                 'format_id': f"{orig_height}p-orig",
-                                #  'filesize': _filesize,
                                 'format_note': "original",
                                 'ext': "mp4"
                             })
 
                         if _url2 := _media.get('videoSources', {}).get('720'):
-                            #  _filesize2 = self._get_filesize(_url2)
 
                             if orig_width and orig_height and (orig_width > orig_height):
                                 height = 720
@@ -673,13 +687,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                 'format_note': "720",
                                 'height': height,
                                 'width': width,
-                                #  'filesize': _filesize2,
                                 'ext': "mp4"
                             })
 
                         if _url3 := _media.get('videoSources', {}).get('240'):
-                            #  _filesize3 = self._get_filesize(_url3)
-
                             if orig_width and orig_height and (orig_width > orig_height):
                                 height = 240
                                 width = 426
@@ -693,7 +704,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                 'format_note': "240",
                                 'height': height,
                                 'width': width,
-                                #  'filesize': _filesize3,
                                 'ext': "mp4"
                             })
 
@@ -770,9 +780,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                     for _video in _entry:
                         if not _video['id'] in entries:
                             entries[_video['id']] = _video
-                    else:
-                        if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                            entries[_video['id']] = _video
+                        else:
+                            if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
+                                entries[_video['id']] = _video
 
             return entries
 
@@ -837,9 +847,13 @@ class OnlyFansPlaylistIE(OnlyFansBaseIE):
 
     def _real_extract(self, url):
 
-        info = try_get(
-            re.search(self._VALID_URL, url),  # type: ignore
-            lambda x: x.groupdict())
+        if not (
+            info := try_get(
+                re.search(self._VALID_URL, url),  # type: ignore
+                lambda x: x.groupdict())
+        ):
+            raise ExtractorError('no info')
+
         self.to_screen(info)
         account, mode, query = info['account'], info.get('mode', 'latest'), info.get('query')
         if mode in ('new', 'newest'):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import functools
 import html
 import json
 import logging
@@ -117,28 +118,7 @@ class forlogout:
         el_uas = driver.find_element(By.CSS_SELECTOR, "div.UserActions")
         el_loggin = el_uas.find_element(By.CLASS_NAME, "UserAction")
         el_loggin.click()
-        time.sleep(1)
         return True
-
-
-class closeDeals:
-    def __call__(self, driver):
-        el_but = driver.find_elements(by=By.CLASS_NAME, value="MemberDealsModalCLoseBtn")
-        logger.debug(f"[closedeals] but:{el_but}")
-        if not el_but:
-            return False
-        _ok = False
-        for _el_but in el_but:
-            try:
-                _el_but.click()
-                _ok = True
-            except Exception as e:
-                logger.debug(f"[closedeals] click but error - {repr(e)}")
-        if _ok:
-            logger.debug("[closedeals] click but ok")
-            return True
-        else:
-            return False
 
 
 class NakedSwordError(YoutubeDLError):
@@ -693,16 +673,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _is_logged(self, driver):
         if 'nakedsword.com' not in driver.current_url:
             NakedSwordBaseIE._send_request(self._SITE_URL, driver=driver)
-        logged_ok = driver.execute_script(_SCRIPT_IS_LOGGED)
-        self.logger_debug(f"[is_logged] {logged_ok}")
-        return logged_ok
+        return driver.execute_script(_SCRIPT_IS_LOGGED)
 
     def _logout(self, driver):
         try:
             logged_out = True
             if self._is_logged(driver):
-                self.wait_until(driver, 5, forlogout())
-                logged_out = not self._is_logged(driver)
+                logged_out = self.wait_until(driver, 10, [
+                    forlogout(), lambda x: not self._is_logged(x)])
             self.logger_info(f'[logout] Logout[{"OK" if logged_out else "NOK"}]')
             driver.get('about:blank')
         except Exception as e:
@@ -711,6 +689,25 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def _login(self, driver):
 
         _method_class = lambda x: ec.presence_of_element_located((By.CLASS_NAME, x))
+
+        def _method(value, action, driver):
+            el = _method_class(value)(driver)
+            if el:
+                action(el)
+                return True
+
+        def method(value, action):
+            return functools.partial(_method, value, action)
+
+        def _action_send(text, el):
+            el.send_keys(text)
+
+        def action_sendkeys(text):
+            return functools.partial(_action_send, text)
+
+        def action_click(el):
+            el.click()
+
         try:
             driver.maximize_window()
             if not self._is_logged(driver):
@@ -722,28 +719,14 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     self.raise_login_required(
                         'A valid %s account is needed to access this media.'
                         % self._NETRC_MACHINE)
-                self.wait_until(driver, 5, forlogin())
 
-                if not (el_username := self.wait_until(
-                        driver, 15, _method_class("Input.Username"))):
-                    raise ExtractorError("login nok")
-                if not (el_psswd := self.wait_until(
-                        driver, 1, _method_class("Input.Password"))):
-                    raise ExtractorError("login nok")
-                if not (el_submit := self.wait_until(
-                        driver, 1, _method_class("SignInButton"))):
-                    raise ExtractorError("login nok")
+                is_logged = self.wait_until(driver, 15, [
+                    forlogin(), method("Input.Username", action_sendkeys(username)),
+                    method("Input.Password", action_sendkeys(password)),
+                    method("SignInButton", action_click), self._is_logged])
 
-                el_username.send_keys(username)  # type: ignore
-                el_psswd.send_keys(password)  # type: ignore
-                el_submit.click()  # type: ignore
-
-                self.wait_until(driver, 3)
-                self.wait_until(driver, 10, closeDeals())
-
-                logged = self._is_logged(driver)
-                self.logger_info(f'[login] Login[{"OK" if logged else "NOK"}]')
-                if logged:
+                self.logger_info(f'[login] Login[{"OK" if is_logged else "NOK"}]')
+                if is_logged:
                     return True
                 else:
                     raise ExtractorError("login nok")
