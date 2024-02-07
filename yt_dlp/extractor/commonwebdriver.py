@@ -1210,7 +1210,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         '''
         proxy_type = kwargs.get("proxy_type", 1)
         port = kwargs.get("port")
-        host = kwargs.get("host")
+        host = kwargs.get("host", "127.0.0.1")
         driver.timeouts.script = 60
 
         _script = []
@@ -1229,10 +1229,20 @@ class SeleniumInfoExtractor(InfoExtractor):
                 _script.append(f'prefs.setIntPref("network.proxy.ssl_port", {port});')
                 _script.append(f'prefs.setIntPref("network.proxy.socks_port", {port});')
 
-        if driver.current_url != 'about:preferences':
-            driver.get('about:preferences')
+        orig_window = driver.current_window_handle
+        driver.switch_to.new_window('tab')
+
+        driver.get('about:preferences#general')
+
         _js_script = "\n".join(_script)
         driver.execute_script(_js_script)
+
+        self.wait_until(driver, 0.5)
+
+        driver.close()
+        driver.switch_to.window(orig_window)
+
+        self.wait_until(driver, 0.5)
 
     @classmethod
     def rm_driver(cls, driver):
