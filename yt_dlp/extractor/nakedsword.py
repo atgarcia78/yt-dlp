@@ -79,6 +79,7 @@ class info_scene:
     url: str
     m3u8_url: str
     movieurl: str
+    movietitle: str
     movieid: str
     nentries: int
 
@@ -634,7 +635,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
         details = NakedSwordBaseIE._MOVIES[_id_movie]['details']
         num_scenes = NakedSwordBaseIE._MOVIES[_id_movie]['nentries']
-        _movietitle = NakedSwordBaseIE._MOVIES[_id_movie]['title']
+        _title_movie = NakedSwordBaseIE._MOVIES[_id_movie]['title']
         _url_movie = NakedSwordBaseIE._MOVIES[_id_movie]['url_movie']
         _urls_api = NakedSwordBaseIE._MOVIES[_id_movie]['urls_api']
 
@@ -647,7 +648,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         for ind in range(1, num_scenes + 1):
             _scene_id = str_or_none(
                 traverse_obj(details, ('scenes', ind - 1, 'id')))
-            _scene_title = f"{_movietitle}_scene_{ind}"
+            _scene_title = f"{_title_movie}_scene_{ind}"
             _scene_url = f"{_url_movie}/scene/{ind}"
             _m3u8_url = ""
             if ind in scenes:
@@ -657,7 +658,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             info_scenes_list.append(
                 info_scene(
                     ind, _scene_id, _scene_title, _scene_url,
-                    _m3u8_url, _url_movie, _id_movie, num_scenes))
+                    _m3u8_url, _url_movie, _title_movie, _id_movie, num_scenes))
 
         if index_scene:
             return info_scenes_list[0]
@@ -826,6 +827,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             "webpage_url": info.url,
             "original_url": info.movieurl,
             "_index_scene": info.index,
+            "_title_print": f"sc_{info.index}#{info.movietitle}",
             "_n_entries": info.nentries,
             "extractor_key": 'NakedSwordScene',
             "extractor": 'nakedswordscene'
