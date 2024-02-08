@@ -150,7 +150,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     headers_api = {}
     timer = ProgressTimer()
     call_lock = Lock()
-    _JS_SCRIPT = '/Users/antoniotorres/.config/yt-dlp/nsword_getxident.js'
+    _PREFIX_JS_SCRIPT = '/Users/antoniotorres/Projects/async_downloader'
     _HEADERS = {
         "POST": {
             "AUTH": {
@@ -324,7 +324,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     def _get_api_xident(cls):
         proc = subprocess.run(
-            ['node', cls._JS_SCRIPT, cls._APP_DATA_PASSPHRASE],
+            ['npm', '--prefix', cls._PREFIX_JS_SCRIPT, 'run', 'start', '-s', '--', cls._APP_DATA_PASSPHRASE],
             capture_output=True, encoding="utf-8")
 
         if (proc.returncode == 0) and (xident := proc.stdout.strip('\n')):
