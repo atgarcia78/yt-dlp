@@ -324,7 +324,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     def _get_api_xident(cls):
         proc = subprocess.run(
-            ['npm', '--prefix', cls._PREFIX_JS_SCRIPT, 'run', 'start', '-s', '--', cls._APP_DATA_PASSPHRASE],
+            ['npm', '--prefix', cls._PREFIX_JS_SCRIPT, 'run-script', 'getXIndent', '-s', '--', cls._APP_DATA_PASSPHRASE],
             capture_output=True, encoding="utf-8")
 
         if (proc.returncode == 0) and (xident := proc.stdout.strip('\n')):
@@ -813,7 +813,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 exit_event.wait()
                 for _index, _nok_sc in NakedSwordBaseIE._MOVIES[id_movie]['nok'].items():
                     self.logger_info(f"{premsg} nok_sc[{_nok_sc}]")
-
         except Exception as e:
             logger.error(f'{premsg} {repr(e)}')
 
@@ -888,7 +887,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             _THIS_MOVIE['scenes'][index_scene] = {'final': True}
 
         if not _THIS_MOVIE['scenes'][index_scene]['final']:
-            self.wait_with_pb(my_jitter(60), premsg, _url_movie)
+            self.wait_with_pb(my_jitter(60), premsg, _id_movie)
 
         try:
             if 'details' not in _THIS_MOVIE:
@@ -1414,7 +1413,6 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
         super()._real_initialize()
 
     def _real_extract(self, url):
-
         try:
             self.report_extraction(url)
             return self.get_entries_from_movies_list(url)
@@ -1497,9 +1495,7 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
 
             else:
                 return self.playlist_from_matches(
-                    _url_movies,
-                    getter=lambda x: x,
-                    ie=NakedSwordMovieIE,
+                    _url_movies, getter=lambda x: x, ie=NakedSwordMovieIE,
                     playlist_id=f'{sanitize_filename(_query, restricted=True)}',
                     playlist_title="JustAddedMovies")
 
@@ -1511,7 +1507,6 @@ class NakedSwordJustAddedMoviesPlaylistIE(NakedSwordBaseIE):
         super()._real_initialize()
 
     def _real_extract(self, url):
-
         try:
             self.report_extraction(url)
             return self.get_entries_from_justadded_movies_list(url)
