@@ -440,23 +440,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         for _type in _types:
             self.check_stop()
             try:
-                if _type == "dash":
-                    mpd_url = m3u8_url.replace('playlist.m3u8', 'manifest.mpd')
-                    if not (_doc := try_get(
-                        NakedSwordBaseIE._send_request(mpd_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
-                        lambda x: (x.content).decode('utf-8', 'replace'))
-                    ):
-                        raise ExtractorError("couldnt get mpd doc")
-
-                    mpd_doc = self._parse_xml(_doc, None)
-
-                    if formats_dash := self._parse_mpd_formats(
-                        mpd_doc, mpd_id="dash", mpd_url=mpd_url,
-                        mpd_base_url=(mpd_url.rsplit('/', 1))[0],
-                    ):
-                        formats.extend(formats_dash)
-
-                elif _type == "hls":
+                if _type == "hls":
                     if not (m3u8_doc := try_get(
                         NakedSwordBaseIE._send_request(
                             m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"],
@@ -471,6 +455,22 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         for fmt in formats_m3u8:
                             fmt['http_headers'] = NakedSwordBaseIE._HEADERS["HTTP_HEADERS"]
                         formats.extend(formats_m3u8)
+
+                elif _type == "dash":
+                    mpd_url = m3u8_url.replace('playlist.m3u8', 'manifest.mpd')
+                    if not (_doc := try_get(
+                        NakedSwordBaseIE._send_request(mpd_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
+                        lambda x: (x.content).decode('utf-8', 'replace'))
+                    ):
+                        raise ExtractorError("couldnt get mpd doc")
+
+                    mpd_doc = self._parse_xml(_doc, None)
+
+                    if formats_dash := self._parse_mpd_formats(
+                        mpd_doc, mpd_id="dash", mpd_url=mpd_url,
+                        mpd_base_url=(mpd_url.rsplit('/', 1))[0],
+                    ):
+                        formats.extend(formats_dash)
 
                 elif _type == "ism":
                     ism_url = m3u8_url.replace('playlist.m3u8', 'Manifest')
@@ -503,7 +503,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     headers=cls.API_GET_HTTP_HEADERS),
                 lambda x: x.json().get('data'))
         ):
-            NakedSwordBaseIE._MOVIES[_id_movie]['nentries'] = len(details.get('scenes'))  # type: ignore
+            NakedSwordBaseIE._MOVIES[_id_movie]['nentries'] = try_call(lambda: len(details.get('scenes')))  # type: ignore
             NakedSwordBaseIE._MOVIES[_id_movie]['title'] = f"{sanitize_filename(details.get('title'), restricted=True)}"
             NakedSwordBaseIE._MOVIES[_id_movie]['urls_api'] = cls._get_api_scene_urls(details)
             return details
@@ -688,7 +688,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             self.report_warning(f"[logout] Logout NOK {repr(e)}")
 
     def _login(self, driver):
-
         _method_class = lambda x: ec.presence_of_element_located((By.CLASS_NAME, x))
 
         def _method(value, action, driver):
@@ -737,6 +736,26 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             logger.exception(repr(e))
 
+    def get_sanitize_driver(self, msg=None):
+        _driver = _port = None
+        try:
+            _driver, _port = traverse_obj(
+                NakedSwordBaseIE._INFO_DRIVER, (('driver', 'port'),),
+                default=[None, None])  # type: ignore
+            if _driver:
+                if not _driver.service.is_connectable() or not _driver.window_handle:
+                    self.rm_driver(_driver)
+                    driver = NakedSwordBaseIE._INFO_DRIVER = None
+                    if not driver:
+                        _port = self.find_free_port()
+                        if _driver := self.get_driver(noheadless=True, port=_port, host='127.0.0.1'):
+                            self.clear_firefox_cache(driver)  # type: ignore
+                            NakedSwordBaseIE._INFO_DRIVER = {'driver': driver, 'port': _port}
+        except Exception as e:
+            self.logger_debug(f"[get_driver]{msg or ''} {repr(e)}")
+        finally:
+            return _driver, _port
+
     @run_operation_in_executor('har')
     def _get_m3u8_url_logs(self, id_movie, msg, **kwargs):
         with NakedSwordBaseIE._HAR_LOCK:
@@ -745,19 +764,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _THIS_MOVIE = NakedSwordBaseIE._MOVIES[id_movie]
             _har_file = None
             try:
-                driver, _port = traverse_obj(
-                    NakedSwordBaseIE._INFO_DRIVER, (('driver', 'port'),),
-                    default=[None, None])  # type: ignore
-                if driver:
-                    if (not driver.service.is_connectable() or not driver.window_handles):
-                        self.rm_driver(driver)
-                        driver = None
-                        NakedSwordBaseIE._INFO_DRIVER = None
-                if not driver:
-                    _port = self.find_free_port()
-                    driver = self.get_driver(noheadless=True, port=_port, host='127.0.0.1')
-                    self.clear_firefox_cache(driver)  # type: ignore
-                    NakedSwordBaseIE._INFO_DRIVER = {'driver': driver, 'port': _port}
+                driver, _port = self.get_sanitize_driver(msg=msg)
                 if driver:
                     with self.get_har_logs('nakedsword', id_movie, port=_port) as harlogs:  # type: ignore
                         _har_file = harlogs.har_file
@@ -783,7 +790,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                         os.remove(_har_file)
 
     def wait_with_pb(self, timeout, msg, id_movie, use_driver=False):
-
         premsg = f'{msg}[wait]'
         _simple_counter = None
         if isinstance(_klasses := self.get_param('_util_classes'), dict):
@@ -914,7 +920,8 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
                         formats[0]['url'], _info.sceneid,
                         headers=NakedSwordBaseIE._HEADERS["MPD"])
                 except Exception as e:
-                    self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
+                    self.logger_info(
+                        f"{premsg}: error trying to get vod {repr(e)}")
                 return _entry
             else:
                 raise_reextract_info(f'{premsg}: error in get streaming info')
@@ -1333,7 +1340,8 @@ class NakedSwordMoviesPlaylistIE(NakedSwordBaseIE):
             premsg = f"{msg}{premsg}"
 
         try:
-            info_url = try_get(self._match_valid_url(url), lambda x: x.groupdict())
+            info_url = try_get(
+                self._match_valid_url(url), lambda x: x.groupdict())
             _movies = []
             playlist_title = None
             playlist_id = None
