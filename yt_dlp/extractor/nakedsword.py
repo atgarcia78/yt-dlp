@@ -244,22 +244,29 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 cls._logout_api()
 
     @classmethod
+    def _klass_auth_info(cls):
+        if not cls._INST_IE:
+            username, pwd = try_get(
+                netrc.netrc(
+                    os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
+                lambda x: (x[0], x[2])) or (None, None)
+        else:
+            username, pwd = cls._INST_IE._get_login_info()
+        return base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
+
+    @classmethod
     def _get_api_basic_auth(cls, force=False) -> bool:
         if cls._USERTOKEN and cls.headers_api and not force:
             logger.debug('[get_api_auth] skipping getting new auth')
             return True
 
         if (xident := cls._get_api_xident()):
-            username, pwd = try_get(
-                netrc.netrc(os.path.expandvars('$HOME/.netrc')).authenticators(cls._NETRC_MACHINE),
-                lambda x: (x[0], x[2])) or (None, None)
+
             _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
-            _auth = base64.urlsafe_b64encode(f"{username}:{pwd}".encode()).decode('utf-8')
-            _headers_post.update({'x-ident': xident, 'Authorization': f'Basic {_auth}'})
+            _headers_post.update({'x-ident': xident, 'Authorization': f'Basic {cls._klass_auth_info()}'})
             if (token := try_get(
                     cls._send_request(cls._API_URLS['login'], _type="POST", headers=_headers_post),
                     lambda x: traverse_obj(x.json(), ('data', 'jwt')))):
-
                 cls._USERTOKEN = token
                 _final = cls._HEADERS["FINAL"].copy()
                 _final.update({
@@ -622,7 +629,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _res.append(_url)
         return _res
 
-    def _get_api_scene_info(self, urlsc):
+    @staticmethod
+    def _get_api_scene_info(urlsc):
         return try_get(
             NakedSwordBaseIE._send_request(
                 urlsc, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS),
@@ -665,7 +673,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         else:
             return info_scenes_list
 
-    def get_movie_url(self, _id_movie):
+    @staticmethod
+    def get_movie_url(_id_movie):
         return try_get(
             NakedSwordBaseIE._send_request(
                 f"https://www.nakedsword.com/movies/{_id_movie}/_", _type="HEAD"),
@@ -822,7 +831,8 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             logger.error(f'{premsg} {repr(e)}')
 
-    def build_entry(self, info: info_scene):
+    @staticmethod
+    def build_entry(info: info_scene):
         return {
             "id": info.sceneid,
             "_id_movie": info.movieid,

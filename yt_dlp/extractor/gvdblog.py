@@ -24,6 +24,7 @@ from .commonwebdriver import (
 )
 from .doodstream import DoodStreamIE
 from .filemoon import FilemoonIE
+from .streamhide import StreamHideIE
 from .streamsb import StreamSBIE
 from .voe import VoeIE
 from .xfileshare import XFileShareIE
@@ -43,9 +44,9 @@ from ..utils import (  # get_element_html_by_id,
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
-               for _ie in (DoodStreamIE, FilemoonIE, VoeIE, StreamSBIE, XFileShareIE)},
+               for _ie in (DoodStreamIE, StreamHideIE, FilemoonIE, VoeIE, StreamSBIE, XFileShareIE)},
     'alt': {_ie.IE_NAME: _ie._VALID_URL
-            for _ie in (VoeIE, StreamSBIE, XFileShareIE, FilemoonIE, DoodStreamIE)}
+            for _ie in (VoeIE, StreamSBIE, XFileShareIE, FilemoonIE, StreamHideIE, DoodStreamIE)}
 }
 
 on_exception_req = my_dec_on_exception(
@@ -128,8 +129,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         if self.keyapi == 'gvdblog.net':
             _query_upt['fmt'] = _fmt
-        else:
-            _fmt = None
+        # else:
+        #     _fmt = None
         self.altkey = 'legacy' if _fmt == 'http' else 'alt'
         _type = params.pop('type', None)
         name = params.pop('name', None)
@@ -469,6 +470,7 @@ class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
         https?://(www\.)?(?:
+            (gayleaktv\.com/[^/_\?]+)|
             (fxggxt\.com/[^/_\?]+)|
             (gvdblog\.(?:
                 (com/\d{4}/\d+/.+\.html)|

@@ -32,7 +32,7 @@ on_retry_vinfo = my_dec_on_exception(
 class StreamHideIE(SeleniumInfoExtractor):
 
     IE_NAME = "streamhide"  # type: ignore
-    _DOMAINS = r'(?:guccihide\.com|vflix\.top)'
+    _DOMAINS = r'(?:guccihide\.com|vflix\.top|cdnstream\.top)'
     _VALID_URL = r'''(?x)https?://(?:.+?\.)?(?P<domain>%s)/(?:d|w|e)/(?P<id>[\dA-Za-z]+)''' % _DOMAINS
 
     @on_exception_vinfo
@@ -87,7 +87,9 @@ class StreamHideIE(SeleniumInfoExtractor):
         try:
 
             videoid, dom = try_get(re.search(self._VALID_URL, url), lambda x: x.group('id', 'domain') if x else (None, None))  # type: ignore
-            _wurl = f"https://{dom}/w/{videoid}"
+            _wurl = url
+            if dom != 'cdnstream.top':
+                _wurl = f"https://{dom}/w/{videoid}"
             webpage = try_get(self._send_request(_wurl), lambda x: html.unescape(re.sub('[\t\n]', '', x.text)))
 
             if not webpage:
@@ -103,7 +105,8 @@ class StreamHideIE(SeleniumInfoExtractor):
             duration = None
 
             if jwplayer_data and (_entry := self._parse_jwplayer_data(jwplayer_data, videoid, False, m3u8_id='hls', mpd_id='dash')):
-                formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
+                if isinstance(_entry, dict):
+                    formats, subtitles, duration = _entry.get('formats', []), _entry.get('subtitles', {}), _entry.get('duration')
 
             if not formats:
                 raise ExtractorError(f"[{url}] Couldnt find any video format")
@@ -128,11 +131,14 @@ class StreamHideIE(SeleniumInfoExtractor):
                     else:
                         raise ReExtractInfo(f"{pre} error filesize[{_videoinfo['filesize']}] < 1MB")
 
-            title = try_get(try_call(lambda: get_element_text_and_html_by_tag('h1', webpage)[0]), lambda x: re.sub(r'(\s+)?download(\s+)?|\.mp4|\.mkv', '', x, flags=re.IGNORECASE).strip())
+            title = try_get(
+                try_call(lambda: get_element_text_and_html_by_tag('h1', webpage)[0]) or try_call(lambda: self._html_extract_title(webpage)),
+                lambda x: re.sub(r'(\s+)?download(\s+)?|\.mp4|\.mkv', '', x, flags=re.IGNORECASE).strip())
 
             _entry = {
                 "id": videoid,
                 "title": sanitize_filename(title, restricted=True).replace("Watch_", ""),
+                "_try_title": (dom == "cdnstream.top"),
                 "formats": formats,
                 "subtitles": subtitles,
                 "webpage_url": _wurl,

@@ -1069,9 +1069,15 @@ class SeleniumInfoExtractor(InfoExtractor):
         return extractor.ie_key()
 
     def get_ytdl_sem(self, _host):
-        if self._downloader:
-            with self._downloader.params.setdefault('lock', Lock()):
-                return self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
+        _sem = None
+        try:
+            if self._downloader:
+                with self._downloader.params.setdefault('lock', Lock()):
+                    _sem = self._downloader.params.setdefault('sem', {}).setdefault(_host, Lock())
+        except Exception:
+            pass
+        finally:
+            return _sem or contextlib.nullcontext()
 
     def raise_from_res(self, res, msg):
         if res and (isinstance(res, str) or not res.get('error_res')):
