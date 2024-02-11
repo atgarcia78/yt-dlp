@@ -51,6 +51,7 @@ _ie_data = {
 
 on_exception_req = my_dec_on_exception(
     TimeoutError, raise_on_giveup=False, max_tries=3, interval=1)
+
 logger = logging.getLogger("gvdblog")
 
 
@@ -327,12 +328,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     traverse_obj(x.groupdict(), ('date1'), ('date2')),
                     lambda y: datetime.strptime(y, '%B %d, %Y') if y else None) if x else None)
 
-        elif self.keyapi == 'gvdblog.com':
-            postid = try_get(traverse_obj(post, ('id', '$t')), lambda x: x.split('post-')[-1])
-            title = traverse_obj(post, ('title', '$t'))
-            postdate = try_get(
-                traverse_obj(post, ('published', '$t')),
-                lambda x: datetime.fromisoformat(x.split('T')[0]))
         else:
             postid = post.get('id')
             title = traverse_obj(post, ('title', 'rendered'))
@@ -412,16 +407,13 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                     'release_date': postdate.strftime('%Y%m%d'),
                     'release_timestamp': int(postdate.timestamp())})
 
-            _url = update_url_query(
-                url, self.query_upt) if self.keyapi == 'gvdblog.com' else url
-
             for i, _el in enumerate(entries):
                 if len(entries) > 1:
-                    _original_url = f'{_url}#{i + 1}'
-                    _comment = f'{_url} [{i + 1}]'
+                    _original_url = f'{url}#{i + 1}'
+                    _comment = f'{url} [{i + 1}]'
                 else:
-                    _original_url = _url
-                    _comment = _url
+                    _original_url = url
+                    _comment = url
                     if _el.pop('_try_title', None) or title.split(_el['title'])[0]:
                         _el['_legacy_title'] = _el['title']
                         _el['title'] = title
@@ -472,10 +464,9 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         https?://(www\.)?(?:
             (gayleaktv\.com/[^/_\?]+)|
             (fxggxt\.com/[^/_\?]+)|
-            (gvdblog\.(?:
-                (com/\d{4}/\d+/.+\.html)|
-                (cc/video/[^\?/]+)|(net/[^/\?]+))))
-        /?(\?(?P<query>[^#]+))?'''
+            (gvdblog\.cc/video/[^\?/]+)|
+            (gvdblog\.net/[^/\?]+))
+        /?(\?(?P<query>[^#]+))?$'''
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -485,17 +476,18 @@ class GVDBlogPostIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query = try_get(
-            re.search(self._VALID_URL, url), lambda x: x.group('query'))
-        if query:
-            params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
-                      if el.count('=') == 1}
+        if query := try_get(
+            re.search(self._VALID_URL, url), lambda x: x.group('query')
+        ):
+            params = {
+                el.split('=')[0]: el.split('=')[1]
+                for el in query.split('&') if el.count('=') == 1}
 
         self.conf_args_gvd = params
 
         _url = update_url(url, query='')
 
-        entries, title, postid = self.get_entries_from_blog_post(_url)
+        entries, title, _ = self.get_entries_from_blog_post(_url)
         if not entries:
             raise ExtractorError("no videos")
 
@@ -511,94 +503,68 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
         https?://(?:www\.)?(?:
-            (gayleaktv\.com/(?:actor|category)/(?P<name4>[^\?/]+))|
+            (gayleaktv\.com/(?P<type4>(actor|category))/(?P<name4>[^\?/]+))|
             (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
-            (gvdblog\.(com|net)/(?:_search|(?P<type>(actor|category|tag))/(?P<name>[^\?/]+)))|
+            (gvdblog\.net/(?:_search|(?P<type>(actor|category|tag))/(?P<name>[^\?/]+)))|
             (gvdblog\.cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))
-        (\?(?P<query>[^#]+))?'''
+        /?(\?(?P<query>[^#]+))?$'''
 
     _BASE_API = {
-        'gvdblog.com': "https://www.gvdblog.com/feeds/posts/full?alt=json-in-script&max-results=99999",
         'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/posts?per_page=100",
-        'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100"}
+        'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100",
+        'gayleaktv.com': "https://gayleaktv.com/wp-json/wp/v2/posts?per_page=100"}
 
-    _MAP = {'actor': 'actors', 'category': 'categories', 'tag': 'tags'}
+    _FILE_CONF = "/Users/antoniotorres/.config/yt-dlp/%s_conf.json"
+
+    def get_conf(self):
+        with open(self._FILE_CONF % self.keyapi.split('.')[0], 'r') as f:
+            return json.load(f)
 
     def get_id(self, label, name):
-        if webpage := try_get(
-                self._send_request(f"https://{self.keyapi}/{label}/{name}"),
-                lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None):
-            attribute = self._MAP[label]
-            if (_id := try_get(
-                    re.findall(rf'{attribute}/(\d+)', webpage),
-                    lambda x: x[0])):
-                return (attribute, _id)
+        data = self.get_conf()
+        _map = {
+            'actor': 'tags' if self.keyapi == 'gayleaktv.com' else 'actors',
+            'category': 'categories', 'tag': 'tags'}
+        attribute = _map[label]
+        return (attribute, traverse_obj(data[attribute], (name, 'id')))
 
     def send_api_search(self, query):
-
-        def get_list_videos(res):
-            if not res:
-                return None
-            if self.keyapi == 'gvdblog.com':
-                if data := try_get(
-                        re.search(
-                            r"gdata.io.handleScriptLoaded\((?P<data>.*)\);",
-                            res.text.replace(',,', ',')),
-                        lambda x: x.group('data')):
-                    info_json = json.loads(data)
-                    return traverse_obj(info_json, ('feed', 'entry'))
-            else:
-                return res.json()
-
-        video_entries = try_get(
+        if not (video_entries := try_get(
             self._send_request(self._BASE_API[self.keyapi], params=query),
-            lambda x: get_list_videos(x))
-
-        if not video_entries:
+            lambda x: x.json())
+        ):
             raise_extractor_error("no video entries")
         else:
             self.logger_debug(
                 f'[entries result] videos entries [{len(video_entries)}]')
-
             return video_entries
 
     def get_blog_posts_search(self) -> list:
-
         if (_query := self.conf_args_gvd['query']):
-
             query = '&'.join([f'{key}={value}' for key, value in _query.items()])
-
-            if self.keyapi == 'gvdblog.com':
-                query = query.replace('date', 'published')
-                if 'orderby' not in query:
-                    query += '&orderby=published'
-            else:
-                query = query.replace('published', 'date')
-                if 'orderby' not in query:
-                    query += '&orderby=date'
-
-            params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&') if el.count('=') == 1}
+            query = query.replace('published', 'date')
+            if 'orderby' not in query:
+                query += '&orderby=date'
+            params = {
+                el.split('=')[0]: el.split('=')[1]
+                for el in query.split('&') if el.count('=') == 1}
             self._conf_args_gvd['query'] = params
-
         else:
             params = {}
 
         urlquery = []
 
         for key, val in params.items():
-
             if key == 'published':
-                urlquery.append(f"published-max={val}T23:59:59&published-min={val}T00:00:00")
+                urlquery.append(
+                    f"published-max={val}T23:59:59&published-min={val}T00:00:00")
             elif key == 'date':
-                urlquery.append(f"before={val}T23:59:59&after={val}T00:00:00")
+                urlquery.append(
+                    f"before={val}T23:59:59&after={val}T00:00:00")
             elif key not in ('entries', 'from'):
                 urlquery.append(f"{key}={val}")
 
-        if self.query_upt:
-            urlquery.extend([f"{key}={value}" for key, value in self.query_upt.items()])
-
         if post_blog_entries_search := self.send_api_search('&'.join(urlquery)):
-
             _nentries = int_or_none(params.get('entries'))
             _from = int(params.get('from', 1))
             return (
@@ -608,7 +574,6 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         else:
             return []
 
-    # TODO Rename this here and in `get_entries_search`
     def get_entries_search(self, url):
         pre = f'[get_entries_search][{url}]'
 
@@ -623,8 +588,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
         posts_vid_url = [
             try_get(
-                traverse_obj(post_entry, ('link', -1, 'href')) if self.keyapi == 'gvdblog.com'
-                else post_entry.get('link'),
+                post_entry.get('link'),
                 lambda x: unquote(x))
             for post_entry in blog_posts_list
         ]
@@ -783,9 +747,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query, _typenet, _typefx, namenet, namecc, namefx, namegl = try_get(
+        query, _typenet, _typefx, _typegl, namenet, namecc, namefx, namegl = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3', 'name4') if x else None) or [None] * 6
+            lambda x: x.group('query', 'type', 'type3', 'type4', 'name', 'name2', 'name3', 'name4') if x else None) or [None] * 8
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
@@ -799,6 +763,8 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             _upt_params(_typenet, namenet)
         elif namefx and _typefx:
             _upt_params(_typefx, namefx)
+        elif namegl and _typegl:
+            _upt_params(_typegl, namegl)
         self.conf_args_gvd = params
 
         if (_name := namenet or namecc or namefx or namegl):
@@ -809,7 +775,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')
             playlist_title = "Search"
 
-        if self.keyapi in ('gvdblog.cc', 'gayleaktv.com'):
+        if self.keyapi in ('gvdblog.cc'):
             entries = self.get_entries(url)
         else:
             entries = self.get_entries_search(url)
