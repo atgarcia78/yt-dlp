@@ -341,7 +341,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
 
         if isinstance(title, str):
             title = sanitize_filename(
-                re.sub(r'\s*-*\s*GVDBlog[^\s]+', '', title, flags=re.IGNORECASE), restricted=True)
+                re.sub(r'\s*-*\s*(GVDBlog|GayLeakTV)[^\s]*', '', title, flags=re.IGNORECASE), restricted=True)
         else:
             title = None
         return (postdate, title, postid)
@@ -511,10 +511,10 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
     IE_NAME = "gvdblog:playlist"  # type: ignore
     _VALID_URL = r'''(?x)
         https?://(?:www\.)?(?:
+            (gayleaktv\.com/(?:actor|category)/(?P<name4>[^\?/]+))|
             (fxggxt\.com/(?:_search|(?P<type3>(actor|category))/(?P<name3>[^\?/]+)))|
-            (gvdblog\.(?:
-                ((com|net)/(?:_search|(?P<type>(actor|category|tag))/(?P<name>[^\?/]+)))|
-                (cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))))
+            (gvdblog\.(com|net)/(?:_search|(?P<type>(actor|category|tag))/(?P<name>[^\?/]+)))|
+            (gvdblog\.cc/(?:(actors|categories)/(?P<name2>[^\?/]+))))
         (\?(?P<query>[^#]+))?'''
 
     _BASE_API = {
@@ -783,9 +783,9 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         self.keyapi = url
 
         params = {}
-        query, _typenet, _typefx, namenet, namecc, namefx = try_get(
+        query, _typenet, _typefx, namenet, namecc, namefx, namegl = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3') if x else None) or [None] * 6
+            lambda x: x.group('query', 'type', 'type3', 'name', 'name2', 'name3', 'name4') if x else None) or [None] * 6
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
@@ -801,7 +801,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             _upt_params(_typefx, namefx)
         self.conf_args_gvd = params
 
-        if (_name := namenet or namecc or namefx):
+        if (_name := namenet or namecc or namefx or namegl):
             playlist_title = _name
             playlist_id = _name
 
@@ -809,7 +809,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             playlist_id = f'{sanitize_filename(query, restricted=True)}'.replace('%23', '')
             playlist_title = "Search"
 
-        if self.keyapi == 'gvdblog.cc':
+        if self.keyapi in ('gvdblog.cc', 'gayleaktv.com'):
             entries = self.get_entries(url)
         else:
             entries = self.get_entries_search(url)
