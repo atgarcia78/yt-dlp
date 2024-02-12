@@ -201,12 +201,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     _MOVIES = {}
 
     def close(self):
-        try:
+        with contextlib.suppress(Exception):
             NakedSwordBaseIE.API_LOGOUT(msg='[close]', _logger=self.logger_info)
-        except Exception:
-            pass
-        finally:
-            super().close()
+        with NakedSwordBaseIE._LOCK:
+            if _driver := traverse_obj(NakedSwordBaseIE._INFO_DRIVER, 'driver'):
+                self._logout(_driver)
+                NakedSwordBaseIE.rm_driver(_driver)
+        super().close()
 
     @cached_classproperty
     def _APP_DATA_PASSPHRASE(cls):
@@ -753,15 +754,15 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 default=[None, None])  # type: ignore
             if _driver:
                 if not _driver.service.is_connectable() or not _driver.window_handle:
-                    self.rm_driver(_driver)
-                    driver = NakedSwordBaseIE._INFO_DRIVER = None
-                    if not driver:
-                        _port = self.find_free_port()
-                        if _driver := self.get_driver(noheadless=True, port=_port, host='127.0.0.1'):
-                            self.clear_firefox_cache(driver)  # type: ignore
-                            NakedSwordBaseIE._INFO_DRIVER = {'driver': driver, 'port': _port}
+                    NakedSwordBaseIE.rm_driver(_driver)
+                    _driver = NakedSwordBaseIE._INFO_DRIVER = None
+            if not _driver:
+                _port = self.find_free_port()
+                if _driver := self.get_driver(noheadless=True, port=_port, host='127.0.0.1'):
+                    self.clear_firefox_cache(_driver)  # type: ignore
+                    NakedSwordBaseIE._INFO_DRIVER = {'driver': _driver, 'port': _port}
         except Exception as e:
-            self.logger_debug(f"[get_driver]{msg or ''} {repr(e)}")
+            logger.error(f"[get_driver]{msg or ''} {repr(e)}")
         finally:
             return _driver, _port
 
