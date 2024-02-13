@@ -3,19 +3,23 @@ from __future__ import annotations
 import base64
 import contextlib
 import functools
+import hashlib
 import html
 import json
 import logging
 import netrc
 import os
 import re
-import subprocess
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Lock
+
+from Cryptodome.Cipher import AES
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Util.Padding import pad
 
 from .commonwebdriver import (
     By,
@@ -331,15 +335,19 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
 
     @classmethod
     def _get_api_xident(cls):
-        proc = subprocess.run(
-            ['npm', '--prefix', cls._PREFIX_JS_SCRIPT, 'run-script', 'getXIndent', '-s', '--', cls._APP_DATA_PASSPHRASE],
-            capture_output=True, encoding="utf-8")
-
-        if (proc.returncode == 0) and (xident := proc.stdout.strip('\n')):
+        try:
+            salt = get_random_bytes(256)
+            iv = get_random_bytes(16)
+            key_b = hashlib.pbkdf2_hmac('sha512', cls._APP_DATA_PASSPHRASE.encode(), salt, 999, dklen=32)
+            text = json.dumps({'date': int(datetime.now().timestamp() * 1000), 'propertyId': '1'}).replace(' ', '')
+            cipher = AES.new(key_b, AES.MODE_CBC, iv=iv)
+            bytes_encrypted = cipher.encrypt(pad(text.encode(), cipher.block_size, style='pkcs7'))
+            data_str = json.dumps({'ciphertext': base64.b64encode(bytes_encrypted).decode(), 'salt': salt.hex(), 'iv': iv.hex()}).replace(' ', '')
+            xident = base64.b64encode(data_str.encode()).decode()
             cls.timer.reset()
             return xident
-        else:
-            logger.warning(f'[get_api_xident] couldnt get xident: {proc}')
+        except Exception as e:
+            logger.warning(f'[get_api_xident] couldnt get xident: {repr(e)}')
 
     @classmethod
     def API_LOGOUT(cls, msg=None, _logger=None):
