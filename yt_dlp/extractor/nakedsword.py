@@ -339,10 +339,9 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             salt = get_random_bytes(256)
             iv = get_random_bytes(16)
             key_b = hashlib.pbkdf2_hmac('sha512', cls._APP_DATA_PASSPHRASE.encode(), salt, 999, dklen=32)
-            text = json.dumps({'date': int(datetime.now().timestamp() * 1000), 'propertyId': '1'}).replace(' ', '')
-            cipher = AES.new(key_b, AES.MODE_CBC, iv=iv)
-            bytes_encrypted = cipher.encrypt(pad(text.encode(), cipher.block_size, style='pkcs7'))
-            data_str = json.dumps({'ciphertext': base64.b64encode(bytes_encrypted).decode(), 'salt': salt.hex(), 'iv': iv.hex()}).replace(' ', '')
+            text = json.dumps({'date': int(datetime.now().timestamp() * 1000), 'propertyId': '1'}, separators=(',', ':'))
+            bytes_encrypted = AES.new(key_b, AES.MODE_CBC, iv=iv).encrypt(pad(text.encode(), 16, style='pkcs7'))
+            data_str = json.dumps({'ciphertext': base64.b64encode(bytes_encrypted).decode(), 'salt': salt.hex(), 'iv': iv.hex()}, separators=(',', ':'))
             xident = base64.b64encode(data_str.encode()).decode()
             cls.timer.reset()
             return xident
