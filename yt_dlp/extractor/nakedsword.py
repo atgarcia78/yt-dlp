@@ -266,7 +266,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             return True
 
         if (xident := cls._get_api_xident()):
-
+            cls.timer.reset()
             _headers_post = cls._HEADERS["POST"]["AUTH"].copy()
             _headers_post.update({'x-ident': xident, 'Authorization': f'Basic {cls._klass_auth_info()}'})
             if (token := try_get(
@@ -324,6 +324,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     def API_GET_XIDENT(cls):
         try:
             if (xident := cls._get_api_xident()):
+                cls.timer.reset()
                 cls.headers_api['x-ident'] = xident
                 logger.debug("[get_xident] OK")
                 return True
@@ -342,9 +343,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             text = json.dumps({'date': int(datetime.now().timestamp() * 1000), 'propertyId': '1'}, separators=(',', ':'))
             bytes_encrypted = AES.new(key_b, AES.MODE_CBC, iv=iv).encrypt(pad(text.encode(), 16, style='pkcs7'))
             data_str = json.dumps({'ciphertext': base64.b64encode(bytes_encrypted).decode(), 'salt': salt.hex(), 'iv': iv.hex()}, separators=(',', ':'))
-            xident = base64.b64encode(data_str.encode()).decode()
-            cls.timer.reset()
-            return xident
+            return base64.b64encode(data_str.encode()).decode()
         except Exception as e:
             logger.warning(f'[get_api_xident] couldnt get xident: {repr(e)}')
 
