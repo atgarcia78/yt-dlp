@@ -30,6 +30,7 @@ concurrency:
 jobs:
   tests:
     name: Core Tests
+    if: "!contains(github.event.head_commit.message, 'ci skip')"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -48,15 +49,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install pytest
-      run: pip install pytest
-    - name: Install requirements
-      run: |
-        python -m pip install -U pip setuptools wheel twine
-        python -m pip install -U Pyinstaller -r requirements.txt
+    - name: Install test requirements
+      run: python3 ./devscripts/install_deps.py --include dev
     - name: Run tests
       continue-on-error: False
       run: |
