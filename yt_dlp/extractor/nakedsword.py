@@ -677,7 +677,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     _m3u8_url, _url_movie, _title_movie, _id_movie, num_scenes))
 
         if index_scene:
-            return info_scenes_list[0]
+            return info_scenes_list[index_scene - 1]
         else:
             return info_scenes_list
 
