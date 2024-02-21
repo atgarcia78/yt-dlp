@@ -263,7 +263,7 @@ class Account(AccountBase):
             data = self.get(_url)
             if not data:
                 break
-            videos.extend(data.get('list'))
+            videos.extend(data.get('list'))  # type: ignore
             self.logger.info(f'[getpurchased] Count: {len(videos)}')
             if not (_res := data['hasMore']) or _res == 'false':
                 break
@@ -641,7 +641,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                                     if self._downloader:
                                         self._downloader.cookiejar.set_cookie(cookie)
                                 self.logger_info(
-                                    f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL)}")
+                                    f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL) if self._downloader else ''}")
                                 _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
                                 _base_api_media = "https://onlyfans.com/api2/v2/users/media"
                                 _licurl = f"{_base_api_media}/{videoid}/drm/post/{data_post['id']}?type=widevine"
