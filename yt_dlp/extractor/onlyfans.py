@@ -414,6 +414,14 @@ def load_config():
     return data if data else {"subs": {}}
 
 
+def save_config():
+    try:
+        with open("/Users/antoniotorres/.config/yt-dlp/onlyfans_conf.json", "w") as f:
+            json.dump(OnlyFansBaseIE._CONF, f)
+    except Exception as e:
+        logger.warning(f'[extract_from_json] error when updating conf file {repr(e)}')
+
+
 class OnlyFansBaseIE(SeleniumInfoExtractor):
 
     _SITE_URL = "https://onlyfans.com"
@@ -583,18 +591,11 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
     @classmethod
     def validate_drm_lic(cls, licurl: str, challenge: bytes) -> None | bytes:
         headers = {'Origin': 'https://onlyfans.com', 'Referer': 'https://onlyfans.com/'}
-
         _path = try_get(urlparse(licurl), lambda x: x.path + '?' + x.query)
         if _res := OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _content=challenge):
             return _res.content
 
     def _extract_from_json(self, data_post, user_profile=None):
-        def save_config():
-            try:
-                with open("/Users/antoniotorres/.config/yt-dlp/onlyfans_conf.json", "w") as f:
-                    json.dump(OnlyFansBaseIE._CONF, f)
-            except Exception as e:
-                self.report_warning(f'[extract_from_json] error when updating conf file {repr(e)}')
 
         try:
             account = user_profile
@@ -736,15 +737,10 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         OnlyFansBaseIE.conn_api.count[userid] = 0
 
         try:
-
             if mode == 'chat':
                 list_json = OnlyFansBaseIE.conn_api.getMessagesChat(userid)
-
             else:
-                _total = OnlyFansBaseIE.conn_api.getVideosCount(userid)
-
-                if _total:
-
+                if _total := OnlyFansBaseIE.conn_api.getVideosCount(userid):
                     if mode == "all" and (_total > 6 * OnlyFansBaseIE.conn_api._POST_LIMIT):
 
                         with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
@@ -756,7 +752,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                         _list_json = futures[0].result() + list(reversed(futures[1].result()))
                         list_json = get_list_unique(_list_json, key='id')
-
                         self.to_screen(
                             f"{pre} From {len(_list_json)} number of video posts unique: {len(list_json)}")
 
@@ -765,7 +760,6 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                         if mode == "all":
                             _conf["num"] = _total
                         list_json = OnlyFansBaseIE.conn_api.getVideoPosts(userid, account, _total, **_conf)
-
                         self.to_screen(f"{pre} Number of video posts unique: {len(list_json)}")
 
             if not list_json:

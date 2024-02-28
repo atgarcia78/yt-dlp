@@ -154,7 +154,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     headers_api = {}
     timer = ProgressTimer()
     call_lock = Lock()
-    _PREFIX_JS_SCRIPT = '/Users/antoniotorres/Projects/async_downloader'
     _HEADERS = {
         "POST": {
             "AUTH": {
