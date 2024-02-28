@@ -912,10 +912,10 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             self.wait_with_pb(my_jitter(60), premsg, _id_movie)
 
         try:
-            if 'details' not in _THIS_MOVIE:
-                _THIS_MOVIE['details'] = self._get_api_details(_id_movie)
-
-            if not _THIS_MOVIE['details']:
+            if not (
+                _THIS_MOVIE.get('details')
+                or _THIS_MOVIE.setdefault('details', self._get_api_details(_id_movie))
+            ):
                 raise_extractor_error(f"{premsg} no details info")
 
             if index_scene > (num_scenes := _THIS_MOVIE['nentries']):
