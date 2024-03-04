@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 from functools import partial
 from html import unescape
+from pathlib import Path
 from threading import Lock
 
 from .commonwebdriver import (
@@ -459,6 +460,27 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 logger.debug(f"{pre}: error - {repr(e)}")
                 raise
 
+    @classmethod
+    @on_exception_req
+    def _klass_send_request(cls, url, **kwargs):
+
+        pre = f'[send_req][{cls._get_url_print(url)}]'
+        if (msg := kwargs.get('msg', None)):
+            pre = f'{msg}{pre}'
+        _limiter = limiter_1 if cls._SLOW_DOWN else limiter_0_1
+
+        with _limiter.ratelimit("gvdblog", delay=True):
+            try:
+                return cls._send_http_request(url, **kwargs)
+            except ReExtractInfo as e:
+                logger.debug(f"{pre}: error - {repr(e)}")
+                raise_extractor_error(str(e), _from=e)
+            except (HTTPStatusError, ConnectError) as e:
+                logger.debug(f"{pre}: error - {repr(e)}")
+            except Exception as e:
+                logger.debug(f"{pre}: error - {repr(e)}")
+                raise
+
 
 class GVDBlogPostIE(GVDBlogBaseIE):
     IE_NAME = "gvdblogpost:playlist"  # type: ignore
@@ -516,10 +538,46 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/posts?per_page=100",
         'gayleaktv.com': "https://gayleaktv.com/wp-json/wp/v2/posts?per_page=100"}
 
+    _BASE_CONF = {
+        'gvdblog.net': "https://gvdblog.net/wp-json/wp/v2/%s?per_page=100&page=",
+        'fxggxt.com': "https://fxggxt.com/wp-json/wp/v2/%s?per_page=100&page=",
+        'gayleaktv.com': "https://gayleaktv.com/wp-json/wp/v2/%s?per_page=100&page=",
+    }
+
     _FILE_CONF = "/Users/antoniotorres/.config/yt-dlp/%s_conf.json"
 
+    @classmethod
+    def update_conf(cls, api=None):
+        if not api:
+            list_keys = list(cls._BASE_CONF.keys())
+        else:
+            list_keys = [api]
+
+        for keyapi in list_keys:
+            total_json = {}
+            for _key in ['actors', 'categories', 'tags']:
+                el = []
+                i = 0
+                while True:
+                    i += 1
+                    _url = cls._BASE_CONF[keyapi] % _key
+                    if (res := try_get(cls._klass_send_request(f'{_url}{i}'), lambda x: x.json())):
+                        el.extend(res)
+                    else:
+                        break
+                if el:
+                    el_dict = {_el['slug']: _el for _el in el}
+                    total_json[_key] = el_dict
+            if total_json:
+                with open(cls._FILE_CONF % keyapi.split('.')[0], 'w') as f:
+                    json.dump(total_json, f)
+
     def get_conf(self):
-        with open(self._FILE_CONF % self.keyapi.split('.')[0], 'r') as f:
+        _file_conf = GVDBlogPlaylistIE._FILE_CONF % self.keyapi.split('.')[0]
+        if (datetime.now() - datetime.fromtimestamp(Path(_file_conf).stat().st_mtime)).days > 1:
+            self.to_screen(f'Updating configuration file for {self.keyapi}...')
+            GVDBlogPlaylistIE.update_conf(api=self.keyapi)
+        with open(_file_conf, 'r') as f:
             return json.load(f)
 
     def get_id(self, label, name):
@@ -532,7 +590,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
 
     def send_api_search(self, query):
         if not (video_entries := try_get(
-            self._send_request(self._BASE_API[self.keyapi], params=query),
+            self._send_request(GVDBlogPlaylistIE._BASE_API[self.keyapi], params=query),
             lambda x: x.json())
         ):
             raise_extractor_error("no video entries")
