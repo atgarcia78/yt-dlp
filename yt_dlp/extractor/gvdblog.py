@@ -326,19 +326,21 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 re.search(_patt2, post),
                 lambda x: try_get(
                     traverse_obj(x.groupdict(), ('date1'), ('date2')),
-                    lambda y: datetime.strptime(y, '%B %d, %Y') if y else None) if x else None)
+                    lambda y: datetime.strptime(y, '%B %d, %Y')))
 
         else:
             postid = post.get('id')
-            title = traverse_obj(post, ('title', 'rendered'))
+            title = traverse_obj(post, ('title', 'rendered', {unescape}))
             postdate = try_get(
                 post.get('date'), lambda x: datetime.fromisoformat(x.split('T')[0]))
 
         if isinstance(title, str):
             title = sanitize_filename(
-                re.sub(r'\s*-*\s*(GVDBlog|GayLeakTV)[^\s]*', '', title, flags=re.IGNORECASE), restricted=True)
+                re.sub(r'\s*-*\s*(GVDBlog|GayLeakTV)[^\s]*', '', title, flags=re.IGNORECASE),
+                restricted=True).replace('_-_', '_')
         else:
             title = None
+
         return (postdate, title, postid)
 
     def _get_metadata(self, post, premsg) -> tuple:
@@ -348,16 +350,16 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
             url = unquote(post)
             premsg += f'[{url}]'
             self.report_extraction(url)
-            if (post_content := try_get(
+            if (
+                post_content := try_get(
                     self._send_request(url),
-                    lambda x: re.sub('[\t\n]', '', unescape(x.text)) if x else None)):
+                    lambda x: re.sub('[\t\n]', '', unescape(x.text)))
+            ):
                 postdate, title, postid = self.get_info(post_content)
                 list_candidate_videos = self.get_urls(post_content, msg=url)
         elif isinstance(post, dict):
-            url = try_get(
-                post.get('link'),
-                lambda x: unquote(x) if x is not None else None)
-            post_content = traverse_obj(post, ('content', 'rendered'))
+            url = try_get(post.get('link'), lambda x: unquote(x))
+            post_content = traverse_obj(post, ('content', 'rendered', {unescape}))
             premsg += f'[{self._get_url_print(url)}]'
             self.report_extraction(url)
             if post_content:
@@ -658,7 +660,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
             _htmlpage = try_get(
                 self._send_request(
                     update_url_query(f"{baseurl}{npage}", query=self.conf_args_gvd['query'])),
-                lambda x: get_element_by_id('us_grid_1', unescape(x.text)) if x else None)
+                lambda x: get_element_by_id('us_grid_1', unescape(x.text)))
 
             if not _htmlpage:
                 raise ExtractorError("no webpage")
@@ -749,7 +751,7 @@ class GVDBlogPlaylistIE(GVDBlogBaseIE):
         params = {}
         query, _typenet, _typefx, _typegl, namenet, namecc, namefx, namegl = try_get(
             re.search(self._VALID_URL, url),
-            lambda x: x.group('query', 'type', 'type3', 'type4', 'name', 'name2', 'name3', 'name4') if x else None) or [None] * 8
+            lambda x: x.group('query', 'type', 'type3', 'type4', 'name', 'name2', 'name3', 'name4')) or [None] * 8
         if query:
             params = {el.split('=')[0]: el.split('=')[1] for el in query.split('&')
                       if el.count('=') == 1}
