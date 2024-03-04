@@ -231,7 +231,7 @@ class MyVidsterIE(MyVidsterBaseIE):
         '//syndication', 'rawassaddiction.blogspot', 'twitter.com',
         'sxyprn.net', 'gaypornmix.com', 'thisvid.com/embed', 'twinkvideos.com/embed',
         'xtube.com', 'xtapes.to', '####gayforit######.eu/playvideo.php',
-        '/#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
+        '#####noodlemagazine####.com/player', 'pornone.com/embed/', 'player.vimeo.com/video',
         'gaystreamvp.ga', 'gaypornvideos.cc/wp-content/', '//tubeload', 'broken.mp4', 'gaypornhdfree', 'gaypornhot']
 
     _URL_NO_PLAYLIST = ['thisvid.com/playlist']
