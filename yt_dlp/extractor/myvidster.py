@@ -19,6 +19,7 @@ from .commonwebdriver import (
     ec,
     limiter_0_01,
     limiter_0_5,
+    my_dec_on_exception,
     raise_extractor_error,
     ytdl_silent,
 )
@@ -36,6 +37,12 @@ from ..utils import (
 )
 
 logger = logging.getLogger('myvidster')
+
+on_exception_deep = my_dec_on_exception(
+    Exception, raise_on_giveup=True, max_tries=10, jitter="my_jitter", interval=5)
+
+on_exception = my_dec_on_exception(
+    Exception, raise_on_giveup=True, max_tries=3, jitter="my_jitter", interval=1)
 
 
 class MyVidsterBaseIE(SeleniumInfoExtractor):
@@ -65,15 +72,9 @@ class MyVidsterBaseIE(SeleniumInfoExtractor):
                 f"[send_request] {self._get_url_print(url)}: error - {repr(e)}")
             raise
 
-    @dec_on_exception3
-    @dec_on_exception2
     @limiter_0_01.ratelimit("myvidster2", delay=True)
     def _get_infovideo(self, url, **kwargs):
-        try:
-            return self.get_info_for_format(url, **kwargs)
-        except (HTTPStatusError, ConnectError) as e:
-            self.logger_debug(
-                f"[get_video_info] {self._get_url_print(url)}: error - {repr(e)}")
+        return self.get_info_for_format(url, **kwargs)
 
     def _login(self):
 
@@ -235,6 +236,8 @@ class MyVidsterIE(MyVidsterBaseIE):
 
     _URL_NO_PLAYLIST = ['thisvid.com/playlist']
 
+    _IE_DEEP = ['noodlemagazine']
+
     def getvid(self, el, **kwargs):
         _check = kwargs.get('check', True)
         pre = f"[getvid][{self._get_url_print(el)}]"
@@ -245,44 +248,51 @@ class MyVidsterIE(MyVidsterBaseIE):
             self.logger_debug(f'{pre} {_str_err}')
             return {"error": f"[{_el}] {_str_err}"}
 
-        def _extract_info(_el):
+        def _extract_info(_el, _dec):
 
-            if not self._downloader:
-                self.logger_debug(f"{pre} is none")
-                return _return_error(_el, f"{pre} ytdl is none")
+            @_dec
+            def _extract_info_dec():
+                try:
+                    if not self._downloader:
+                        self.logger_debug(f"{pre} is none")
+                        return _return_error(_el, f"{pre} ytdl is none")
 
-            with ytdl_silent(self._downloader) as _ytdl:
-                _info = _ytdl.sanitize_info(_ytdl.extract_info(_el, download=False))
+                    with ytdl_silent(self._downloader) as _ytdl:
+                        _info = _ytdl.sanitize_info(_ytdl.extract_info(_el, download=False))
 
-            if not isinstance(_info, dict) or ('url' in _info.get('_type', 'video') and (
-                    get_domain(_el) == get_domain(_info['url']))):
-                return _return_error(_el, 'not entry video')
+                    if not isinstance(_info, dict) or ('url' in _info.get('_type', 'video') and (
+                            get_domain(_el) == get_domain(_info['url']))):
+                        raise_extractor_error('not entry video')
 
-            if 'webpage_url' not in _info:
-                _info['webpage_url'] = _el
+                    else:
+                        if 'webpage_url' not in _info:
+                            _info['webpage_url'] = _el
 
-            if _info.get('_type', 'video') == 'video':
-                if _info.get('ext') in [None, 'unknown_video']:
-                    _info['ext'] = _info['video_ext'] = _newext = determine_ext(_info['url'].partition('#')[0])
-                    if not _info.get('requested_formats'):
-                        for fmt in _info['formats']:
-                            if fmt.get('ext') in [None, 'unknown_video']:
-                                fmt['ext'] = fmt['video_ext'] = _newext
-                if not _info.get('requested_formats') and not _info.get('filesize') and _info.get('protocol') == 'https':
-                    if all(_ not in _info['http_headers'] for _ in ['Referer', 'referer']):
-                        _info['http_headers']['Referer'] = 'https://www.myvidster.com/'
-                    _info_video = self._get_infovideo(_info['url'], headers=_info['http_headers'])
-                    if not isinstance(_info_video, dict):
-                        return _return_error(_el, 'error 404: couldnt get info video details')
-                    _info.update(**_info_video)
-                    for fmt in _info['formats']:
-                        if fmt['format'] == _info['format']:
-                            fmt['http_headers']['Referer'] = _info['http_headers']['Referer']
-                            fmt.update(**_info_video)
-                            break
+                        if _info.get('_type', 'video') == 'video':
+                            if _info.get('ext') in [None, 'unknown_video']:
+                                _info['ext'] = _info['video_ext'] = _newext = determine_ext(_info['url'].partition('#')[0])
+                                if not _info.get('requested_formats'):
+                                    for fmt in _info['formats']:
+                                        if fmt.get('ext') in [None, 'unknown_video']:
+                                            fmt['ext'] = fmt['video_ext'] = _newext
+                            if not _info.get('requested_formats') and not _info.get('filesize') and _info.get('protocol') == 'https':
+                                if all(_ not in _info['http_headers'] for _ in ['Referer', 'referer']):
+                                    _info['http_headers']['Referer'] = 'https://www.myvidster.com/'
+                                _info_video = self.get_info_for_format(_info['url'], headers=_info['http_headers'])
+                                _info.update(**_info_video)
+                                for fmt in _info['formats']:
+                                    if fmt['format'] == _info['format']:
+                                        fmt['http_headers']['Referer'] = _info['http_headers']['Referer']
+                                        fmt.update(**_info_video)
+                                        break
 
-            self.logger_debug(f"{pre} OK got entry video\n {_info}")
-            return _info
+                        self.logger_debug(f"{pre} OK got entry video\n {_info}")
+                        return _info
+                except Exception as e:
+                    self.logger_debug(f'{pre} {repr(e)}')
+                    raise
+
+            return _extract_info_dec()
 
         if any(_ in el for _ in MyVidsterBaseIE._URLS_CHECKED):
             logger.error(f"{pre} already analysed")
@@ -319,7 +329,11 @@ class MyVidsterIE(MyVidsterBaseIE):
 
             else:
                 try:
-                    return _extract_info(el)
+                    if ie.ie_key().lower() in self._IE_DEEP:
+                        dec = on_exception_deep
+                    else:
+                        dec = on_exception
+                    return _extract_info(el, dec)
                 except Exception as e:
                     _check_valid = self._is_valid(el, inc_error=True)
                     if 'error' in _check_valid:
