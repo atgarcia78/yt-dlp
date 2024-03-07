@@ -55,6 +55,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+default = []
 secretstorage = [
     "cffi",
     "secretstorage",
