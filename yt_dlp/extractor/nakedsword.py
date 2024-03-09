@@ -285,8 +285,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @dec_retry
     def API_REFRESH(cls, msg=None, _logger=None):
         _pre = msg or ''
-        if not _logger:
-            _logger = logger.debug
+        _logger = _logger or logger.debug
         try:
             with cls.call_lock:
                 if cls.headers_api:
@@ -307,16 +306,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
     @classmethod
     def _refresh_api(cls):
         if (
-            data := try_get(
+            token := try_get(
                 cls._send_request(cls._API_URLS['refresh'], headers=cls.headers_api),
-                lambda x: x.json())
+                lambda x: x.json()['data']['jwt'])
         ):
-            if token := traverse_obj(data, ('data', 'jwt')):
-                cls._USERTOKEN = token
-                cls.headers_api.update({'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
-                return True
-            return False
-        return False
+            cls._USERTOKEN = token
+            cls.headers_api.update({'Authorization': f'Bearer {token}', 'X-CSRF-TOKEN': token})
+            return True
 
     @classmethod
     @dec_retry
@@ -339,9 +335,13 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             salt = get_random_bytes(256)
             iv = get_random_bytes(16)
             key_b = hashlib.pbkdf2_hmac('sha512', cls._APP_DATA_PASSPHRASE.encode(), salt, 999, dklen=32)
-            text = json.dumps({'date': int(datetime.now().timestamp() * 1000), 'propertyId': '1'}, separators=(',', ':'))
+            text = json.dumps(
+                {'date': int(datetime.now().timestamp() * 1000), 'propertyId': '1'},
+                separators=(',', ':'))
             bytes_encrypted = AES.new(key_b, AES.MODE_CBC, iv=iv).encrypt(pad(text.encode(), 16, style='pkcs7'))
-            data_str = json.dumps({'ciphertext': base64.b64encode(bytes_encrypted).decode(), 'salt': salt.hex(), 'iv': iv.hex()}, separators=(',', ':'))
+            data_str = json.dumps(
+                {'ciphertext': base64.b64encode(bytes_encrypted).decode(), 'salt': salt.hex(), 'iv': iv.hex()},
+                separators=(',', ':'))
             return base64.b64encode(data_str.encode()).decode()
         except Exception as e:
             logger.warning(f'[get_api_xident] couldnt get xident: {repr(e)}')
@@ -445,67 +445,47 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
         except Exception as e:
             logger.exception(str(e))
 
-    def get_formats(self, _types, _info: info_scene):
+    def get_formats(self, _type, _info: info_scene):
         self.logger_debug(f"[get_formats] {_info}")
 
         m3u8_url = _info.m3u8_url
-        formats = []
-        for _type in _types:
-            self.check_stop()
-            try:
-                if _type == "hls":
-                    if not (m3u8_doc := try_get(
-                        NakedSwordBaseIE._send_request(
-                            m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"],
-                            msg=f'[{_info.sceneid}][get_formats]'),
-                        lambda x: (x.content).decode('utf-8', 'replace'))
-                    ):
-                        raise_reextract_info("couldnt get m3u8 doc")
+        formats_m3u8 = []
+        self.check_stop()
+        try:
+            if _type == "hls":
+                if not (m3u8_doc := try_get(
+                    NakedSwordBaseIE._send_request(
+                        m3u8_url, headers=NakedSwordBaseIE._HEADERS["MPD"],
+                        msg=f'[{_info.sceneid}][get_formats]'),
+                    lambda x: (x.content).decode('utf-8', 'replace'))
+                ):
+                    raise_reextract_info("couldnt get m3u8 doc")
 
-                    formats_m3u8, _ = self._parse_m3u8_formats_and_subtitles(
-                        m3u8_doc, m3u8_url, ext='mp4', entry_protocol='m3u8_native', m3u8_id='hls')
-                    if formats_m3u8:
-                        for fmt in formats_m3u8:
-                            fmt['http_headers'] = NakedSwordBaseIE._HEADERS["HTTP_HEADERS"]
-                        formats.extend(formats_m3u8)
+                if (
+                    formats_m3u8 := self._parse_m3u8_formats_and_subtitles(
+                        m3u8_doc, m3u8_url, ext='mp4', entry_protocol='m3u8_native', m3u8_id='hls')[0]
+                ):
+                    for fmt in formats_m3u8:
+                        fmt['http_headers'] = NakedSwordBaseIE._HEADERS["HTTP_HEADERS"]
+                    return formats_m3u8
+                else:
+                    raise ExtractorError("couldnt find any format")
+        except ReExtractInfo:
+            raise
+        except Exception as e:
+            logger.error(f"[get_formats][{_type}][{_info.url}] {str(e)}")
 
-                elif _type == "dash":
-                    mpd_url = m3u8_url.replace('playlist.m3u8', 'manifest.mpd')
-                    if not (_doc := try_get(
-                        NakedSwordBaseIE._send_request(mpd_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
-                        lambda x: (x.content).decode('utf-8', 'replace'))
-                    ):
-                        raise ExtractorError("couldnt get mpd doc")
-
-                    mpd_doc = self._parse_xml(_doc, None)
-
-                    if formats_dash := self._parse_mpd_formats(
-                        mpd_doc, mpd_id="dash", mpd_url=mpd_url,
-                        mpd_base_url=(mpd_url.rsplit('/', 1))[0],
-                    ):
-                        formats.extend(formats_dash)
-
-                elif _type == "ism":
-                    ism_url = m3u8_url.replace('playlist.m3u8', 'Manifest')
-                    if _doc := try_get(
-                        NakedSwordBaseIE._send_request(
-                            ism_url, headers=NakedSwordBaseIE._HEADERS["MPD"]),
-                        lambda x: (x.content).decode('utf-8', 'replace'),
-                    ):
-                        ism_doc = self._parse_xml(_doc, None)
-                        formats_ism, _ = self._parse_ism_formats_and_subtitles(ism_doc, ism_url)
-                        if formats_ism:
-                            formats.extend(formats_ism)
-
-            except ReExtractInfo:
-                raise
-            except Exception as e:
-                logger.error(f"[get_formats][{_type}][{_info.url}] {str(e)}")
-
-        if not formats:
-            raise ExtractorError("couldnt find any format")
-        else:
-            return formats
+    @staticmethod
+    def _get_api_scene_urls(details, _type="HLS"):
+        _id_movie = details.get('id')
+        _pre1 = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
+        _pre2 = "?max_bitrate=10500&scenes_id="
+        _res = []
+        for sc in details.get('scenes'):
+            _url = f"{_pre1}{_id_movie}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
+            _url += f"{sc['endTimeSeconds'] - sc['startTimeSeconds']}&format={_type}"
+            _res.append(_url)
+        return _res
 
     @classmethod
     def _get_api_details(cls, _id_movie):
@@ -552,7 +532,7 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                 for el in feed['sex_acts']]
             NakedSwordBaseIE._TAGS.update({'themes': themes, 'sex_acts': sex_acts})
 
-    def _get_api_info_playlist(self, url, label) -> tuple:
+    def _get_api_info_playlist(self, url: str, label: str) -> tuple:
         _info = try_get(
             NakedSwordBaseIE._send_request(url, headers=NakedSwordBaseIE.API_GET_HTTP_HEADERS),  # type: ignore
             lambda x: x.json())
@@ -563,11 +543,11 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
             _name = traverse_obj(_info, ('data', 'name'))
         return _name, _target_info
 
-    def _get_api_scenes_playlist(self, playlistid):
+    def _get_api_scenes_playlist(self, playlistid: str) -> tuple:
         _url = f'https://ns-api.nakedsword.com/frontend/scene_playlist/{playlistid}'
         return self._get_api_info_playlist(_url, "scenes_in_playlist")
 
-    def _get_api_movies_playlist(self, playlistid) -> tuple:
+    def _get_api_movies_playlist(self, playlistid: str) -> tuple:
         _url = f'https://ns-api.nakedsword.com/frontend/movie_playlist/{playlistid}'
         return self._get_api_info_playlist(_url, "movies_in_playlist")
 
@@ -622,18 +602,6 @@ class NakedSwordBaseIE(SeleniumInfoExtractor):
                     lambda x: traverse_obj(x.json(), ('data', 'movies'))) or [])
 
         return _movies_info
-
-    @staticmethod
-    def _get_api_scene_urls(details, _type="HLS"):
-        _id_movie = details.get('id')
-        _pre1 = f"{NakedSwordBaseIE._API_URLS['streaming']}/aebn/movie/"
-        _pre2 = "?max_bitrate=10500&scenes_id="
-        _res = []
-        for sc in details.get('scenes'):
-            _url = f"{_pre1}{_id_movie}{_pre2}{sc['id']}&start_time={sc['startTimeSeconds']}&duration="
-            _url += f"{sc['endTimeSeconds'] - sc['startTimeSeconds']}&format={_type}"
-            _res.append(_url)
-        return _res
 
     @staticmethod
     def _get_api_scene_info(urlsc):
@@ -877,8 +845,7 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
 
     @dec_on_reextract_1
     def get_entry(self, url, **kwargs):
-        _type = kwargs.get('_type', 'all')
-        _types = ['hls', 'dash', 'ism'] if _type == 'all' else [_type]
+        _type = kwargs.get('_type', 'hls')
         index_scene = kwargs.get('index') or int_or_none(self._match_id(url)) or 1
         premsg = "[get_entry]"
         if msg := kwargs.get('msg'):
@@ -926,19 +893,19 @@ class NakedSwordSceneIE(NakedSwordBaseIE):
             _info = self.get_streaming_info(_id_movie, index=index_scene)
             if isinstance(_info, info_scene):
                 _entry = self.build_entry(_info)
-                if not (formats := self.get_formats(_types, _info)):
+                if not (formats := self.get_formats(_type, _info)):
                     raise_reextract_info(f'{premsg}: error - no formats')
-                _entry['formats'] = formats
-                self.logger_info(f"{premsg}: OK got entr")
-                _THIS_MOVIE['scenes'][index_scene]['final'] = True
-                try:
-                    _entry['duration'] = self._extract_m3u8_vod_duration(
-                        formats[0]['url'], _info.sceneid,
-                        headers=NakedSwordBaseIE._HEADERS["MPD"])
-                except Exception as e:
-                    self.logger_info(
-                        f"{premsg}: error trying to get vod {repr(e)}")
-                return _entry
+                else:
+                    _entry['formats'] = formats
+                    self.logger_info(f"{premsg}: OK got entr")
+                    _THIS_MOVIE['scenes'][index_scene]['final'] = True
+                    try:
+                        _entry['duration'] = self._extract_m3u8_vod_duration(
+                            formats[0]['url'], _info.sceneid,
+                            headers=NakedSwordBaseIE._HEADERS["MPD"])
+                    except Exception as e:
+                        self.logger_info(f"{premsg}: error trying to get vod {repr(e)}")
+                    return _entry
             else:
                 raise_reextract_info(f'{premsg}: error in get streaming info')
         except ReExtractInfo:
@@ -1015,8 +982,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
 
     @dec_on_reextract_1
     def get_entries(self, url, **kwargs):
-        _type = kwargs.get('_type', 'all')
-        _types = ['hls', 'dash', 'ism'] if _type == 'all' else [_type]
+        _type = kwargs.get('_type', 'hls')
         premsg = "[get_entries]"
         if msg := kwargs.get('msg'):
             premsg = f"{msg}{premsg}"
@@ -1074,7 +1040,7 @@ class NakedSwordMovieIE(NakedSwordBaseIE):
                         _entries.setdefault(i, self.build_entry(_info))
                         if _info.m3u8_url and i not in _THIS_MOVIE['ok']:
                             try:
-                                if formats := self.get_formats(_types, _info):
+                                if formats := self.get_formats(_type, _info):
                                     _entries[i]['formats'] = formats
                                     self.logger_debug(f"{premsg}[{i}]: OK got entry")
                                     _THIS_MOVIE['ok'].append(i)
