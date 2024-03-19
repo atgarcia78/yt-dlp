@@ -926,10 +926,9 @@ class SeleniumInfoExtractor(InfoExtractor):
             'headers': {"User-Agent": random_user_agent()}
         }
 
-    @classmethod
-    def get_temp_client(cls):
-        config = SeleniumInfoExtractor.TEMP_CLIENT_CONFIG
-        return Client(**config)
+    @staticmethod
+    def get_temp_client(config={}):
+        return Client(**(SeleniumInfoExtractor.TEMP_CLIENT_CONFIG | config))
 
     @cached_classproperty
     def IE_LIMITER(cls):
