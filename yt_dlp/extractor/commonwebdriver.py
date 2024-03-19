@@ -1167,9 +1167,6 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         opts.set_preference("dom.webdriver.enabled", False)
         opts.set_preference("useAutomationExtension", False)
-        opts.add
-        # opts.set_preference("fission.webContentIsolationStrategy", 0)
-        # opts.set_preference("fission.bfcacheInParent", False)
 
         opts.page_load_strategy = 'eager'  # type: ignore
 
