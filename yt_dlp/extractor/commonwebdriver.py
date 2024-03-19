@@ -1105,14 +1105,14 @@ class SeleniumInfoExtractor(InfoExtractor):
         except StatusStop:
             raise
 
-    def get_uc_chr(self, noheadless=False, host=None, port=None):
+    def get_uc_chr(self, noheadless=False, host: str | None = None, port: int | None = None):
         import undetected_chromedriver as uc
 
         options = uc.ChromeOptions()
         if not noheadless:
             options.add_argument('--headless')
         if host:
-            options.add_argument('--proxy-server=%s' % '127.0.0.1:8080')
+            options.add_argument('--proxy-server=%s:%d' % (host, port))
         options.add_argument(r'--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome')
         options.add_argument(r'--profile-directory=Default')
         driver = uc.Chrome(options=options)
