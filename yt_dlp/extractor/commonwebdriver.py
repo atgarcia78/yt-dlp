@@ -1105,6 +1105,20 @@ class SeleniumInfoExtractor(InfoExtractor):
         except StatusStop:
             raise
 
+    def get_uc_chr(self, noheadless=False, host=None, port=None):
+        import undetected_chromedriver as uc
+
+        options = uc.ChromeOptions()
+        if not noheadless:
+            options.add_argument('--headless')
+        if host:
+            options.add_argument('--proxy-server=%s' % '127.0.0.1:8080')
+        options.add_argument(r'--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome')
+        options.add_argument(r'--profile-directory=Default')
+        driver = uc.Chrome(options=options)
+        SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
+        return driver
+
     @classmethod
     @dec_retry
     def _get_driver(
@@ -1153,8 +1167,9 @@ class SeleniumInfoExtractor(InfoExtractor):
 
         opts.set_preference("dom.webdriver.enabled", False)
         opts.set_preference("useAutomationExtension", False)
-        opts.set_preference("fission.webContentIsolationStrategy", 0)
-        opts.set_preference("fission.bfcacheInParent", False)
+        opts.add
+        # opts.set_preference("fission.webContentIsolationStrategy", 0)
+        # opts.set_preference("fission.bfcacheInParent", False)
 
         opts.page_load_strategy = 'eager'  # type: ignore
 
