@@ -527,7 +527,7 @@ class MyHAR:
                 _mimetype_list = list(variadic(_mimetype))
                 _non_mimetype_list = []
             else:
-                _non_mimetype_list = ['image', 'css', 'font', 'octet-stream']
+                _non_mimetype_list = ['image', 'css', 'font']
                 _mimetype_list = []
 
             return [
