@@ -1113,8 +1113,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             options.add_argument('--headless')
         if host:
             options.add_argument('--proxy-server=%s:%d' % (host, port))
-        options.user_data_dir = "/Users/antoniotorres/Library/Application Support/Google/Chrome Dev"
-        # options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome Dev')
+        options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome Dev')
         options.add_argument('--profile-directory=Default')
         # options.add_argument('--user-agent=%s' % self.get_param('http_headers')['User-Agent'])
         driver = uc.Chrome(options=options)
