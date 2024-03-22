@@ -1108,15 +1108,15 @@ class SeleniumInfoExtractor(InfoExtractor):
         import undetected_chromedriver as uc
 
         options = uc.ChromeOptions()
-        options.binary_location = r"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev"
+        options.binary_location = r"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         if not noheadless:
             options.add_argument('--headless')
         if host:
             options.add_argument('--proxy-server=%s:%d' % (host, port))
-        options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome Dev')
+        options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome')
         options.add_argument('--profile-directory=Default')
-        # options.add_argument('--user-agent=%s' % self.get_param('http_headers')['User-Agent'])
-        driver = uc.Chrome(options=options)
+        exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
+        driver = uc.Chrome(options=options, version_main=123, driver_executable_path=exepath)
         SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
         return driver
 
