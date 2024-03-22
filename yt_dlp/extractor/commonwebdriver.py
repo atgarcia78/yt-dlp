@@ -1105,7 +1105,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             raise
 
     def get_uc_chr(self, noheadless=False, host: str | None = None, port: int | None = None, logs=False):
-        import undetected_chromedriver as uc
+        import seleniumwire.undetected_chromedriver as uc
 
         options = uc.ChromeOptions()
         options.binary_location = r"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
