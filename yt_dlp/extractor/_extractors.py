@@ -591,6 +591,7 @@ from .facebook import (
     FacebookReelIE,
     FacebookAdsIE,
 )
+from .fathom import FathomIE
 from .fancode import (
     FancodeVodIE,
     FancodeLiveIE
