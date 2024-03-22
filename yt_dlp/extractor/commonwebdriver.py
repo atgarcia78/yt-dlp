@@ -1104,7 +1104,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         except StatusStop:
             raise
 
-    def get_uc_chr(self, noheadless=False, host: str | None = None, port: int | None = None):
+    def get_uc_chr(self, noheadless=False, host: str | None = None, port: int | None = None, logs=False):
         import undetected_chromedriver as uc
 
         options = uc.ChromeOptions()
@@ -1113,6 +1113,8 @@ class SeleniumInfoExtractor(InfoExtractor):
             options.add_argument('--headless')
         if host:
             options.add_argument('--proxy-server=%s:%d' % (host, port))
+        if logs:
+            options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome')
         options.add_argument('--profile-directory=Default')
         exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
