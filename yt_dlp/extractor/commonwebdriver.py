@@ -1108,6 +1108,7 @@ class SeleniumInfoExtractor(InfoExtractor):
         import seleniumwire.undetected_chromedriver as uc
 
         options = uc.ChromeOptions()
+        options.add_argument('--no-sandbox')
         options.binary_location = r"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev"
         if not noheadless:
             options.add_argument('--headless')
