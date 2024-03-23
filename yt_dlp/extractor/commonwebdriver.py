@@ -1107,6 +1107,7 @@ class SeleniumInfoExtractor(InfoExtractor):
     def get_uc_chr(self, noheadless=False, host: str | None = None, port: int | None = None, logs=False):
         import seleniumwire.undetected_chromedriver as uc
 
+        self.logger_info(f'requesting Chrome UC: {id(self._downloader)}')
         options = uc.ChromeOptions()
         options.add_argument('--no-sandbox')
         options.binary_location = r"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev"
