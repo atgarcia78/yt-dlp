@@ -1108,19 +1108,18 @@ class SeleniumInfoExtractor(InfoExtractor):
         import seleniumwire.undetected_chromedriver as uc
 
         options = uc.ChromeOptions()
-        options.binary_location = r"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        options.binary_location = r"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev"
         if not noheadless:
             options.add_argument('--headless')
         if host:
             options.add_argument('--proxy-server=%s:%d' % (host, port))
         if logs:
             options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
-        options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome')
+        options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome Dev')
         options.add_argument('--profile-directory=Default')
-        options.add_argument('--')
         exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
-        driver = uc.Chrome(options=options, version_main=123, driver_executable_path=exepath)
-        driver.maximize_window()
+        driver = uc.Chrome(options=options, version_main=125, driver_executable_path=exepath)
+        driver.set_window_size(1920, 1080)
         driver.execute_cdp_cmd('Network.clearBrowserCookies', {})
         driver.execute_cdp_cmd('Network.clearBrowserCache', {})
         SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
