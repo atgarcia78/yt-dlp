@@ -1117,8 +1117,12 @@ class SeleniumInfoExtractor(InfoExtractor):
             options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome')
         options.add_argument('--profile-directory=Default')
+        options.add_argument('--')
         exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
         driver = uc.Chrome(options=options, version_main=123, driver_executable_path=exepath)
+        driver.maximize_window()
+        driver.execute_cdp_cmd('Network.clearBrowserCookies', {})
+        driver.execute_cdp_cmd('Network.clearBrowserCache', {})
         SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
         return driver
 
