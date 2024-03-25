@@ -1104,26 +1104,23 @@ class SeleniumInfoExtractor(InfoExtractor):
         except StatusStop:
             raise
 
-    def get_uc_chr(self, noheadless=False, host: str | None = None, port: int | None = None, logs=False):
+    def get_uc_chr(self, noheadless=False, logs=False):
         import seleniumwire.undetected_chromedriver as uc
 
         self.logger_info(f'requesting Chrome UC: {id(self._downloader)}')
         options = uc.ChromeOptions()
         options.add_argument('--no-sandbox')
         options.binary_location = r"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev"
-        if not noheadless:
-            options.add_argument('--headless')
-        if host:
-            options.add_argument('--proxy-server=%s:%d' % (host, port))
         if logs:
             options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome Dev')
         options.add_argument('--profile-directory=Default')
         exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
-        driver = uc.Chrome(options=options, version_main=125, driver_executable_path=exepath)
-        driver.set_window_size(1920, 1080)
+        driver = uc.Chrome(options=options, version_main=125, headless=not noheadless, driver_executable_path=exepath)
+        driver.set_window_position(5000, 0)
         driver.execute_cdp_cmd('Network.clearBrowserCookies', {})
         driver.execute_cdp_cmd('Network.clearBrowserCache', {})
+        driver.set_window_size(1920, 1080)
         SeleniumInfoExtractor._WEBDRIVERS[id(driver)] = driver
         return driver
 
