@@ -1104,17 +1104,16 @@ class SeleniumInfoExtractor(InfoExtractor):
         except StatusStop:
             raise
 
-    def get_uc_chr(self, noheadless=False, logs=False):
+    def get_uc_chr(self, noheadless=False, profile='Profile 1', logs=False):
         import seleniumwire.undetected_chromedriver as uc
 
         self.logger_info(f'requesting Chrome UC: {id(self._downloader)}')
         options = uc.ChromeOptions()
-        options.add_argument('--no-sandbox')
         options.binary_location = r"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev"
         if logs:
             options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
-        options.add_argument('--user-data-dir=/Users/antoniotorres/Library/Application Support/Google/Chrome Dev')
-        options.add_argument('--profile-directory=Default')
+        options.add_argument(f'--user-data-dir=/Users/antoniotorres/.config/chrome_profiles/{profile}')
+        options.add_argument(f'--profile-directory={profile}')
         exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
         driver = uc.Chrome(options=options, version_main=125, headless=not noheadless, driver_executable_path=exepath)
         driver.set_window_position(5000, 0)
