@@ -438,7 +438,7 @@ class scroll:
             self._el_footer = self._el_footer
             driver.execute_script(
                 "window.scrollTo(arguments[0]['x'], arguments[0]['y']);",
-                self._el_footer.location)
+                self._el_footer.location)  # type: ignore
             return True
 
         else:
@@ -910,7 +910,7 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     @classproperty
     def IE_NAME(cls):
-        return cls.__name__[:-2].lower()
+        return cls.__name__[:-2].lower()  # type: ignore
 
     @classproperty
     def LOGGER(cls):

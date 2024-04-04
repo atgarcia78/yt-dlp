@@ -25,6 +25,7 @@ from .commonwebdriver import (
 )
 from .doodstream import DoodStreamIE
 from .filemoon import FilemoonIE
+from .mixdrop import MixDropIE
 from .streamhide import StreamHideIE
 from .streamsb import StreamSBIE
 from .voe import VoeIE
@@ -37,6 +38,7 @@ from ..utils import (  # get_element_html_by_id,
     int_or_none,
     orderedSet,
     sanitize_filename,
+    sanitize_url,
     traverse_obj,
     try_get,
     update_url,
@@ -45,9 +47,9 @@ from ..utils import (  # get_element_html_by_id,
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
-               for _ie in (DoodStreamIE, StreamHideIE, FilemoonIE, VoeIE, StreamSBIE, XFileShareIE)},
+               for _ie in (DoodStreamIE, MixDropIE, StreamHideIE, FilemoonIE, VoeIE, StreamSBIE, XFileShareIE)},
     'alt': {_ie.IE_NAME: _ie._VALID_URL
-            for _ie in (VoeIE, StreamSBIE, XFileShareIE, FilemoonIE, StreamHideIE, DoodStreamIE)}
+            for _ie in (VoeIE, StreamSBIE, XFileShareIE, FilemoonIE, StreamHideIE, DoodStreamIE, MixDropIE)}
 }
 
 on_exception_req = my_dec_on_exception(
@@ -237,48 +239,19 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if msg:
             premsg = f'{msg}{premsg}'
 
-        _pattern = r'<iframe ([^>]+)>|button2["\']>([^<]+)<|target=["\']_blank["\']>([^>]+)<'
-        p1 = list(map(
-            lambda x: (x[0].lower(), x[1], x[2]),
-            re.findall(_pattern, webpage, flags=re.IGNORECASE)))
-        p2 = [
-            (l1[0].replace("src=''", "src=\"DUMMY\""), l1[1], l1[2])
-            for l1 in p1
-            if any(
-                [
-                    (l1[0] and 'src=' in l1[0]),
-                    l1[1]
-                    and all(_ not in l1[1].lower() for _ in ['subtitle', 'imdb']),
-                    l1[2]
-                    and all(_ not in l1[2].lower() for _ in ['subtitle', 'imdb']),
-                ]
-            )
-        ]
-        p3 = [{_el.split('="')[0]: _el.split('="')[1].strip('"')
-               for _el in l1[0].split(' ') if len(_el.split('="')) == 2} for l1 in p2]
+        p1 = re.findall(r'<iframe[^>]+src\ *=\ *[\'"]([^\'"]+)[\'"]', webpage.lower())
+        self.logger_debug(f'{premsg} p1:\n{p1}')
+
+        p4 = list(map(lambda x: unquote(sanitize_url(x, scheme='https') or ''), p1))
+
+        self.logger_debug(f'{premsg} p4:\n{p4}')
 
         list_urls = []
 
-        def _get_url(el):
-            _res = 'DUMMY'
-            for key in el.keys():
-                if 'src' in key:
-                    if any(
-                        re.search(_, el[key])
-                        for _ in _ie_data[self.altkey].values()
-                    ):
-                        return el[key]
-                    else:
-                        _res = el[key]
-            return _res
-
         _check = {iename: False for iename in _ie_data[self.altkey]}
 
-        for el in p3:
-            if not el:
-                continue
-            _url = _get_url(el)
-            if _url == 'DUMMY':
+        for _url in p4:
+            if not _url:
                 continue
             for key, value in _ie_data[self.altkey].items():
                 if re.search(value, _url):
@@ -297,7 +270,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         list1 = []
         for el in list_urls:
             if el:
-                _subvideo.append(unquote(el))
+                _subvideo.append(el)
             else:
                 if _subvideo:
                     _subvideo.sort(reverse=True)
