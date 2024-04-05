@@ -9,7 +9,7 @@ from .commonwebdriver import (
     ReExtractInfo,
     SeleniumInfoExtractor,
     dec_on_exception3,
-    limiter_1,
+    limiter_2,
     my_dec_on_exception,
     raise_extractor_error,
 )
@@ -38,7 +38,7 @@ class MixDropIE(SeleniumInfoExtractor):
 
     @on_exception_vinfo
     def _get_video_info(self, url, **kwargs):
-        with limiter_1.ratelimit("mixdrop", delay=True):
+        with limiter_2.ratelimit("mixdrop", delay=True):
             msg = kwargs.get('msg')
             pre = f'[get_video_info][{self._get_url_print(url)}]'
             if msg:
@@ -60,7 +60,7 @@ class MixDropIE(SeleniumInfoExtractor):
                 raise
 
     @dec_on_exception3
-    @limiter_1.ratelimit("mixdrop", delay=True)
+    @limiter_2.ratelimit("mixdrop", delay=True)
     def _send_request(self, url, **kwargs):
 
         _kwargs = kwargs.copy()

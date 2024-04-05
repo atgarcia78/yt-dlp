@@ -12,6 +12,8 @@ from html import unescape
 from pathlib import Path
 from threading import Lock
 
+from yt_dlp_plugins.extractor.bembed import BembedIE
+
 from .commonwebdriver import (
     ConnectError,
     HTTPStatusError,
@@ -24,7 +26,6 @@ from .commonwebdriver import (
     unquote,
 )
 from .doodstream import DoodStreamIE
-from .filemoon import FilemoonIE
 from .mixdrop import MixDropIE
 from .streamhide import StreamHideIE
 from .streamsb import StreamSBIE
@@ -47,9 +48,9 @@ from ..utils import (  # get_element_html_by_id,
 
 _ie_data = {
     'legacy': {_ie.IE_NAME: _ie._VALID_URL
-               for _ie in (DoodStreamIE, MixDropIE, StreamHideIE, FilemoonIE, VoeIE, StreamSBIE, XFileShareIE)},
+               for _ie in (DoodStreamIE, MixDropIE, BembedIE, StreamHideIE, VoeIE, StreamSBIE, XFileShareIE)},
     'alt': {_ie.IE_NAME: _ie._VALID_URL
-            for _ie in (VoeIE, StreamSBIE, XFileShareIE, FilemoonIE, StreamHideIE, DoodStreamIE, MixDropIE)}
+            for _ie in (BembedIE, VoeIE, StreamSBIE, XFileShareIE, StreamHideIE, DoodStreamIE, MixDropIE)}
 }
 
 on_exception_req = my_dec_on_exception(
@@ -178,6 +179,8 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         _entries = []
         for key in _ie_data[self.altkey]:
             if key in urldict:
+                if key == 'mixdrop' and 'doodstream' in urldict and _entries:
+                    continue
                 try:
                     if _entry := urldict[key]['ie']._get_entry(
                         urldict[key]['url'], check=check, msg=premsg
@@ -239,7 +242,7 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
         if msg:
             premsg = f'{msg}{premsg}'
 
-        p1 = re.findall(r'<iframe[^>]+src\ *=\ *[\'"]([^\'"]+)[\'"]', webpage.lower())
+        p1 = re.findall(r'<iframe[^>]+src\ *=\ *[\'"]([^\'"]+)[\'"]', webpage, flags=re.IGNORECASE)
         self.logger_debug(f'{premsg} p1:\n{p1}')
 
         p4 = list(map(lambda x: unquote(sanitize_url(x, scheme='https') or ''), p1))
@@ -273,7 +276,6 @@ class GVDBlogBaseIE(SeleniumInfoExtractor):
                 _subvideo.append(el)
             else:
                 if _subvideo:
-                    _subvideo.sort(reverse=True)
                     list1.append(_subvideo)
                     _subvideo = []
 
