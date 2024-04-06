@@ -595,8 +595,9 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
         if _res := OnlyFansBaseIE.conn_api.post(_path, _headers=headers, _content=challenge):
             return _res.content
 
-    def _extract_from_json(self, data_post, user_profile=None):
+    def _extract_from_json(self, data_post, user_profile=None, vid=None):
 
+        self.logger_debug
         try:
             account = user_profile
             if not account:
@@ -618,10 +619,14 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
             _entries = []
 
+            _index_video = 0
+            _suffix = lambda: f"?vid={_index_video}"
             for _media in data_post['media']:
 
                 if _media['type'] == "video" and _media['canView']:
-
+                    _index_video += 1
+                    if vid and _index_video != vid:
+                        continue
                     videoid = str(_media['id'])
                     _formats = []
 
@@ -629,19 +634,20 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
                     if (_drm := traverse_obj(_media, ('files', 'drm'))):
                         if (_mpd_url := traverse_obj(_drm, ('manifest', 'dash'))):
+                            _cookies = []
+                            for name, val in OnlyFansBaseIE.conn_api.session.cookies.items():
+                                _cookies.append(f'{name}={val}')
                             _signature = traverse_obj(_drm, ('signature', 'dash'), default={})  # type: ignore
                             if isinstance(_signature, dict):
-                                _cookies_drm = []
                                 for name, value in _signature.items():
-                                    _cookies_drm.append(f'{name}={value}')
+                                    _cookies.append(f'{name}={value}')
                                     OnlyFansBaseIE.conn_api.session.cookies.set(name=name, value=value, domain='.onlyfans.com')
-                                _cookies_drm_str = '; '.join(_cookies_drm)
-                                _cookie_str = OnlyFansBaseIE.conn_api.cookies + '; ' + _cookies_drm_str
-                                self.logger_info(f"[extract_from_json] cookies {_cookie_str}")
+                                _cookie_str = '; '.join(_cookies)
+                                self.logger_debug(f"[extract_from_json] cookies {_cookie_str}")
                                 for cookie in OnlyFansBaseIE.conn_api.session.cookies.jar:
                                     if self._downloader:
                                         self._downloader.cookiejar.set_cookie(cookie)
-                                self.logger_info(
+                                self.logger_debug(
                                     f"[extract_from_json] cookies from dl {self._downloader.cookiejar.get_cookie_header(self._SITE_URL) if self._downloader else ''}")
                                 _headers = {'referer': 'https://onlyfans.com/', 'origin': 'https://onlyfans.com'}
                                 _base_api_media = "https://onlyfans.com/api2/v2/users/media"
@@ -712,7 +718,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
                             "release_timestamp": date_timestamp,
                             "release_date": _datevideo.split("T")[0].replace("-", ""),
                             "title": f'{_datevideo.split("T")[0].replace("-", "")}_from_{account}',
-                            "webpage_url": f'https://onlyfans.com/{data_post["id"]}/{account}',
+                            "webpage_url": f'https://onlyfans.com/{data_post["id"]}/{account}{_suffix()}',
                             "formats": _formats,
                             "duration": _media.get('info', {}).get('source', {}).get('duration', 0),
                             "ext": "mp4",
@@ -767,6 +773,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 
             entries = OrderedDict()
             for data_json in list_json:
+                self.logger_debug(f"{pre} {data_json}")
                 if (_entry := self._extract_from_json(data_json, user_profile=account)):
                     for _video in _entry:
                         if not _video['id'] in entries:
@@ -793,7 +800,7 @@ class OnlyFansBaseIE(SeleniumInfoExtractor):
 class OnlyFansPostIE(OnlyFansBaseIE):
     IE_NAME = 'onlyfans:post:playlist'  # type: ignore
     IE_DESC = 'onlyfans:post:playlist'
-    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<post>[\d]+)/(?P<account>[^/]+)"
+    _VALID_URL = r"https?://(?:www\.)?onlyfans.com/(?P<post>\d+)/(?P<account>[^/\?]+)(/?\?vid=(?P<vid>\d+))?"
 
     def _real_initialize(self):
         super()._real_initialize()
@@ -802,19 +809,19 @@ class OnlyFansPostIE(OnlyFansBaseIE):
 
         self.report_extraction(url)
 
-        post, account = try_get(
+        post, account, vid = try_get(
             re.search(self._VALID_URL, url),  # type: ignore
-            lambda x: x.group("post", "account"))
+            lambda x: x.group("post", "account", "vid"))
 
-        self.to_screen("post:" + post + ":" + "account:" + account)
+        self.to_screen(f"post: {post} account: {account} vid: {vid}")
 
         data_json = OnlyFansBaseIE.conn_api.getPost(post)
 
         entries = OrderedDict()
 
         if data_json:
-            # self.to_screen(data_json)
-            if (_entry := self._extract_from_json(data_json, user_profile=account)):
+            self.logger_debug(f"{data_json}")
+            if (_entry := self._extract_from_json(data_json, user_profile=account, vid=int_or_none(vid))):
                 for _video in _entry:
                     if not _video['id'] in entries:
                         entries[_video['id']] = _video
@@ -823,6 +830,8 @@ class OnlyFansPostIE(OnlyFansBaseIE):
                             entries[_video['id']] = _video
         if entries:
             entries_list = upt_dict(list(entries.values()), original_url=url)
+            if vid and (len(entries_list) == 1):
+                return entries_list[0]
             return self.playlist_result(entries_list, f"onlyfans:{account}:{post}", f"onlyfans:{account}:{post}")
         else:
             raise ExtractorError("No entries")
@@ -901,21 +910,15 @@ class OnlyFansPaidlistIE(OnlyFansBaseIE):
             if not list_json:
                 raise ExtractorError(f"{pre} no entries")
 
-            with ThreadPoolExecutor(thread_name_prefix='onlyfans') as exe:
-                futures = {exe.submit(self._extract_from_json, info_json): info_json for info_json in list_json}
-
             entries = OrderedDict()
-            for fut in futures:
-                try:
-                    if (_entry := fut.result()):
-                        for _video in _entry:
-                            if not _video['id'] in entries:
+            for info_json in list_json:
+                if (_entry := self._extract_from_json(info_json)):
+                    for _video in _entry:
+                        if not _video['id'] in entries:
+                            entries[_video['id']] = _video
+                        else:
+                            if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
                                 entries[_video['id']] = _video
-                            else:
-                                if _video.get('duration', 1) > entries[_video['id']].get('duration', 0):
-                                    entries[_video['id']] = _video
-                except Exception as e:
-                    self.to_screen(f"{pre} error with postid {futures[fut].get('id')} - {repr(e)}")
 
             return entries
 
