@@ -2565,12 +2565,6 @@ from .nakedsword import (
     NakedSwordJustAddedMoviesPlaylistIE,
 )
 from .monstercockinfo import MonsterCockInfoIE
-from .onlyfans import (
-    OnlyFansPostIE,
-    OnlyFansPlaylistIE,
-    OnlyFansPaidlistIE,
-    OnlyFansActSubslistIE
-)
 from .netdna import NetDNAIE
 from .bbgroup import (
     BreederBrosIE,
