@@ -2604,10 +2604,6 @@ from .gaythebest import GayTheBestIE
 from .youdbox import YoudBoxIE
 from .mixdrop import MixDropIE
 from .cockhero import CockHeroIE
-from .gvdblog import (
-    GVDBlogPostIE,
-    GVDBlogPlaylistIE
-)
 from .exporntoons import ExPornToonsIE
 from .gaybingo import GayBingoIE
 from .vodnakedsword import VODNakedSwordSceneIE
