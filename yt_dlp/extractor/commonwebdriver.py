@@ -1114,7 +1114,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_argument(f'--user-data-dir=/Users/antoniotorres/.config/chrome_profiles/{profile}')
         options.add_argument(f'--profile-directory={profile}')
-        exepath = "/Users/antoniotorres/Downloads/chromedriver-mac-arm64/chromedriver"
+        exepath = "/Users/antoniotorres/Library/Application Support/undetected_chromedriver/chromedriver-mac-arm64/chromedriver"
         driver = uc.Chrome(options=options, version_main=125, headless=not noheadless, driver_executable_path=exepath)
         driver.set_window_position(5000, 0)
         driver.execute_cdp_cmd('Network.clearBrowserCookies', {})
