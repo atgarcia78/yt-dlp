@@ -2622,7 +2622,6 @@ from .trafficdepot import TrafficDePotIE
 from .porndune import PornDuneIE
 from .streamplay import StreamplayIE
 from .xhamster import XHamsterPornStarIE
-from .gaymovies import GayMoviesIE
 from .filemoon import FilemoonIE
 from .upstream import (
     UpstreamIE,
@@ -2641,8 +2640,6 @@ from .justthegays import (
     JustTheGaysPlaylistIE
 )
 from .hexupload import HexUploadIE
-from .doodstream import DoodStreamIE
-from .voe import VoeIE
 from .streamsb import StreamSBIE
 from .streamhide import StreamHideIE
 from .streamhub import StreamHubIE
