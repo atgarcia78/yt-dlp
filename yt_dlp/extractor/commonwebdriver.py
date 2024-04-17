@@ -1375,15 +1375,31 @@ class SeleniumInfoExtractor(InfoExtractor):
 
     def get_info_for_format(self, url, **kwargs):
 
+        def _get_filesize_str(resp):
+            if resp.request.method == 'HEAD':
+                return resp.headers.get('content-length')
+            else:
+                return try_get(resp.headers.get('content-range'), lambda x: x.split('/')[1])
+
         res = None
         info = {}
         _msg_err = ""
         try:
-            _kwargs = {**kwargs, **{"_type": "HEAD", "timeout": 10}}
-            _kwargs.setdefault('client', self._CLIENT)
+            _kwargs = {}
+            _headers = kwargs.pop('headers', {})
+            if kwargs.pop('_type', '') == 'GET':
+                _headers |= {'Range': 'bytes=0-100'}
+                _kwargs |= {'_type': 'GET'}
+            else:
+                _kwargs |= {'_type': 'HEAD', 'timeout': 10}
+            _kwargs |= {"headers": _headers, "logger": self.logger_debug}
+            _kwargs |= {"client": kwargs.pop('client', None) or self._CLIENT}
+            #_kwargs = {**kwargs, **{"_type": "HEAD", "timeout": 10}}
+            #_kwargs.setdefault('client', self._CLIENT)
+            _kwargs |= kwargs
             if not (res := SeleniumInfoExtractor._send_http_request(url, **_kwargs)):
                 raise ReExtractInfo('no response')
-            elif not (_filesize_str := res.headers.get('content-length')):
+            elif not (_filesize_str := _get_filesize_str(res)):
                 raise ReExtractInfo('no filesize')
             else:
                 _url = unquote(str(res.url))
@@ -1403,7 +1419,7 @@ class SeleniumInfoExtractor(InfoExtractor):
             raise ExtractorError(_msg_err) from None
         finally:
             self.logger_debug(
-                f"[get_info_format] {url}:{res}:{_msg_err}:{info}")
+                f"[get_info_format] {url}:{_kwargs}:{res}:{_msg_err}:{info}")
 
     def _is_valid(self, url, timeout=45, msg=None, inc_error=False):
 
@@ -1678,6 +1694,6 @@ class SeleniumInfoExtractor(InfoExtractor):
             _resp = f"{res}\n" if res else "<Response ''>\n"
             _req = f"{req}:{req.headers}" if req else "<Requests ''>"
             _logger(
-                f"[{cls.IE_NAME}] {_error}{_resp}{_req}")
+                f"[{cls.IE_NAME}] kwargs[{kwargs}]{_error}{_resp}{_req}")
             if _close_cl:
                 client.close()
