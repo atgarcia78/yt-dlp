@@ -1,6 +1,6 @@
 import contextlib
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     ExtractorError,
@@ -12,6 +12,7 @@ from .commonwebdriver import (
     my_dec_on_exception,
     raise_extractor_error,
 )
+
 from ..utils import get_domain, sanitize_filename, try_get
 
 on_exception = my_dec_on_exception(

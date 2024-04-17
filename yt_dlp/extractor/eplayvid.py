@@ -1,10 +1,18 @@
 import sys
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_5,
+)
+
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3,
-    SeleniumInfoExtractor, limiter_5, By, HTTPStatusError, ConnectError)
 
 
 class video_or_error_eplayvid:

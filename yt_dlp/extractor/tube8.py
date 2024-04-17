@@ -1,7 +1,8 @@
 import re
 
+from yt_dlp_plugins.extractor.commonwebdriver import raise_extractor_error
+
 from .common import InfoExtractor
-from .commonwebdriver import raise_extractor_error
 from ..aes import aes_decrypt_text
 from ..compat import compat_urllib_parse_unquote
 from ..utils import (

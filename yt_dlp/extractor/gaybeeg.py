@@ -3,9 +3,16 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import unquote
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    limiter_1,
+)
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError, ConnectError
 
 
 class get_links_netdna:

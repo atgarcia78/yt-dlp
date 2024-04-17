@@ -2,9 +2,16 @@ import re
 import sys
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    ec,
+    limiter_0_1,
+    limiter_5,
+)
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1, limiter_5, By, ec
 
 
 class get_videourl:

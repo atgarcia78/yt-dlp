@@ -1,7 +1,7 @@
 import logging
 import os
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -15,6 +15,7 @@ from .commonwebdriver import (
     raise_extractor_error,
     raise_reextract_info,
 )
+
 from ..utils import ExtractorError, sanitize_filename, try_call, try_get
 
 logger = logging.getLogger('streamhub')

@@ -1,13 +1,24 @@
+import html
+import json
 import re
 from urllib.parse import unquote
 
-from ..utils import ExtractorError, sanitize_filename, try_get, js_to_json, get_domain
-from .commonwebdriver import (
-    dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor,
-    limiter_5, HTTPStatusError, ConnectError)
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_5,
+)
 
-import html
-import json
+from ..utils import (
+    ExtractorError,
+    get_domain,
+    js_to_json,
+    sanitize_filename,
+    try_get,
+)
 
 
 class VidozaIE(SeleniumInfoExtractor):

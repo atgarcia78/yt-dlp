@@ -6,7 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote, urlparse
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -19,6 +19,7 @@ from .commonwebdriver import (
     get_host,
     limiter_1,
 )
+
 from ..utils import (
     ExtractorError,
     int_or_none,

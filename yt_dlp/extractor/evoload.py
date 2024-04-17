@@ -4,24 +4,20 @@ import time
 import traceback
 from urllib.parse import unquote
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
+    TimeoutException,
+    WebDriverException,
+    dec_on_driver_timeout,
     dec_on_exception2,
     dec_on_exception3,
-    dec_on_driver_timeout,
     limiter_5,
-    TimeoutException,
-    WebDriverException
 )
-from ..utils import (
-    ExtractorError,
-    get_domain,
-    sanitize_filename,
-    try_get,
-)
+
+from ..utils import ExtractorError, get_domain, sanitize_filename, try_get
 
 
 class video_or_error_evoload:

@@ -1,8 +1,9 @@
 
 import re
 
+from yt_dlp_plugins.extractor.commonwebdriver import SeleniumInfoExtractor
+
 from ..utils import sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor
 
 
 class RealPythonIE(SeleniumInfoExtractor):

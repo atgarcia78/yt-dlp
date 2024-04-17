@@ -6,7 +6,7 @@ import sys
 import time
 import traceback
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -17,6 +17,7 @@ from .commonwebdriver import (
     limiter_1,
     raise_extractor_error,
 )
+
 from ..utils import ExtractorError, get_domain, sanitize_filename, try_get
 from ..utils.networking import normalize_url as escape_url
 

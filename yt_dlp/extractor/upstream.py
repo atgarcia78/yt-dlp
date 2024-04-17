@@ -1,10 +1,20 @@
 import sys
+import time
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    ec,
+    limiter_2,
+)
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_2, By, ec, HTTPStatusError, ConnectError
-import time
 
 
 class trigger_m3u8:

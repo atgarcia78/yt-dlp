@@ -20,8 +20,7 @@ from threading import Lock
 from Cryptodome.Cipher import AES
 from Cryptodome.Random import get_random_bytes
 from Cryptodome.Util.Padding import pad
-
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -41,6 +40,7 @@ from .commonwebdriver import (
     raise_reextract_info,
     run_operation_in_executor,
 )
+
 from ..utils import (
     ExtractorError,
     YoutubeDLError,

@@ -2,9 +2,9 @@ import sys
 import time
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import By, SeleniumInfoExtractor
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, By
 
 
 class get_video_data:

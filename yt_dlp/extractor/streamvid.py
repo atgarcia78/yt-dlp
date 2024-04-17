@@ -3,7 +3,7 @@ import json
 import logging
 import re
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     ExtractorError,
     HTTPStatusError,
@@ -15,6 +15,7 @@ from .commonwebdriver import (
     raise_extractor_error,
     raise_reextract_info,
 )
+
 from ..utils import (
     decode_packed_codes,
     get_elements_html_by_attribute,

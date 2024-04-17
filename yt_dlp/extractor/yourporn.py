@@ -1,5 +1,6 @@
+from yt_dlp_plugins.extractor.commonwebdriver import raise_extractor_error
+
 from .common import InfoExtractor
-from .commonwebdriver import raise_extractor_error
 from ..compat import compat_str
 from ..utils import ExtractorError, parse_duration, try_get, urljoin
 

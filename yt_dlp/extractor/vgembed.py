@@ -3,7 +3,7 @@ import os
 from threading import Lock
 from urllib.parse import unquote
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -17,6 +17,7 @@ from .commonwebdriver import (
     raise_extractor_error,
     raise_reextract_info,
 )
+
 from ..utils import ExtractorError, sanitize_filename, try_get
 
 logger = logging.getLogger('vgembed')

@@ -1,7 +1,16 @@
 import html
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+)
+
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, HTTPStatusError, ConnectError
 
 
 class PornoneIE(SeleniumInfoExtractor):

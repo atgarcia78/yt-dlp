@@ -1,10 +1,20 @@
+import re
 import sys
 import traceback
 from urllib.parse import unquote
-import re
+
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_1,
+)
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_1, By, HTTPStatusError, ConnectError
 
 
 class get_videourl:

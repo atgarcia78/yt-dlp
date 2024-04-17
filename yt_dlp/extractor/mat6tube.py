@@ -2,9 +2,14 @@ import hashlib
 import html
 import re
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    limiter_5,
+    limiter_10,
+)
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_5, limiter_10
 
 
 class Mat6TubeIE(SeleniumInfoExtractor):

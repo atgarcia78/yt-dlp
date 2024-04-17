@@ -1,8 +1,9 @@
 import base64
 import re
 
+from yt_dlp_plugins.extractor.commonwebdriver import limiter_1
+
 from .common import InfoExtractor
-from .commonwebdriver import limiter_1
 from ..utils import (
     ExtractorError,
     int_or_none,

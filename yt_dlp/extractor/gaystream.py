@@ -1,7 +1,7 @@
 import html
 import re
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
@@ -10,6 +10,7 @@ from .commonwebdriver import (
     dec_on_exception3,
     limiter_1,
 )
+
 from ..utils import (
     ExtractorError,
     int_or_none,

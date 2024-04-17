@@ -2,9 +2,13 @@ import re
 import sys
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    SeleniumInfoExtractor,
+    limiter_10,
+)
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import SeleniumInfoExtractor, limiter_10, By
 
 
 class get_videourl_title:

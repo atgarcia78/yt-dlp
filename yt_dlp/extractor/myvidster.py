@@ -9,7 +9,7 @@ from datetime import datetime
 from threading import Lock
 from urllib.parse import unquote, urljoin
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -23,6 +23,7 @@ from .commonwebdriver import (
     raise_extractor_error,
     ytdl_silent,
 )
+
 from ..utils import (
     ExtractorError,
     bug_reports_message,

@@ -1,10 +1,8 @@
+import base64
 import html
 import re
-import base64
 
-
-from .commonwebdriver import (
-
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
@@ -14,13 +12,13 @@ from .commonwebdriver import (
     limiter_1,
 )
 
-
 from ..utils import (
     ExtractorError,
     get_domain,
     sanitize_filename,
+    try_call,
     try_get,
-    try_call)
+)
 
 
 class HexUploadIE(SeleniumInfoExtractor):

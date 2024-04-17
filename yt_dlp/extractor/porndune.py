@@ -2,9 +2,15 @@ import html
 import re
 from threading import Lock
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    ec,
+    limiter_1,
+)
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By, ec
 
 
 class ifr_or_captcha:

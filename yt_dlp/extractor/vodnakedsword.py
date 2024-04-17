@@ -6,7 +6,7 @@ import logging
 import re
 from threading import Lock
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     ReExtractInfo,
@@ -18,6 +18,7 @@ from .commonwebdriver import (
     my_dec_on_exception,
     raise_extractor_error,
 )
+
 from ..utils import (
     get_element_html_by_id,
     get_element_text_and_html_by_tag,

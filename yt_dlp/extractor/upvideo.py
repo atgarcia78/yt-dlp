@@ -1,9 +1,15 @@
 import sys
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    ec,
+    limiter_15,
+)
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_15, By, ec
 
 
 class UpVideoIE(SeleniumInfoExtractor):

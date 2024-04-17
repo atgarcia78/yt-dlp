@@ -5,8 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    limiter_5,
+)
 
-from .commonwebdriver import SeleniumInfoExtractor, dec_on_exception, limiter_5
 from .eplayvid import video_or_error_eplayvid
 from .evoload import video_or_error_evoload
 from .streamtape import video_or_error_streamtape

@@ -2,9 +2,13 @@ import re
 import sys
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    limiter_0_1,
+)
 
 from ..utils import ExtractorError, try_get
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_0_1
 
 
 class QueroFoderIE(SeleniumInfoExtractor):

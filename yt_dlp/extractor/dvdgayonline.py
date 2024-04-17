@@ -4,7 +4,7 @@ import os
 import re
 from threading import Semaphore
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -20,6 +20,7 @@ from .commonwebdriver import (
     raise_reextract_info,
     subnright,
 )
+
 from ..utils import (
     ExtractorError,
     get_elements_by_class,

@@ -2,7 +2,7 @@ import html
 import json
 import re
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     ExtractorError,
     HTTPStatusError,
@@ -13,6 +13,7 @@ from .commonwebdriver import (
     my_dec_on_exception,
     raise_extractor_error,
 )
+
 from ..utils import (
     decode_packed_codes,
     get_domain,

@@ -5,8 +5,12 @@ import re
 import xml.etree.ElementTree
 from threading import Lock
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    my_dec_on_exception,
+    my_limiter,
+)
+
 from .common import InfoExtractor
-from .commonwebdriver import my_dec_on_exception, my_limiter
 from ..compat import compat_str, compat_urlparse
 from ..networking.exceptions import HTTPError
 from ..utils import (

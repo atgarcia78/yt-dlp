@@ -5,9 +5,21 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    dec_retry_raise,
+    ec,
+    limiter_0_5,
+    limiter_1,
+)
 
 from ..utils import ExtractorError, sanitize_filename, try_get
-from .commonwebdriver import By, ec, dec_on_exception, dec_on_exception2, dec_on_exception3, dec_retry_raise, SeleniumInfoExtractor, limiter_0_5, limiter_1, HTTPStatusError, ConnectError
 
 
 class fast_forward:

@@ -1,14 +1,14 @@
 import re
 
-
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
     SeleniumInfoExtractor,
     dec_on_exception2,
     dec_on_exception3,
-    HTTPStatusError,
-    ConnectError,
     limiter_1,
 )
+
 from ..utils import ExtractorError, sanitize_filename, try_get
 
 

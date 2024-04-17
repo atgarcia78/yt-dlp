@@ -2,7 +2,7 @@ import html
 import re
 from datetime import datetime
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
@@ -12,6 +12,7 @@ from .commonwebdriver import (
     limiter_1,
     limiter_5,
 )
+
 from ..utils import ExtractorError, sanitize_filename, try_get
 
 

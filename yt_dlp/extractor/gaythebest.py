@@ -3,9 +3,9 @@ import threading
 import time
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import By, SeleniumInfoExtractor
 
 from ..utils import ExtractorError, sanitize_filename
-from .commonwebdriver import By, SeleniumInfoExtractor
 
 
 class getvideourl:

@@ -1,6 +1,6 @@
 import time
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     By,
     ConnectError,
     HTTPStatusError,
@@ -13,6 +13,7 @@ from .commonwebdriver import (
     limiter_1,
     raise_extractor_error,
 )
+
 from ..utils import ExtractorError, sanitize_filename, try_get
 
 

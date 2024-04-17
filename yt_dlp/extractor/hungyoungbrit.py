@@ -6,13 +6,27 @@ import sys
 import threading
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    ReExtractInfo,
+    SeleniumInfoExtractor,
+    dec_on_exception2,
+    dec_on_exception3,
+    ec,
+    limiter_1,
+    my_dec_on_exception,
+    try_get,
+)
 
-from ..utils import ExtractorError, int_or_none, sanitize_filename, get_elements_html_by_attribute, traverse_obj
-from .commonwebdriver import (
-    By, ec, SeleniumInfoExtractor,
-    limiter_1, dec_on_exception2,
-    dec_on_exception3, HTTPStatusError, ConnectError,
-    try_get, my_dec_on_exception, ReExtractInfo)
+from ..utils import (
+    ExtractorError,
+    get_elements_html_by_attribute,
+    int_or_none,
+    sanitize_filename,
+    traverse_obj,
+)
 
 on_exception_vinfo = my_dec_on_exception(
     (TimeoutError, ExtractorError, HTTPStatusError), raise_on_giveup=False, max_tries=3, interval=1)

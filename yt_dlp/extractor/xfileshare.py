@@ -1,7 +1,8 @@
 import html
 import re
 
-from .commonwebdriver import SeleniumInfoExtractor
+from yt_dlp_plugins.extractor.commonwebdriver import SeleniumInfoExtractor
+
 from ..utils import (
     ExtractorError,
     decode_packed_codes,

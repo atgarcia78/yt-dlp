@@ -1,10 +1,25 @@
 import html
 import re
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    limiter_5,
+)
 
-from ..utils import ExtractorError, sanitize_filename, try_get, get_domain, traverse_obj, url_basename, base_url
-from .commonwebdriver import (
-    dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_5, HTTPStatusError, ConnectError)
+from ..utils import (
+    ExtractorError,
+    base_url,
+    get_domain,
+    sanitize_filename,
+    traverse_obj,
+    try_get,
+    url_basename,
+)
 
 
 class ThisvidgayIE(SeleniumInfoExtractor):

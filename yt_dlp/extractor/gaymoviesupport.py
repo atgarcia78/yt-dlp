@@ -1,9 +1,14 @@
 import sys
 import traceback
 
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    limiter_1,
+)
 
 from ..utils import ExtractorError
-from .commonwebdriver import dec_on_exception, SeleniumInfoExtractor, limiter_1, By
 
 
 class get_videourl:

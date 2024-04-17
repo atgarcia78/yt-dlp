@@ -1,11 +1,21 @@
 import sys
-import traceback
 import time
-
-
-from ..utils import try_get, ExtractorError, sanitize_filename
-from .commonwebdriver import dec_on_exception, dec_on_exception2, dec_on_exception3, SeleniumInfoExtractor, limiter_0_1, By, ec, HTTPStatusError, ConnectError
+import traceback
 from urllib.parse import unquote
+
+from yt_dlp_plugins.extractor.commonwebdriver import (
+    By,
+    ConnectError,
+    HTTPStatusError,
+    SeleniumInfoExtractor,
+    dec_on_exception,
+    dec_on_exception2,
+    dec_on_exception3,
+    ec,
+    limiter_0_1,
+)
+
+from ..utils import ExtractorError, sanitize_filename, try_get
 
 
 class FembedIE(SeleniumInfoExtractor):

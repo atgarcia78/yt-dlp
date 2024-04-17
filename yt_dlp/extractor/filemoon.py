@@ -3,13 +3,14 @@ import html
 import json
 import re
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
     dec_on_exception3,
     limiter_2,
 )
+
 from ..utils import (
     ExtractorError,
     decode_packed_codes,

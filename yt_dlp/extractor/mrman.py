@@ -2,7 +2,7 @@ import logging
 import re
 import threading
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     SeleniumInfoExtractor,
@@ -10,6 +10,7 @@ from .commonwebdriver import (
     dec_on_exception3,
     limiter_0_1,
 )
+
 from ..utils import (
     ExtractorError,
     get_elements_by_class,

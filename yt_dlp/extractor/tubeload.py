@@ -7,7 +7,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
-from .commonwebdriver import (
+from yt_dlp_plugins.extractor.commonwebdriver import (
     ConnectError,
     HTTPStatusError,
     Lock,
@@ -18,6 +18,7 @@ from .commonwebdriver import (
     limiter_non,
     my_dec_on_exception,
 )
+
 from ..utils import ExtractorError, get_domain, sanitize_filename, try_get
 
 on_exception_vinfo = my_dec_on_exception(
