@@ -90,28 +90,34 @@ class RTVEPlayIE(InfoExtractor):
         return json.loads(js_to_json(res0))
 
     def _extract_png_formats(self, video_id):
+        formats = []
+
         png = self._download_webpage(
             'http://ztnr.rtve.es/ztnr/movil/thumbnail/%s/videos/%s.png' % (self._manager, video_id),
-            video_id, 'Downloading url information', query={'q': 'v2'})
+            video_id, 'Downloading url information', query={'q': 'v2'}, fatal=False)
+        if not png:
+            return formats
         q = qualities(['Media', 'Alta', 'HQ', 'HD_READY', 'HD_FULL'])
-        formats = []
         info = self._decrypt_url(png)
         self.write_debug(info)
         for quality, video_url in zip(info['calidades'], info['sources']):
             ext = determine_ext(video_url)
-            if ext == 'm3u8':
-                formats.extend(self._extract_m3u8_formats(
-                    video_url, video_id, 'mp4', 'm3u8_native',
-                    m3u8_id='hls', fatal=False))
-            else:
-                filesize = None
-                if urlh := self._request_webpage(video_url, video_id):
-                    filesize = int_or_none(urlh.headers.get('Content-Length'))
-                formats.append({
-                    'format_id': 'http-mp4' if not quality else quality,
-                    'url': video_url,
-                    'filesize': filesize,
-                    **({'quality': q(quality)} if quality else {})})
+            try:
+                if ext == 'm3u8':
+                    formats.extend(self._extract_m3u8_formats(
+                        video_url, video_id, 'mp4', 'm3u8_native',
+                        m3u8_id='hls', fatal=False))
+                else:
+                    filesize = None
+                    if urlh := self._request_webpage(video_url, video_id):
+                        filesize = int_or_none(urlh.headers.get('Content-Length'))
+                    formats.append({
+                        'format_id': 'http-mp4' if not quality else quality,
+                        'url': video_url,
+                        'filesize': filesize,
+                        **({'quality': q(quality)} if quality else {})})
+            except Exception as e:
+                self.report_warning(f"error with [{ext}][{video_url}] - {repr(e)}")
         return formats
 
     def _extract_drm_mpd_formats(self, video_id):
