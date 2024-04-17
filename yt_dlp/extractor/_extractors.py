@@ -2558,13 +2558,6 @@ from .hungyoungbrit import (
     HungYoungBritIE,
     HungYoungBritPlaylistIE,
 )
-from .nakedsword import (
-    NakedSwordSceneIE,
-    NakedSwordMovieIE,
-    NakedSwordScenesPlaylistIE,
-    NakedSwordMoviesPlaylistIE,
-    NakedSwordJustAddedMoviesPlaylistIE,
-)
 from .monstercockinfo import MonsterCockInfoIE
 from .netdna import NetDNAIE
 from .bbgroup import (

@@ -1,7 +1,7 @@
 import html
 import re
 
-from yt_dlp_plugins.extractor.commonwebdriver import SeleniumInfoExtractor
+from yt_dlp_plugins.extractor.commonwebdriver import SeleniumInfoExtractor  # type: ignore
 
 from ..utils import (
     ExtractorError,
@@ -104,7 +104,7 @@ class XFileShareIE(SeleniumInfoExtractor):
         url = 'https://%s/' % host + ('embed-%s.html' % video_id if host in ('govid.me', 'vidlo.us') else video_id)
         webpage = try_get(self._download_webpage(url, video_id), lambda x: html.unescape(x))
 
-        if any(re.search(p, webpage) for p in self._FILE_NOT_FOUND_REGEXES):
+        if any(re.search(p, webpage) for p in self._FILE_NOT_FOUND_REGEXES):  # type: ignore
             raise ExtractorError('Video %s does not exist' % video_id, expected=True)
 
         fields = self._hidden_inputs(webpage)
@@ -141,7 +141,7 @@ class XFileShareIE(SeleniumInfoExtractor):
                 (r'(ﾟ.+)', aa_decode)):
             obf_code = self._search_regex(regex, webpage, 'obfuscated code', default=None)
             if obf_code:
-                webpage = webpage.replace(obf_code, func(obf_code))
+                webpage = webpage.replace(obf_code, func(obf_code))  # type: ignore
 
         formats = []
         subtitles = {}
@@ -170,7 +170,7 @@ class XFileShareIE(SeleniumInfoExtractor):
                     r'file_link\s*=\s*(["\'])(?P<url>http(?:(?!\1).)+)\1',
                     r'addVariable\((\\?["\'])file\1\s*,\s*(\\?["\'])(?P<url>http(?:(?!\2).)+)\2\)',
                     r'<embed[^>]+src=(["\'])(?P<url>http(?:(?!\1).)+\.(?:m3u8|mp4|flv)(?:(?!\1).)*)\1'):
-                for mobj in re.finditer(regex, webpage):
+                for mobj in re.finditer(regex, webpage):  # type: ignore
                     video_url = mobj.group('url')
                     if video_url not in urls:
                         urls.append(video_url)

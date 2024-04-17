@@ -39,7 +39,7 @@ dec_on_reextract_3 = my_dec_on_exception(
     ReExtractInfo, max_tries=3, jitter='my_jitter', raise_on_giveup=True, interval=2)
 
 
-class VODNakedSwordBaseIE(SeleniumInfoExtractor):
+class VODNakedSwordBase(SeleniumInfoExtractor):
     _SITE_URL = "https://vod.nakedsword.com/gay"
     _LOGIN_URL = "https://vod.nakedsword.com/gay/login?f=%2Fgay"
     _POST_URL = "https://vod.nakedsword.com/gay/deliver"
@@ -93,13 +93,13 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
             driver.get(url)
         else:
             try:
-                return (cls._send_http_request(url, client=VODNakedSwordBaseIE._CLIENT, **kwargs))
+                return (cls._send_http_request(url, client=VODNakedSwordBase._CLIENT, **kwargs))
             except (HTTPStatusError, ConnectError) as e:
                 logger.warning(f"[send_request_http] {cls._get_url_print(url)}: error - {repr(e)} - {str(e)}")
 
     def _get_api_info(self, url, movieid, sceneid=None):
         def data_upt():
-            data_copy = VODNakedSwordBaseIE.data_post.copy()
+            data_copy = VODNakedSwordBase.data_post.copy()
             data_copy['movieId'] = movieid
             if not sceneid:
                 data_copy.pop('sceneId')
@@ -114,16 +114,16 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
             params['sceneId'] = sceneid
 
         check = try_get(
-            VODNakedSwordBaseIE._send_request(
+            VODNakedSwordBase._send_request(
                 'https://vod.nakedsword.com/gay/play-check', _type="POST",
-                headers={**VODNakedSwordBaseIE.headers_post, **{'Referer': url.split('#')[0]}}, data=params),
+                headers={**VODNakedSwordBase.headers_post, **{'Referer': url.split('#')[0]}}, data=params),
             lambda x: x.json() if x else None)
 
         if check == "can play":
             return try_get(
-                VODNakedSwordBaseIE._send_request(
-                    VODNakedSwordBaseIE._POST_URL, _type="POST",
-                    headers={**VODNakedSwordBaseIE.headers_post, **{'Referer': url.split('#')[0]}}, data=data_upt()),
+                VODNakedSwordBase._send_request(
+                    VODNakedSwordBase._POST_URL, _type="POST",
+                    headers={**VODNakedSwordBase.headers_post, **{'Referer': url.split('#')[0]}}, data=data_upt()),
                 lambda x: x.json() if x else None)
 
     def _login(self):
@@ -133,25 +133,25 @@ class VODNakedSwordBaseIE(SeleniumInfoExtractor):
 
         super()._real_initialize()
 
-        with VODNakedSwordBaseIE._LOCK:
-            if not VODNakedSwordBaseIE._NSINIT:
-                VODNakedSwordBaseIE._CLIENT = self._CLIENT
-                if not VODNakedSwordBaseIE._COOKIES:
+        with VODNakedSwordBase._LOCK:
+            if not VODNakedSwordBase._NSINIT:
+                VODNakedSwordBase._CLIENT = self._CLIENT
+                if not VODNakedSwordBase._COOKIES:
                     try:
                         with open("/Users/antoniotorres/Projects/common/logs/VODNSWORD_COOKIES.json", "r") as f:
-                            VODNakedSwordBaseIE._COOKIES = json.load(f)
+                            VODNakedSwordBase._COOKIES = json.load(f)
 
                     except Exception as e:
                         self.to_screen(f"{repr(e)}")
                         raise
 
-                for cookie in VODNakedSwordBaseIE._COOKIES:
-                    VODNakedSwordBaseIE._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                for cookie in VODNakedSwordBase._COOKIES:
+                    VODNakedSwordBase._CLIENT.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
-                VODNakedSwordBaseIE._NSINIT = True
+                VODNakedSwordBase._NSINIT = True
 
 
-class VODNakedSwordSceneIE(VODNakedSwordBaseIE):
+class VODNakedSwordSceneIE(VODNakedSwordBase):
     IE_NAME = 'vodnakedsword:scene'  # type: ignore
     _VALID_URL = r"https?://(?:www\.)?vod.nakedsword.com/gay/movies/(?P<movieid>[\d]+)(/(?P<title>[a-zA-Z\d_-]+))?#scene-(?P<sceneid>[\d]+)"
 
