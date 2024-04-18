@@ -2502,11 +2502,6 @@ from .zoom import ZoomIE
 from .zype import ZypeIE
 
 
-from .myvidster import (
-    MyVidsterChannelPlaylistIE,
-    MyVidsterSearchPlaylistIE,
-    MyVidsterRSSPlaylistIE
-)
 from .machofactory import MachoFactoryIE
 from .citebeur import CitebeurIE
 from .cazzofilm import CazzoFilmIE
