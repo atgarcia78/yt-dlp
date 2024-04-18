@@ -81,6 +81,8 @@ class PornHubBaseIE(InfoExtractor):
         if username is None:
             return
 
+        print(username, password)
+
         login_url = 'https://www.%s/%slogin' % (host, 'premium/' if 'premium' in host else '')
         login_page = self._download_webpage(
             login_url, None, 'Downloading %s login page' % site)
