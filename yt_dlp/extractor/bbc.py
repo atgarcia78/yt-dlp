@@ -1,19 +1,14 @@
 import functools
 import itertools
 import json
+import random
 import re
 import xml.etree.ElementTree
 from threading import Lock
 
-from yt_dlp_plugins.extractor.commonwebdriver import (
-    my_dec_on_exception,
-    my_limiter,
-)
-
-from .common import InfoExtractor
-from ..compat import compat_str, compat_urlparse
-from ..networking.exceptions import HTTPError
-from ..utils import (
+from backoff import on_exception
+from pyrate_limiter import Duration, Limiter, RequestRate, constant
+from yt_dlp.utils import (
     ExtractorError,
     OnDemandPagedList,
     clean_html,
@@ -35,6 +30,28 @@ from ..utils import (
     urlencode_postdata,
     urljoin,
 )
+
+from .common import InfoExtractor
+from ..compat import compat_str, compat_urlparse
+from ..networking.exceptions import HTTPError
+
+
+def my_limiter(seconds: str | int | float):
+    if seconds == "non":
+        return Limiter(RequestRate(10000, 0))
+    elif isinstance(seconds, (int, float)):
+        return Limiter(RequestRate(1, seconds * Duration.SECOND))  # type: ignore
+
+
+def my_jitter(value: float):
+    return int(random.uniform(value * 0.75, value * 1.25))
+
+
+def my_dec_on_exception(exception, **kwargs):
+    if "jitter" in kwargs and kwargs["jitter"] == 'my_jitter':
+        kwargs["jitter"] = my_jitter
+    return on_exception(constant, exception, **kwargs)
+
 
 limiter = my_limiter(0.001)
 dec_on_exception = my_dec_on_exception(Exception, max_tries=3, jitter='my_jitter', raise_on_giveup=False, interval=2)

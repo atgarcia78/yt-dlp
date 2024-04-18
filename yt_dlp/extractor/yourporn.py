@@ -1,8 +1,9 @@
-from yt_dlp_plugins.extractor.commonwebdriver import raise_extractor_error
-
 from .common import InfoExtractor
 from ..compat import compat_str
-from ..utils import ExtractorError, parse_duration, try_get, urljoin
+from ..utils import (
+    parse_duration,
+    urljoin,
+)
 
 
 class YourPornIE(InfoExtractor):
@@ -29,46 +30,36 @@ class YourPornIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
 
-        try:
+        webpage = self._download_webpage(url, video_id)
 
-            webpage = self._download_webpage(url, video_id)
+        parts = self._parse_json(
+            self._search_regex(
+                r'data-vnfo=(["\'])(?P<data>{.+?})\1', webpage, 'data info',
+                group='data'),
+            video_id)[video_id].split('/')
 
-            parts = try_get(self._parse_json(
-                self._search_regex(
-                    r'data-vnfo=(["\'])(?P<data>{.+?})\1', webpage, 'data info',
-                    group='data', default='{}'),
-                video_id), lambda x: x[video_id].split('/'))
+        num = 0
+        for c in parts[6] + parts[7]:
+            if c.isnumeric():
+                num += int(c)
+        parts[5] = compat_str(int(parts[5]) - num)
+        parts[1] += '8'
+        video_url = urljoin(url, '/'.join(parts))
 
-            if not parts:
-                raise_extractor_error("unable to extract data info")
+        title = (self._search_regex(
+            r'<[^>]+\bclass=["\']PostEditTA[^>]+>([^<]+)', webpage, 'title',
+            default=None) or self._og_search_description(webpage)).strip()
+        thumbnail = self._og_search_thumbnail(webpage)
+        duration = parse_duration(self._search_regex(
+            r'duration\s*:\s*<[^>]+>([\d:]+)', webpage, 'duration',
+            default=None))
 
-            num = 0
-            for c in parts[6] + parts[7]:
-                if c.isnumeric():
-                    num += int(c)
-            parts[5] = compat_str(int(parts[5]) - num)
-            parts[1] += '8'
-            video_url = urljoin(url, '/'.join(parts))
-
-            title = (self._search_regex(
-                r'<[^>]+\bclass=["\']PostEditTA[^>]+>([^<]+)', webpage, 'title',
-                default=None) or self._og_search_description(webpage)).strip()
-            thumbnail = self._og_search_thumbnail(webpage)
-            duration = parse_duration(self._search_regex(
-                r'duration\s*:\s*<[^>]+>([\d:]+)', webpage, 'duration',
-                default=None))
-
-            return {
-                'id': video_id,
-                'url': video_url,
-                'title': title,
-                'thumbnail': thumbnail,
-                'duration': duration,
-                'age_limit': 18,
-                'ext': 'mp4',
-            }
-
-        except ExtractorError:
-            raise
-        except Exception as e:
-            raise_extractor_error(repr(e))
+        return {
+            'id': video_id,
+            'url': video_url,
+            'title': title,
+            'thumbnail': thumbnail,
+            'duration': duration,
+            'age_limit': 18,
+            'ext': 'mp4',
+        }

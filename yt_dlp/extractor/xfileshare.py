@@ -1,16 +1,12 @@
-import html
 import re
 
-from yt_dlp_plugins.extractor.commonwebdriver import SeleniumInfoExtractor  # type: ignore
-
+from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
     decode_packed_codes,
     determine_ext,
     int_or_none,
     js_to_json,
-    sanitize_filename,
-    try_get,
     urlencode_postdata,
 )
 
@@ -43,7 +39,7 @@ def aa_decode(aa_code):
     return ret
 
 
-class XFileShareIE(SeleniumInfoExtractor):
+class XFileShareIE(InfoExtractor):
     _SITES = (
         (r'aparat\.cam', 'Aparat'),
         (r'clipwatching\.com', 'ClipWatching'),
@@ -98,13 +94,13 @@ class XFileShareIE(SeleniumInfoExtractor):
         'only_matching': True,
     }]
 
-    def _get_entry(self, url, **kwargs):
+    def _real_extract(self, url):
         host, video_id = self._match_valid_url(url).groups()
 
         url = 'https://%s/' % host + ('embed-%s.html' % video_id if host in ('govid.me', 'vidlo.us') else video_id)
-        webpage = try_get(self._download_webpage(url, video_id), lambda x: html.unescape(x))
+        webpage = self._download_webpage(url, video_id)
 
-        if any(re.search(p, webpage) for p in self._FILE_NOT_FOUND_REGEXES):  # type: ignore
+        if any(re.search(p, webpage) for p in self._FILE_NOT_FOUND_REGEXES):
             raise ExtractorError('Video %s does not exist' % video_id, expected=True)
 
         fields = self._hidden_inputs(webpage)
@@ -134,17 +130,14 @@ class XFileShareIE(SeleniumInfoExtractor):
             webpage, 'title', default=None) or self._og_search_title(
             webpage, default=None) or video_id).strip()
 
-        title = re.sub(r'\[?\d+p\]?.*|(\s+)?download(\s+)?|\.mp4|\.mkv', '', title, flags=re.IGNORECASE).strip()
-
         for regex, func in (
                 (r'(eval\(function\(p,a,c,k,e,d\){.+)', decode_packed_codes),
                 (r'(ﾟ.+)', aa_decode)):
             obf_code = self._search_regex(regex, webpage, 'obfuscated code', default=None)
             if obf_code:
-                webpage = webpage.replace(obf_code, func(obf_code))  # type: ignore
+                webpage = webpage.replace(obf_code, func(obf_code))
 
         formats = []
-        subtitles = {}
 
         jwplayer_data = self._search_regex(
             [
@@ -156,12 +149,9 @@ class XFileShareIE(SeleniumInfoExtractor):
             jwplayer_data = self._parse_json(
                 jwplayer_data.replace(r"\'", "'"), video_id, js_to_json)
             if jwplayer_data:
-                _formats = self._parse_jwplayer_data(
+                formats = self._parse_jwplayer_data(
                     jwplayer_data, video_id, False,
-                    m3u8_id='hls', mpd_id='dash').get('formats')
-
-                if _formats:
-                    formats.extend(_formats)
+                    m3u8_id='hls', mpd_id='dash')['formats']
 
         if not formats:
             urls = []
@@ -170,7 +160,7 @@ class XFileShareIE(SeleniumInfoExtractor):
                     r'file_link\s*=\s*(["\'])(?P<url>http(?:(?!\1).)+)\1',
                     r'addVariable\((\\?["\'])file\1\s*,\s*(\\?["\'])(?P<url>http(?:(?!\2).)+)\2\)',
                     r'<embed[^>]+src=(["\'])(?P<url>http(?:(?!\1).)+\.(?:m3u8|mp4|flv)(?:(?!\1).)*)\1'):
-                for mobj in re.finditer(regex, webpage):  # type: ignore
+                for mobj in re.finditer(regex, webpage):
                     video_url = mobj.group('url')
                     if video_url not in urls:
                         urls.append(video_url)
@@ -180,25 +170,13 @@ class XFileShareIE(SeleniumInfoExtractor):
             if sources:
                 urls.extend(self._parse_json(sources, video_id))
 
-            _extra = {}
-
+            formats = []
             for video_url in urls:
                 if determine_ext(video_url) == 'm3u8':
-                    _formats, _subts = self._extract_m3u8_formats_and_subtitles(
+                    formats.extend(self._extract_m3u8_formats(
                         video_url, video_id, 'mp4',
                         entry_protocol='m3u8_native', m3u8_id='hls',
-                        fatal=False)
-
-                    if _formats:
-                        formats.extend(_formats)
-                        try:
-                            _extra.update({'duration': self._extract_m3u8_vod_duration(_formats[0]['url'], video_id, headers=_formats[0].get('http_headers', {}))})
-                        except Exception as e:
-                            self.logger_info(f"error trying to get vod {repr(e)}")
-
-                    if _subts:
-                        subtitles = self._merge_subtitles(subtitles, _subts)
-
+                        fatal=False))
                 else:
                     formats.append({
                         'url': video_url,
@@ -211,23 +189,10 @@ class XFileShareIE(SeleniumInfoExtractor):
                 r'(?:image|poster)\s*:\s*["\'](http[^"\']+)["\'],',
             ], webpage, 'thumbnail', default=None)
 
-        _entry = {
+        return {
             'id': video_id,
-            'title': sanitize_filename(title, restricted=True),
+            'title': title,
             'thumbnail': thumbnail,
             'formats': formats,
-            'subtitles': subtitles,
-            'http_headers': {'Referer': url},
-            'extractor': 'xfileshare',
-            'extractor_key': 'XFileShare',
-            'webpage_url': url,
-            **_extra
+            'http_headers': {'Referer': url}
         }
-
-        return _entry
-
-    def _real_extract(self, url):
-
-        self.report_extraction(url)
-
-        return self._get_entry(url)
