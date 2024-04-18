@@ -2569,12 +2569,6 @@ from .bbgroup import (
     SketchySexAllPagesPlaylistIE,
 )
 from .youngbastards import YoungBastardsIE
-from .boyfriendtv import (
-    BoyFriendTVIE,
-    BoyFriendTVPlayListIE,
-    BoyFriendTVProfileFavIE,
-    BoyFriendTVSearchIE
-)
 from .gayforiteu import GayForITEUIE
 from .manpornxxx import ManPornXXXIE
 from .upvideo import UpVideoIE
