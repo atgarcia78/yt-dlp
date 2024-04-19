@@ -6,8 +6,9 @@ import re
 import xml.etree.ElementTree
 from threading import Lock
 
-from backoff import on_exception
-from pyrate_limiter import Duration, Limiter, RequestRate, constant
+from backoff import constant, on_exception
+from pyrate_limiter import Duration, Limiter, RequestRate
+
 from yt_dlp.utils import (
     ExtractorError,
     OnDemandPagedList,

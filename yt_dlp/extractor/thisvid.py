@@ -3,7 +3,6 @@ import re
 import urllib.parse
 
 from .common import InfoExtractor
-from .yourporngod import ThisVidIE
 from ..utils import (
     clean_html,
     get_element_by_class,
@@ -140,7 +139,7 @@ class ThisVidPlaylistBaseIE(InfoExtractor):
 
         return self.playlist_from_matches(
             self._generate_playlist_entries(url, playlist_id, webpage),
-            playlist_id=playlist_id, playlist_title=title, ie=ThisVidIE)
+            playlist_id=playlist_id, playlist_title=title, ie='ThisVid')
 
 
 class ThisVidMemberIE(ThisVidPlaylistBaseIE):
@@ -167,7 +166,7 @@ class ThisVidMemberIE(ThisVidPlaylistBaseIE):
         },
         'playlist_mincount': 196,
     }]
-    _PLAYLIST_URL_RE = ThisVidIE._VALID_URL
+    _PLAYLIST_URL_RE = r'https?://(?:[^\.]+\.)?thisvid\.com/(?:(embed/(?P<id>\d+))|(videos/.*))'
 
     def _real_extract(self, url):
         return self._make_playlist_result(url)
@@ -211,7 +210,7 @@ class ThisVidPlaylistIE(ThisVidPlaylistBaseIE):
         playlist_id, video_id = self._match_valid_url(url).group('id', 'video_id')
         if not self._yes_playlist(playlist_id, video_id, smuggled_data=res_data):
             redirect_url = urljoin(url, f'/videos/{video_id}/')
-            return self.url_result(redirect_url, ThisVidIE)
+            return self.url_result(redirect_url, 'ThisVid')
 
         result = self._make_playlist_result(url)
 

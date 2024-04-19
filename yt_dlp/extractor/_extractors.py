@@ -1984,7 +1984,6 @@ from .theweatherchannel import TheWeatherChannelIE
 from .thisamericanlife import ThisAmericanLifeIE
 from .thisoldhouse import ThisOldHouseIE
 from .thisvid import (
-    ThisVidIE,
     ThisVidMemberIE,
     ThisVidPlaylistIE,
 )
