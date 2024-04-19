@@ -1,7 +1,7 @@
 import base64
 import re
 
-from yt_dlp_plugins.extractor.commonwebdriver import limiter_1
+from pyrate_limiter import Duration, Limiter, RequestRate
 
 from .common import InfoExtractor
 from ..utils import (
@@ -45,6 +45,16 @@ def get_formats(host, video_file):
         'format_id': try_call(lambda: variadic(video['format'])[0].lstrip('_')),
         'quality': index,
     } for index, video in enumerate(video_file) if video.get('video_url')]
+
+
+def my_limiter(seconds: str | int | float):
+    if seconds == "non":
+        return Limiter(RequestRate(10000, 0))
+    elif isinstance(seconds, (int, float)):
+        return Limiter(RequestRate(1, seconds * Duration.SECOND))  # type: ignore
+
+
+limiter_1 = my_limiter(1)
 
 
 class TxxxIE(InfoExtractor):
@@ -366,16 +376,16 @@ class TxxxIE(InfoExtractor):
         }
     }]
 
-    @limiter_1.ratelimit('txxx', delay=True)
+    @limiter_1.ratelimit('txxx', delay=True)  # type: ignore
     def _call_api(self, url, video_id, fatal=False, **kwargs):
         content = self._download_json(url, video_id, fatal=fatal, **kwargs)
         if traverse_obj(content, 'error'):
             raise self._error_or_warning(ExtractorError(
-                f'Txxx said: {content["error"]}', expected=True), fatal=fatal)
+                f'Txxx said: {content["error"]}', expected=True), fatal=fatal)  # type: ignore
         return content or {}
 
     def _real_extract(self, url):
-        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')
+        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')  # type: ignore
         headers = {'Referer': url, 'X-Requested-With': 'XMLHttpRequest'}
 
         video_file = self._call_api(
@@ -426,7 +436,7 @@ class PornTopIE(InfoExtractor):
     }]
 
     def _real_extract(self, url):
-        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')
+        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')  # type: ignore
         webpage = self._download_webpage(url, video_id)
 
         json_ld = self._json_ld(self._search_json(

@@ -57,6 +57,9 @@ def my_dec_on_exception(exception, **kwargs):
 
 
 limiter = my_limiter(0.001)
+
+assert limiter
+
 dec_on_exception = my_dec_on_exception(Exception, max_tries=3, jitter='my_jitter', raise_on_giveup=False, interval=2)
 
 import logging
