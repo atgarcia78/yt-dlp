@@ -4,11 +4,11 @@ import re
 from .common import InfoExtractor
 from ..compat import compat_str
 from ..utils import (
+    ExtractorError,
     clean_html,
     determine_ext,
     dict_get,
     extract_attributes,
-    ExtractorError,
     float_or_none,
     int_or_none,
     parse_duration,
@@ -439,45 +439,6 @@ class XHamsterUserIE(InfoExtractor):
     def _entries(self, user_id, is_user):
         prefix, suffix = ('users', 'videos') if is_user else ('creators', 'exclusive')
         next_page_url = f'https://xhamster.com/{prefix}/{user_id}/{suffix}/1'
-        for pagenum in itertools.count(1):
-            page = self._download_webpage(
-                next_page_url, user_id, 'Downloading page %s' % pagenum)
-            for video_tag in re.findall(
-                    r'(<a[^>]+class=["\'].*?\bvideo-thumb__image-container[^>]+>)',
-                    page):
-                video = extract_attributes(video_tag)
-                video_url = url_or_none(video.get('href'))
-                if not video_url or not XHamsterIE.suitable(video_url):
-                    continue
-                video_id = XHamsterIE._match_id(video_url)
-                yield self.url_result(
-                    video_url, ie=XHamsterIE.ie_key(), video_id=video_id)
-            mobj = re.search(r'<a[^>]+data-page=["\']next[^>]+>', page)
-            if not mobj:
-                break
-            next_page = extract_attributes(mobj.group(0))
-            next_page_url = url_or_none(next_page.get('href'))
-            if not next_page_url:
-                break
-
-    def _real_extract(self, url):
-        user, user_id = self._match_valid_url(url).group('user', 'id')
-        return self.playlist_result(self._entries(user_id, bool(user)), user_id)
-
-
-class XHamsterPornStarIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:.+?\.)?%s/pornstars/(?P<id>[^/?#&]+)' % XHamsterIE._DOMAINS
-    _TESTS = [{
-        # Paginated user profile
-        'url': 'https://es.xhamster.com/pornstars/chris_torres',
-        'info_dict': {
-            'id': 'chris_torres',
-        },
-        'playlist_mincount': 7,
-    }]
-
-    def _entries(self, user_id):
-        next_page_url = 'https://xhamster.com/pornstars/%s/1' % user_id
         for pagenum in itertools.count(1):
             page = self._download_webpage(
                 next_page_url, user_id, 'Downloading page %s' % pagenum)
