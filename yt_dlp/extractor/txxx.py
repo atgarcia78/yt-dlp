@@ -1,9 +1,5 @@
-from __future__ import annotations
-
 import base64
 import re
-
-from pyrate_limiter import Duration, Limiter, RequestRate
 
 from .common import InfoExtractor
 from ..utils import (
@@ -49,16 +45,6 @@ def get_formats(host, video_file):
     } for index, video in enumerate(video_file) if video.get('video_url')]
 
 
-def my_limiter(seconds: str | int | float):
-    if seconds == "non":
-        return Limiter(RequestRate(10000, 0))
-    elif isinstance(seconds, (int, float)):
-        return Limiter(RequestRate(1, seconds * Duration.SECOND))  # type: ignore
-
-
-limiter_1 = my_limiter(1)
-
-
 class TxxxIE(InfoExtractor):
     _DOMAINS = (
         'hclips.com',
@@ -67,10 +53,8 @@ class TxxxIE(InfoExtractor):
         'hotmovs.com',
         'hotmovs.tube',
         'inporn.com',
-        'pornhits.com',
         'privatehomeclips.com',
         'tubepornclassic.com',
-        'videotxxx.com',
         'txxx.com',
         'txxx.tube',
         'upornia.com',
@@ -80,8 +64,6 @@ class TxxxIE(InfoExtractor):
         'vxxx.com',
         'voyeurhit.com',
         'voyeurhit.tube',
-        'thegay.tube',
-        'thegay.com',
     )
     _VALID_URL = rf'''(?x)
         https?://(?:www\.)?(?P<host>{"|".join(map(re.escape, _DOMAINS))})/
@@ -378,16 +360,15 @@ class TxxxIE(InfoExtractor):
         }
     }]
 
-    @limiter_1.ratelimit('txxx', delay=True)  # type: ignore
     def _call_api(self, url, video_id, fatal=False, **kwargs):
         content = self._download_json(url, video_id, fatal=fatal, **kwargs)
         if traverse_obj(content, 'error'):
             raise self._error_or_warning(ExtractorError(
-                f'Txxx said: {content["error"]}', expected=True), fatal=fatal)  # type: ignore
+                f'Txxx said: {content["error"]}', expected=True), fatal=fatal)
         return content or {}
 
     def _real_extract(self, url):
-        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')  # type: ignore
+        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')
         headers = {'Referer': url, 'X-Requested-With': 'XMLHttpRequest'}
 
         video_file = self._call_api(
@@ -438,7 +419,7 @@ class PornTopIE(InfoExtractor):
     }]
 
     def _real_extract(self, url):
-        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')  # type: ignore
+        video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')
         webpage = self._download_webpage(url, video_id)
 
         json_ld = self._json_ld(self._search_json(
