@@ -51,8 +51,6 @@ dependencies = [
     "websockets>=12.0",
     "backoff",
     "pyrate-limiter==2.10.0",
-    "selenium",
-    "httpx",
 ]
 
 [project.optional-dependencies]
