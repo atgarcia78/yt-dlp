@@ -99,7 +99,7 @@ class PornHubBaseIE(InfoExtractor):
         login_form = self._hidden_inputs(login_page)
 
         login_form.update({
-            'username': username,
+            'email': username,
             'password': password,
         })
 
