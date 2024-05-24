@@ -1,13 +1,13 @@
 name: Quick Test
-on: [push]
+on: [push, pull_request]
 permissions:
   contents: read
 
 jobs:
   tests:
     name: Core Test
-    if: "!contains(github.event.head_commit.message, 'skip all')"
-    runs-on: macos-latest
+    if: "!contains(github.event.head_commit.message, 'ci skip all')"
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.8
@@ -23,15 +23,15 @@ jobs:
   flake8:
     name: Linter
     if: "!contains(github.event.head_commit.message, 'ci skip all')"
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
         python-version: '3.8'
     - name: Install flake8
-      run: python3 ./devscripts/install_deps.py --include dev
+      run: python3 ./devscripts/install_deps.py -o --include dev
     - name: Make lazy extractors
       run: python3 ./devscripts/make_lazy_extractors.py
     - name: Run flake8
-      run: flake8 --max-line-length 110 .
+      run: flake8 .
