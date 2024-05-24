@@ -20,12 +20,7 @@ import random
 import ssl
 import threading
 
-<<<<<<< HEAD
-# from test.conftest import validate_and_send
-from yt_dlp import socks
-=======
 from yt_dlp import socks, traverse_obj
->>>>>>> upstream/master
 from yt_dlp.cookies import YoutubeDLCookieJar
 from yt_dlp.dependencies import websockets
 from yt_dlp.networking import Request
@@ -253,11 +248,6 @@ class TestWebsSocketRequestHandlerConformance:
             assert json.loads(ws.recv())['cookie'] == 'test=ytdlp'
             ws.close()
 
-<<<<<<< HEAD
-    @pytest.mark.parametrize('handler', ['Websockets'], indirect=True)
-    @pytest.mark.skipif(True, reason='[Errno 49] Cant assign requested address')
-=======
->>>>>>> upstream/master
     def test_source_address(self, handler):
         source_address = f'127.0.0.{random.randint(5, 255)}'
         verify_address_availability(source_address)
