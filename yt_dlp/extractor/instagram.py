@@ -19,9 +19,9 @@ from ..utils import (
     str_or_none,
     str_to_int,
     traverse_obj,
+    try_get,
     url_or_none,
     urlencode_postdata,
-    try_get
 )
 
 _ENCODING_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
