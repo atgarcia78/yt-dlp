@@ -1,6 +1,5 @@
 import base64
 import json
-import re
 import subprocess
 
 from .common import InfoExtractor
@@ -11,15 +10,17 @@ from ..utils import (
     int_or_none,
     js_to_json,
     qualities,
+    remove_end,
+    remove_start,
     traverse_obj,
     try_get,
 )
 
 
-class RTVEPlayIE(InfoExtractor):
-    IE_NAME = 'rtve.es:play'  # type: ignore
-    IE_DESC = 'RTVE Play'
-    _VALID_URL = r'https?://(?:www\.)?rtve\.es/(?P<kind>(?:playz?|(?:m/)?alacarta)/(?:audios|videos)|filmoteca)/[^/]+/[^/]+/(?P<id>\d+)'
+class RTVEALaCartaIE(InfoExtractor):
+    IE_NAME = 'rtve.es:alacarta'  # type: ignore
+    IE_DESC = 'RTVE a la carta'
+    _VALID_URL = r'https?://(?:www\.)?rtve\.es/(m/)?(play|alacarta/videos|filmoteca)/[^/]+/[^/]+/(?P<id>\d+)'
 
     _TESTS = [{
         'url': 'http://www.rtve.es/alacarta/videos/balonmano/o-swiss-cup-masculina-final-espana-suecia/2491869/',
@@ -122,7 +123,6 @@ class RTVEPlayIE(InfoExtractor):
 
     def _extract_drm_mpd_formats(self, video_id):
         _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
-
         if (
             _mpd_fmts := self._extract_mpd_formats(
                 f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, 'dash', headers=_headers, fatal=False)
@@ -133,113 +133,171 @@ class RTVEPlayIE(InfoExtractor):
             return (_mpd_fmts, {"licurl": _lic_drm})
 
     def _real_extract(self, url):
-        if groups := try_get(re.match(self._VALID_URL, url), lambda x: x.groupdict()):
-            is_audio = groups.get('kind') == 'play/audios'
-            return self._real_extract_from_id(groups['id'], is_audio)
+        video_id = self._match_id(url)
+        if (
+            info := try_get(
+                self._download_json(
+                    'http://www.rtve.es/api/videos/%s/config/alacarta_videos.json' % video_id,
+                    video_id),
+                lambda x: x['page']['items'][0])
+        ):
+            if info.get('state') == 'DESPU' or (info.get('pubState') or {}).get('code') == 'DESPU':
+                raise ExtractorError('The video is no longer available', expected=True)
+            title = info['title'].strip()
+            formats = self._extract_png_formats(video_id)
+            subtitles = None
+            if (sbt_file := info.get('subtitleRef')):
+                subtitles = self.extract_subtitles(video_id, sbt_file)
+            is_live = info.get('consumption') == 'live'
 
-    def _real_extract_from_id(self, video_id, is_audio=False):
-        kind = 'audios' if is_audio else 'videos'
-        info = self._download_json(
-            'http://www.rtve.es/api/%s/%s.json' % (kind, video_id),
-            video_id)['page']['items'][0]  # type: ignore
-        if (info.get('pubState') or {}).get('code') == 'DESPU':
-            raise ExtractorError('The video is no longer available', expected=True)
-        title = info['title'].strip()
-        formats = self._extract_png_formats(video_id)
+            _mpd_fmts, _info_drm = self._extract_drm_mpd_formats(video_id) or (None, {})
 
-        subtitles = None
-        if (sbt_file := info.get('subtitleRef')):
-            subtitles = self.extract_subtitles(video_id, sbt_file)
+            if _mpd_fmts:
+                formats.extend(_mpd_fmts)
 
-        is_live = info.get('consumption') == 'live'
-
-        _mpd_fmts, _info_drm = try_get(
-            self._extract_drm_mpd_formats(video_id),
-            lambda x: x if x else (None, None))  # type: ignore
-
-        if _mpd_fmts:
-            formats.extend(_mpd_fmts)
-
-        return {
-            'id': video_id,
-            'title': self._live_title(title) if is_live else title,
-            'formats': formats,
-            '_drm': _info_drm,
-            'url': info.get('htmlUrl'),
-            'description': (info.get('description')),
-            'thumbnail': info.get('thumbnail'),
-            'subtitles': subtitles,
-            'duration': float_or_none(info.get('duration'), 1000),
-            'is_live': is_live,
-            'series': (info.get('programInfo') or {}).get('title'),
-        }
+            return {
+                'id': video_id,
+                'title': self._live_title(title) if is_live else title,
+                'formats': formats,
+                '_drm': _info_drm,
+                'thumbnail': info.get('image'),
+                'subtitles': subtitles,
+                'duration': float_or_none(info.get('duration'), 1000),
+                'is_live': is_live,
+                'series': (info.get('programInfo') or {}).get('title'),
+            }
 
     def _get_subtitles(self, video_id, sub_file):
-        subs = traverse_obj(self._download_json(
-            sub_file + '.json', video_id,
-            'Downloading subtitles info'), ('page', 'items'))
-        if not isinstance(subs, list):
-            return {}
-        else:
+        if (
+            subs := try_get(self._download_json(
+                sub_file + '.json', video_id,
+                'Downloading subtitles info'),
+                lambda x: x['page']['items'])
+        ):
             return dict(
                 (s['lang'], [{'ext': 'vtt', 'url': s['src']}])
                 for s in subs)
 
 
-class RTVEInfantilIE(RTVEPlayIE):
+class RTVEAudioIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
+    IE_NAME = 'rtve.es:audio'
+    IE_DESC = 'RTVE audio'
+    _VALID_URL = r'https?://(?:www\.)?rtve\.es/(alacarta|play)/audios/[^/]+/[^/]+/(?P<id>[0-9]+)'
+
+    _TESTS = [{
+        'url': 'https://www.rtve.es/alacarta/audios/a-hombros-de-gigantes/palabra-ingeniero-codigos-informaticos-27-04-21/5889192/',
+        'md5': 'ae06d27bff945c4e87a50f89f6ce48ce',
+        'info_dict': {
+            'id': '5889192',
+            'ext': 'mp3',
+            'title': 'Códigos informáticos',
+            'thumbnail': r're:https?://.+/1598856591583.jpg',
+            'duration': 349.440,
+            'series': 'A hombros de gigantes',
+        },
+    }, {
+        'url': 'https://www.rtve.es/play/audios/en-radio-3/ignatius-farray/5791165/',
+        'md5': '072855ab89a9450e0ba314c717fa5ebc',
+        'info_dict': {
+            'id': '5791165',
+            'ext': 'mp3',
+            'title': 'Ignatius Farray',
+            'thumbnail': r're:https?://.+/1613243011863.jpg',
+            'duration': 3559.559,
+            'series': 'En Radio 3'
+        },
+    }, {
+        'url': 'https://www.rtve.es/play/audios/frankenstein-o-el-moderno-prometeo/capitulo-26-ultimo-muerte-victor-juan-jose-plans-mary-shelley/6082623/',
+        'md5': '0eadab248cc8dd193fa5765712e84d5c',
+        'info_dict': {
+            'id': '6082623',
+            'ext': 'mp3',
+            'title': 'Capítulo 26 y último: La muerte de Victor',
+            'thumbnail': r're:https?://.+/1632147445707.jpg',
+            'duration': 3174.086,
+            'series': 'Frankenstein o el moderno Prometeo'
+        },
+    }]
+
+    def _extract_png_formats(self, audio_id):
+        """
+        This function retrieves media related png thumbnail which obfuscate
+        valuable information about the media. This information is decrypted
+        via base class _decrypt_url function providing media quality and
+        media url
+        """
+        png = self._download_webpage(
+            'http://www.rtve.es/ztnr/movil/thumbnail/%s/audios/%s.png' %
+            (self._manager, audio_id),
+            audio_id, 'Downloading url information', query={'q': 'v2'})
+        q = qualities(['Media', 'Alta', 'HQ', 'HD_READY', 'HD_FULL'])
+        formats = []
+        for quality, audio_url in self._decrypt_url(png):
+            ext = determine_ext(audio_url)
+            if ext == 'm3u8':
+                formats.extend(self._extract_m3u8_formats(
+                    audio_url, audio_id, 'mp4', 'm3u8_native',
+                    m3u8_id='hls', fatal=False))
+            elif ext == 'mpd':
+                formats.extend(self._extract_mpd_formats(
+                    audio_url, audio_id, 'dash', fatal=False))
+            else:
+                formats.append({
+                    'format_id': quality,
+                    'quality': q(quality),
+                    'url': audio_url,
+                })
+        return formats
+
+    def _real_extract(self, url):
+        audio_id = self._match_id(url)
+        if (
+            info := try_get(
+                self._download_json(
+                'https://www.rtve.es/api/audios/%s.json' % audio_id,
+                audio_id),
+                lambda x: x['page']['items'][0])
+        ):
+            return {
+                'id': audio_id,
+                'title': info['title'].strip(),
+                'thumbnail': info.get('thumbnail'),
+                'duration': float_or_none(info.get('duration'), 1000),
+                'series': try_get(info, lambda x: x['programInfo']['title']),
+                'formats': self._extract_png_formats(audio_id),
+            }
+
+
+class RTVEInfantilIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
     IE_NAME = 'rtve.es:infantil'
     IE_DESC = 'RTVE infantil'
     _VALID_URL = r'https?://(?:www\.)?rtve\.es/infantil/serie/[^/]+/video/[^/]+/(?P<id>[0-9]+)/'
 
     _TESTS = [{
-        'url': 'https://www.rtve.es/infantil/serie/dino-ranch/video/pequeno-gran-ayudante/6693248/',
-        'md5': '06d3f57eec593ad93fe9dcf079fbd940',
+        'url': 'http://www.rtve.es/infantil/serie/cleo/video/maneras-vivir/3040283/',
+        'md5': '5747454717aedf9f9fdf212d1bcfc48d',
         'info_dict': {
-            'id': '6693248',
+            'id': '3040283',
             'ext': 'mp4',
-            'title': 'Un pequeño gran ayudante',
-            'description': 'md5:144ca351e31f9ee99a637ab9fc2787d5',
-            'thumbnail': r're:https?://.+/1663318364501\.jpg',
-            'duration': 691.44,
+            'title': 'Maneras de vivir',
+            'thumbnail': r're:https?://.+/1426182947956\.JPG',
+            'duration': 357.958,
         },
         'expected_warnings': ['Failed to download MPD manifest', 'Failed to download m3u8 information'],
     }]
 
 
-class RTVELiveIE(RTVEPlayIE):
+class RTVELiveIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
     IE_NAME = 'rtve.es:live'
     IE_DESC = 'RTVE.es live streams'
-    _VALID_URL = r'https?://(?:www\.)?rtve\.es/play/videos/directo/(?P<id>.+)'
+    _VALID_URL = r'https?://(?:www\.)?rtve\.es/directo/(?P<id>[a-zA-Z0-9-]+)'
 
     _TESTS = [{
-        'url': 'https://www.rtve.es/play/videos/directo/la-1/',
+        'url': 'http://www.rtve.es/directo/la-1/',
         'info_dict': {
-            'id': '1688877',
+            'id': 'la-1',
             'ext': 'mp4',
             'title': 're:^La 1 [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$',
-            'description': 'La 1',
-        },
-        'params': {
-            'skip_download': 'live stream',
-        }
-    }, {
-        'url': 'https://www.rtve.es/play/videos/directo/canales-lineales/la-1/',
-        'info_dict': {
-            'id': '1688877',
-            'ext': 'mp4',
-            'title': 're:^La 1 [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$',
-            'description': 'La 1',
-        },
-        'params': {
-            'skip_download': 'live stream',
-        }
-    }, {
-        'url': 'https://www.rtve.es/play/videos/directo/canales-lineales/capilla-ardiente-isabel-westminster/10886/',
-        'info_dict': {
-            'id': '1938028',
-            'ext': 'mp4',
-            'title': 're:^Mas24 - 1 [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$',
-            'description': 'Mas24 - 1',
         },
         'params': {
             'skip_download': 'live stream',
@@ -247,77 +305,52 @@ class RTVELiveIE(RTVEPlayIE):
     }]
 
     def _real_extract(self, url):
-        webpage = self._download_webpage(url, self._match_id(url))
-        asset_id = self._search_regex(
-            r'class=["\'].*?\bvideoPlayer\b.*?["\'][^>]+data-setup=[^>]+?(?:"|&quot;)idAsset(?:"|&quot;)\s*:\s*(?:"|&quot;)(\d+)(?:"|&quot;)',
+        video_id = self._match_id('id')
+
+        webpage = self._download_webpage(url, video_id)
+        title = remove_end(self._og_search_title(webpage), ' en directo en RTVE.es')
+        title = remove_start(title, 'Estoy viendo ')
+
+        vidplayer_id = self._search_regex(
+            (r'playerId=player([0-9]+)',
+             r'class=["\'].*?\blive_mod\b.*?["\'][^>]+data-assetid=["\'](\d+)',
+             r'data-id=["\'](\d+)'),
             webpage, 'internal video ID')
-        return self._real_extract_from_id(asset_id)
+
+        return {
+            'id': video_id,
+            'title': title,
+            'formats': self._extract_png_formats(vidplayer_id),
+            'is_live': True,
+        }
 
 
 class RTVETelevisionIE(InfoExtractor):
     IE_NAME = 'rtve.es:television'  # type: ignore
-    # https://www.rtve.es/SECTION/YYYYMMDD/CONTENT_SLUG/CONTENT_ID.shtml
-    _VALID_URL = r'https?://(?:www\.)?rtve\.es/[^/]+/\d{8}/[^/]+/(?P<id>\d+)\.shtml'
+    _VALID_URL = r'https?://(?:www\.)?rtve\.es/television/[^/]+/[^/]+/(?P<id>\d+).shtml'
 
-    _TESTS = [{
-        'url': 'https://www.rtve.es/television/20220916/destacados-festival-san-sebastian-rtve-play/2395620.shtml',
+    _TEST = {
+        'url': 'http://www.rtve.es/television/20160628/revolucion-del-movil/1364141.shtml',
         'info_dict': {
-            'id': '6668919',
+            'id': '3069778',
             'ext': 'mp4',
-            'title': 'Las películas del Festival de San Sebastián en RTVE Play',
-            'description': 'El\xa0Festival de San Sebastián vuelve a llenarse de artistas. Y en su honor,\xa0RTVE Play\xa0destacará cada viernes una\xa0película galardonada\xa0con la\xa0Concha de Oro\xa0en su catálogo.',
-            'duration': 20.048,
+            'title': 'Documentos TV - La revolución del móvil',
+            'duration': 3496.948,
         },
         'params': {
             'skip_download': True,
         },
-    }, {
-        'url': 'https://www.rtve.es/noticias/20220917/penelope-cruz-san-sebastian-premio-nacional/2402565.shtml',
-        'info_dict': {
-            'id': '6694087',
-            'ext': 'mp4',
-            'title': 'Penélope Cruz recoge el Premio Nacional de Cinematografía: "No dejen nunca de proteger nuestro cine"',
-            'description': 'md5:eda9e6baa78dbbbcc7708c0cc8150a91',
-            'duration': 388.2,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }, {
-        'url': 'https://www.rtve.es/deportes/20220917/motogp-bagnaia-pole-marquez-decimotercero-motorland-aragon/2402566.shtml',
-        'info_dict': {
-            'id': '6694142',
-            'ext': 'mp4',
-            'title': "Bagnaia logra su quinta 'pole' del año y Márquez partirá decimotercero",
-            'description': 'md5:07e2ccb983a046cb42f896cce225f0a7',
-            'duration': 153.44,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }, {
-        'url': 'https://www.rtve.es/playz/20220807/covaleda-fest-final/2394809.shtml',
-        'info_dict': {
-            'id': '6665408',
-            'ext': 'mp4',
-            'title': 'Covaleda Fest (Soria) - Día 3 con Marc Seguí y Paranoid 1966',
-            'description': 'Festivales Playz viaja a Covaleda, Soria, para contarte todo lo que sucede en el Covaleda Fest. Entrevistas, challenges a los artistas, juegos... Khan, Adriana Jiménez y María García no dejarán pasar ni una. ¡No te lo pierdas!',
-            'duration': 12009.92,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }]
+    }
 
     def _real_extract(self, url):
         page_id = self._match_id(url)
         webpage = self._download_webpage(url, page_id)
 
         alacarta_url = self._search_regex(
-            r'data-location="alacarta_videos"[^<]+url&quot;:&quot;(https?://www\.rtve\.es/play.+?)&',
+            r'data-location="alacarta_videos"[^<]+url&quot;:&quot;(http://www\.rtve\.es/alacarta.+?)&',
             webpage, 'alacarta url', default=None)  # type: ignore
         if alacarta_url is None:
             raise ExtractorError(
                 'The webpage doesn\'t contain any video', expected=True)
 
-        return self.url_result(alacarta_url, ie=RTVEPlayIE.ie_key())
+        return self.url_result(alacarta_url, ie=RTVEALaCartaIE.ie_key())
