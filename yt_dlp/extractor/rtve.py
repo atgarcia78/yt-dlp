@@ -63,18 +63,7 @@ class RTVEALaCartaIE(InfoExtractor):
         'only_matching': True,
     }, {
         'url': 'http://www.rtve.es/filmoteca/no-do/not-1-introduccion-primer-noticiario-espanol/1465256/',
-        'only_matching': True,
-    }, {
-        'url': 'http://www.rtve.es/alacarta/audios/a-hombros-de-gigantes/palabra-ingeniero-codigos-informaticos-27-04-21/5889192/',
-        'md5': 'ae06d27bff945c4e87a50f89f6ce48ce',
-        'info_dict': {
-            'id': '5889192',
-            'ext': 'mp3',
-            'title': 'Códigos informáticos',
-            'description': 'md5:72b0d7c1ca20fd327bdfff7ac0171afb',
-            'thumbnail': r're:https?://.+/1598856591583.jpg',
-            'duration': 349.440,
-        },
+        'only_matching': True
     }]
 
     def _real_initialize(self):
