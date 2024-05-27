@@ -19,7 +19,7 @@ from yt_dlp.extractor import (
     DemocracynowIE,
     LyndaIE,
     RaiPlayIE,
-    RTVEPlayIE,
+    RTVEALaCartaIE,
     TedTalkIE,
     ThePlatformFeedIE,
     ThePlatformIE,
@@ -378,7 +378,7 @@ class TestThePlatformFeedSubtitles(BaseTestSubtitles):
 @is_download_test
 class TestRtveSubtitles(BaseTestSubtitles):
     url = 'http://www.rtve.es/alacarta/videos/los-misterios-de-laura/misterios-laura-capitulo-32-misterio-del-numero-17-2-parte/2428621/'
-    IE = RTVEPlayIE
+    IE = RTVEALaCartaIE
 
     def test_allsubtitles(self):
         print('Skipping, only available from Spain')
