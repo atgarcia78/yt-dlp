@@ -2,18 +2,13 @@ import json
 
 from .common import InfoExtractor
 from ..networking.exceptions import HTTPError
-from ..utils import (
-<<<<<<< HEAD
-    clean_html,
-    traverse_obj,
-=======
->>>>>>> upstream/master
+from ..utils import (  # remove_end,
     ExtractorError,
     clean_html,
-    # remove_end,
     str_or_none,
     strip_or_none,
     unified_timestamp,
+    traverse_obj
 )
 
 
@@ -67,9 +62,12 @@ class PacktPubIE(PacktPubBaseIE):
         if self._TOKEN:
             headers['Authorization'] = 'Bearer ' + self._TOKEN
         try:
-            video_info = self._download_json(
-                'https://services.packtpub.com/products-v1/products/%s/%s/%s' % (course_id, chapter_id, video_id), video_id,
-                'Downloading JSON video', headers=headers)
+            if not (
+                video_info := self._download_json(
+                    'https://services.packtpub.com/products-v1/products/%s/%s/%s' % (course_id, chapter_id, video_id), video_id,
+                    'Downloading JSON video', headers=headers)
+            ) or not (video_url := video_info.get('data')):
+                raise ExtractorError('cant get video info')
         except ExtractorError as e:
             if isinstance(e.cause, HTTPError) and e.cause.status == 400:
                 self.raise_login_required('This video is locked')
@@ -87,11 +85,8 @@ class PacktPubIE(PacktPubBaseIE):
         #     title = remove_end(title, ' - %s' % course_title)
         # timestamp = unified_timestamp(metadata.get('publicationDate'))
         # thumbnail = urljoin(self._PACKT_BASE, metadata.get('filepath'))
-        self.to_screen(video_info)
-        video_url = video_info['data']
         subtitles = {}
-        captions = traverse_obj(video_info, ('captions', 0))
-        if captions:
+        if captions := traverse_obj(video_info, ('captions', 0)):
             subtitles = {'en': [{'ext': captions['type'], 'url': captions['location']}]}
 
         return {
