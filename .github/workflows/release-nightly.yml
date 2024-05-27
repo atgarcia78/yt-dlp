@@ -1,8 +1,7 @@
 name: Release (nightly)
-on: workflow_dispatch
-concurrency:
-  group: release-nightly
-  cancel-in-progress: true
+on:
+  schedule:
+    - cron: '23 23 * * *'
 permissions:
   contents: read
 

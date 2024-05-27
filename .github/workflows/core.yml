@@ -42,8 +42,8 @@ jobs:
         # atleast one of each CPython/PyPy tests must be in windows
         - os: windows-latest
           python-version: '3.8'
-        # - os: windows-latest
-        #   python-version: '3.12'
+        - os: windows-latest
+          python-version: '3.12'
         - os: windows-latest
           python-version: pypy-3.9
     steps:
