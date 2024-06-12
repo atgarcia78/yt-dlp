@@ -528,7 +528,6 @@ class PornHubPlaylistBaseIE(PornHubBaseIE):
             r'(?s)(<div[^>]+class=["\']container.+)', webpage,
             'container', default=webpage)
 
-
         return [
             self.url_result(
                 f'http://www.{host}/{video_url}',
