@@ -63,7 +63,7 @@ class RTVEALaCartaIE(InfoExtractor):
         'only_matching': True,
     }, {
         'url': 'http://www.rtve.es/filmoteca/no-do/not-1-introduccion-primer-noticiario-espanol/1465256/',
-        'only_matching': True
+        'only_matching': True,
     }]
 
     def _real_initialize(self):
@@ -107,26 +107,26 @@ class RTVEALaCartaIE(InfoExtractor):
                         'filesize': filesize,
                         **({'quality': q(quality)} if quality else {})})
             except Exception as e:
-                self.report_warning(f"error with [{ext}][{video_url}] - {repr(e)}")
+                self.report_warning(f'error with [{ext}][{video_url}] - {e!r}')
         return formats
 
     def _extract_drm_mpd_formats(self, video_id):
         _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
         if (
             _mpd_fmts := self._extract_mpd_formats(
-                f"http://ztnr.rtve.es/ztnr/{video_id}.mpd", video_id, 'dash', headers=_headers, fatal=False)
+                f'http://ztnr.rtve.es/ztnr/{video_id}.mpd', video_id, 'dash', headers=_headers, fatal=False)
         ):
             _lic_drm = traverse_obj(self._download_json(
-                f"https://api.rtve.es/api/token/{video_id}", video_id, headers=_headers), "widevineURL")
+                f'https://api.rtve.es/api/token/{video_id}', video_id, headers=_headers), 'widevineURL')
 
-            return (_mpd_fmts, {"licurl": _lic_drm})
+            return (_mpd_fmts, {'licurl': _lic_drm})
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
         if (
             info := try_get(
                 self._download_json(
-                    'http://www.rtve.es/api/videos/%s/config/alacarta_videos.json' % video_id,
+                    f'http://www.rtve.es/api/videos/{video_id}/config/alacarta_videos.json',
                     video_id),
                 lambda x: x['page']['items'][0])
         ):
@@ -242,7 +242,7 @@ class RTVEAudioIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
         if (
             info := try_get(
                 self._download_json(
-                'https://www.rtve.es/api/audios/%s.json' % audio_id,
+                f'https://www.rtve.es/api/audios/{audio_id}.json',
                 audio_id),
                 lambda x: x['page']['items'][0])
         ):

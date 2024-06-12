@@ -110,8 +110,8 @@ class XVideosIE(InfoExtractor):
         webpage = self._download_webpage(url, video_id)
         if webpage:
             if mobj := re.search(r'<h1 class="inlineError">(.+?)</h1>', webpage):
-                raise ExtractorError('%s said: %s' % (self.IE_NAME, clean_html(mobj.group(1))), expected=True)
-            elif "<h3>this video has been deleted</h3>" in webpage.lower():
+                raise ExtractorError(f'{self.IE_NAME} said: {clean_html(mobj.group(1))}', expected=True)
+            elif '<h3>this video has been deleted</h3>' in webpage.lower():
                 raise ExtractorError('404 not found webpage')
         else:
             raise ExtractorError('404 not found webpage')
@@ -161,7 +161,7 @@ class XVideosIE(InfoExtractor):
                     duration = self._extract_m3u8_vod_duration(
                         hls_formats[0]['url'],
                         video_id,
-                        headers=hls_formats[0].get('http_headers', {})
+                        headers=hls_formats[0].get('http_headers', {}),
                     )
                 formats.extend(hls_formats)
             elif format_id in ('urllow', 'urlhigh'):
