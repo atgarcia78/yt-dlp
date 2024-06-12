@@ -107,9 +107,6 @@ class ADNIE(ADNBaseIE):
                 fatal=False, headers={'Origin': 'https://' + self._BASE})
         if not enc_subtitles:
             return None
-        print(enc_subtitles)
-        print('\n')
-        print(self._K)
 
         # http://animationdigitalnetwork.fr/components/com_vodvideo/videojs/adn-vjs.min.js
         dec_subtitles = unpad_pkcs7(aes_cbc_decrypt_bytes(

@@ -75,15 +75,15 @@ class RTVEALaCartaIE(InfoExtractor):
 
     @staticmethod
     def _decrypt_url(png):
-        cmd0 = "node /Users/antoniotorres/.config/yt-dlp/rtve_decrypt_png.js " + png
-        res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding="utf-8").stdout.strip('\n')
+        cmd0 = f'node /Users/antoniotorres/.config/yt-dlp/rtve_decrypt_png.js {png}'
+        res0 = subprocess.run(cmd0.split(' '), capture_output=True, encoding='utf-8').stdout.strip('\n')
         return json.loads(js_to_json(res0))
 
     def _extract_png_formats(self, video_id):
         formats = []
 
         png = self._download_webpage(
-            'http://ztnr.rtve.es/ztnr/movil/thumbnail/%s/videos/%s.png' % (self._manager, video_id),
+            f'http://ztnr.rtve.es/ztnr/movil/thumbnail/{self._manager}/videos/{video_id}.png',
             video_id, 'Downloading url information', query={'q': 'v2'}, fatal=False)
         if not png:
             return formats
@@ -102,7 +102,7 @@ class RTVEALaCartaIE(InfoExtractor):
                     if urlh := self._request_webpage(video_url, video_id):
                         filesize = int_or_none(urlh.headers.get('Content-Length'))
                     formats.append({
-                        'format_id': 'http-mp4' if not quality else quality,
+                        'format_id': quality if not quality else 'http-mp4',
                         'url': video_url,
                         'filesize': filesize,
                         **({'quality': q(quality)} if quality else {})})

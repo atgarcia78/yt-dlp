@@ -981,11 +981,10 @@ class YoutubeDL:
             if not ies:
                 return
             for _, ins in ies.items():
-                if close := getattr(ins, "close", None):
-                    try:
+                if close := getattr(ins, 'close', None):
+                    with contextlib.suppress(Exception):
                         close()
-                    except Exception:
-                        pass
+
         ies_close(self._ies_instances)
 
     def trouble(self, message=None, tb=None, is_error=True):
@@ -3973,10 +3972,9 @@ class YoutubeDL:
 
         # These imports can be slow. So import them only as needed
         from .extractor.extractors import _LAZY_LOADER
-        from .extractor.extractors import (
-            _PLUGIN_CLASSES as plugin_ies,
-            _PLUGIN_OVERRIDES as plugin_ie_overrides,
-        )
+        from .extractor.extractors import _PLUGIN_CLASSES as plugin_ies
+        from .extractor.extractors import \
+            _PLUGIN_OVERRIDES as plugin_ie_overrides
 
         def get_encoding(stream):
             ret = str(getattr(stream, 'encoding', f'missing ({type(stream).__name__})'))
