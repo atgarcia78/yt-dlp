@@ -193,7 +193,7 @@ class RTVEAudioIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
             'title': 'Ignatius Farray',
             'thumbnail': r're:https?://.+/1613243011863.jpg',
             'duration': 3559.559,
-            'series': 'En Radio 3'
+            'series': 'En Radio 3',
         },
     }, {
         'url': 'https://www.rtve.es/play/audios/frankenstein-o-el-moderno-prometeo/capitulo-26-ultimo-muerte-victor-juan-jose-plans-mary-shelley/6082623/',
@@ -204,7 +204,7 @@ class RTVEAudioIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
             'title': 'Capítulo 26 y último: La muerte de Victor',
             'thumbnail': r're:https?://.+/1632147445707.jpg',
             'duration': 3174.086,
-            'series': 'Frankenstein o el moderno Prometeo'
+            'series': 'Frankenstein o el moderno Prometeo',
         },
     }]
 
@@ -216,8 +216,7 @@ class RTVEAudioIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
         media url
         """
         png = self._download_webpage(
-            'http://www.rtve.es/ztnr/movil/thumbnail/%s/audios/%s.png' %
-            (self._manager, audio_id),
+            f'http://www.rtve.es/ztnr/movil/thumbnail/{self._manager}/audios/{audio_id}.png',
             audio_id, 'Downloading url information', query={'q': 'v2'})
         q = qualities(['Media', 'Alta', 'HQ', 'HD_READY', 'HD_FULL'])
         formats = []
@@ -290,7 +289,7 @@ class RTVELiveIE(RTVEALaCartaIE):  # XXX: Do not subclass from concrete IE
         },
         'params': {
             'skip_download': 'live stream',
-        }
+        },
     }]
 
     def _real_extract(self, url):

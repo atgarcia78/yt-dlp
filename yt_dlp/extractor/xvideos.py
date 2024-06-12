@@ -33,7 +33,7 @@ class XVideosIE(InfoExtractor):
             'duration': 1238,
             'age_limit': 18,
             'thumbnail': r're:^https://cdn\d+-pic.xvideos-cdn.com/.+\.jpg',
-        }
+        },
     }, {
         # Broken HLS formats
         'url': 'https://www.xvideos.com/video65982001/what_s_her_name',
@@ -45,7 +45,7 @@ class XVideosIE(InfoExtractor):
             'duration': 120,
             'age_limit': 18,
             'thumbnail': r're:^https://cdn\d+-pic.xvideos-cdn.com/.+\.jpg',
-        }
+        },
     }, {
         'url': 'https://flashservice.xvideos.com/embedframe/4588838',
         'only_matching': True,
@@ -57,40 +57,40 @@ class XVideosIE(InfoExtractor):
         'only_matching': True,
     }, {
         'url': 'http://xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://xvideos.es/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://www.xvideos.es/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'http://xvideos.es/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'http://www.xvideos.es/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'http://fr.xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://fr.xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'http://it.xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://it.xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'http://de.xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://de.xvideos.com/video4588838/biker_takes_his_girl',
-        'only_matching': True
+        'only_matching': True,
     }, {
         'url': 'https://flashservice.xvideos.com/embedframe/ucuvbkfda4e',
         'only_matching': True,
@@ -102,7 +102,7 @@ class XVideosIE(InfoExtractor):
         'only_matching': True,
     }, {
         'url': 'https://xvideos.es/video.ucuvbkfda4e/a_beautiful_red-haired_stranger_was_refused_but_still_came_to_my_room_for_sex',
-        'only_matching': True
+        'only_matching': True,
     }]
 
     def _real_extract(self, url):
@@ -125,7 +125,7 @@ class XVideosIE(InfoExtractor):
         thumbnails = []
         for preference, thumbnail in enumerate(('', '169')):
             thumbnail_url = self._search_regex(
-                r'setThumbUrl%s\(\s*(["\'])(?P<thumbnail>(?:(?!\1).)+)\1' % thumbnail,
+                rf'setThumbUrl{thumbnail}\(\s*(["\'])(?P<thumbnail>(?:(?!\1).)+)\1',
                 webpage, 'thumbnail', default=None, group='thumbnail')
             if thumbnail_url:
                 thumbnails.append({
@@ -141,9 +141,8 @@ class XVideosIE(InfoExtractor):
 
         formats = []
 
-        video_url = urllib.parse.unquote(
-            self._search_regex(r'flv_url=(.+?)&', webpage, 'video URL', default=''))  # type: ignore
-
+        video_url = urllib.parse.unquote(self._search_regex(
+            r'flv_url=(.+?)&', webpage, 'video URL', default=''))
         if video_url:
             formats.append({
                 'url': video_url,
@@ -168,7 +167,7 @@ class XVideosIE(InfoExtractor):
             elif format_id in ('urllow', 'urlhigh'):
                 formats.append({
                     'url': format_url,
-                    'format_id': '%s-%s' % (determine_ext(format_url, 'mp4'), format_id[3:]),
+                    'format_id': '{}-{}'.format(determine_ext(format_url, 'mp4'), format_id[3:]),
                     'quality': -2 if format_id.endswith('low') else None,
                 })
 
@@ -195,7 +194,7 @@ class XVideosQuickiesIE(InfoExtractor):
             'age_limit': 18,
             'duration': 81,
             'thumbnail': r're:^https://cdn.*-pic.xvideos-cdn.com/.+\.jpg',
-        }
+        },
     }, {
         'url': 'https://www.xvideos.com/profiles/lili_love#quickies/a/ipphaob6fd1',
         'md5': '5340938aac6b46e19ebdd1d84535862e',
@@ -206,7 +205,7 @@ class XVideosQuickiesIE(InfoExtractor):
             'age_limit': 18,
             'duration': 56,
             'thumbnail': r're:^https://cdn.*-pic.xvideos-cdn.com/.+\.jpg',
-        }
+        },
     }, {
         'url': 'https://www.xvideos.com/amateur-channels/lili_love#quickies/a/hfmffmd7661',
         'md5': '92428518bbabcb4c513e55922e022491',
@@ -217,7 +216,7 @@ class XVideosQuickiesIE(InfoExtractor):
             'age_limit': 18,
             'duration': 9,
             'thumbnail': r're:^https://cdn.*-pic.xvideos-cdn.com/.+\.jpg',
-        }
+        },
     }, {
         'url': 'https://www.xvideos.com/amateur-channels/wifeluna#quickies/a/47258683',
         'md5': '16e322a93282667f1963915568f782c1',
@@ -228,7 +227,7 @@ class XVideosQuickiesIE(InfoExtractor):
             'age_limit': 18,
             'duration': 16,
             'thumbnail': r're:^https://cdn.*-pic.xvideos-cdn.com/.+\.jpg',
-        }
+        },
     }]
 
     def _real_extract(self, url):
