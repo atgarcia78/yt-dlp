@@ -99,7 +99,6 @@ class TubiTvIE(InfoExtractor):
         video_data = self._search_json(
             r'window\.__data\s*=', webpage, 'data', video_id,
             transform_source=js_to_json)['video']['byId'][video_id]
-        
         formats = []
         drm_formats = False
 
