@@ -99,17 +99,19 @@ class TubiTvIE(InfoExtractor):
         video_data = self._search_json(
             r'window\.__data\s*=', webpage, 'data', video_id,
             transform_source=js_to_json)['video']['byId'][video_id]
-
+        
         formats = []
         drm_formats = False
+
+        headers = {'Referer': 'https://tubitv.com/', 'Origin': 'https://tubitv.com'}
 
         for resource in traverse_obj(video_data, ('video_resources', lambda _, v: url_or_none(v['manifest']['url']))):
             resource_type = resource.get('type')
             manifest_url = resource['manifest']['url']
             if resource_type == 'dash':
-                formats.extend(self._extract_mpd_formats(manifest_url, video_id, mpd_id=resource_type, fatal=False))
+                formats.extend(self._extract_mpd_formats(manifest_url, video_id, mpd_id=resource_type, fatal=False, headers=headers))
             elif resource_type in ('hlsv3', 'hlsv6'):
-                formats.extend(self._extract_m3u8_formats(manifest_url, video_id, 'mp4', m3u8_id=resource_type, fatal=False))
+                formats.extend(self._extract_m3u8_formats(manifest_url, video_id, 'mp4', m3u8_id=resource_type, fatal=False, headers=headers))
             elif resource_type in self._UNPLAYABLE_FORMATS:
                 drm_formats = True
             else:
@@ -120,9 +122,13 @@ class TubiTvIE(InfoExtractor):
         elif not formats and not video_data.get('policy_match'):  # policy_match is False if content was removed
             raise ExtractorError('This content is currently unavailable', expected=True)
 
+        for _format in formats:
+            if _format.setdefault('http_headers', headers) != headers:
+                _format['http_headers'].update(**headers)
+
         subtitles = {}
         for sub in traverse_obj(video_data, ('subtitles', lambda _, v: url_or_none(v['url']))):
-            subtitles.setdefault(sub.get('lang', 'English'), []).append({
+            subtitles.setdefault(_sub if (_sub := sub.get('lang', 'English')) != 'English' else 'en', []).append({
                 'url': self._proto_relative_url(sub['url']),
             })
 
