@@ -76,6 +76,7 @@ from .aenetworks import (
 )
 from .aeonco import AeonCoIE
 from .afreecatv import (
+    AfreecaTVCatchStoryIE,
     AfreecaTVIE,
     AfreecaTVLiveIE,
     AfreecaTVUserIE,
@@ -968,6 +969,10 @@ from .la7 import (
     LA7IE,
     LA7PodcastEpisodeIE,
     LA7PodcastIE,
+)
+from .laracasts import (
+    LaracastsIE,
+    LaracastsPlaylistIE,
 )
 from .lastfm import (
     LastFMIE,
