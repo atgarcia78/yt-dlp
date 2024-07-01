@@ -126,7 +126,7 @@ class RTVEALaCartaIE(InfoExtractor):
         if (
             info := try_get(
                 self._download_json(
-                    f'http://www.rtve.es/api/videos/{video_id}/config/alacarta_videos.json',
+                    f'https://api-ztnr.rtve.es/api/videos/{video_id}.json',
                     video_id),
                 lambda x: x['page']['items'][0])
         ):

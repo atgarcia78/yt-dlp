@@ -78,6 +78,11 @@ class TubiTvIE(InfoExtractor):
     _UNPLAYABLE_FORMATS = ('hlsv6_widevine', 'hlsv6_widevine_nonclearlead', 'hlsv6_playready_psshv0',
                            'hlsv6_fairplay', 'dash_widevine', 'dash_widevine_nonclearlead')
 
+    _SUBTITLE_LANGS = {
+        'English': 'en',
+        'Spanish': 'es',
+    }
+
     def _perform_login(self, username, password):
         self.report_login()
         form_data = {
@@ -127,7 +132,7 @@ class TubiTvIE(InfoExtractor):
 
         subtitles = {}
         for sub in traverse_obj(video_data, ('subtitles', lambda _, v: url_or_none(v['url']))):
-            subtitles.setdefault(_sub if (_sub := sub.get('lang', 'English')) != 'English' else 'en', []).append({
+            subtitles.setdefault(self._SUBTITLE_LANGS.get(_lang, _lang) if (_lang := sub.get('lang')) else 'en', []).append({
                 'url': self._proto_relative_url(sub['url']),
             })
 
