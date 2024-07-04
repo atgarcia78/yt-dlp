@@ -397,7 +397,7 @@ class TxxxIE(InfoExtractor):
             'dislike_count': int_or_none(traverse_obj(video_info, ('video', 'statistics', 'dislikes'))),
             'age_limit': 18,
             'thumbnail': traverse_obj(video_info, ('video', 'thumbsrc', {url_or_none})),
-            'formats': _formats
+            'formats': _formats,
         }
 
 
