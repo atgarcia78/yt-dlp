@@ -10,6 +10,7 @@ from ..utils import (
     parse_duration,
     traverse_obj,
     try_call,
+    unsmuggle_url,
     url_or_none,
     urljoin,
     variadic,
@@ -41,7 +42,6 @@ def get_formats(host, video_file):
     return [{
         'url': urljoin(f'https://{host}', decode_base64(video['video_url'])),
         'format_id': try_call(lambda: variadic(video['format'])[0].lstrip('_')),
-        'quality': index,
     } for index, video in enumerate(video_file) if video.get('video_url')]
 
 
@@ -380,6 +380,12 @@ class TxxxIE(InfoExtractor):
             f'https://{host}/api/json/video/86400/{slug}/{video_id}.json',
             video_id, note='Downloading video info', headers=headers)
 
+        _formats = get_formats(host, video_file)
+        if _formats:
+            if _fmts := self._extract_m3u8_formats(f"{_formats[0]['url']}&f=video.m3u8", video_id, headers={'Referer': url}, ext='mp4', m3u8_id=f"hls-{_formats[0]['format_id'].split('.')[0]}", fatal=False):
+                self.to_screen(f'>>> hls {_fmts}')
+                _formats.extend(_fmts)
+
         return {
             'id': video_id,
             'display_id': display_id,
@@ -391,7 +397,7 @@ class TxxxIE(InfoExtractor):
             'dislike_count': int_or_none(traverse_obj(video_info, ('video', 'statistics', 'dislikes'))),
             'age_limit': 18,
             'thumbnail': traverse_obj(video_info, ('video', 'thumbsrc', {url_or_none})),
-            'formats': get_formats(host, video_file),
+            'formats': _formats
         }
 
 
@@ -419,6 +425,7 @@ class PornTopIE(InfoExtractor):
     }]
 
     def _real_extract(self, url):
+        url, smuggled_data = unsmuggle_url(url, {})
         video_id, host, display_id = self._match_valid_url(url).group('id', 'host', 'display_id')
         webpage = self._download_webpage(url, video_id)
 
