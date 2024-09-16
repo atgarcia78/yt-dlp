@@ -41,7 +41,6 @@ class NoodleMagazineIE(InfoExtractor):
         like_count = parse_count(self._html_search_meta('ya:ovs:likes', webpage, default=None))
         upload_date = unified_strdate(self._html_search_meta('ya:ovs:upload_date', webpage, default=''))
 
-
         for _ in range(10):
             try:
                 playlist_info = self._parse_json(
@@ -71,7 +70,6 @@ class NoodleMagazineIE(InfoExtractor):
                 self._downloader.cookiejar.clear('noodlemagazine.com')
                 self._download_webpage('https://noodlemagazine.com/new-video', video_id)
                 webpage = self._download_webpage(url, video_id)
-
 
         return {
             'id': video_id,
