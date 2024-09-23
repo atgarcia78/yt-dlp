@@ -7,7 +7,9 @@ from ..utils import (
     join_nonempty,
     merge_dicts,
     parse_duration,
+    sanitize_filename,
     str_to_int,
+    try_get,
     url_or_none,
 )
 
@@ -56,8 +58,7 @@ class EpornerIE(InfoExtractor):
         vid_hash = self._search_regex(
             r'hash\s*[:=]\s*["\']([\da-f]{32})', webpage, 'hash')
 
-        title = self._og_search_title(webpage, default=None) or self._html_search_regex(
-            r'<title>(.+?) - EPORNER', webpage, 'title')
+        title = try_get(self._html_extract_title(webpage), lambda x: x.replace(' - EPORNER', ''))
 
         # Reverse engineered from vjs.js
         def calc_hash(s):
@@ -117,6 +118,9 @@ class EpornerIE(InfoExtractor):
 
         json_ld = self._search_json_ld(webpage, display_id, default={})
 
+        json_ld.pop('title', None)
+        json_ld.pop('url', None)
+
         duration = parse_duration(self._html_search_meta(
             'duration', webpage, default=None))
         view_count = str_to_int(self._search_regex(
@@ -126,7 +130,7 @@ class EpornerIE(InfoExtractor):
         return merge_dicts(json_ld, {
             'id': video_id,
             'display_id': display_id,
-            'title': title,
+            'title': sanitize_filename(title, restricted=True).replace('.', '_'),
             'duration': duration,
             'view_count': view_count,
             'formats': formats,
