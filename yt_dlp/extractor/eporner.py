@@ -1,3 +1,5 @@
+import datetime as dt
+
 from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
@@ -51,6 +53,8 @@ class EpornerIE(InfoExtractor):
         video_id = mobj.group('id')
         display_id = mobj.group('display_id') or video_id
 
+        self.cookiejar.clear(domain='.eporner.com')
+
         webpage, urlh = self._download_webpage_handle(url, display_id)
 
         video_id = self._match_id(urlh.url)
@@ -72,6 +76,8 @@ class EpornerIE(InfoExtractor):
                 'device': 'generic',
                 'domain': 'www.eporner.com',
                 'fallback': 'false',
+                'supportedFormats': 'mp4,hls',
+                '_': int(dt.datetime.now().timestamp()),
             })
 
         if video.get('available') is False:
@@ -81,6 +87,7 @@ class EpornerIE(InfoExtractor):
         sources = video['sources']
 
         formats = []
+        _headers = {'Referer': 'http://www.eporner.com/', 'Origin': 'http://www.eporner.com'}
         has_av1 = bool(get_elements_by_class('download-av1', webpage))
         for kind, formats_dict in sources.items():
             if not isinstance(formats_dict, dict):
@@ -116,6 +123,9 @@ class EpornerIE(InfoExtractor):
                             'vcodec': 'av1',
                         })
 
+        for _format in formats:
+            _format.setdefault('http_headers', {}).update(**_headers)
+
         json_ld = self._search_json_ld(webpage, display_id, default={})
 
         json_ld.pop('title', None)
@@ -126,6 +136,8 @@ class EpornerIE(InfoExtractor):
         view_count = str_to_int(self._search_regex(
             r'id=["\']cinemaviews1["\'][^>]*>\s*([0-9,]+)',
             webpage, 'view count', default=None))
+
+        self.cookiejar.clear(domain='.eporner.com')
 
         return merge_dicts(json_ld, {
             'id': video_id,
