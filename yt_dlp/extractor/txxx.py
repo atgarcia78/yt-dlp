@@ -36,6 +36,7 @@ def decode_base64(text):
         '~': '=',
     }))).decode()
 
+
 def get_formats(host, video_file, ie_m3u8=None):
     _formats = [{
         'url': urljoin(f'https://{host}', decode_base64(video['video_url'])),
@@ -48,6 +49,7 @@ def get_formats(host, video_file, ie_m3u8=None):
         ie_m3u8.to_screen(f'>>> hls {_fmts}')
         _formats.extend(_fmts)
     return _formats
+
 
 class TxxxIE(InfoExtractor):
     _DOMAINS = (
