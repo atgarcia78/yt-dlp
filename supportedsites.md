@@ -140,6 +140,9 @@
  - **bbc.co.uk:​iplayer:episodes**
  - **bbc.co.uk:​iplayer:group**
  - **bbc.co.uk:playlist**
+ - **bbmoviesaf:playlist**
+ - **bbmoviesfrat:playlist**
+ - **bbmoviessk:playlist**
  - **BBVTV**: [*bbvtv*](## "netrc machine")
  - **BBVTVLive**: [*bbvtv*](## "netrc machine")
  - **BBVTVRecordings**: [*bbvtv*](## "netrc machine")
@@ -151,6 +154,7 @@
  - **BehindKink**: (**Currently broken**)
  - **Bellator**
  - **BellMedia**
+ - **bembed**
  - **BerufeTV**
  - **Bet**: (**Currently broken**)
  - **bfi:player**: (**Currently broken**)
@@ -162,6 +166,7 @@
  - **bibeltv:video**: BibelTV single video
  - **Bigflix**
  - **Bigo**
+ - **biguz**
  - **Bild**: Bild.de
  - **BiliBili**
  - **Bilibili category extractor**
@@ -200,6 +205,10 @@
  - **BostonGlobe**
  - **Box**
  - **BoxCastVideo**
+ - **boyfriendtv**: [*boyfriendtv*](## "netrc machine")
+ - **boyfriendtv:playlist**: [*boyfriendtv*](## "netrc machine") boyfriendtv:playlist
+ - **boyfriendtv:​playlist:search**: [*boyfriendtv*](## "netrc machine") boyfriendtv:playlist:search
+ - **boyfriendtv:​playlist:users**: [*boyfriendtv*](## "netrc machine") boyfriendtv:playlist:users
  - **Bpb**: Bundeszentrale für politische Bildung
  - **BR**: Bayerischer Rundfunk (**Currently broken**)
  - **BrainPOP**: [*brainpop*](## "netrc machine")
@@ -286,6 +295,7 @@
  - **CNNArticle**
  - **CNNBlogs**
  - **CNNIndonesia**
+ - **cockhero**
  - **ComedyCentral**
  - **ComedyCentralTV**
  - **ConanClassic**
@@ -316,6 +326,7 @@
  - **CTVNews**
  - **cu.ntv.co.jp**: Nippon Television Network
  - **CultureUnplugged**
+ - **cumlouder**
  - **curiositystream**: [*curiositystream*](## "netrc machine")
  - **curiositystream:collections**: [*curiositystream*](## "netrc machine")
  - **curiositystream:series**: [*curiositystream*](## "netrc machine")
@@ -345,11 +356,13 @@
  - **DctpTv**
  - **DeezerAlbum**
  - **DeezerPlaylist**
+ - **Dekkoo**: [*dekkoo*](## "netrc machine")
  - **democracynow**
  - **DestinationAmerica**
  - **DetikEmbed**
  - **DeuxM**
  - **DeuxMNews**
+ - **dflix**
  - **DHM**: Filmarchiv - Deutsches Historisches Museum (**Currently broken**)
  - **DigitalConcertHall**: [*digitalconcerthall*](## "netrc machine") DigitalConcertHall extractor
  - **DigitallySpeaking**
@@ -367,6 +380,7 @@
  - **dlf:corpus**: DLF Multi-feed Archives
  - **dlive:stream**
  - **dlive:vod**
+ - **doodstream**
  - **Douyin**
  - **DouyuShow**
  - **DouyuTV**: 斗鱼直播
@@ -386,12 +400,14 @@
  - **duboku:list**: www.duboku.io entire series
  - **Dumpert**
  - **Duoplay**
+ - **dvdgayonline**
  - **dvtv**: http://video.aktualne.cz/
  - **dw**: (**Currently broken**)
  - **dw:article**: (**Currently broken**)
  - **EaglePlatform**
  - **EbaumsWorld**
  - **Ebay**
+ - **ebembed**
  - **egghead:course**: egghead.io course
  - **egghead:lesson**: egghead.io lesson
  - **EinsUndEinsTV**: [*1und1tv*](## "netrc machine")
@@ -403,13 +419,17 @@
  - **ElPais**: El País
  - **ElTreceTV**: El Trece TV (Argentina)
  - **Embedly**
+ - **embedo**
  - **EMPFlix**
  - **Epicon**
  - **EpiconSeries**
  - **EpidemicSound**
+ - **eplayvid**
  - **eplus**: [*eplus*](## "netrc machine") e+ (イープラス)
  - **Epoch**
  - **Eporner**
+ - **epornerpornstar:playlist**
+ - **epornerprofile:playlist**
  - **Erocast**
  - **EroProfile**: [*eroprofile*](## "netrc machine")
  - **EroProfile:album**
@@ -426,9 +446,11 @@
  - **EuropeanTour**
  - **Eurosport**
  - **EUScreen**
+ - **evoload**
  - **EWETV**: [*ewetv*](## "netrc machine")
  - **EWETVLive**: [*ewetv*](## "netrc machine")
  - **EWETVRecordings**: [*ewetv*](## "netrc machine")
+ - **exporntoons**
  - **Expressen**
  - **EyedoTV**
  - **facebook**: [*facebook*](## "netrc machine")
@@ -443,7 +465,10 @@
  - **fc2:embed**
  - **fc2:live**
  - **Fczenit**
+ - **fembed**
  - **Fifa**
+ - **filelions**
+ - **filemoon**
  - **filmon**
  - **filmon:channel**
  - **Filmweb**
@@ -451,8 +476,12 @@
  - **FiveTV**
  - **FlexTV**
  - **Flickr**
+ - **flix:movie**
+ - **flix:playlist**
  - **Floatplane**
  - **FloatplaneChannel**
+ - **fmovies:movie**
+ - **fmovies:playlist**
  - **Folketinget**: Folketinget (ft.dk; Danish parliament)
  - **FoodNetwork**
  - **FootyRoom**
@@ -497,6 +526,24 @@
  - **GameSpot**
  - **GameStar**
  - **Gaskrank**
+ - **gay0day**
+ - **gaybeeg:​allpages:playlist**
+ - **gaybeeg:​onepage:playlist**
+ - **gaybeeg:​post:playlist**
+ - **gaybingo**
+ - **gaycinema**
+ - **gayforfans**: gayforfans
+ - **gayforfans:playlist**: gayforfans
+ - **gayforiteu**
+ - **gaygo**
+ - **gayguytop**
+ - **gaymoviesupport**
+ - **gaypornvideos**
+ - **gayqt**
+ - **gaystreamembed**
+ - **gaystreampw**
+ - **gaythebest**
+ - **gaytubes**
  - **Gazeta**: (**Currently broken**)
  - **GBNews**: GB News clips, features and live streams
  - **GDCVault**: [*gdcvault*](## "netrc machine") (**Currently broken**)
@@ -504,6 +551,7 @@
  - **gem.cbc.ca**: [*cbcgem*](## "netrc machine")
  - **gem.cbc.ca:live**
  - **gem.cbc.ca:playlist**
+ - **generic**: Generic downloader that works on some sites
  - **Genius**
  - **GeniusLyrics**
  - **Germanupa**: germanupa.de
@@ -547,16 +595,21 @@
  - **gronkh:feed**
  - **gronkh:vods**
  - **Groupon**
+ - **gvdblog:playlist**
+ - **gvdblogpost**
  - **Harpodeon**
  - **hbo**
  - **HearThisAt**
  - **Heise**
  - **HellPorno**
+ - **heretv**
  - **hetklokhuis**
+ - **hexupload**
  - **hgtv.com:show**
  - **HGTVDe**
  - **HGTVUsa**
  - **HiDive**: [*hidive*](## "netrc machine")
+ - **highload**
  - **HistoricFilms**
  - **history:player**
  - **history:topic**: History.com Topic
@@ -565,6 +618,8 @@
  - **HollywoodReporter**
  - **HollywoodReporterPlaylist**
  - **Holodex**
+ - **homoxxx**
+ - **homoxxx:playlist**
  - **HotNewHipHop**: (**Currently broken**)
  - **hotstar**
  - **hotstar:playlist**
@@ -578,9 +633,12 @@
  - **html5**
  - **Huajiao**: 花椒直播
  - **HuffPost**: Huffington Post
+ - **hulu123**
  - **Hungama**
  - **HungamaAlbumPlaylist**
  - **HungamaSong**
+ - **hungyoungbrit**: [*hungyoungbrit*](## "netrc machine")
+ - **hungyoungbrit:playlist**: [*hungyoungbrit*](## "netrc machine")
  - **huya:live**: huya.com
  - **huya:video**: 虎牙视频
  - **Hypem**
@@ -648,6 +706,8 @@
  - **JStream**
  - **JTBC**: jtbc.co.kr
  - **JTBC:program**
+ - **justthegays**
+ - **justthegaysplaylist**
  - **JWPlatform**
  - **Kakao**
  - **Kaltura**
@@ -739,6 +799,7 @@
  - **lynda**: [*lynda*](## "netrc machine") lynda.com videos
  - **lynda:course**: [*lynda*](## "netrc machine") lynda.com online courses
  - **maariv.co.il**
+ - **madgaysex**
  - **MagellanTV**
  - **MagentaMusik**
  - **mailru**: Видео@Mail.Ru
@@ -757,6 +818,7 @@
  - **MarkizaPage**: (**Currently broken**)
  - **massengeschmack.tv**
  - **Masters**
+ - **mat6tube**: mat6tube
  - **MatchTV**
  - **MBN**: mbn.co.kr (매일방송)
  - **MDR**: MDR.DE
@@ -805,6 +867,7 @@
  - **mixcloud**
  - **mixcloud:playlist**
  - **mixcloud:user**
+ - **mixdrop**
  - **MLB**
  - **MLBArticle**
  - **MLBTV**: [*mlb*](## "netrc machine")
@@ -828,6 +891,8 @@
  - **MoviewPlay**
  - **Moviezine**
  - **MovingImage**
+ - **mrgay**
+ - **mrman:playlist**: [*mrman*](## "netrc machine") mrman:playlist
  - **MSN**: (**Currently broken**)
  - **mtg**: MTG services
  - **mtv**
@@ -853,15 +918,26 @@
  - **Mx3Volksmusik**
  - **Mxplayer**
  - **MxplayerShow**
+ - **myeporner**
+ - **myhtml5**
  - **MySpace**
  - **MySpace:album**
  - **MySpass**
  - **MyVideoGe**
  - **MyVidster**
+ - **myvidster:​channel:playlist**: [*myvidster*](## "netrc machine")
+ - **myvidster:​search:playlist**: [*myvidster*](## "netrc machine")
+ - **myvidster:​subs:playlist**: [*myvidster*](## "netrc machine")
+ - **myvidsterfull**: [*myvidster*](## "netrc machine")
  - **Mzaalo**
  - **n-tv.de**
  - **N1Info:article**
  - **N1InfoAsset**
+ - **nakedsword:​justaddedmovies:playlist**: [*nakedsword*](## "netrc machine")
+ - **nakedsword:​movie:playlist**: [*nakedsword*](## "netrc machine")
+ - **nakedsword:​movies:playlist**: [*nakedsword*](## "netrc machine")
+ - **nakedsword:​scenes:playlist**: [*nakedsword*](## "netrc machine")
+ - **nakedswordscene**: [*nakedsword*](## "netrc machine")
  - **Nate**
  - **NateProgram**
  - **natgeo:video**
@@ -893,6 +969,7 @@
  - **nebula:video**: [*watchnebula*](## "netrc machine")
  - **NekoHacker**
  - **NerdCubedFeed**
+ - **netdna**
  - **netease:album**: 网易云音乐 - 专辑
  - **netease:djradio**: 网易云音乐 - 电台
  - **netease:mv**: 网易云音乐 - MV
@@ -1015,6 +1092,11 @@
  - **onet.tv:channel**
  - **OnetMVP**
  - **OnionStudios**
+ - **onlyfans:​actsubslist:playlist**: [*twitter2*](## "netrc machine") onlyfansactsubslist:playlist
+ - **onlyfans:​paidlist:playlist**: [*twitter2*](## "netrc machine") onlyfanspaidlist:playlist
+ - **onlyfans:playlist**: [*twitter2*](## "netrc machine") onlyfans:playlist
+ - **onlyfans:​post:playlist**: [*twitter2*](## "netrc machine") onlyfans:post:playlist
+ - **onlygayvideo**
  - **Opencast**
  - **OpencastPlaylist**
  - **openrec**
@@ -1107,13 +1189,17 @@
  - **Popcorntimes**
  - **PopcornTV**
  - **Pornbox**
+ - **porndune**
  - **PornerBros**
  - **PornFlip**
+ - **pornhat**
  - **PornHub**: [*pornhub*](## "netrc machine") PornHub and Thumbzilla
  - **PornHubPagedVideoList**: [*pornhub*](## "netrc machine")
  - **PornHubPlaylist**: [*pornhub*](## "netrc machine")
+ - **pornhubplaylistfiltered**: [*pornhub*](## "netrc machine")
  - **PornHubUser**: [*pornhub*](## "netrc machine")
  - **PornHubUserVideosUpload**: [*pornhub*](## "netrc machine")
+ - **pornone**
  - **Pornotube**
  - **PornoVoisines**: (**Currently broken**)
  - **PornoXO**: (**Currently broken**)
@@ -1146,6 +1232,7 @@
  - **QuantumTV**: [*quantumtv*](## "netrc machine")
  - **QuantumTVLive**: [*quantumtv*](## "netrc machine")
  - **QuantumTVRecordings**: [*quantumtv*](## "netrc machine")
+ - **querofoder**
  - **R7**: (**Currently broken**)
  - **R7Article**: (**Currently broken**)
  - **Radiko**
@@ -1190,6 +1277,7 @@
  - **RCTIPlusSeries**
  - **RCTIPlusTV**
  - **RDS**: RDS.ca (**Currently broken**)
+ - **realpythonplaylist**
  - **RedBull**
  - **RedBullEmbed**
  - **RedBullTV**
@@ -1199,6 +1287,7 @@
  - **RedGifs**
  - **RedGifsSearch**: Redgifs search
  - **RedGifsUser**: Redgifs user
+ - **redload**
  - **RedTube**
  - **RENTV**: (**Currently broken**)
  - **RENTVArticle**: (**Currently broken**)
@@ -1215,6 +1304,7 @@
  - **rokfin:channel**: Rokfin Channels
  - **rokfin:search**: Rokfin Search; "rkfnsearch:" prefix
  - **rokfin:stack**: Rokfin Stacks
+ - **ronemo**
  - **RoosterTeeth**: [*roosterteeth*](## "netrc machine")
  - **RoosterTeethSeries**: [*roosterteeth*](## "netrc machine")
  - **RottenTomatoes**
@@ -1391,6 +1481,12 @@
  - **StoryFireUser**
  - **Streamable**
  - **StreamCZ**
+ - **streamhide**
+ - **streamhub**
+ - **streamplay**
+ - **streamsb**
+ - **streamtape**
+ - **streamvid**
  - **StreetVoice**
  - **StretchInternet**
  - **Stripchat**
@@ -1452,8 +1548,10 @@
  - **TenPlaySeason**
  - **TF1**
  - **TFO**
+ - **thatgvideo**
  - **theatercomplextown:ppv**: [*theatercomplextown*](## "netrc machine")
  - **theatercomplextown:vod**: [*theatercomplextown*](## "netrc machine")
+ - **thegay**
  - **TheGuardianPodcast**
  - **TheGuardianPodcastPlaylist**
  - **TheHoleTv**
@@ -1465,7 +1563,8 @@
  - **TheWeatherChannel**
  - **ThisAmericanLife**
  - **ThisOldHouse**: [*thisoldhouse*](## "netrc machine")
- - **ThisVid**
+ - **thisvid**
+ - **thisvidgay**
  - **ThisVidMember**
  - **ThisVidPlaylist**
  - **ThreeSpeak**
@@ -1489,6 +1588,7 @@
  - **tou.tv**: [*toutv*](## "netrc machine")
  - **Toypics**: Toypics video (**Currently broken**)
  - **ToypicsUser**: Toypics user profile (**Currently broken**)
+ - **trafficdepot**
  - **TrailerAddict**: (**Currently broken**)
  - **TravelChannel**
  - **Triller**: [*triller*](## "netrc machine")
@@ -1505,10 +1605,13 @@
  - **Truth**
  - **TruTV**
  - **Tube8**: (**Currently broken**)
+ - **Tube8**: (**Currently broken**)
+ - **tubeload**
  - **TubeTuGraz**: [*tubetugraz*](## "netrc machine") tube.tugraz.at
  - **TubeTuGrazSeries**: [*tubetugraz*](## "netrc machine")
  - **tubitv**: [*tubitv*](## "netrc machine")
  - **tubitv:series**
+ - **tukifporno**
  - **Tumblr**: [*tumblr*](## "netrc machine")
  - **TuneInPodcast**
  - **TuneInPodcastEpisode**
@@ -1546,6 +1649,8 @@
  - **TVPlayer**
  - **TVPlayHome**
  - **Tweakers**
+ - **twinksvids**
+ - **twinkvideos**
  - **TwitCasting**
  - **TwitCastingLive**
  - **TwitCastingUser**
@@ -1576,10 +1681,13 @@
  - **uol.com.br**
  - **uplynk**
  - **uplynk:preplay**
+ - **upstream**
+ - **upvideo**
  - **Urort**: NRK P3 Urørt (**Currently broken**)
  - **URPlay**
  - **USANetwork**
  - **USAToday**
+ - **userload**
  - **ustream**
  - **ustream:channel**
  - **ustudio**
@@ -1604,6 +1712,7 @@
  - **video.google:search**: Google Video search; "gvsearch:" prefix
  - **video.sky.it**
  - **video.sky.it:live**
+ - **videobin**
  - **VideoDetective**
  - **videofy.me**: (**Currently broken**)
  - **VideoKen**
@@ -1615,13 +1724,18 @@
  - **videomore:season**
  - **videomore:video**
  - **VideoPress**
+ - **videovard**
  - **Vidflex**
+ - **vidguard**
  - **Vidio**: [*vidio*](## "netrc machine")
  - **VidioLive**: [*vidio*](## "netrc machine")
  - **VidioPremier**: [*vidio*](## "netrc machine")
  - **VidLii**
  - **Vidly**
+ - **vidoza**
  - **vids.io**
+ - **vidsgayxx**
+ - **vidsrc**
  - **Vidyard**
  - **viewlift**
  - **viewlift:embed**
@@ -1657,8 +1771,10 @@
  - **VKPlayLive**
  - **vm.tiktok**
  - **Vocaroo**
+ - **vodnakedsword:scene**: [*vodnakedsword*](## "netrc machine")
  - **VODPl**
  - **VODPlatform**
+ - **voe**
  - **voicy**: (**Currently broken**)
  - **voicy:channel**: (**Currently broken**)
  - **VolejTV**
@@ -1738,8 +1854,12 @@
  - **wykop:​post:comment**
  - **Xanimu**
  - **XboxClips**
+ - **XFileShare**: XFileShare based sites: Aparat, ClipWatching, GoUnlimited, GoVid, HolaVid, Streamty, TheVideoBee, Uqload, VidBom, vidlo, VidLocker, VidShare, VUp, WolfStream, XVideoSharing
  - **XHamster**
+ - **xhamster:​search:playlist**
+ - **XHamsterChannel**
  - **XHamsterEmbed**
+ - **XHamsterPornStar**
  - **XHamsterUser**
  - **XiaoHongShu**: 小红书
  - **ximalaya**: 喜马拉雅FM
@@ -1765,9 +1885,11 @@
  - **Yappy**: (**Currently broken**)
  - **YappyProfile**
  - **YleAreena**
+ - **youdbox**
  - **YouJizz**
  - **youku**: 优酷
  - **youku:show**
+ - **youlikeboys**
  - **YouNowChannel**
  - **YouNowLive**
  - **YouNowMoment**
@@ -1778,6 +1900,7 @@
  - **YouPornStar**: YouPorn Pornstar, with description, sorting and pagination
  - **YouPornTag**: YouPorn tag (porntags), with sorting, filtering and pagination
  - **YouPornVideos**: YouPorn video (browse) playlists, with sorting, filtering and pagination
+ - **yourporngod**
  - **youtube**: YouTube
  - **youtube:clip**
  - **youtube:favorites**: YouTube liked videos; ":ytfav" keyword (requires cookies)
@@ -1808,6 +1931,7 @@
  - **Zee5**: [*zee5*](## "netrc machine")
  - **zee5:series**
  - **ZeeNews**: (**Currently broken**)
+ - **zenporn**
  - **ZenPorn**
  - **ZenYandex**
  - **ZenYandexChannel**
