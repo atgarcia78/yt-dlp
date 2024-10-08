@@ -1,11 +1,10 @@
-import time
-
 from .common import InfoExtractor
 from ..utils import (
     int_or_none,
     parse_count,
     parse_duration,
     unified_strdate,
+    urljoin,
 )
 from ..utils.traversal import traverse_obj
 
@@ -41,35 +40,24 @@ class NoodleMagazineIE(InfoExtractor):
         like_count = parse_count(self._html_search_meta('ya:ovs:likes', webpage, default=None))
         upload_date = unified_strdate(self._html_search_meta('ya:ovs:upload_date', webpage, default=''))
 
-        for _ in range(10):
-            try:
-                playlist_info = self._parse_json(
-                    self._search_regex(
-                        r'window.playlist\s*=\s*([^;]+);', webpage, 'playlist',
-                        default='{}'),
-                    video_id, fatal=False)
+        def build_url(url_or_path):
+            return urljoin('https://adult.noodlemagazine.com', url_or_path)
 
-                formats = []
-                for source in traverse_obj(playlist_info, ('sources', lambda _, v: v['file'])):
-                    if 'srcIp=' in source['file']:
-                        raise ValueError('url incorrect')
-                    if source.get('type') == 'hls':
-                        formats.extend(self._extract_m3u8_formats(
-                            source['file'], video_id, 'mp4', fatal=False, m3u8_id='hls'))
-                    else:
-                        formats.append(traverse_obj(source, {
-                            'url': ('file', {str}),
-                            'format_id': 'label',
-                            'height': ('label', {int_or_none}),
-                            'ext': 'type',
-                        }))
-                break
-            except ValueError:
-                time.sleep(2)
-                self._downloader.cookiejar.clear('.noodlemagazine.com')
-                self._downloader.cookiejar.clear('noodlemagazine.com')
-                self._download_webpage('https://noodlemagazine.com/new-video', video_id)
-                webpage = self._download_webpage(url, video_id)
+        playlist_info = self._search_json(
+            r'window\.playlist\s*=', webpage, video_id, 'playlist info')
+
+        formats = []
+        for source in traverse_obj(playlist_info, ('sources', lambda _, v: v['file'])):
+            if source.get('type') == 'hls':
+                formats.extend(self._extract_m3u8_formats(
+                    build_url(source['file']), video_id, 'mp4', fatal=False, m3u8_id='hls'))
+            else:
+                formats.append(traverse_obj(source, {
+                    'url': ('file', {build_url}),
+                    'format_id': 'label',
+                    'height': ('label', {int_or_none}),
+                    'ext': 'type',
+                }))
 
         return {
             'id': video_id,
