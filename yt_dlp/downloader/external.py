@@ -302,8 +302,8 @@ class Aria2cFD(ExternalFD):
         else:
             cmd += ['--min-split-size', '1M']
 
-        if _cookie := self.ydl.cookiejar.get_cookie_header(info_dict['url']):
-            cmd += [f'--load-cookies={self._write_cookies()}', '--header', f'Cookie: {_cookie}']
+        if self.ydl.cookiejar.get_cookie_header(info_dict['url']):
+            cmd += [f'--load-cookies={self._write_cookies()}']
         if info_dict.get('http_headers') is not None:
             for key, val in info_dict['http_headers'].items():
                 cmd += ['--header', f'{key}: {val}']
