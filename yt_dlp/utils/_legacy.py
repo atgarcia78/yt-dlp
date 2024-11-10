@@ -39,7 +39,7 @@ class WebSocketsWrapper:
     pool = None
 
     def __init__(self, url, headers=None, connect=True, **ws_kwargs):
-        self.loop = asyncio.new_event_loop()
+        self.loop = asazyyncio.new_event_loop()
         # XXX: "loop" is deprecated
         self.conn = websockets.connect(
             url, extra_headers=headers, ping_interval=None,
