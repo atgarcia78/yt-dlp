@@ -97,12 +97,12 @@ class RTVEALaCartaIE(InfoExtractor):
                     formats.extend(self._extract_m3u8_formats(
                         video_url, video_id, 'mp4', 'm3u8_native',
                         m3u8_id='hls', fatal=False))
-                else:
+                elif ext == 'mp4':
                     filesize = None
                     if urlh := self._request_webpage(video_url, video_id):
                         filesize = int_or_none(urlh.headers.get('Content-Length'))
                     formats.append({
-                        'format_id': quality if not quality else 'http-mp4',
+                        'format_id': quality if quality else 'http-mp4',
                         'url': video_url,
                         'filesize': filesize,
                         **({'quality': q(quality)} if quality else {})})
@@ -110,7 +110,9 @@ class RTVEALaCartaIE(InfoExtractor):
                 self.report_warning(f'error with [{ext}][{video_url}] - {e!r}')
         return formats
 
-    def _extract_drm_mpd_formats(self, video_id):
+    def _extract_drm_mpd_formats_and_duration(self, video_id, info):
+        _duration = float_or_none(info.get('duration'), 1000)
+        _drm = {}
         _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
         if (
             _mpd_fmts := self._extract_mpd_formats(
@@ -119,7 +121,14 @@ class RTVEALaCartaIE(InfoExtractor):
             _lic_drm = traverse_obj(self._download_json(
                 f'https://api.rtve.es/api/token/{video_id}', video_id, headers=_headers), 'widevineURL')
 
-            return (_mpd_fmts, {'licurl': _lic_drm})
+            _drm = {'licurl': _lic_drm}
+
+            if not _duration:
+
+                _duration = self._extract_mpd_vod_duration(
+                    f'http://ztnr.rtve.es/ztnr/{video_id}.mpd', video_id, headers=_headers)
+
+        return (_mpd_fmts, _drm, _duration)
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
@@ -139,7 +148,7 @@ class RTVEALaCartaIE(InfoExtractor):
                 subtitles = self.extract_subtitles(video_id, sbt_file)
             is_live = info.get('consumption') == 'live'
 
-            _mpd_fmts, _info_drm = self._extract_drm_mpd_formats(video_id) or (None, {})
+            _mpd_fmts, _info_drm, _duration = self._extract_drm_mpd_formats_and_duration(video_id, info)
 
             if _mpd_fmts:
                 formats.extend(_mpd_fmts)
@@ -151,7 +160,7 @@ class RTVEALaCartaIE(InfoExtractor):
                 '_drm': _info_drm,
                 'thumbnail': info.get('image'),
                 'subtitles': subtitles,
-                'duration': float_or_none(info.get('duration'), 1000),
+                'duration': _duration,
                 'is_live': is_live,
                 'series': (info.get('programInfo') or {}).get('title'),
             }
