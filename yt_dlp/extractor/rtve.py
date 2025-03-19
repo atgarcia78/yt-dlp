@@ -113,11 +113,13 @@ class RTVEALaCartaIE(InfoExtractor):
     def _extract_drm_mpd_formats_and_duration(self, video_id, info):
         _duration = float_or_none(info.get('duration'), 1000)
         _drm = {}
+        _mpd_fmts = []
         _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
-        if (
-            _mpd_fmts := self._extract_mpd_formats(
+
+        _mpd_fmts, _ = self._extract_mpd_formats_and_subtitles(
                 f'http://ztnr.rtve.es/ztnr/{video_id}.mpd', video_id, 'dash', headers=_headers, fatal=False)
-        ):
+
+        if _mpd_fmts:
             _lic_drm = traverse_obj(self._download_json(
                 f'https://api.rtve.es/api/token/{video_id}', video_id, headers=_headers), 'widevineURL')
 
