@@ -105,7 +105,8 @@ class RTVEALaCartaIE(InfoExtractor):
                         'format_id': quality if quality else 'http-mp4',
                         'url': video_url,
                         'filesize': filesize,
-                        **({'quality': q(quality)} if quality else {})})
+                        **({'quality': q(quality)} if quality else {}),
+                    })
             except Exception as e:
                 self.report_warning(f'error with [{ext}][{video_url}] - {e!r}')
         return formats
@@ -117,8 +118,7 @@ class RTVEALaCartaIE(InfoExtractor):
         _headers = {'referer': 'https://www.rtve.es/', 'origin': 'https://www.rtve.es'}
 
         _mpd_fmts, _ = self._extract_mpd_formats_and_subtitles(
-            f'http://ztnr.rtve.es/ztnr/{video_id}.mpd', video_id, 'dash', headers=_headers, fatal=False
-        )
+            f'http://ztnr.rtve.es/ztnr/{video_id}.mpd', video_id, 'dash', headers=_headers, fatal=False)
 
         if _mpd_fmts:
             _lic_drm = traverse_obj(self._download_json(
