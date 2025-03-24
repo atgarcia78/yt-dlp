@@ -503,17 +503,22 @@ class BrightcoveNewBaseIE(AdobePassIE):
             container = source.get('container')
             ext = mimetype2ext(source.get('type'))
             src = source.get('src')
+            key_sys = source.get('key_systems')
+            fmts = []
             if ext == 'm3u8' or container == 'M2TS':
-                if not src:
+                if not src or key_sys:
                     continue
-                fmts, subs = self._extract_m3u8_formats_and_subtitles(
-                    src, video_id, 'mp4', 'm3u8_native', m3u8_id='hls', fatal=False)
-                subtitles = self._merge_subtitles(subtitles, subs)
+                # fmts, subs = self._extract_m3u8_formats_and_subtitles(
+                #     src, video_id, 'mp4', 'm3u8_native', m3u8_id='hls', fatal=False)
+                # subtitles = self._merge_subtitles(subtitles, subs)
+
             elif ext == 'mpd':
-                if not src:
+                if not src or (key_sys and 'com.widevine.alpha' not in key_sys):
                     continue
                 fmts, subs = self._extract_mpd_formats_and_subtitles(src, video_id, 'dash', fatal=False)
                 subtitles = self._merge_subtitles(subtitles, subs)
+                for f in fmts:
+                    f['_drm'] = key_sys['com.widevine.alpha']
             else:
                 streaming_src = source.get('streaming_src')
                 stream_name, app_name = source.get('stream_name'), source.get('app_name')
@@ -557,10 +562,11 @@ class BrightcoveNewBaseIE(AdobePassIE):
                 fmts = [f]
 
             # https://support.brightcove.com/playback-api-video-fields-reference#key_systems_object
-            if container == 'WVM' or source.get('key_systems') or ext == 'ism':
-                for f in fmts:
-                    f['has_drm'] = True
-            formats.extend(fmts)
+            if fmts:
+                if container == 'WVM' or source.get('key_systems') or ext == 'ism':
+                    for f in fmts:
+                        f['has_drm'] = True
+                formats.extend(fmts)
 
         if not formats:
             errors = json_data.get('errors')

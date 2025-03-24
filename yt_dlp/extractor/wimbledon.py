@@ -40,7 +40,7 @@ class WimbledonIE(InfoExtractor):
         'only_matching': True,
     }, {
         'url': 'https://www.wimbledon.com/es_Es/video/media/6308377909112.html',
-        'only_matching': True,
+        # 'only_matching': True,
     }]
 
     def _real_extract(self, url):
