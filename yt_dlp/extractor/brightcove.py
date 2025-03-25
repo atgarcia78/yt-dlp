@@ -515,7 +515,7 @@ class BrightcoveNewBaseIE(AdobePassIE):
             elif ext == 'mpd':
                 _drm_vine = None
                 if not src or (key_sys and not (
-                    _drm_vine :=  traverse_obj(source, ('key_systems', 'com.widevine.alpha'))
+                    _drm_vine := traverse_obj(source, ('key_systems', 'com.widevine.alpha'))
                 )):
                     continue
                 fmts, subs = self._extract_mpd_formats_and_subtitles(src, video_id, 'dash', fatal=False)
