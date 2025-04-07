@@ -157,10 +157,10 @@ class KnownDRMIE(UnsupportedInfoExtractor):
         'url': 'https://www.qub.ca/vrai/l-effet-bocuse-d-or/saison-1/l-effet-bocuse-d-or-saison-1-bande-annonce-1098225063',
         'only_matching': True,
     }, {
-        'url': 'https://www.c®®†¥™runc0h##∞yoll.com/watch/GY2P1Q98Y/to-the-future',
+        'url': 'https://www.crunchyroll.com/watch/GY2P1Q98Y/to-the-future',
         'only_matching': True,
     }, {
-        'url': 'https://beta.crchll.com/pt-br/watch/G8WUN8VKP/the-ruler-of-conspiracy',
+        'url': 'https://beta.crunchyroll.com/pt-br/watch/G8WUN8VKP/the-ruler-of-conspiracy',
         'only_matching': True,
     }, {
         'url': 'https://www.viki.com/videos/1175236v-choosing-spouse-by-lottery-episode-1',
