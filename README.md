@@ -349,7 +349,7 @@ If you fork the project on GitHub, you can run your fork's [build workflow](.git
                                     (default)
     --live-from-start               Download livestreams from the start.
                                     Currently only supported for YouTube
-                                    (Experimental)
+                                    (experimental) and Twitch
     --no-live-from-start            Download livestreams from the current time
                                     (default)
     --wait-for-video MIN[-MAX]      Wait for scheduled streams to become
