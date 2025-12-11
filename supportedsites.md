@@ -506,7 +506,6 @@ The only reliable way to check if a site is supported is to try it.
  - **gem.cbc.ca**: [*cbcgem*](## "netrc machine")
  - **gem.cbc.ca:live**
  - **gem.cbc.ca:playlist**: [*cbcgem*](## "netrc machine")
- - **generic**: Generic downloader that works on some sites
  - **Genius**
  - **GeniusLyrics**
  - **Germanupa**: germanupa.de
