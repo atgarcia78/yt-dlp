@@ -1335,8 +1335,11 @@ from .opencast import (
 )
 from .openrec import (
     OpenRecCaptureIE,
+    OpenRecChannelIE,
+    OpenRecChannelSearchIE,
     OpenRecIE,
     OpenRecMovieIE,
+    OpenRecPlaylistIE,
 )
 from .orf import (
     ORFIPTVIE,
@@ -2394,6 +2397,7 @@ from .zaiko import (
     ZaikoETicketIE,
     ZaikoIE,
 )
+from .zan import ZanIE
 from .zapiks import ZapiksIE
 from .zattoo import (
     BBVTVIE,
